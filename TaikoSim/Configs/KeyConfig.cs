@@ -19,6 +19,7 @@ namespace TaikoSim.Configs
         Settings,      // 設定を開く
         QuickRestart,  // クイックリスタート
         QuickOption,   // クイックオプション
+        Screenshot,    // スクリーンショット(どこでも反応)
     }
 
     // キー配置の設定
@@ -49,6 +50,7 @@ namespace TaikoSim.Configs
             { SystemAction.Settings, KeyboardKey.F1 },
             { SystemAction.QuickRestart, KeyboardKey.F5 },
             { SystemAction.QuickOption, KeyboardKey.F2 },
+            { SystemAction.Screenshot, KeyboardKey.F11 }, // F12はVSのデバッグ中に一時停止キーになるので避ける
         };
 
         // 叩く場所の表示名(日本語)
@@ -70,6 +72,7 @@ namespace TaikoSim.Configs
             SystemAction.Settings => "設定",
             SystemAction.QuickRestart => "クイックリスタート",
             SystemAction.QuickOption => "クイックオプション",
+            SystemAction.Screenshot => "スクリーンショット",
             _ => action.ToString(),
         };
 
