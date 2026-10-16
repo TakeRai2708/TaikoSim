@@ -2,6 +2,16 @@
 
 namespace TaikoSim.Configs
 {
+    // 太鼓の叩く場所(1P)
+    // 並び順 = キーがかぶったときの優先順位(上ほど優先)
+    public enum DrumPart
+    {
+        LeftKa,    // 左縁
+        LeftDon,   // 左面
+        RightDon,  // 右面
+        RightKa,   // 右縁
+    }
+
     // システムキーの種類
     // 増やすときは、ここに1行足して、下の DefaultSystemKeys と GetSystemActionName にも1行ずつ足す
     public enum SystemAction
@@ -19,18 +29,20 @@ namespace TaikoSim.Configs
         // 戻る/終了キー(固定。変更不可・他の役割にも使えない)
         public const KeyboardKey BackKey = KeyboardKey.Escape;
 
-        // ドン(面)のキー。いくつでも登録できる
-        public List<KeyboardKey> Don { get; set; } = DefaultDon();
-
-        // カッ(縁)のキー。いくつでも登録できる
-        public List<KeyboardKey> Ka { get; set; } = DefaultKa();
+        // 叩く場所ごとのキー。1か所にいくつでも登録できる
+        public Dictionary<DrumPart, List<KeyboardKey>> DrumKeys { get; set; } = DefaultDrumKeys();
 
         // システムキー。1役割につき1キーだけ。Null は未割り当て
         public Dictionary<SystemAction, KeyboardKey> SystemKeys { get; set; } = DefaultSystemKeys();
 
         // ===== 初期値 =====
-        private static List<KeyboardKey> DefaultDon() => new() { KeyboardKey.F, KeyboardKey.J };
-        private static List<KeyboardKey> DefaultKa() => new() { KeyboardKey.D, KeyboardKey.K };
+        private static Dictionary<DrumPart, List<KeyboardKey>> DefaultDrumKeys() => new()
+        {
+            { DrumPart.LeftKa, new() { KeyboardKey.D } },
+            { DrumPart.LeftDon, new() { KeyboardKey.F } },
+            { DrumPart.RightDon, new() { KeyboardKey.J } },
+            { DrumPart.RightKa, new() { KeyboardKey.K } },
+        };
 
         private static Dictionary<SystemAction, KeyboardKey> DefaultSystemKeys() => new()
         {
@@ -38,6 +50,19 @@ namespace TaikoSim.Configs
             { SystemAction.QuickRestart, KeyboardKey.F5 },
             { SystemAction.QuickOption, KeyboardKey.F2 },
         };
+
+        // 叩く場所の表示名(日本語)
+        public static string GetDrumPartName(DrumPart part) => part switch
+        {
+            DrumPart.LeftKa => "左縁",
+            DrumPart.LeftDon => "左面",
+            DrumPart.RightDon => "右面",
+            DrumPart.RightKa => "右縁",
+            _ => part.ToString(),
+        };
+
+        // ドン(面)かどうか。false ならカッ(縁)
+        public static bool IsDon(DrumPart part) => part == DrumPart.LeftDon || part == DrumPart.RightDon;
 
         // システムキーの表示名(日本語)
         public static string GetSystemActionName(SystemAction action) => action switch
@@ -54,8 +79,11 @@ namespace TaikoSim.Configs
         public string? FindOwner(KeyboardKey key)
         {
             if (key == BackKey) return "戻る(固定)";
-            if (Don.Contains(key)) return "ドン";
-            if (Ka.Contains(key)) return "カッ";
+
+            foreach (var pair in DrumKeys)
+            {
+                if (pair.Value.Contains(key)) return GetDrumPartName(pair.Key);
+            }
 
             foreach (var pair in SystemKeys)
             {
@@ -66,11 +94,10 @@ namespace TaikoSim.Configs
 
         // ===== 登録する(設定画面で使う) =====
 
-        public bool TryAddDon(KeyboardKey key, out string message) => TryAddPlayKey(Don, "ドン", key, out message);
-        public bool TryAddKa(KeyboardKey key, out string message) => TryAddPlayKey(Ka, "カッ", key, out message);
-
-        private bool TryAddPlayKey(List<KeyboardKey> list, string name, KeyboardKey key, out string message)
+        public bool TryAddDrumKey(DrumPart part, KeyboardKey key, out string message)
         {
+            string name = GetDrumPartName(part);
+
             if (key == KeyboardKey.Null)
             {
                 message = "そのキーは使えません";
@@ -82,6 +109,12 @@ namespace TaikoSim.Configs
             {
                 message = $"そのキーは{owner}で割り当てられています";
                 return false;
+            }
+
+            if (!DrumKeys.TryGetValue(part, out List<KeyboardKey>? list))
+            {
+                list = new List<KeyboardKey>();
+                DrumKeys[part] = list;
             }
 
             list.Add(key);
@@ -122,12 +155,11 @@ namespace TaikoSim.Configs
 
         // ===== 外す(設定画面で使う) =====
 
-        public bool TryRemoveDon(KeyboardKey key, out string message) => TryRemovePlayKey(Don, "ドン", key, out message);
-        public bool TryRemoveKa(KeyboardKey key, out string message) => TryRemovePlayKey(Ka, "カッ", key, out message);
-
-        private static bool TryRemovePlayKey(List<KeyboardKey> list, string name, KeyboardKey key, out string message)
+        public bool TryRemoveDrumKey(DrumPart part, KeyboardKey key, out string message)
         {
-            if (!list.Contains(key))
+            string name = GetDrumPartName(part);
+
+            if (!DrumKeys.TryGetValue(part, out List<KeyboardKey>? list) || !list.Contains(key))
             {
                 message = $"{key} は{name}に割り当てられていません";
                 return false;
@@ -148,23 +180,49 @@ namespace TaikoSim.Configs
         // ===== おかしな値を直す(読み込み時に自動で呼ばれる) =====
         public void Fix()
         {
-            // 1. ドン・カッから「使えないキー(Null, Esc)」と重複を消す
-            //    ドンとカッでかぶってたらドン優先
-            Don = Don.Where(k => k != KeyboardKey.Null && k != BackKey).Distinct().ToList();
-            Ka = Ka.Where(k => k != KeyboardKey.Null && k != BackKey && !Don.Contains(k)).Distinct().ToList();
+            // 使用済みのキー(Escは最初から使用済み扱い)
+            var used = new HashSet<KeyboardKey> { BackKey };
 
-            // 2. どっちかが空になったら、両方初期値に戻す(叩けなくなるのを防ぐ)
-            if (Don.Count == 0 || Ka.Count == 0)
+            // 1. 叩くキーを直す(左縁 → 左面 → 右面 → 右縁 の順に優先)
+            var defaultDrums = DefaultDrumKeys();
+            var fixedDrums = new Dictionary<DrumPart, List<KeyboardKey>>();
+            bool hasEmpty = false;
+
+            foreach (DrumPart part in Enum.GetValues<DrumPart>())
             {
-                Don = DefaultDon();
-                Ka = DefaultKa();
+                // ファイルに書いてなければ初期値
+                List<KeyboardKey> keys = DrumKeys.TryGetValue(part, out List<KeyboardKey>? k) && k != null
+                    ? k
+                    : defaultDrums[part];
+
+                var cleaned = new List<KeyboardKey>();
+                foreach (KeyboardKey key in keys)
+                {
+                    // Null、Esc、もう使われてるキーは捨てる
+                    if (key == KeyboardKey.Null || used.Contains(key)) continue;
+
+                    cleaned.Add(key);
+                    used.Add(key);
+                }
+
+                if (cleaned.Count == 0) hasEmpty = true;
+                fixedDrums[part] = cleaned;
             }
 
-            // 3. システムキーを直す(ドン・カッ優先)
+            // 2. キーが0個の場所があったら、4つとも初期値に戻す(叩けなくなるのを防ぐ)
+            if (hasEmpty)
+            {
+                fixedDrums = DefaultDrumKeys();
+                used = new HashSet<KeyboardKey> { BackKey };
+                foreach (List<KeyboardKey> list in fixedDrums.Values)
+                {
+                    used.UnionWith(list);
+                }
+            }
+            DrumKeys = fixedDrums;
+
+            // 3. システムキーを直す(叩くキー優先)
             var defaults = DefaultSystemKeys();
-            var used = new HashSet<KeyboardKey>(Don);
-            used.UnionWith(Ka);
-            used.Add(BackKey);
 
             var fixedKeys = new Dictionary<SystemAction, KeyboardKey>();
             foreach (SystemAction action in Enum.GetValues<SystemAction>())
@@ -172,7 +230,7 @@ namespace TaikoSim.Configs
                 KeyboardKey defaultKey = defaults.GetValueOrDefault(action, KeyboardKey.Null);
 
                 // ファイルに書いてなければ初期値
-                KeyboardKey key = SystemKeys.TryGetValue(action, out KeyboardKey k) ? k : defaultKey;
+                KeyboardKey key = SystemKeys.TryGetValue(action, out KeyboardKey sk) ? sk : defaultKey;
 
                 // かぶってたら初期値に戻す → 初期値もかぶってたら未割り当て
                 if (key != KeyboardKey.Null && used.Contains(key))
