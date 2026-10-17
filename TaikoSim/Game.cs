@@ -35,9 +35,17 @@ namespace TaikoSim
             Screen.Init();
             Screen.ApplyWindowSettings(); // 解像度・フルスクリーン・垂直同期・目標FPSを反映
             FontManager.Init();
+            SkinManager.Init();           // スキンの画像を読む準備
 
-            // 最初の画面
-            SceneManager.ChangeScene(new HomeScene());
+            // 最初の画面(叩くキーが決まっていなければ初回起動セットアップ)
+            if (ConfigManager.Key.NeedsSetup())
+            {
+                SceneManager.ChangeScene(new SetupScene());
+            }
+            else
+            {
+                SceneManager.ChangeScene(new HomeScene());
+            }
 
             // ウィンドウの×が押されるか、ShouldExit が true になるまで繰り返す
             while (!Raylib.WindowShouldClose() && !ShouldExit)
@@ -52,6 +60,7 @@ namespace TaikoSim
 
             // 後片付け
             SceneManager.Current?.Exit();
+            SkinManager.Unload();
             FontManager.Unload();
             Screen.Unload();
             Raylib.CloseWindow();
@@ -63,8 +72,19 @@ namespace TaikoSim
         // 更新(入力の処理など)
         private void Update(float dt)
         {
+            // ファイルやフォルダがウィンドウにドロップされた
+            // 設定パネルが開いていればスキンフォルダの変更、そうでなければ今の画面に渡す(.tja のテストなど)
+            if (Raylib.IsFileDropped())
+            {
+                string[] dropped = Raylib.GetDroppedFiles();
+                if (settings.IsOpen) settings.OnFilesDropped(dropped);
+                else SceneManager.Current?.OnFilesDropped(dropped);
+            }
+
             // スクリーンショットはどこでも反応する(設定パネル中・演奏中も)
-            if (InputManager.IsSystemPressed(SystemAction.Screenshot))
+            // ただしキー入力待ちのとき(設定パネル・セットアップ画面)は、登録の方を優先するので無視
+            bool waitingKey = settings.IsWaitingKey || (SceneManager.Current?.IsWaitingKey ?? false);
+            if (!waitingKey && InputManager.IsSystemPressed(SystemAction.Screenshot))
             {
                 Screen.RequestScreenshot();
             }

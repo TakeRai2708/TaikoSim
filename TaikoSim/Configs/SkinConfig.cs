@@ -31,10 +31,26 @@
                 return new List<string>();
             }
 
-            return Directory.GetDirectories(folder)
-                .Select(path => Path.GetFileName(path))
-                .OrderBy(name => name)
-                .ToList();
+            try
+            {
+                // スキンっぽいフォルダだけ(SkinConfig.json か Image フォルダがあるもの)
+                return Directory.GetDirectories(folder)
+                    .Where(IsSkinFolder)
+                    .Select(path => Path.GetFileName(path))
+                    .OrderBy(name => name)
+                    .ToList();
+            }
+            catch (Exception ex) when (ex is IOException || ex is UnauthorizedAccessException)
+            {
+                return new List<string>();
+            }
+        }
+
+        // そのフォルダがスキン1つ分のフォルダか
+        public static bool IsSkinFolder(string path)
+        {
+            return File.Exists(Path.Combine(path, "SkinConfig.json"))
+                || Directory.Exists(Path.Combine(path, "Image"));
         }
 
         // 今使うスキンのフォルダの場所を返す。スキンが1個も無ければ null

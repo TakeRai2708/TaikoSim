@@ -53,6 +53,9 @@ namespace TaikoSim.UI
         // プルダウンが開いているか
         public static bool IsPopupOpen => popupId != null;
 
+        // スライダーを選択中か(←→で動かせる状態)
+        public static bool IsSliderFocused => focusedId != null;
+
         // ===== 毎フレームの準備 =====
 
         // 部品を描く前に、毎フレーム1回呼ぶ

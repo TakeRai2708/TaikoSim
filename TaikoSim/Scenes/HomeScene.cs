@@ -10,18 +10,26 @@ namespace TaikoSim.Scenes
         // ホームでは Esc を押しても何もしない
         public override void OnBack() { }
 
+        // .tja がドロップされたら、テスト用の画面で譜面を流す
+        public override void OnFilesDropped(string[] paths)
+        {
+            string? tja = paths.FirstOrDefault(TestPlayScene.IsTja);
+            if (tja != null) SceneManager.ChangeScene(new TestPlayScene(tja));
+        }
+
         public override void Draw()
         {
             FontManager.Draw("TaikoSim", 80, 60, 72, Color.White);
             FontManager.Draw("F1：設定を開く", 80, 150, 32, Color.SkyBlue);
+            FontManager.Draw("テスト：.tja ファイルをウィンドウにドラッグ＆ドロップすると譜面が流れます", 80, 192, 28, Color.Gold);
 
             SoundConfig sound = ConfigManager.Sound;
             GameConfig game = ConfigManager.Game;
-            int y = 230;
+            int y = 250;
 
             // 音量・オフセット・解像度
             y = Line($"音量　Master:{sound.MasterVolume}　SE:{sound.SeVolume}　Music:{sound.MusicVolume}　BGM:{sound.BgmVolume}　Voice:{sound.VoiceVolume}", y);
-            y = Line($"オフセット：{game.OffsetMs} ms", y);
+            y = Line($"音オフセット：{game.AudioOffsetMs} ms　譜面オフセット：{game.ChartOffsetMs} ms", y);
             y = Line($"解像度：{game.WindowWidth}×{game.WindowHeight}", y);
 
             // 叩くキー
@@ -39,8 +47,7 @@ namespace TaikoSim.Scenes
             }
 
             // スキン・フォント・設定の場所
-            string skinPath = ConfigManager.Skin.GetCurrentSkinPath() ?? "なし";
-            y = Line($"スキン数：{ConfigManager.Skin.GetSkinList().Count}　使用中：{skinPath}", y);
+            y = Line($"スキン：{SkinManager.CurrentName}（スキン数：{SkinManager.SkinNames.Count}）", y);
             y = Line($"フォント：{FontManager.FontName}", y);
             Line($"設定の場所：{ConfigManager.ConfigFolder}", y, 24, Color.Gray);
         }

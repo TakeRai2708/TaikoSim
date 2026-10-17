@@ -30,19 +30,21 @@ namespace TaikoSim.Configs
         // 戻る/終了キー(固定。変更不可・他の役割にも使えない)
         public const KeyboardKey BackKey = KeyboardKey.Escape;
 
-        // 叩く場所ごとのキー。1か所にいくつでも登録できる
+        // 叩く場所ごとのキー。1か所にいくつでも登録できる(0個もOK)
         public Dictionary<DrumPart, List<KeyboardKey>> DrumKeys { get; set; } = DefaultDrumKeys();
 
-        // システムキー。1役割につき1キーだけ。Null は未割り当て
+        // システムキー。1役割につき1キーだけ
+        // ※システムキーは未割り当てにできない(必ず何かのキーが入る)
         public Dictionary<SystemAction, KeyboardKey> SystemKeys { get; set; } = DefaultSystemKeys();
 
         // ===== 初期値 =====
+        // 叩くキーは最初は全部未割り当て(初回起動セットアップで自分で決める)
         private static Dictionary<DrumPart, List<KeyboardKey>> DefaultDrumKeys() => new()
         {
-            { DrumPart.LeftKa, new() { KeyboardKey.D } },
-            { DrumPart.LeftDon, new() { KeyboardKey.F } },
-            { DrumPart.RightDon, new() { KeyboardKey.J } },
-            { DrumPart.RightKa, new() { KeyboardKey.K } },
+            { DrumPart.LeftKa, new() },
+            { DrumPart.LeftDon, new() },
+            { DrumPart.RightDon, new() },
+            { DrumPart.RightKa, new() },
         };
 
         private static Dictionary<SystemAction, KeyboardKey> DefaultSystemKeys() => new()
@@ -51,6 +53,15 @@ namespace TaikoSim.Configs
             { SystemAction.QuickRestart, KeyboardKey.F5 },
             { SystemAction.QuickOption, KeyboardKey.F2 },
             { SystemAction.Screenshot, KeyboardKey.F11 }, // F12はVSのデバッグ中に一時停止キーになるので避ける
+        };
+
+        // システムキーがかぶったときに、代わりに使う空きキーの候補
+        private static readonly KeyboardKey[] FallbackKeys =
+        {
+            KeyboardKey.F1, KeyboardKey.F2, KeyboardKey.F3, KeyboardKey.F4,
+            KeyboardKey.F5, KeyboardKey.F6, KeyboardKey.F7, KeyboardKey.F8,
+            KeyboardKey.F9, KeyboardKey.F10, KeyboardKey.F11, KeyboardKey.F12,
+            KeyboardKey.Insert, KeyboardKey.Home, KeyboardKey.End, KeyboardKey.PageUp, KeyboardKey.PageDown,
         };
 
         // 叩く場所の表示名(日本語)
@@ -65,6 +76,27 @@ namespace TaikoSim.Configs
 
         // ドン(面)かどうか。false ならカッ(縁)
         public static bool IsDon(DrumPart part) => part == DrumPart.LeftDon || part == DrumPart.RightDon;
+
+        // キーが1個も無い叩く場所の一覧
+        // ※プロパティにするとJSONに保存されてしまうので、メソッドにしている
+        public List<DrumPart> GetEmptyParts()
+        {
+            var result = new List<DrumPart>();
+            foreach (DrumPart part in Enum.GetValues<DrumPart>())
+            {
+                if (!DrumKeys.TryGetValue(part, out List<KeyboardKey>? list) || list.Count == 0)
+                {
+                    result.Add(part);
+                }
+            }
+            return result;
+        }
+
+        // 初回起動セットアップが必要か(叩くキーが1個も無い場所がある)
+        public bool NeedsSetup()
+        {
+            return GetEmptyParts().Count > 0;
+        }
 
         // システムキーの表示名(日本語)
         public static string GetSystemActionName(SystemAction action) => action switch
@@ -129,12 +161,11 @@ namespace TaikoSim.Configs
         {
             string name = GetSystemActionName(action);
 
-            // Null を渡したら未割り当てにする
+            // システムキーは未割り当てにできない
             if (key == KeyboardKey.Null)
             {
-                SystemKeys[action] = KeyboardKey.Null;
-                message = $"{name}を未割り当てにしました";
-                return true;
+                message = "システムキーは未割り当てにできません";
+                return false;
             }
 
             // 今と同じキーなら何もしない
@@ -168,16 +199,28 @@ namespace TaikoSim.Configs
                 return false;
             }
 
-            // 最後の1個は外せない(叩けなくなるのを防ぐ)
-            if (list.Count <= 1)
-            {
-                message = $"{name}のキーは最低1個必要です";
-                return false;
-            }
-
             list.Remove(key);
-            message = $"{key} を{name}から外しました";
+
+            // 0個になったら知らせる(0個でもOK。キーを別の場所に移すときに一度外せるように)
+            message = list.Count == 0
+                ? $"{key} を{name}から外しました（{name}のキーが無くなりました）"
+                : $"{key} を{name}から外しました";
             return true;
+        }
+
+        // ===== リセット =====
+
+        // システムキーを初期値に戻す(叩くキーとかぶっていたら空いてるキーに逃がす)
+        public void ResetSystemKeys()
+        {
+            SystemKeys = DefaultSystemKeys();
+            Fix();
+        }
+
+        // 叩く場所のキーを全部消す(セットアップのやり直し用)
+        public void ClearDrumKeys(DrumPart part)
+        {
+            DrumKeys[part] = new List<KeyboardKey>();
         }
 
         // ===== おかしな値を直す(読み込み時に自動で呼ばれる) =====
@@ -185,73 +228,6 @@ namespace TaikoSim.Configs
         {
             // 使用済みのキー(Escは最初から使用済み扱い)
             var used = new HashSet<KeyboardKey> { BackKey };
-
-            // 1. 叩くキーを直す(左縁 → 左面 → 右面 → 右縁 の順に優先)
-            var defaultDrums = DefaultDrumKeys();
-            var fixedDrums = new Dictionary<DrumPart, List<KeyboardKey>>();
-            bool hasEmpty = false;
-
-            foreach (DrumPart part in Enum.GetValues<DrumPart>())
-            {
-                // ファイルに書いてなければ初期値
-                List<KeyboardKey> keys = DrumKeys.TryGetValue(part, out List<KeyboardKey>? k) && k != null
-                    ? k
-                    : defaultDrums[part];
-
-                var cleaned = new List<KeyboardKey>();
-                foreach (KeyboardKey key in keys)
-                {
-                    // Null、Esc、もう使われてるキーは捨てる
-                    if (key == KeyboardKey.Null || used.Contains(key)) continue;
-
-                    cleaned.Add(key);
-                    used.Add(key);
-                }
-
-                if (cleaned.Count == 0) hasEmpty = true;
-                fixedDrums[part] = cleaned;
-            }
-
-            // 2. キーが0個の場所があったら、4つとも初期値に戻す(叩けなくなるのを防ぐ)
-            if (hasEmpty)
-            {
-                fixedDrums = DefaultDrumKeys();
-                used = new HashSet<KeyboardKey> { BackKey };
-                foreach (List<KeyboardKey> list in fixedDrums.Values)
-                {
-                    used.UnionWith(list);
-                }
-            }
-            DrumKeys = fixedDrums;
-
-            // 3. システムキーを直す(叩くキー優先)
-            var defaults = DefaultSystemKeys();
-
-            var fixedKeys = new Dictionary<SystemAction, KeyboardKey>();
-            foreach (SystemAction action in Enum.GetValues<SystemAction>())
-            {
-                KeyboardKey defaultKey = defaults.GetValueOrDefault(action, KeyboardKey.Null);
-
-                // ファイルに書いてなければ初期値
-                KeyboardKey key = SystemKeys.TryGetValue(action, out KeyboardKey sk) ? sk : defaultKey;
-
-                // かぶってたら初期値に戻す → 初期値もかぶってたら未割り当て
-                if (key != KeyboardKey.Null && used.Contains(key))
-                {
-                    key = defaultKey;
-                    if (used.Contains(key))
-                    {
-                        key = KeyboardKey.Null;
-                    }
-                }
-
-                if (key != KeyboardKey.Null)
-                {
-                    used.Add(key);
-                }
-                fixedKeys[action] = key;
-            }
-            SystemKeys = fixedKeys;
         }
     }
 }
