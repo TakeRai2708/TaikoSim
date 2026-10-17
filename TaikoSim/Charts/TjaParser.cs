@@ -29,6 +29,10 @@ namespace TaikoSim.Charts
             int level = 0;
             List<int> balloons = new();
 
+            // 日本語の曲名(TITLEJA: / SUBTITLEJA:)。書いてあれば TITLE: より優先する(OpenTaiko と同じ)
+            string titleJa = "";
+            string subtitleJa = "";
+
             for (int i = 0; i < lines.Length; i++)
             {
                 string line = StripComment(lines[i]).Trim();
@@ -74,8 +78,13 @@ namespace TaikoSim.Charts
                         if (value.Length > 0) chart.Title = value;
                         break;
                     case "SUBTITLE":
-                        // 先頭の「--」「++」は表示の仕方の印なので外す
-                        chart.Subtitle = (value.StartsWith("--") || value.StartsWith("++")) ? value[2..] : value;
+                        chart.Subtitle = StripSubtitleMark(value);
+                        break;
+                    case "TITLEJA":
+                        titleJa = value;
+                        break;
+                    case "SUBTITLEJA":
+                        subtitleJa = StripSubtitleMark(value);
                         break;
                     case "WAVE":
                         chart.Wave = value;
@@ -98,7 +107,17 @@ namespace TaikoSim.Charts
                 }
             }
 
+            // 日本語の曲名があればそっちを使う
+            if (titleJa.Length > 0) chart.Title = titleJa;
+            if (subtitleJa.Length > 0) chart.Subtitle = subtitleJa;
+
             return chart;
+        }
+
+        // サブタイトルの先頭の「--」「++」は表示の仕方の印なので外す
+        private static string StripSubtitleMark(string value)
+        {
+            return (value.StartsWith("--") || value.StartsWith("++")) ? value[2..] : value;
         }
 
         // ===== 譜面本体を読む =====

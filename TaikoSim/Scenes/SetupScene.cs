@@ -5,27 +5,35 @@ using TaikoSim.UI;
 
 namespace TaikoSim.Scenes
 {
-    // 初回起動セットアップ(ようこそ → 画面 → 叩くキー → 完了)
+    // 初回起動セットアップ(ようこそ → 画面 → 音量 → 叩くキー → 完了)
     // 一部の場所だけキーが無いときは、その場所だけ聞く
     public class SetupScene : Scene
     {
         // ページ
-        private enum Step { Welcome, Display, Keys, Done }
+        private enum Step { Welcome, Display, Sound, Keys, Done }
+
+        // ページの数(ページ番号の表示に使う)
+        private const int StepCount = 5;
 
         // プルダウンの選択肢
         private static readonly string[] ResolutionNames =
             GameConfig.Resolutions.Select(r => $"{r.Width}×{r.Height}").ToArray();
-        private static readonly string[] FullscreenTypeNames = { "ボーダーレス（枠なし）", "排他フルスクリーン" };
 
         // 叩く場所(左縁 → 左面 → 右面 → 右縁 の順)
         private static readonly DrumPart[] Parts = Enum.GetValues<DrumPart>();
 
         // 枠と並び(1920×1080の座標)
-        private static readonly Rectangle Panel = new Rectangle(460, 160, 1000, 760);
-        private const float Left = 540;      // 中身の左端
-        private const float ControlX = 900;  // プルダウンなどの左端
-        private const float Right = 1380;    // 中身の右端
+        private static readonly Rectangle Panel = new Rectangle(360, 160, 1200, 760);
+        private const float Left = 440;      // 中身の左端
+        private const float ControlX = 860;  // プルダウン・スライダーの左端
+        private const float BoxX = 1360;     // スライダーの数字の箱の左端
+        private const float Right = 1480;    // 中身の右端
         private const float FooterY = 840;   // 下のボタンの位置
+
+        // 説明文の大きさ
+        private const float DescSize = 22;
+        private const float DescLine = 28;   // 説明文の1行の高さ
+        private const float DescIndent = 48; // 説明文の字下げ(チェックボックスの文字とそろえる)
 
         // メッセージの色
         private static readonly Color SuccessColor = new Color(110, 220, 130, 255);
@@ -104,8 +112,8 @@ namespace TaikoSim.Scenes
                 return;
             }
 
-            // Enterで次へ
-            if (!Gui.IsPopupOpen && (Raylib.IsKeyPressed(KeyboardKey.Enter) || Raylib.IsKeyPressed(KeyboardKey.KpEnter)))
+            // Enterで次へ(数字の入力中は、Enterは「数字の決定」に使うので次へ進まない)
+            if (!Gui.IsPopupOpen && !Gui.IsEditing && (Raylib.IsKeyPressed(KeyboardKey.Enter) || Raylib.IsKeyPressed(KeyboardKey.KpEnter)))
             {
                 GoNext();
             }
@@ -114,6 +122,12 @@ namespace TaikoSim.Scenes
         // Escが押されたとき(Game から呼ばれる)
         public override void OnBack()
         {
+            // 数字の入力中なら、入力をやめるだけ
+            if (Gui.IsEditing)
+            {
+                Gui.CancelEdit();
+                return;
+            }
             if (Gui.IsPopupOpen)
             {
                 Gui.ClosePopup();
@@ -133,6 +147,10 @@ namespace TaikoSim.Scenes
                     break;
 
                 case Step.Display:
+                    step = Step.Sound;
+                    break;
+
+                case Step.Sound:
                     step = Step.Keys;
                     break;
 
@@ -158,11 +176,15 @@ namespace TaikoSim.Scenes
                     step = Step.Welcome;
                     break;
 
+                case Step.Sound:
+                    step = Step.Display;
+                    break;
+
                 case Step.Keys:
                     if (keyIndex == 0)
                     {
-                        // 初回なら画面の設定に戻る。一部だけ空のときは戻る先が無い
-                        if (isFirstRun) step = Step.Display;
+                        // 初回なら音量の設定に戻る。一部だけ空のときは戻る先が無い
+                        if (isFirstRun) step = Step.Sound;
                     }
                     else
                     {
@@ -209,7 +231,7 @@ namespace TaikoSim.Scenes
             FontManager.Draw(isFirstRun ? "初期設定" : "キーの設定", Left, Panel.Y + 30, 30, Gui.SubTextColor);
             if (isFirstRun)
             {
-                string pageText = $"{(int)step + 1} / 4";
+                string pageText = $"{(int)step + 1} / {StepCount}";
                 float pageWidth = FontManager.Measure(pageText, 30).X;
                 FontManager.Draw(pageText, Right - pageWidth, Panel.Y + 30, 30, Gui.SubTextColor);
             }
@@ -218,6 +240,7 @@ namespace TaikoSim.Scenes
             {
                 case Step.Welcome: DrawWelcome(); break;
                 case Step.Display: DrawDisplay(); break;
+                case Step.Sound: DrawSound(); break;
                 case Step.Keys: DrawKeys(); break;
                 case Step.Done: DrawDone(); break;
             }
@@ -233,7 +256,7 @@ namespace TaikoSim.Scenes
         private void DrawWelcome()
         {
             FontManager.Draw("TaikoSimへようこそ！", Left, 300, 64, Color.White);
-            FontManager.Draw("最初に、画面と叩くキーを設定します。", Left, 430, 32, Color.White);
+            FontManager.Draw("最初に、画面・音量・叩くキーを設定します。", Left, 430, 32, Color.White);
             FontManager.Draw("あとからいつでも設定（F1）で変更できます。", Left, 480, 28, Gui.SubTextColor);
         }
 
@@ -241,51 +264,124 @@ namespace TaikoSim.Scenes
         private void DrawDisplay()
         {
             Title("画面の設定");
+            float titleWidth = FontManager.Measure("画面の設定", 52).X;
+            FontManager.Draw("変更するとすぐに反映されます", Left + titleWidth + 30, 274, 24, Gui.SubTextColor);
 
             GameConfig game = ConfigManager.Game;
-            bool changed = false;
-            float y = 380;
+            bool windowChanged = false;
+            float descX = Left + DescIndent;
+            float descWidth = Right - descX;
+            float y = 326;
 
-            // 画面解像度
-            FontManager.Draw("画面解像度", Left, y + 6, 30, Color.White);
+            // ----- 画面解像度 -----
+            FontManager.Draw("画面解像度", Left, y + 6, 28, Color.White);
             int resIndex = Array.FindIndex(GameConfig.Resolutions, r => r.Width == game.WindowWidth && r.Height == game.WindowHeight);
             int newResIndex = Gui.Dropdown("setupResolution", new Rectangle(ControlX, y, Right - ControlX, 44), ResolutionNames, resIndex);
             if (newResIndex != resIndex && newResIndex >= 0)
             {
                 (game.WindowWidth, game.WindowHeight) = GameConfig.Resolutions[newResIndex];
-                changed = true;
+                windowChanged = true;
             }
-            y += 80;
+            y += 58;
 
-            // フルスクリーン
-            bool fullscreen = Gui.Checkbox(new Rectangle(Left, y, Right - Left, 44), "フルスクリーン", game.Fullscreen);
+            // ----- フルスクリーン -----
+            bool fullscreen = Gui.Checkbox(new Rectangle(Left, y, Right - Left, 40), "フルスクリーン", game.Fullscreen);
             if (fullscreen != game.Fullscreen)
             {
                 game.Fullscreen = fullscreen;
-                changed = true;
+                windowChanged = true;
             }
-            y += 80;
+            y += 46;
 
-            // フルスクリーン方式
-            FontManager.Draw("フルスクリーン方式", Left, y + 6, 30, Color.White);
+            // オフのとき(ウィンドウ)の説明
+            if (!game.Fullscreen)
+            {
+                y += SettingTexts.DrawWrapped(SettingTexts.Window, descX, y, descWidth, DescSize, Gui.SubTextColor, DescLine) + 6;
+            }
+
+            // ----- フルスクリーン方式 -----
+            FontManager.Draw("フルスクリーン方式", Left, y + 6, 28, Color.White);
             int typeIndex = (int)game.FullscreenType;
-            int newTypeIndex = Gui.Dropdown("setupFullscreenType", new Rectangle(ControlX, y, Right - ControlX, 44), FullscreenTypeNames, typeIndex);
+            int newTypeIndex = Gui.Dropdown("setupFullscreenType", new Rectangle(ControlX, y, Right - ControlX, 44), SettingTexts.FullscreenTypeNames, typeIndex);
             if (newTypeIndex != typeIndex)
             {
                 game.FullscreenType = (FullscreenType)newTypeIndex;
-                changed = true;
+                windowChanged = true;
             }
-            y += 90;
+            y += 54;
 
-            FontManager.Draw("変更するとすぐに反映されます", Left, y, 24, Gui.SubTextColor);
+            // 選んでいる方式の説明
+            foreach (string text in SettingTexts.GetFullscreenTypeTexts(game.FullscreenType))
+            {
+                y += SettingTexts.DrawWrapped(text, descX, y, descWidth, DescSize, Gui.SubTextColor, DescLine);
+            }
+            y += 10;
 
-            if (changed)
+            // ----- 垂直同期 -----
+            bool vsync = Gui.Checkbox(new Rectangle(Left, y, Right - Left, 40), "垂直同期", game.VSync);
+            if (vsync != game.VSync)
+            {
+                game.VSync = vsync;
+                Screen.ApplyFrameSettings();
+            }
+            y += 46;
+            y += SettingTexts.DrawWrapped(SettingTexts.VSync, descX, y, descWidth, DescSize, Gui.SubTextColor, DescLine) + 10;
+
+            // ----- 目標フレームレート -----
+            FontManager.Draw("目標フレームレート", Left, y + 6, 28, Color.White);
+            int fps = SliderRow("setupTargetFps", y, game.TargetFps, 0, 360);
+            if (fps != game.TargetFps)
+            {
+                game.TargetFps = fps;
+                game.Fix(); // 1〜29 は 30 にする
+                Screen.ApplyFrameSettings();
+            }
+            y += 50;
+            SettingTexts.DrawWrapped(SettingTexts.TargetFps, descX, y, descWidth, DescSize, Gui.SubTextColor, DescLine);
+
+            // ウィンドウの大きさやフルスクリーンは、次のフレームの最初に反映する
+            if (windowChanged)
             {
                 Screen.RequestApply();
             }
         }
 
-        // 3ページ目：叩くキー
+        // 3ページ目：音量
+        private void DrawSound()
+        {
+            Title("音量の設定");
+            FontManager.Draw("それぞれの音の大きさを決めてください（0〜100）。", Left, 330, 28, Color.White);
+
+            SoundConfig sound = ConfigManager.Sound;
+            float y = 400;
+
+            sound.MasterVolume = VolumeRow("setupMaster", "Master（全体）", ref y, sound.MasterVolume);
+            sound.SeVolume = VolumeRow("setupSe", "SE（効果音）", ref y, sound.SeVolume);
+            sound.MusicVolume = VolumeRow("setupMusic", "Music（曲）", ref y, sound.MusicVolume);
+            sound.BgmVolume = VolumeRow("setupBgm", "BGM（メニューの曲）", ref y, sound.BgmVolume);
+            sound.VoiceVolume = VolumeRow("setupVoice", "Voice（声）", ref y, sound.VoiceVolume);
+
+            FontManager.Draw("※ Master は全体の音量です。ほかの音量は Master と掛け合わせて決まります", Left, y + 6, 22, Gui.SubTextColor);
+        }
+
+        // 音量の1行(名前＋スライダー)
+        private int VolumeRow(string id, string label, ref float y, int value)
+        {
+            FontManager.Draw(label, Left, y + 6, 28, Color.White);
+            int result = SliderRow(id, y, value, 0, 100);
+            y += 64;
+            return result;
+        }
+
+        // スライダー(ControlX から右端まで。右に数字の箱)
+        private static int SliderRow(string id, float y, int value, int min, int max)
+        {
+            Rectangle bar = new Rectangle(ControlX, y + 7, BoxX - ControlX - 12, 30);
+            Rectangle box = new Rectangle(BoxX, y + 4, Right - BoxX, 36);
+            return Gui.Slider(id, bar, box, value, min, max);
+        }
+
+        // 4ページ目：叩くキー
         private void DrawKeys()
         {
             Title("叩くキーの設定");
@@ -343,30 +439,44 @@ namespace TaikoSim.Scenes
             FontManager.Draw("※ 2個目以降のキーは、あとから設定（F1）で追加できます", Left, y + 44, 24, Gui.SubTextColor);
         }
 
-        // 4ページ目：完了
+        // 5ページ目：完了
         private void DrawDone()
         {
             Title("設定完了！");
 
             GameConfig game = ConfigManager.Game;
-            float y = 360;
+            SoundConfig sound = ConfigManager.Sound;
+            float y = 340;
 
+            // 画面
             string screenText = $"画面：{game.WindowWidth}×{game.WindowHeight}";
             if (game.Fullscreen) screenText += game.FullscreenType == FullscreenType.Borderless ? "（ボーダーレス）" : "（排他フルスクリーン）";
             FontManager.Draw(screenText, Left, y, 30, Color.White);
-            y += 56;
+            y += 48;
 
+            // フレームレート
+            string fpsText = game.TargetFps == 0 ? "無制限" : $"{game.TargetFps}";
+            if (game.VSync) fpsText += "（垂直同期オン）";
+            FontManager.Draw($"目標フレームレート：{fpsText}", Left, y, 30, Color.White);
+            y += 48;
+
+            // 音量
+            FontManager.Draw($"音量：Master {sound.MasterVolume}　SE {sound.SeVolume}　Music {sound.MusicVolume}　BGM {sound.BgmVolume}　Voice {sound.VoiceVolume}",
+                Left, y, 30, Color.White);
+            y += 60;
+
+            // 叩くキー
             foreach (DrumPart part in Parts)
             {
                 string keys = string.Join(", ", ConfigManager.Key.DrumKeys.GetValueOrDefault(part, new List<KeyboardKey>()));
                 FontManager.Draw($"{KeyConfig.GetDrumPartName(part)}：{keys}", Left, y, 30, Color.White);
-                y += 48;
+                y += 44;
             }
-            y += 30;
+            y += 24;
 
             KeyboardKey settingsKey = ConfigManager.Key.SystemKeys.GetValueOrDefault(SystemAction.Settings, KeyboardKey.F1);
             FontManager.Draw($"設定はいつでも {settingsKey} で変更できます。", Left, y, 30, Gui.AccentColor);
-            FontManager.Draw("「はじめる」を押すとホーム画面に進みます。", Left, y + 50, 26, Gui.SubTextColor);
+            FontManager.Draw("「はじめる」を押すとホーム画面に進みます。", Left, y + 46, 26, Gui.SubTextColor);
         }
 
         // ページの大きいタイトル
@@ -378,7 +488,7 @@ namespace TaikoSim.Scenes
         // 下の説明とボタン
         private void DrawFooter()
         {
-            // 操作の説明(Escで戻れることに気づけるように、今の状況に合わせて変える)
+            // 操作の説明(Escで戻れることなどに気づけるように、今の状況に合わせて変える)
             string hint;
             if (step == Step.Welcome)
             {
@@ -390,13 +500,21 @@ namespace TaikoSim.Scenes
                 else if (isFirstRun) hint = "Esc：前のページに戻る";
                 else hint = ""; // 一部だけ空のときの最初の場所は戻れない
             }
+            else if (Gui.IsEditing)
+            {
+                hint = "数字を入力　Enter：決定　Esc：キャンセル";
+            }
+            else if (Gui.IsSliderFocused)
+            {
+                hint = "←→：±1　Shift＋←→：±10　数字クリック：直接入力";
+            }
             else
             {
                 hint = "Esc：戻る　Enter：次へ";
             }
             if (hint.Length > 0)
             {
-                FontManager.Draw(hint, Left, FooterY + 14, 26, Gui.SubTextColor);
+                FontManager.Draw(hint, Left, FooterY + 16, 22, Gui.SubTextColor);
             }
 
             // 戻るボタン

@@ -20,6 +20,7 @@ namespace TaikoSim.Configs
         QuickRestart,  // クイックリスタート
         QuickOption,   // クイックオプション
         Screenshot,    // スクリーンショット(どこでも反応)
+        Search,        // 曲を検索(選曲画面)
     }
 
     // キー配置の設定
@@ -53,6 +54,7 @@ namespace TaikoSim.Configs
             { SystemAction.QuickRestart, KeyboardKey.F5 },
             { SystemAction.QuickOption, KeyboardKey.F2 },
             { SystemAction.Screenshot, KeyboardKey.F11 }, // F12はVSのデバッグ中に一時停止キーになるので避ける
+            { SystemAction.Search, KeyboardKey.F3 },
         };
 
         // システムキーがかぶったときに、代わりに使う空きキーの候補
@@ -105,6 +107,7 @@ namespace TaikoSim.Configs
             SystemAction.QuickRestart => "クイックリスタート",
             SystemAction.QuickOption => "クイックオプション",
             SystemAction.Screenshot => "スクリーンショット",
+            SystemAction.Search => "検索",
             _ => action.ToString(),
         };
 
@@ -228,6 +231,71 @@ namespace TaikoSim.Configs
         {
             // 使用済みのキー(Escは最初から使用済み扱い)
             var used = new HashSet<KeyboardKey> { BackKey };
+
+            // 1. 叩くキーを直す(左縁 → 左面 → 右面 → 右縁 の順に優先)
+            var defaultDrums = DefaultDrumKeys();
+            var fixedDrums = new Dictionary<DrumPart, List<KeyboardKey>>();
+
+            foreach (DrumPart part in Enum.GetValues<DrumPart>())
+            {
+                // ファイルに書いてなければ初期値(空)
+                List<KeyboardKey> keys = DrumKeys.TryGetValue(part, out List<KeyboardKey>? k) && k != null
+                    ? k
+                    : defaultDrums[part];
+
+                var cleaned = new List<KeyboardKey>();
+                foreach (KeyboardKey key in keys)
+                {
+                    // Null、Esc、もう使われてるキーは捨てる
+                    if (key == KeyboardKey.Null || used.Contains(key)) continue;
+
+                    cleaned.Add(key);
+                    used.Add(key);
+                }
+
+                fixedDrums[part] = cleaned;
+            }
+
+            // 2. キーが0個の場所があっても、ここでは直さない(起動時にセットアップ画面が出る)
+            DrumKeys = fixedDrums;
+
+            // 3. システムキーを直す(叩くキー優先)
+            var defaults = DefaultSystemKeys();
+
+            var fixedKeys = new Dictionary<SystemAction, KeyboardKey>();
+            foreach (SystemAction action in Enum.GetValues<SystemAction>())
+            {
+                KeyboardKey defaultKey = defaults.GetValueOrDefault(action, KeyboardKey.Null);
+
+                // ファイルに書いてなければ初期値
+                KeyboardKey key = SystemKeys.TryGetValue(action, out KeyboardKey sk) ? sk : defaultKey;
+
+                // 未割り当て or かぶってたら初期値に戻す
+                if (key == KeyboardKey.Null || used.Contains(key))
+                {
+                    key = defaultKey;
+                }
+
+                // 初期値もかぶってたら、空いてるキーを自動で割り当てる
+                if (key == KeyboardKey.Null || used.Contains(key))
+                {
+                    key = FindFreeKey(used);
+                }
+
+                used.Add(key);
+                fixedKeys[action] = key;
+            }
+            SystemKeys = fixedKeys;
+        }
+
+        // 使われていないキーを候補から探す
+        private static KeyboardKey FindFreeKey(HashSet<KeyboardKey> used)
+        {
+            foreach (KeyboardKey key in FallbackKeys)
+            {
+                if (!used.Contains(key)) return key;
+            }
+            return KeyboardKey.Null; // 候補が全部埋まっていることは普通ありえない
         }
     }
 }

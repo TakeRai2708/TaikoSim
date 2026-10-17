@@ -1,27 +1,33 @@
 ﻿<Project Sdk="Microsoft.NET.Sdk">
 
-  <PropertyGroup>
-    <OutputType>Exe</OutputType>
-    <TargetFramework>net10.0-windows</TargetFramework>
-    <UseWindowsForms>true</UseWindowsForms>
-    <ImplicitUsings>enable</ImplicitUsings>
-    <Nullable>enable</Nullable>
-  </PropertyGroup>
+	<PropertyGroup>
+		<OutputType>Exe</OutputType>
+		<TargetFramework>net10.0-windows</TargetFramework>
+		<UseWindowsForms>true</UseWindowsForms>
+		<ImplicitUsings>enable</ImplicitUsings>
+		<Nullable>enable</Nullable>
+	</PropertyGroup>
 
-  <ItemGroup>
-    <!-- Windowsフォームの名前(Color・Rectangle・Screenなど)がRaylibや自作クラスとぶつかるので、自動usingから外す -->
-    <Using Remove="System.Windows.Forms" />
-    <Using Remove="System.Drawing" />
-  </ItemGroup>
+	<ItemGroup>
+		<!-- Windowsフォームの名前(Color・Rectangle・Screenなど)がRaylibや自作クラスとぶつかるので、自動usingから外す -->
+		<Using Remove="System.Windows.Forms" />
+		<Using Remove="System.Drawing" />
+	</ItemGroup>
 
-  <ItemGroup>
-    <PackageReference Include="Raylib-cs" Version="8.1.0" />
-  </ItemGroup>
+	<ItemGroup>
+		<PackageReference Include="Raylib-cs" Version="8.1.0" />
+		<!-- BASS(音を鳴らすライブラリ)をC#から使うためのもの。OpenTaikoと同じ版 -->
+		<PackageReference Include="ManagedBass" Version="3.1.1" />
+	</ItemGroup>
 
-  <ItemGroup>
-    <None Update="Assets\Fonts\NotoSansJP-Regular.ttf">
-      <CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory>
-    </None>
-  </ItemGroup>
+	<ItemGroup>
+		<None Update="Assets\Fonts\NotoSansJP-Regular.ttf">
+			<CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory>
+		</None>
+		<!-- BASS本体(64bit版)。ビルドすると exe の横にコピーされる -->
+		<None Update="bass.dll">
+			<CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory>
+		</None>
+	</ItemGroup>
 
 </Project>

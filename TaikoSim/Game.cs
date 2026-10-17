@@ -1,4 +1,6 @@
 ﻿using Raylib_cs;
+using TaikoSim.Audio;
+using TaikoSim.Charts;
 using TaikoSim.Configs;
 using TaikoSim.Graphics;
 using TaikoSim.Input;
@@ -11,7 +13,10 @@ namespace TaikoSim
     public class Game
     {
         // 設定パネル(オーバーレイ)
-        private readonly SettingsOverlay settings = new();
+        private static readonly SettingsOverlay settings = new();
+
+        // 設定パネルが開いているか(後ろの画面がクリックに反応しないようにするのに使う)
+        public static bool IsSettingsOpen => settings.IsOpen;
 
         // 右上に少しだけ出すお知らせ(スクショ保存したよ、とか)
         private string toastText = "";
@@ -19,6 +24,13 @@ namespace TaikoSim
 
         // true にするとアプリが終了する(設定パネルの⏻ボタンで使う)
         public static bool ShouldExit { get; set; } = false;
+
+        // 重さの確認用：直近1秒で一番時間がかかったフレーム(ミリ秒)
+        // 普段は 1000 ÷ FPS くらい(120FPSなら約8ms)。カクッとすると大きくなる
+        private float frameMaxMs = 0f;      // 今数えている1秒の中の一番大きい値
+        private float frameMaxShownMs = 0f; // 画面に出す値(1秒ごとに入れ替える)
+        private float frameWindowTimer = 0f;
+        private const float SlowFrameMs = 20f; // これより大きいと赤で出す
 
         public void Run()
         {
@@ -35,22 +47,17 @@ namespace TaikoSim
             Screen.Init();
             Screen.ApplyWindowSettings(); // 解像度・フルスクリーン・垂直同期・目標FPSを反映
             FontManager.Init();
-            SkinManager.Init();           // スキンの画像を読む準備
+            AudioManager.Init();          // 音の準備(bass.dll が無くても落ちない)
 
-            // 最初の画面(叩くキーが決まっていなければ初回起動セットアップ)
-            if (ConfigManager.Key.NeedsSetup())
-            {
-                SceneManager.ChangeScene(new SetupScene());
-            }
-            else
-            {
-                SceneManager.ChangeScene(new HomeScene());
-            }
+            // 最初は読み込み画面(スキンと曲を読む)
+            // 読み終わったら、読み込み画面がホーム(または初回起動セットアップ)に進める
+            SceneManager.ChangeScene(new LoadingScene());
 
             // ウィンドウの×が押されるか、ShouldExit が true になるまで繰り返す
             while (!Raylib.WindowShouldClose() && !ShouldExit)
             {
                 float dt = Raylib.GetFrameTime(); // 前のフレームからの経過時間(秒)
+                MeasureFrame(dt);
 
                 Screen.ApplyIfRequested(); // 設定でウィンドウの大きさなどが変わっていたら反映
                 SceneManager.ApplyChange();
@@ -59,7 +66,8 @@ namespace TaikoSim
             }
 
             // 後片付け
-            SceneManager.Current?.Exit();
+            SceneManager.Current?.Exit(); // 曲もここで片付く
+            AudioManager.Free();
             SkinManager.Unload();
             FontManager.Unload();
             Screen.Unload();
@@ -69,9 +77,30 @@ namespace TaikoSim
             ConfigManager.SaveAll();
         }
 
+        // フレームの時間を記録する(1秒ごとに一番大きい値を画面用に入れ替える)
+        private void MeasureFrame(float dt)
+        {
+            float ms = dt * 1000f;
+            frameMaxMs = Math.Max(frameMaxMs, ms);
+            frameWindowTimer += dt;
+
+            // カクッとしたら、TaikoSim の後ろに出ている黒い画面(コンソール)にも書いておく
+            if (ms > SlowFrameMs) Console.WriteLine($"[重さ] {DateTime.Now:HH:mm:ss.fff} 1フレームに {ms:F1} ms かかりました");
+
+            if (frameWindowTimer >= 1f)
+            {
+                frameMaxShownMs = frameMaxMs;
+                frameMaxMs = 0f;
+                frameWindowTimer = 0f;
+            }
+        }
+
         // 更新(入力の処理など)
         private void Update(float dt)
         {
+            // 裏で曲を読み終わっていたら、新しい曲の一覧に入れ替える(画面の処理より先にやる)
+            SongList.Update();
+
             // ファイルやフォルダがウィンドウにドロップされた
             // 設定パネルが開いていればスキンフォルダの変更、そうでなければ今の画面に渡す(.tja のテストなど)
             if (Raylib.IsFileDropped())
@@ -137,7 +166,8 @@ namespace TaikoSim
             {
                 // 設定パネルが開いているときはパネルの右隣に出す(ロゴとかぶらないように)
                 float fpsX = settings.IsOpen ? SettingsOverlay.PanelWidth + 10 : 10;
-                FontManager.Draw($"{Raylib.GetFPS()} FPS", fpsX, 8, 28, Color.Lime);
+                string fpsText = $"{Raylib.GetFPS()} FPS　最大 {frameMaxShownMs:F1} ms";
+                FontManager.Draw(fpsText, fpsX, 8, 28, frameMaxShownMs > SlowFrameMs ? Color.Red : Color.Lime);
             }
 
             Screen.EndCanvas();

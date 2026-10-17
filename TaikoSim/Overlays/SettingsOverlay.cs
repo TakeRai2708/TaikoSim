@@ -30,7 +30,7 @@ namespace TaikoSim.Overlays
         // プルダウンの選択肢
         private static readonly string[] ResolutionNames =
             GameConfig.Resolutions.Select(r => $"{r.Width}×{r.Height}").ToArray();
-        private static readonly string[] FullscreenTypeNames = { "ボーダーレス（枠なし）", "排他フルスクリーン" };
+        // フルスクリーン方式の選択肢と説明文は UI/SettingTexts.cs にまとめてある(初回セットアップと共通)
 
         public bool IsOpen { get; private set; } = false;
 
@@ -101,6 +101,9 @@ namespace TaikoSim.Overlays
         {
             IsOpen = true;
             Gui.Reset();
+
+            // スキンを入れたあとに開いたときのために、スキン一覧を読み直す
+            SkinManager.Reload();
         }
 
         public void Close()
@@ -276,14 +279,21 @@ namespace TaikoSim.Overlays
                 game.Fullscreen = fullscreen;
                 windowChanged = true;
             }
+            if (!game.Fullscreen) DescRows(SettingTexts.Window); // オフのとき(ウィンドウ)の説明
 
             // フルスクリーン方式
             int typeIndex = (int)game.FullscreenType;
-            int newTypeIndex = DropdownRow("fullscreenType", "フルスクリーン方式", FullscreenTypeNames, typeIndex);
+            int newTypeIndex = DropdownRow("fullscreenType", "フルスクリーン方式", SettingTexts.FullscreenTypeNames, typeIndex);
             if (newTypeIndex != typeIndex)
             {
                 game.FullscreenType = (FullscreenType)newTypeIndex;
                 windowChanged = true;
+            }
+
+            // 選んでいる方式の説明
+            foreach (string text in SettingTexts.GetFullscreenTypeTexts(game.FullscreenType))
+            {
+                DescRows(text);
             }
 
             // 垂直同期
@@ -293,6 +303,7 @@ namespace TaikoSim.Overlays
                 game.VSync = vsync;
                 Screen.ApplyFrameSettings();
             }
+            DescRows(SettingTexts.VSync);
 
             // 目標フレームレート
             int fps = SliderRow("targetFps", "目標フレームレート", game.TargetFps, 0, 360);
@@ -302,7 +313,7 @@ namespace TaikoSim.Overlays
                 game.Fix(); // 1〜29 は 30 にする
                 Screen.ApplyFrameSettings();
             }
-            NoteRow("0 で無制限");
+            DescRows(SettingTexts.TargetFps);
 
             // ウィンドウの大きさやフルスクリーンは、次のフレームの最初に反映する
             if (windowChanged)
@@ -411,6 +422,13 @@ namespace TaikoSim.Overlays
                 SetSkinsFolder("", null);
             }
             cursorY += 52;
+
+            // スキン一覧を更新(スキンをフォルダに入れたあとに押す)
+            if (Gui.Button(new Rectangle(LabelX, ToScreenY(cursorY), RightEdge - LabelX, 40), "スキン一覧を更新"))
+            {
+                RefreshSkins();
+            }
+            cursorY += 52;
             NoteRow("※ フォルダをこのウィンドウにドラッグ＆ドロップでも変更できます");
 
             // ----- 使うスキン -----
@@ -510,6 +528,13 @@ namespace TaikoSim.Overlays
         {
             FontManager.Draw(text, LabelX, ToScreenY(cursorY), 22, Gui.SubTextColor);
             cursorY += 36;
+        }
+
+        // 説明文の行(長い文はパネルの幅で折り返す)
+        private void DescRows(string text)
+        {
+            cursorY += SettingTexts.DrawWrapped(text, LabelX, ToScreenY(cursorY), RightEdge - LabelX, 22, Gui.SubTextColor, 30);
+            cursorY += 6;
         }
 
         // 小見出し(「叩くキー」とか)
@@ -753,6 +778,20 @@ namespace TaikoSim.Overlays
             else
             {
                 ShowMessage($"スキンフォルダを変更しました（{SkinManager.SkinNames.Count}個、使用中：{SkinManager.CurrentName}）", SuccessColor);
+            }
+        }
+
+        // スキン一覧を読み直す
+        private void RefreshSkins()
+        {
+            SkinManager.Reload();
+            if (SkinManager.SkinNames.Count == 0)
+            {
+                ShowMessage("スキンが見つかりませんでした", ErrorColor);
+            }
+            else
+            {
+                ShowMessage($"スキン一覧を更新しました（{SkinManager.SkinNames.Count}個、使用中：{SkinManager.CurrentName}）", SuccessColor);
             }
         }
 

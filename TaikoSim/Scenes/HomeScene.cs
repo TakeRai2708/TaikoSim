@@ -1,4 +1,5 @@
 ﻿using Raylib_cs;
+using TaikoSim.Audio;
 using TaikoSim.Configs;
 using TaikoSim.Graphics;
 
@@ -7,8 +8,31 @@ namespace TaikoSim.Scenes
     // 仮のホーム画面(今は設定の確認表示だけ)
     public class HomeScene : Scene
     {
-        // ホームでは Esc を押しても何もしない
-        public override void OnBack() { }
+        // 終了の確認を出している残り時間(秒)。0 なら出していない
+        private const float ExitConfirmSeconds = 3f;
+        private float exitTimer = 0f;
+
+        // Esc：1回目は確認を出す、確認中(3秒以内)にもう1回押したら終了
+        public override void OnBack()
+        {
+            if (exitTimer > 0f)
+            {
+                Game.ShouldExit = true;
+                return;
+            }
+            exitTimer = ExitConfirmSeconds;
+        }
+
+        // Enter で選曲画面へ
+        public override void Update(float dt)
+        {
+            if (exitTimer > 0f) exitTimer -= dt;
+
+            if (Raylib.IsKeyPressed(KeyboardKey.Enter) || Raylib.IsKeyPressed(KeyboardKey.KpEnter))
+            {
+                SceneManager.ChangeScene(new SongSelectScene());
+            }
+        }
 
         // .tja がドロップされたら、テスト用の画面で譜面を流す
         public override void OnFilesDropped(string[] paths)
@@ -20,7 +44,7 @@ namespace TaikoSim.Scenes
         public override void Draw()
         {
             FontManager.Draw("TaikoSim", 80, 60, 72, Color.White);
-            FontManager.Draw("F1：設定を開く", 80, 150, 32, Color.SkyBlue);
+            FontManager.Draw("Enter：選曲画面へ　F1：設定を開く", 80, 150, 32, Color.SkyBlue);
             FontManager.Draw("テスト：.tja ファイルをウィンドウにドラッグ＆ドロップすると譜面が流れます", 80, 192, 28, Color.Gold);
 
             SoundConfig sound = ConfigManager.Sound;
@@ -49,7 +73,17 @@ namespace TaikoSim.Scenes
             // スキン・フォント・設定の場所
             y = Line($"スキン：{SkinManager.CurrentName}（スキン数：{SkinManager.SkinNames.Count}）", y);
             y = Line($"フォント：{FontManager.FontName}", y);
+            y = Line($"音：{AudioManager.Status}", y, 32, AudioManager.IsAvailable ? Color.White : new Color(255, 170, 80, 255));
             Line($"設定の場所：{ConfigManager.ConfigFolder}", y, 24, Color.Gray);
+
+            // 終了の確認(左上、FPS表示の下)
+            if (exitTimer > 0f)
+            {
+                const string text = "3秒以内にもう一度 Esc を押すと終了します";
+                float width = FontManager.Measure(text, 26).X;
+                Raylib.DrawRectangle(0, 40, (int)width + 40, 46, new Color(0, 0, 0, 210));
+                FontManager.Draw(text, 20, 50, 26, new Color(255, 200, 60, 255));
+            }
         }
 
         // 1行表示して、次の行のy座標を返す(白)
