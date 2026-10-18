@@ -1,4 +1,5 @@
-﻿using System.Numerics;
+﻿using System.Diagnostics;
+using System.Numerics;
 using Raylib_cs;
 using TaikoSim.Audio;
 using TaikoSim.Charts;
@@ -132,6 +133,16 @@ namespace TaikoSim.Scenes
         private readonly List<InputLogEntry> inputLog = new();
         private long frameCount = 0;
 
+        // ===== 入力診断（F8で表示切替、F9でCSV保存。未割り当て時だけ） =====
+        // この段階では入力判定の時計やキー取得方式は一切変更しない。
+        private readonly InputDiagnostics diagnostics = new();
+        // Windowsの入力時刻も記録する。ゲームの判定・打音は今までどおりRaylib側で行う。
+        private readonly WindowsKeyCapture windowsInput = new();
+        // 生の入力時刻を受け取り、必要な場合だけ60Hzで判定する。
+        private readonly DrumInputScheduler inputScheduler = new();
+        private string diagnosticMessage = "";
+        private float diagnosticMessageTimer = 0f;
+
         // 音符の番号 → 叩ける音符の中で何個目か(1から。ログの表示用)
         private int[] noteNumbers = Array.Empty<int>();
 
@@ -172,7 +183,7 @@ namespace TaikoSim.Scenes
         private const float PopShowSeconds = 0.15f;
 
         // ----- 連打・風船の画像(スキンの Image/04.EnsoGame/Popup/) -----
-        // 位置は OpenTaiko の初期スキン(1280×720)の値を 1.5倍したもの(判定枠の位置がこれでピッタリ合う)
+        // ポップアップの表示位置は 1920×1080 基準。A-Style に合わせて個別調整する。
         private const string PopupDir = "Image/04.EnsoGame/Popup/";
         private const string RollBaseImage = PopupDir + "Roll_Base.png";        // 扇 380×240 が縦に5コマ(閉じる→開く)
         private const string RollNumberImage = PopupDir + "Roll_Number.png";    // 0〜9 が横に並ぶ(1文字 90×108)
@@ -181,11 +192,19 @@ namespace TaikoSim.Scenes
         private const string BalloonNumberImage = PopupDir + "Balloon_Number.png"; // 0〜9 が横に並ぶ(1文字 72×86)
         private const string BalloonAnimeImage = PopupDir + "Balloon_Anime.png";   // ふくらむ風船 390×360 が縦に8コマ(最後は割れた絵)
 
-        private const float RollFrameX = 327, RollFrameY = -4;        // 扇の左上(OpenTaiko 218, -3)
-        private const float RollNumberX = 470, RollNumberY = 183;     // 連打数の下の真ん中(OpenTaiko 313, 122)
-        private const float BalloonFrameX = 573, BalloonFrameY = 120; // 吹き出しの左上(OpenTaiko 382, 80)
-        private const float BalloonNumberX = 635, BalloonNumberY = 281; // 残りの数の下の真ん中(OpenTaiko 423, 187)
-        private const float NumberInterval = 82;                     // 数字の間隔(OpenTaiko 55)
+        // ===== ポップアップの座標（1920×1080 基準） =====
+        // X を増やすと右、Y を増やすと下へ移動する。
+        // 扇子・吹き出しは「画像の左上」、数字は「全体の中心X・下端Y」、
+        // 「連打!!」は「画像の中心X・上端Y」を指定する。
+        private const float RollFrameX = 420f, RollFrameY = -4f;          // 連打の扇子
+        private const float RollNumberX = 610f, RollNumberY = 170f;       // 連打の数字
+        private const float RollTextX = 610f, RollTextY = 181f;           // 「連打!!」
+        private const float BalloonFrameX = 585f, BalloonFrameY = 40f;    // 風船の吹き出し
+        private const float BalloonNumberX = 728f, BalloonNumberY = 180f; // 風船の数字
+
+        // 数字の画像は、連打が1文字90px、風船が1文字72px。間隔を別々に調整する。
+        private const float RollNumberInterval = 90f;
+        private const float BalloonNumberInterval = 72f;
         private const float BalloonNumberScale = 0.879f;             // 残りの数の大きさ(OpenTaiko と同じ)
         private const int RollBaseFrames = 5;
         private const int BalloonAnimeFrames = 8;
@@ -256,11 +275,16 @@ namespace TaikoSim.Scenes
             LoadHitSounds();
             PrepareJudge();
             Restart();
+            // ウィンドウを作ったスレッドだけを監視する。開始できなくても従来の演奏は継続。
+            // F8がOFFでもWindows側の時刻を拾う。使えなければRaylib取得時刻で代用。
+            windowsInput.CaptureEnabled = windowsInput.Start();
         }
 
         // 画面から出るとき：曲と効果音を片付ける
         public override void Exit()
         {
+            // 演奏画面から離れたら必ずWindowsフックを解除する。
+            windowsInput.Dispose();
             StopSong();
         }
 
@@ -366,6 +390,11 @@ namespace TaikoSim.Scenes
             shownJudge = null;
             judgeTimer = 0f;
             inputLog.Clear();
+            diagnostics.Reset();
+            windowsInput.Reset();
+            inputScheduler.Reset();
+            diagnosticMessage = "";
+            diagnosticMessageTimer = 0f;
 
             // 連打・風船も最初から
             if (course != null)
@@ -394,11 +423,19 @@ namespace TaikoSim.Scenes
             }
 
             frameCount++;
+            if (diagnosticMessageTimer > 0f) diagnosticMessageTimer -= dt;
 
-            // まずは前のフレームからの経過時間で進める(なめらかに動かすため)
+            // 元の時計と補正はそのまま。診断中だけ補正量とフレーム時間を調べる。
             nowMs += dt * 1000.0;
-
+            double beforeSync = nowMs;
             UpdateSongSync();
+            if (diagnostics.Enabled && diagnostics.TrackFrame(dt * 1000.0, nowMs - beforeSync))
+            {
+                double? syncError = song is { IsPlaying: true } ? song.PositionMs - nowMs : null;
+                // ミキサー以外の音声遅延はここでは測れないので、値を出さない。
+                double? outputEstimate = AudioManager.Mixer != 0 ? AudioManager.OutputLatencyMs : null;
+                diagnostics.RecordFrame(frameCount, nowMs, syncError, outputEstimate);
+            }
             UpdateJudge(dt);
 
             effects.Update(dt);
@@ -447,22 +484,133 @@ namespace TaikoSim.Scenes
             if (popTimer > 0f) popTimer -= dt;
             if (course == null) return;
 
-            // 判定に使う時間(音オフセットでずらす。マイナスで早く来る)
             double gameMs = nowMs - ConfigManager.Game.AudioOffsetMs;
+            // ここで基準時刻をとる。Windows側のコールバック発生からの経過を引いて、
+            // 「押下した時点の譜面時刻」を推定する（物理スイッチの瞬間ではない）。
+            long frameClockAt = Stopwatch.GetTimestamp();
 
-            // 1. 叩かれないまま判定枠を通りすぎた音符は「不可」(見逃し)
-            ProcessMisses(gameMs);
+            // 診断OFFでも一致候補をキープする。Windows入力の監視に失敗した場合は
+            // Raylibから取得した瞬間を入力時刻として使う。
+            windowsInput.Drain(diagnostics.Enabled ? diagnostics : null, frameCount, gameMs);
 
-            // 2. 前のフレームから今までに押されたキーを、押された順に全部取り出して判定
-            //    IsKeyPressed(1フレームに1回「今押されているか」を見る)だと、
-            //    1フレームの間に「押して離す」と見逃してしまう(ラピッドトリガーのキーボードで起きやすい)
-            //    GetKeyPressed は押された瞬間を全部ためておいてくれるので、見逃さない
-            //    ※同じキーを1フレームに2回押しても、2回分出てくる
+            // そのフレームまでに押されたキーをすべて取得。判定は下のキューで行う。
             int key = Raylib.GetKeyPressed();
             while (key != 0)
             {
-                if (TryGetDrumPart((KeyboardKey)key, out DrumPart part)) Hit(part, (KeyboardKey)key, gameMs);
+                KeyboardKey pressed = (KeyboardKey)key;
+                if (pressed == KeyboardKey.F8 && ConfigManager.Key.FindOwner(KeyboardKey.F8) == null)
+                {
+                    diagnostics.Enabled = !diagnostics.Enabled;
+                    SetDiagnosticMessage(diagnostics.Enabled ? "入力診断：ON" : "入力診断：OFF");
+                }
+                else if (pressed == KeyboardKey.F9 && ConfigManager.Key.FindOwner(KeyboardKey.F9) == null)
+                {
+                    SaveDiagnosticCsv();
+                }
+                else if (pressed == KeyboardKey.F6 && ConfigManager.Key.FindOwner(KeyboardKey.F6) == null)
+                {
+                    GameConfig settings = ConfigManager.Game;
+                    settings.InputTiming = settings.InputTiming == InputTimingMode.HighPrecision
+                        ? InputTimingMode.Compatible60Hz : InputTimingMode.HighPrecision;
+                    SaveInputTimingSettings($"入力判定：{DrumInputScheduler.ModeName(settings.InputTiming)}");
+                }
+                else if (pressed == KeyboardKey.F7 && ConfigManager.Key.FindOwner(KeyboardKey.F7) == null)
+                {
+                    GameConfig settings = ConfigManager.Game;
+                    settings.LimitDrumHitsTo60PerSecond = !settings.LimitDrumHitsTo60PerSecond;
+                    SaveInputTimingSettings(settings.LimitDrumHitsTo60PerSecond
+                        ? "60打/秒制限：ON" : "60打/秒制限：OFF");
+                }
+                else if (TryGetDrumPart(pressed, out DrumPart part))
+                {
+                    long collectedAt = Stopwatch.GetTimestamp();
+                    WindowsKeyEvent? native = windowsInput.Match(pressed, collectedAt);
+                    long pressedAt = native?.CapturedAt ?? collectedAt;
+                    double elapsedMs = Stopwatch.GetElapsedTime(pressedAt, frameClockAt).TotalMilliseconds;
+                    // 同じフレームのうち少し後に採れた時刻は未来にしない。
+                    double eventGameMs = gameMs - Math.Max(0, elapsedMs);
+                    // 音符に対する入力時刻を計算してから、必要なら60Hzへ量子化する。
+                    inputScheduler.Enqueue(new DrumInputEvent(part, pressed, eventGameMs,
+                        collectedAt, native), ConfigManager.Game.InputTiming,
+                        ConfigManager.Game.LimitDrumHitsTo60PerSecond);
+                }
                 key = Raylib.GetKeyPressed();
+            }
+
+            // 60Hzの場合は次の16.67ms境界まで待つ。制限がONなら1枠につき最大1打。
+            // モード切替直前の未処理入力もキューに残り、消さずに最後まで処理する。
+            inputScheduler.ProcessReady(gameMs, HandleScheduledHit);
+            // 将来の枠を待つ入力があっても、今の譜面時刻まで見逃しを進める。
+            ProcessMisses(gameMs);
+        }
+
+        // 判定・打音・演出を1回の入力として実行する。判定時刻はSchedulerが決める。
+        private void HandleScheduledHit(ScheduledDrumHit item)
+        {
+            // 取り出し時刻ではなく、元の入力時刻（または60Hzに調整した時刻）で判定。
+            ProcessMisses(item.JudgeGameMs);
+            long startedAt = Stopwatch.GetTimestamp();
+            Hit(item.Input.Part, item.Input.Key, item.JudgeGameMs);
+            if (diagnostics.Enabled && inputLog.Count > 0)
+            {
+                long processedAt = Stopwatch.GetTimestamp();
+                InputLogEntry entry = inputLog[^1];
+                string result = entry.RollText ?? (entry.NoteNumber == 0 ? "空振り" : entry.Result switch
+                {
+                    Judge.Good => "良",
+                    Judge.Ok => "可",
+                    Judge.Bad => "不可",
+                    _ => "未判定"
+                });
+                double? delta = entry.NoteNumber > 0 ? entry.Delta : null;
+                diagnostics.RecordInput(frameCount, item.JudgeGameMs, item.Input.Key.ToString(),
+                    KeyConfig.GetDrumPartName(item.Input.Part), entry.NoteNumber, result, delta,
+                    item.Input.CollectedAt, processedAt, item.Input.NativeEvent,
+                    startedAt, item.Input.EventGameMs, item.JudgeGameMs,
+                    item.JudgeGameMs - item.Input.EventGameMs, item.Mode, item.Limited);
+            }
+        }
+
+        private void SaveInputTimingSettings(string message)
+        {
+            try
+            {
+                ConfigManager.SaveAll();
+                SetDiagnosticMessage(message + "（設定を保存しました）");
+            }
+            catch (Exception ex) when (ex is IOException or UnauthorizedAccessException)
+            {
+                SetDiagnosticMessage(message + $"（保存失敗：{ex.Message}）");
+            }
+        }
+
+        // 診断の保存結果を数秒だけ表示する
+        private void SetDiagnosticMessage(string message)
+        {
+            diagnosticMessage = message;
+            diagnosticMessageTimer = 4f;
+        }
+
+        private void SaveDiagnosticCsv()
+        {
+            if (diagnostics.RowCount == 0)
+            {
+                SetDiagnosticMessage("保存する診断データがありません（F8で診断をONにしてください）");
+                return;
+            }
+            try
+            {
+                string folder = Path.Combine(AppContext.BaseDirectory, "Logs");
+                Directory.CreateDirectory(folder);
+                string name = $"InputDiag_{DateTime.Now:yyyyMMdd_HHmmss_fff}.csv";
+                string saved = diagnostics.SaveCsv(Path.Combine(folder, name));
+                SetDiagnosticMessage($"入力診断CSV保存：Logs/{Path.GetFileName(saved)}");
+                Console.WriteLine($"[入力診断] CSV保存：{saved}");
+            }
+            catch (Exception ex) when (ex is IOException or UnauthorizedAccessException)
+            {
+                SetDiagnosticMessage($"CSV保存失敗：{ex.Message}");
+                Console.WriteLine($"[入力診断] CSV保存失敗：{ex}");
             }
         }
 
@@ -789,6 +937,30 @@ namespace TaikoSim.Scenes
             effects.DrawFront(); // ゴーゴー開始の火花
             DrawInfo(chart, course);
             if (ShowInputLog) DrawInputLog();
+            if (diagnostics.Enabled) DrawInputDiagnostics();
+            if (diagnosticMessageTimer > 0f)
+                FontManager.Draw(diagnosticMessage, 40, 1038, 22, Color.SkyBlue);
+        }
+
+        // 入力処理と音声同期の診断（判定や打音には影響しない）
+        private void DrawInputDiagnostics()
+        {
+            const float x = 35f;
+            const float y = 727f;
+            const float size = 23f;
+            Raylib.DrawRectangle(25, (int)y - 7, 1120, 369, new Color(0, 0, 0, 195));
+            FontManager.Draw("入力診断：F8 表示切替 / F9 CSV保存", x, y, 25, Color.SkyBlue);
+            FontManager.Draw($"記録：入力 {diagnostics.InputCount}回 / データ {diagnostics.RowCount}行", x, y + 35, size, Color.White);
+            FontManager.Draw($"直近0.25秒の最大フレーム時間：{diagnostics.RecentMaxFrameMs:0.###} ms", x, y + 66, size, Color.White);
+            FontManager.Draw($"直近の音声・画面ズレ：{InputDiagnostics.FormatMs(diagnostics.LatestSyncErrorMs)}", x, y + 97, size, Color.White);
+            FontManager.Draw($"直近0.25秒の最大時計補正：{diagnostics.RecentMaxCorrectionMs:+0.###;-0.###;0} ms", x, y + 128, size, Color.White);
+            FontManager.Draw($"出力遅延の推定（ミキサー時）：{InputDiagnostics.FormatMs(diagnostics.LatestOutputEstimateMs)}", x, y + 159, size, Color.White);
+            FontManager.Draw($"直近の入力処理：{InputDiagnostics.FormatMs(diagnostics.LastInputHandlingMs)}", x, y + 190, 20, Color.LightGray);
+            FontManager.Draw($"Windows：押下 {diagnostics.WindowsDownCount} / 解放 {diagnostics.WindowsUpCount} / リピート {diagnostics.WindowsRepeatCount}", x, y + 220, 20, Color.White);
+            FontManager.Draw($"Raylibとの照合：一致 {diagnostics.NativeMatchedCount} / 未照合 {diagnostics.NativeUnmatchedCount} / バッファ超過 {windowsInput.DroppedEvents}", x, y + 249, 20, Color.White);
+            FontManager.Draw($"Windows→Raylib：{InputDiagnostics.FormatMs(diagnostics.LastNativeToRaylibMs)}（OS時刻の概算） / {windowsInput.Status}", x, y + 277, 18, Color.LightGray);
+            FontManager.Draw($"判定：{DrumInputScheduler.ModeName(ConfigManager.Game.InputTiming)}  /  60打/秒制限：{(ConfigManager.Game.LimitDrumHitsTo60PerSecond ? "ON" : "OFF")}", x, y + 304, 20, Color.White);
+            FontManager.Draw($"処理待ち：{inputScheduler.PendingCount}打　最終入力：{InputDiagnostics.FormatMs(diagnostics.LastScheduledWaitMs)} 待機", x, y + 332, 19, Color.LightGray);
         }
 
         // ===== 連打・風船の表示 =====
@@ -860,8 +1032,8 @@ namespace TaikoSim.Scenes
             float bump = bumpIndex < RollBump.Length ? RollBump[bumpIndex] : 0f;
             Color tint = new Color((byte)255, (byte)255, (byte)255, numberAlpha);
 
-            float right = DrawDigits(RollNumberImage, count, RollNumberX, RollNumberY, 1f, 1f + bump, tint);
-            if (right < 0)
+            if (DrawDigits(RollNumberImage, count, RollNumberX, RollNumberY,
+                1f, 1f + bump, RollNumberInterval, tint) < 0)
             {
                 // スキンに数字の画像が無いときは普通の文字で
                 string text = $"{count}打";
@@ -869,10 +1041,11 @@ namespace TaikoSim.Scenes
                 return;
             }
 
-            // 「連打!!」は数字の右下
+            // 「連打!!」は数字の桁数に影響されない位置に置く（Xは文字の中心）。
             if (SkinManager.GetTexture(RollTextImage) is Texture2D textImage)
             {
-                Raylib.DrawTexture(textImage, (int)(right + 4), (int)(RollNumberY - textImage.Height), tint);
+                Raylib.DrawTexture(textImage,
+                    (int)(RollTextX - textImage.Width / 2f), (int)RollTextY, tint);
             }
         }
 
@@ -890,7 +1063,8 @@ namespace TaikoSim.Scenes
             float bump = bumpIndex < RollBump.Length ? RollBump[bumpIndex] : 0f;
             float scale = BalloonNumberScale;
 
-            if (DrawDigits(BalloonNumberImage, left, BalloonNumberX, BalloonNumberY, scale, scale + bump, Color.White) < 0)
+            if (DrawDigits(BalloonNumberImage, left, BalloonNumberX, BalloonNumberY,
+                scale, scale + bump, BalloonNumberInterval, Color.White) < 0)
             {
                 string text = left.ToString();
                 FontManager.Draw(text, BalloonNumberX - FontManager.Measure(text, 60).X / 2f, BalloonNumberY - 70, 60, Color.Black);
@@ -901,14 +1075,15 @@ namespace TaikoSim.Scenes
         //   centerX … 数字全体の真ん中、bottomY … 数字の下
         //   scaleX・scaleY … 大きさ(縦に伸ばすと、下はそのままで上に伸びる)
         // 描いた一番右の x を返す(画像が無ければ -1)
-        private static float DrawDigits(string image, int value, float centerX, float bottomY, float scaleX, float scaleY, Color tint)
+        private static float DrawDigits(string image, int value, float centerX, float bottomY,
+            float scaleX, float scaleY, float numberInterval, Color tint)
         {
             if (SkinManager.GetTexture(image) is not Texture2D digits) return -1;
 
             string text = Math.Max(0, value).ToString();
             float digitWidth = digits.Width / 10f;
             float digitHeight = digits.Height;
-            float step = NumberInterval * scaleX;           // 数字の間隔
+            float step = numberInterval * scaleX;           // ポップアップ別の数字の間隔
             float drawWidth = digitWidth * scaleX;
             float drawHeight = digitHeight * scaleY;
 
@@ -1201,6 +1376,8 @@ namespace TaikoSim.Scenes
             KeyboardKey restartKey = ConfigManager.Key.SystemKeys.GetValueOrDefault(SystemAction.QuickRestart, KeyboardKey.F5);
             FontManager.Draw($"{restartKey}：最初から　Esc：もどる", 40, 600, 28, Color.SkyBlue);
             FontManager.Draw($"ファイル：{path}", 40, 645, 22, Color.Gray);
+            FontManager.Draw($"入力：{DrumInputScheduler.ModeName(ConfigManager.Game.InputTiming)} / 60打制限 {(ConfigManager.Game.LimitDrumHitsTo60PerSecond ? "ON" : "OFF")}", 40, 765, 22, Color.SkyBlue);
+            FontManager.Draw("F6 モード切替 / F7 60打制限 / F8 診断 / F9 CSV（未割り当て時のみ）", 40, 800, 19, Color.SkyBlue);
         }
 
         // ズレの表示(例：「-12.3 ms（早い）」)

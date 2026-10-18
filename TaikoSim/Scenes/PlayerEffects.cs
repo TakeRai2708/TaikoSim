@@ -33,19 +33,42 @@ namespace TaikoSim.Scenes
         // ===== 位置(1920×1080) =====
         private readonly float judgeX;                        // 判定枠の真ん中(TestPlayScene からもらう)
         private readonly float judgeY;
-        private const float LaneX = 500, LaneY = 288;         // レーンの光の左上(OpenTaiko 333, 192)
+
+        // ===== 判定枠の顔（Hit_Effects.png は 810×195px） =====
+        // 画像は横4等分ではない。各絵の透明でない領域を切り取る。
+        // 画像の並び: 小・良（黄）/ 小・可（白）/ 大・良（黄）/ 大・可（白）
+        // ここでの「良・可」は判定結果で、ドン・カッの違いではない。
+        // CropX/Y: 切り取り範囲の左上、CropWidth/Height: 幅と高さ（元画像のpx）
+        // OffsetX/Y: 判定枠中央からの補正（＋Xは右、＋Yは下、1920×1080基準）
+        // Scale: 表示倍率（1f=切り取ったままの大きさ、0.9f=90％）
+        // 小・良（黄色）
+        private const float FaceSmallGoodCropX = 32f, FaceSmallGoodCropY = 30f;
+        private const float FaceSmallGoodCropWidth = 137f, FaceSmallGoodCropHeight = 137f;
+        private const float FaceSmallGoodOffsetX = 0f, FaceSmallGoodOffsetY = 0f, FaceSmallGoodScale = 1f;
+        // 小・可（白色）
+        private const float FaceSmallOkCropX = 227f, FaceSmallOkCropY = 30f;
+        private const float FaceSmallOkCropWidth = 137f, FaceSmallOkCropHeight = 137f;
+        private const float FaceSmallOkOffsetX = 0f, FaceSmallOkOffsetY = 0f, FaceSmallOkScale = 1f;
+        // 大・良（黄色）
+        private const float FaceBigGoodCropX = 396f, FaceBigGoodCropY = 3f;
+        private const float FaceBigGoodCropWidth = 188f, FaceBigGoodCropHeight = 188f;
+        private const float FaceBigGoodOffsetX = 0f, FaceBigGoodOffsetY = 0f, FaceBigGoodScale = 1f;
+        // 大・可（白色）
+        private const float FaceBigOkCropX = 593f, FaceBigOkCropY = 5f;
+        private const float FaceBigOkCropWidth = 184f, FaceBigOkCropHeight = 184f;
+        private const float FaceBigOkOffsetX = 0f, FaceBigOkOffsetY = 0f, FaceBigOkScale = 1f;
+
+        private const float LaneX = 494, LaneY = 276;         // PlayScene のレーン背景と左上をそろえる
         private const float MiniTaikoX = 307, MiniTaikoY = 309; // ミニ太鼓の左上(OpenTaiko 205, 206)
 
-        // コンボの数字(下の真ん中を合わせる)
-        //   2けた：OpenTaiko の Game_Taiko_Combo(267, 272)×1.5。TaikoNauts の動画とも合っていた
-        //   3けた：TaikoNauts の動画で測った値(数字を 0.72倍に小さくして、間隔をつめて、少し上に出していた)
-        //   4けた以上：測れていないので、3けたより少し小さくしたもの(推測)
-        private const float ComboX = 400;
-        private const float ComboY = 408;
-        private static readonly float[] ComboBottom = { 408, 385, 385 };  // 2けたまで・3けた・4けた以上
+        // コンボの数字：全体を少し左に移し、桁が増えても縦の中心が動かないようにする
+        //   2けた：元の大きさ、3けた：0.72倍、4けた以上：0.6倍（大きさは変更しない）
+        //   ComboBaseBottomY は2けた表示の下端。3けた以上は画像の高さから下端を計算する
+        private const float ComboX = 392;
+        private const float ComboBaseBottomY = 408;
         private static readonly float[] ComboPadding = { 51, 48, 40 };    // 数字の間隔
         private static readonly float[] ComboScale = { 1f, 0.72f, 0.6f }; // 数字の大きさ
-        private const float ComboTextX = 402, ComboTextY = 447; // 「コンボ」の下の真ん中(OpenTaiko 268, 298)
+        private const float ComboTextX = 394, ComboTextY = 447; // 「コンボ」も数字に合わせて左に8px
         private const int MinShownCombo = 10;                 // これ以上で出す(OpenTaiko の初期値)
 
         // ゴーゴー開始の火花の位置(下の真ん中)と傾き。OpenTaiko の Game_Effect_GoGoSplash_X/Y
@@ -54,11 +77,11 @@ namespace TaikoSim.Scenes
         private static readonly float[] SplashAngle = { -16f, -8f, 0f, 0f, 8f, 16f }; // 度(OpenTaiko は ±0.279, ±0.140 ラジアン)
 
         // ===== 時間(OpenTaiko と同じ) =====
-        // レーンの光：TaikoNauts の動画で測った値(加算合成で約16%の強さ、80ms そのまま → 150ms で消える)
-        // ※ OpenTaiko は不透明で 100ms。そのままだと TaikoNauts よりずっと明るくなる
+        // レーンの光：元の16%から13%に少し暗くする。時間は変更しない
+        // ※ 13%はスクショ確認用の仮調整値。実機で比べて最終調整する
         private const float LaneFlashSeconds = 0.150f;
         private const float LaneFlashHoldSeconds = 0.080f;
-        private const float LaneFlashStrength = 0.16f;
+        private const float LaneFlashStrength = 0.13f;
         // ゴーゴーのレーン：TaikoNauts の動画で測った値(加算合成で約50%の強さ)
         private const float GoGoLaneStrength = 0.5f;
         // 判定枠の中の顔：TaikoNauts の動画で測った値(150ms そのまま → 300ms で消える)
@@ -92,7 +115,7 @@ namespace TaikoSim.Scenes
 
         // 判定枠の中の顔(最後に良・可で叩いたもの)
         private float faceTime = -1f; // 出てからの時間(-1 なら出ていない)
-        private int faceFrame = 0;    // 0:良 1:可 2:大良 3:大可
+        private int faceFrame = 0;    // 0:小・良 1:小・可 2:大・良 3:大・可
 
         // ミニ太鼓の明るさ(左縁・左面・右面・右縁。DrumPart と同じ並び)
         private readonly float[] drumLight = new float[4];
@@ -256,17 +279,59 @@ namespace TaikoSim.Scenes
             Raylib.DrawTexture(texture, (int)LaneX, (int)LaneY, Raylib.ColorAlpha(Color.White, strength));
         }
 
-        // ----- 判定枠の中の顔(横に4コマ：良・可・大良・大可) -----
+        // ----- 判定枠の中の顔（良・可 × 小・大の4種類を個別に切り抜く） -----
         private void DrawFace()
         {
             if (faceTime < 0f || SkinManager.GetTexture(HitFaceImage) is not Texture2D texture) return;
 
             float fade = faceTime <= FaceHoldSeconds ? 1f
                 : 1f - (faceTime - FaceHoldSeconds) / (FaceSeconds - FaceHoldSeconds);
-            float frameWidth = texture.Width / 4f;
-            Rectangle source = new Rectangle(faceFrame * frameWidth, 0, frameWidth, texture.Height);
-            Rectangle dest = new Rectangle(judgeX - frameWidth / 2f, judgeY - texture.Height / 2f, frameWidth, texture.Height);
-            Raylib.DrawTexturePro(texture, source, dest, Vector2.Zero, 0f, Raylib.ColorAlpha(Color.White, Math.Clamp(fade, 0f, 1f)));
+
+            // 4種類の画像は横幅も高さも違うため、それぞれ専用の切り取り範囲を使う
+            Rectangle source;
+            float offsetX, offsetY, scale;
+            switch (faceFrame)
+            {
+                case 0: // 小・良（黄色）
+                    source = new Rectangle(FaceSmallGoodCropX, FaceSmallGoodCropY, FaceSmallGoodCropWidth, FaceSmallGoodCropHeight);
+                    offsetX = FaceSmallGoodOffsetX;
+                    offsetY = FaceSmallGoodOffsetY;
+                    scale = FaceSmallGoodScale;
+                    break;
+                case 1: // 小・可（白色）
+                    source = new Rectangle(FaceSmallOkCropX, FaceSmallOkCropY, FaceSmallOkCropWidth, FaceSmallOkCropHeight);
+                    offsetX = FaceSmallOkOffsetX;
+                    offsetY = FaceSmallOkOffsetY;
+                    scale = FaceSmallOkScale;
+                    break;
+                case 2: // 大・良（黄色）
+                    source = new Rectangle(FaceBigGoodCropX, FaceBigGoodCropY, FaceBigGoodCropWidth, FaceBigGoodCropHeight);
+                    offsetX = FaceBigGoodOffsetX;
+                    offsetY = FaceBigGoodOffsetY;
+                    scale = FaceBigGoodScale;
+                    break;
+                case 3: // 大・可（白色）
+                    source = new Rectangle(FaceBigOkCropX, FaceBigOkCropY, FaceBigOkCropWidth, FaceBigOkCropHeight);
+                    offsetX = FaceBigOkOffsetX;
+                    offsetY = FaceBigOkOffsetY;
+                    scale = FaceBigOkScale;
+                    break;
+                default:
+                    return;
+            }
+
+            // 切り取り幅・高さと表示倍率は正の数を指定する
+            if (source.Width <= 0f || source.Height <= 0f || scale <= 0f) return;
+
+            // 切り取った顔の絵そのものを判定枠の中央に置き、種類ごとの補正を足す
+            float drawWidth = source.Width * scale;
+            float drawHeight = source.Height * scale;
+            Rectangle dest = new Rectangle(
+                judgeX - drawWidth / 2f + offsetX,
+                judgeY - drawHeight / 2f + offsetY,
+                drawWidth, drawHeight);
+            Raylib.DrawTexturePro(texture, source, dest, Vector2.Zero, 0f,
+                Raylib.ColorAlpha(Color.White, Math.Clamp(fade, 0f, 1f)));
         }
 
         // ----- 光の輪 -----
@@ -348,9 +413,8 @@ namespace TaikoSim.Scenes
             // 色：50 まで白、100 まで銀、それ以上は金(OpenTaiko は 50・100・300 で画像が変わる)
             int row = combo < 50 ? 0 : combo < 100 ? 1 : 2;
 
-            // けた数で、大きさ・間隔・高さを変える(0:2けたまで 1:3けた 2:4けた以上)
+            // けた数で、大きさ・間隔を変える(0:2けたまで 1:3けた 2:4けた以上)
             int size = count <= 2 ? 0 : count == 3 ? 1 : 2;
-            float y = ComboBottom[size];
             float padding = ComboPadding[size];
             float scale = ComboScale[size];
 
@@ -365,7 +429,9 @@ namespace TaikoSim.Scenes
                 float w = numbers.Width / 10f;
                 float h = numbers.Height / 3f;
                 float drawW = w * scale;
-                float drawH = h * (scale + bump); // 下はそのままで上に伸びる
+                float drawH = h * (scale + bump); // 叩いたときは下端を固定して上に伸びる
+                // 拡大率が変わっても、伸びていないときの数字の中心を2けた表示と同じ高さにする
+                float bottomY = ComboBaseBottomY - h * (1f - scale) / 2f;
 
                 // 右の数字から順に(i = 0 が一の位)
                 for (int i = 0; i < count; i++)
@@ -373,14 +439,14 @@ namespace TaikoSim.Scenes
                     int d = digits[count - 1 - i] - '0';
                     float centerX = rightX - padding * i;
                     Rectangle source = new Rectangle(d * w, row * h, w, h);
-                    Rectangle dest = new Rectangle(centerX - drawW / 2f, y - drawH, drawW, drawH);
+                    Rectangle dest = new Rectangle(centerX - drawW / 2f, bottomY - drawH, drawW, drawH);
                     Raylib.DrawTexturePro(numbers, source, dest, Vector2.Zero, 0f, Color.White);
                 }
             }
             else
             {
                 float width = FontManager.Measure(digits, 64).X;
-                FontManager.Draw(digits, ComboX - width / 2f, y - 72, 64, Color.White);
+                FontManager.Draw(digits, ComboX - width / 2f, ComboBaseBottomY - 72, 64, Color.White);
             }
 
             // 「コンボ」

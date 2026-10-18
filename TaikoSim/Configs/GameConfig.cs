@@ -7,6 +7,13 @@
         Exclusive,  // 本物のフルスクリーン(画面の解像度ごと切り替わる)
     }
 
+    // 打鍵の時刻をどう扱うか（60HzはTaikøNauts風の実験モード）。
+    public enum InputTimingMode
+    {
+        HighPrecision,
+        Compatible60Hz,
+    }
+
     // ゲーム全体の設定
     public class GameConfig
     {
@@ -50,12 +57,21 @@
         // 目標フレームレート(0 は無制限)
         public int TargetFps { get; set; } = 60;
 
+        // 打鍵時刻そのまま / 16.67ms刻みにそろえる（初期値は高精度）
+        public InputTimingMode InputTiming { get; set; } = InputTimingMode.HighPrecision;
+
+        // 4キー合計の入力を秒間60打ペースに制限（余った分はキューで待つ）
+        public bool LimitDrumHitsTo60PerSecond { get; set; } = false;
+
         // FPSを表示するか
         public bool ShowFps { get; set; } = true;
 
         // おかしな値を直す
         public void Fix()
         {
+            // 未知の値なら高精度に戻す（JSONを直接編集した場合など）。
+            if (!Enum.IsDefined(InputTiming)) InputTiming = InputTimingMode.HighPrecision;
+
             // オフセットは -150〜150ms
             AudioOffsetMs = Math.Clamp(AudioOffsetMs, OffsetMin, OffsetMax);
             ChartOffsetMs = Math.Clamp(ChartOffsetMs, OffsetMin, OffsetMax);
