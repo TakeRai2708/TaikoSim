@@ -37,8 +37,8 @@ namespace TaikoSim.Scenes
         // .tja がドロップされたら、テスト用の画面で譜面を流す
         public override void OnFilesDropped(string[] paths)
         {
-            string? tja = paths.FirstOrDefault(TestPlayScene.IsTja);
-            if (tja != null) SceneManager.ChangeScene(new TestPlayScene(tja));
+            string? tja = paths.FirstOrDefault(PlayScene.IsTja);
+            if (tja != null) SceneManager.ChangeScene(new PlayScene(tja));
         }
 
         public override void Draw()

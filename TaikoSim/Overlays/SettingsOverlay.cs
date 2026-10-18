@@ -1,5 +1,6 @@
 ﻿using System.Diagnostics;
 using Raylib_cs;
+using TaikoSim.Audio;
 using TaikoSim.Configs;
 using TaikoSim.Graphics;
 using TaikoSim.Input;
@@ -332,6 +333,95 @@ namespace TaikoSim.Overlays
             sound.MusicVolume = SliderRow("music", "Music", sound.MusicVolume, 0, 100);
             sound.BgmVolume = SliderRow("bgm", "BGM", sound.BgmVolume, 0, 100);
             sound.VoiceVolume = SliderRow("voice", "Voice", sound.VoiceVolume, 0, 100);
+
+            DrawAudioOutputRows(sound);
+        }
+
+        // ----- 音の出力(出力方式・バッファ) -----
+
+        // プルダウンの中身(AudioOutputType の番号と同じ並び)
+        private static readonly string[] OutputTypeNames = { "BASS（標準）", "DirectSound", "WASAPI 共有", "WASAPI 排他", "ASIO" };
+
+        // 方式ごとの説明
+        private static string GetOutputDescription(AudioOutputType type) => type switch
+        {
+            AudioOutputType.Bass => "BASS におまかせで鳴らします（中では WASAPI 共有）。いちばん安定しています。",
+            AudioOutputType.DirectSound => "昔の方式です。ほかの方式でうまく鳴らないときに使ってください。遅延は少し増えます。",
+            AudioOutputType.WasapiShared => "Windows の普通の出し方です。ほかのアプリの音も一緒に鳴ります。※ bassmix.dll と basswasapi.dll が必要です",
+            AudioOutputType.WasapiExclusive => "TaikoSim が音の出口を独り占めします。遅延がかなり減るかわりに、起動中はほかのアプリの音が出なくなります。※ bassmix.dll と basswasapi.dll が必要です",
+            AudioOutputType.Asio => "ASIO ドライバで出します。いちばん速いですが、対応した機器（オーディオインターフェースなど）が必要です。※ bassmix.dll と bassasio.dll が必要です",
+            _ => "",
+        };
+
+        private void DrawAudioOutputRows(SoundConfig sound)
+        {
+            cursorY += 10;
+            SubHeader("音の出力");
+
+            // ----- 出力方式 -----
+            int selected = Math.Clamp((int)sound.OutputType, 0, OutputTypeNames.Length - 1);
+            sound.OutputType = (AudioOutputType)DropdownRow("outputType", "出力方式", OutputTypeNames, selected);
+            DescRows(GetOutputDescription(sound.OutputType));
+
+            // ----- バッファ(方式ごと) -----
+            switch (sound.OutputType)
+            {
+                case AudioOutputType.Bass:
+                case AudioOutputType.DirectSound:
+                    sound.BassBufferMs = SliderRow("bassBuffer", "バッファ[ms]", sound.BassBufferMs, AudioManager.BufferMin, AudioManager.BufferMax);
+                    NoteRow("0 で自動。小さいほど遅れが減りますが、小さすぎると音がブツブツ切れます");
+                    break;
+
+                case AudioOutputType.WasapiShared:
+                case AudioOutputType.WasapiExclusive:
+                    sound.WasapiBufferMs = SliderRow("wasapiBuffer", "バッファ[ms]", sound.WasapiBufferMs, AudioManager.BufferMin, AudioManager.BufferMax);
+                    NoteRow("0 で自動。小さいほど遅れが減りますが、小さすぎると音がブツブツ切れます");
+                    break;
+
+                case AudioOutputType.Asio:
+                    List<string> devices = AudioManager.GetAsioDeviceNames();
+                    if (devices.Count == 0)
+                    {
+                        FontManager.Draw("ASIO の機器が見つかりません（bassasio.dll と ASIO ドライバが必要です）", LabelX, ToScreenY(cursorY), 22, ErrorColor);
+                        cursorY += 36;
+                    }
+                    else
+                    {
+                        int device = Math.Clamp(sound.AsioDevice, 0, devices.Count - 1);
+                        sound.AsioDevice = DropdownRow("asioDevice", "ASIO 機器", devices.ToArray(), device);
+                    }
+                    NoteRow("バッファの長さは、ASIO の機器の設定画面で変えてください");
+                    break;
+            }
+
+            // ----- 今の状態 -----
+            DescRows($"今の出力：{AudioManager.Status}");
+
+            // ----- 適用 -----
+            // 設定を変えただけでは切り替わらない。［適用］を押したときに、音を準備し直す
+            bool pending = !AudioManager.IsAvailable
+                || sound.OutputType != AudioManager.CurrentType
+                || AudioManager.GetBufferMs(sound, sound.OutputType) != AudioManager.CurrentBufferMs
+                || (sound.OutputType == AudioOutputType.Asio && sound.AsioDevice != AudioManager.CurrentAsioDevice);
+
+            string label = pending ? "適用（まだ反映されていません）" : "適用";
+            if (Gui.Button(new Rectangle(LabelX, ToScreenY(cursorY), RightEdge - LabelX, 40), label))
+            {
+                ApplyAudioOutput();
+            }
+            cursorY += 52;
+        }
+
+        // ［適用］：今の設定で音を準備し直す
+        // ※ 設定パネルは演奏中には開けないので、曲や効果音を読み込んだまま作り直すことはない
+        private void ApplyAudioOutput()
+        {
+            SoundConfig sound = ConfigManager.Sound;
+            AudioManager.Restart();
+
+            bool ok = AudioManager.IsAvailable && AudioManager.CurrentType == sound.OutputType;
+            if (ok) ShowMessage($"音の出力を {AudioManager.GetTypeName(AudioManager.CurrentType)} にしました", SuccessColor);
+            else ShowMessage(AudioManager.Status, ErrorColor);
         }
 
         private void DrawPlaySection()

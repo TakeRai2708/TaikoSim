@@ -130,6 +130,7 @@ namespace TaikoSim.Charts
             double scroll = 1.0;
             double measure = 1.0; // 拍子(4/4 なら 1、3/4 なら 0.75)
             bool gogo = false;
+            double gogoStartMs = 0; // 今のゴーゴータイムが始まった時間
             bool barLineOn = true;
             int balloonIndex = 0;
             Note? openRoll = null; // 終わりの「8」を待っている連打・風船
@@ -168,6 +169,9 @@ namespace TaikoSim.Charts
 
             // 終わりの「8」が無い連打は、譜面の最後で終わらせる
             if (openRoll != null) openRoll.EndTimeMs = time;
+
+            // #GOGOEND が無いゴーゴータイムも、譜面の最後で終わらせる
+            if (gogo) course.GoGoRanges.Add(new GoGoRange { StartMs = gogoStartMs, EndMs = time });
 
             // ----- ここから下は ParseBody の中だけで使う関数 -----
 
@@ -226,9 +230,12 @@ namespace TaikoSim.Charts
                         measure = ParseMeasure(arg, measure);
                         break;
                     case "#GOGOSTART":
+                        // ゴーゴー中にもう一度書いてあっても、始まりの時間はそのまま
+                        if (!gogo) gogoStartMs = time;
                         gogo = true;
                         break;
                     case "#GOGOEND":
+                        if (gogo) course.GoGoRanges.Add(new GoGoRange { StartMs = gogoStartMs, EndMs = time });
                         gogo = false;
                         break;
                     case "#DELAY":

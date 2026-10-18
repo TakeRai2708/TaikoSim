@@ -10,7 +10,7 @@ namespace TaikoSim.Scenes
 {
     // テスト用：.tja の譜面を読み込んで、曲に合わせて音符を流す画面
     // ドン・カッ(大音符も片手でOK)を叩いて、良・可・不可の判定が出る。連打・風船はまだ数えない
-    public class TestPlayScene : Scene
+    public class PlayScene : Scene
     {
         // ===== 配置(1920×1080) ※動画とスキン画像の大きさから測った値 =====
         private const float LaneX = 494;          // レーンの左端
@@ -124,14 +124,83 @@ namespace TaikoSim.Scenes
         //   Delta      … ズレ(ミリ秒。プラスなら遅い)
         //   Result     … 判定(空振りなら null)
         //   Frame      … 何フレーム目に処理したか(同じフレームの叩きを見分けるため)
+        //   RollText   … 連打・風船に当たったときの説明(「連打 12打」とか。普通の音符なら null)
         private readonly record struct InputLogEntry(
-            double TimeMs, string KeyName, string PartName, bool Don, int NoteNumber, double Delta, Judge? Result, bool Missed, long Frame);
+            double TimeMs, string KeyName, string PartName, bool Don, int NoteNumber, double Delta, Judge? Result, bool Missed, long Frame,
+            string? RollText = null);
 
         private readonly List<InputLogEntry> inputLog = new();
         private long frameCount = 0;
 
         // 音符の番号 → 叩ける音符の中で何個目か(1から。ログの表示用)
         private int[] noteNumbers = Array.Empty<int>();
+
+        // ===== 連打・風船 =====
+        // 決まりは OpenTaiko と同じ(CStage演奏画面共通.cs の tRollProcess・tBalloonProcess)
+        //   連打(大連打)：始まり〜終わりの間、ドン・カッどっちで叩いても1打
+        //   風船(くす玉)：始まりの17ms前〜終わりの間、ドンだけ。決められた回数叩くと割れる
+        //   どちらも良・可・不可やコンボには関係しない
+        // ※ くす玉は、今は風船と同じあつかい(スキンにくす玉の画像が無いので)
+
+        private const double BalloonEarlyMs = 17; // 風船は始まりのこれだけ前から叩ける
+
+        // 連打・風船の音符の番号(course.Notes の番号。譜面の順)
+        private int[] rolls = Array.Empty<int>();
+
+        // 音符ごとの、叩いた数(連打・風船だけ使う。course.Notes と同じ番号)
+        private int[] rollHits = Array.Empty<int>();
+
+        // 割れた風船(course.Notes と同じ番号)
+        private bool[] balloonPopped = Array.Empty<bool>();
+
+        // 全部の連打数(風船も含む。OpenTaiko の成績と同じ数え方)
+        private int totalRollHits = 0;
+
+        // 連打数の表示(最後に叩いた連打の音符と、あと何秒出すか)
+        private int shownRoll = -1;
+        private float rollShowTimer = 0f;
+        private const float RollShowSeconds = 2.0f; // 最後に叩いてから出しておく時間
+        private const float RollFadeSeconds = 0.3f; // 最後のこれだけの時間で消える
+
+        // 連打の扇(Roll_Base)が開いてからの時間・最後に叩いてからの時間(数字がぴょこっと大きくなる用)
+        private float rollOpenElapsed = 0f;
+        private float rollBumpElapsed = 99f;
+
+        // 割れた瞬間の風船の絵を少しだけ出す
+        private int poppedBalloon = -1;
+        private float popTimer = 0f;
+        private const float PopShowSeconds = 0.15f;
+
+        // ----- 連打・風船の画像(スキンの Image/04.EnsoGame/Popup/) -----
+        // 位置は OpenTaiko の初期スキン(1280×720)の値を 1.5倍したもの(判定枠の位置がこれでピッタリ合う)
+        private const string PopupDir = "Image/04.EnsoGame/Popup/";
+        private const string RollBaseImage = PopupDir + "Roll_Base.png";        // 扇 380×240 が縦に5コマ(閉じる→開く)
+        private const string RollNumberImage = PopupDir + "Roll_Number.png";    // 0〜9 が横に並ぶ(1文字 90×108)
+        private const string RollTextImage = PopupDir + "Roll_Text.png";        // 「連打!!」
+        private const string BalloonBaseImage = PopupDir + "Balloon_Base.png";  // 吹き出し
+        private const string BalloonNumberImage = PopupDir + "Balloon_Number.png"; // 0〜9 が横に並ぶ(1文字 72×86)
+        private const string BalloonAnimeImage = PopupDir + "Balloon_Anime.png";   // ふくらむ風船 390×360 が縦に8コマ(最後は割れた絵)
+
+        private const float RollFrameX = 327, RollFrameY = -4;        // 扇の左上(OpenTaiko 218, -3)
+        private const float RollNumberX = 470, RollNumberY = 183;     // 連打数の下の真ん中(OpenTaiko 313, 122)
+        private const float BalloonFrameX = 573, BalloonFrameY = 120; // 吹き出しの左上(OpenTaiko 382, 80)
+        private const float BalloonNumberX = 635, BalloonNumberY = 281; // 残りの数の下の真ん中(OpenTaiko 423, 187)
+        private const float NumberInterval = 82;                     // 数字の間隔(OpenTaiko 55)
+        private const float BalloonNumberScale = 0.879f;             // 残りの数の大きさ(OpenTaiko と同じ)
+        private const int RollBaseFrames = 5;
+        private const int BalloonAnimeFrames = 8;
+        private const float RollFrameSeconds = 0.04f;                // 扇が1コマ進む時間(OpenTaiko 40ms)
+
+        // 叩いた直後に数字を縦に伸ばす量(OpenTaiko の RollScale と同じ。14msごとに次へ)
+        private static readonly float[] RollBump = { 0.000f, 0.123f, 0.164f, 0.164f, 0.164f, 0.137f, 0.110f, 0.082f, 0.055f, 0.000f };
+        private const float RollBumpStep = 0.014f;
+
+        // 風船が割れる音
+        private SoundEffect? balloonSound;
+
+        // 演出(レーンの光・判定枠の光・ミニ太鼓・コンボ数・ゴーゴー)
+        private readonly PlayEffects effects = new PlayEffects(JudgeX, NoteY);
+        private const string BalloonSoundFile = "Sound/Taiko/Balloon.ogg";
 
         // 判定の文字(良・可・不可)の表示
         private Judge? shownJudge = null;
@@ -151,7 +220,7 @@ namespace TaikoSim.Scenes
         // 演奏中は設定パネルを開かない
         public override bool CanOpenSettings => false;
 
-        public TestPlayScene(string path, CourseType? courseType = null, bool returnToSelect = false)
+        public PlayScene(string path, CourseType? courseType = null, bool returnToSelect = false)
         {
             this.path = path;
             this.courseType = courseType;
@@ -203,6 +272,7 @@ namespace TaikoSim.Scenes
 
             donSound = SoundEffect.Load(Path.Combine(skin, DonSoundFile), out _);
             kaSound = SoundEffect.Load(Path.Combine(skin, KaSoundFile), out _);
+            balloonSound = SoundEffect.Load(Path.Combine(skin, BalloonSoundFile), out _);
         }
 
         // 叩ける音符の一覧を作る
@@ -213,6 +283,10 @@ namespace TaikoSim.Scenes
             hittable = Enumerable.Range(0, course.Notes.Count)
                 .Where(i => IsHittable(course.Notes[i]))
                 .OrderBy(i => course.Notes[i].TimeMs)
+                .ToArray();
+
+            rolls = Enumerable.Range(0, course.Notes.Count)
+                .Where(i => IsRollNote(course.Notes[i]) || IsBalloonNote(course.Notes[i]))
                 .ToArray();
 
             noteNumbers = new int[course.Notes.Count];
@@ -268,6 +342,8 @@ namespace TaikoSim.Scenes
             donSound = null;
             kaSound?.Dispose();
             kaSound = null;
+            balloonSound?.Dispose();
+            balloonSound = null;
         }
 
         // 最初から(最初の小節の3秒前から始める)
@@ -290,6 +366,22 @@ namespace TaikoSim.Scenes
             shownJudge = null;
             judgeTimer = 0f;
             inputLog.Clear();
+
+            // 連打・風船も最初から
+            if (course != null)
+            {
+                rollHits = new int[course.Notes.Count];
+                balloonPopped = new bool[course.Notes.Count];
+            }
+            totalRollHits = 0;
+            shownRoll = -1;
+            rollShowTimer = 0f;
+            rollOpenElapsed = 0f;
+            rollBumpElapsed = 99f;
+            poppedBalloon = -1;
+            popTimer = 0f;
+
+            effects.Reset();
         }
 
         public override void Update(float dt)
@@ -308,6 +400,10 @@ namespace TaikoSim.Scenes
 
             UpdateSongSync();
             UpdateJudge(dt);
+
+            effects.Update(dt);
+            // ゴーゴーの演出は見た目なので、音符と同じ時間(譜面オフセット込み)で見る
+            if (course != null) effects.SetGoGo(course.IsGoGoAt(nowMs - ConfigManager.Game.AudioOffsetMs - ConfigManager.Game.ChartOffsetMs));
         }
 
         // 曲の再生位置に合わせて時間を直す
@@ -342,6 +438,13 @@ namespace TaikoSim.Scenes
         private void UpdateJudge(float dt)
         {
             if (judgeTimer > 0f) judgeTimer -= dt;
+            if (rollShowTimer > 0f)
+            {
+                rollShowTimer -= dt;
+                rollOpenElapsed += dt;
+            }
+            rollBumpElapsed += dt;
+            if (popTimer > 0f) popTimer -= dt;
             if (course == null) return;
 
             // 判定に使う時間(音オフセットでずらす。マイナスで早く来る)
@@ -400,13 +503,29 @@ namespace TaikoSim.Scenes
         private void Hit(DrumPart part, KeyboardKey key, double gameMs)
         {
             bool don = KeyConfig.IsDon(part); // true なら面(ドン)、false なら縁(カッ)
+            effects.OnDrumHit(part);          // ミニ太鼓とレーンの光(当たっても空振りでも)
+            SoundConfig sound = ConfigManager.Sound;
+            float volume = (float)sound.GetFinalVolume(sound.SeVolume);
+
+            // どの音符に当てるか決める
+            int target = FindTarget(don, gameMs);  // 普通の音符(無ければ -1)
+            int roll = FindActiveRoll(don, gameMs); // 今叩ける連打・風船(無ければ -1)
+
+            // 連打・風船に当てるか(OpenTaiko の GetChipToJudge と同じ考え方)
+            //   ・普通の音符が無い
+            //   ・普通の音符が「過ぎていて不可になる」
+            //   ・連打の方が譜面で先に書いてある(＝普通の音符は連打より後ろ)
+            // のどれかなら連打・風船。それ以外は普通の音符(連打より前の音符を叩き残しているとき)
+            if (roll >= 0 && (target < 0 || IsPastBad(target, gameMs) || roll < target))
+            {
+                HitRoll(roll, don, key, part, gameMs, volume);
+                return;
+            }
 
             // 音は叩いたら必ず鳴らす(音量 = Master × SE)
-            SoundConfig sound = ConfigManager.Sound;
-            (don ? donSound : kaSound)?.Play((float)sound.GetFinalVolume(sound.SeVolume));
+            (don ? donSound : kaSound)?.Play(volume);
 
-            // どの音符に当てるか決める(当てる音符が無ければ空振り)
-            int target = FindTarget(don, gameMs);
+            // 当てる音符が無ければ空振り
             if (target < 0)
             {
                 AddInputLog(new InputLogEntry(gameMs, key.ToString(), KeyConfig.GetDrumPartName(part), don, 0, 0, null, false, frameCount));
@@ -424,6 +543,86 @@ namespace TaikoSim.Scenes
 
             SetJudge(target, judge, delta);
             AddInputLog(new InputLogEntry(gameMs, key.ToString(), KeyConfig.GetDrumPartName(part), don, noteNumbers[target], delta, judge, false, frameCount));
+
+            // 良・可なら判定枠が光る(不可は光らない。OpenTaiko と同じ)
+            if (judge != Judge.Bad)
+            {
+                bool big = course!.Notes[target].Type is NoteType.BigDon or NoteType.BigKa;
+                effects.OnNoteHit(judge == Judge.Good, big);
+            }
+        }
+
+        // その音符に当てると「過ぎていて不可」になるか
+        private bool IsPastBad(int index, double gameMs)
+        {
+            return gameMs - course!.Notes[index].TimeMs > OkRangeMs;
+        }
+
+        // ===== 連打・風船 =====
+
+        private static bool IsRollNote(Note note) => note.Type is NoteType.Roll or NoteType.BigRoll;
+        private static bool IsBalloonNote(Note note) => note.Type is NoteType.Balloon or NoteType.Kusudama;
+
+        // 今叩ける連打・風船(譜面で先に書いてあるもの)。無ければ -1
+        //   連打：始まり ≦ 今 ＜ 終わり。ドン・カッどっちでも
+        //   風船：始まりの17ms前 ≦ 今 ＜ 終わり。ドンだけ。割れたものは除く
+        private int FindActiveRoll(bool don, double gameMs)
+        {
+            foreach (int index in rolls)
+            {
+                Note note = course!.Notes[index];
+                if (IsRollNote(note))
+                {
+                    if (gameMs >= note.TimeMs && gameMs < note.EndTimeMs) return index;
+                }
+                else if (don && !balloonPopped[index])
+                {
+                    if (gameMs >= note.TimeMs - BalloonEarlyMs && gameMs < note.EndTimeMs) return index;
+                }
+            }
+            return -1;
+        }
+
+        // 連打・風船を叩いた
+        private void HitRoll(int index, bool don, KeyboardKey key, DrumPart part, double gameMs, float volume)
+        {
+            Note note = course!.Notes[index];
+            rollHits[index]++;
+            totalRollHits++;
+
+            // 表示：扇が閉じていたら開き直す
+            if (rollShowTimer <= 0f || shownRoll != index) rollOpenElapsed = 0f;
+            shownRoll = index;
+            rollShowTimer = RollShowSeconds;
+            rollBumpElapsed = 0f;
+
+            string text;
+            if (IsBalloonNote(note))
+            {
+                int left = Math.Max(0, note.BalloonCount - rollHits[index]);
+                if (left == 0)
+                {
+                    // 割れた！(割れる音が無いスキンなら、いつものドンの音)
+                    balloonPopped[index] = true;
+                    poppedBalloon = index;
+                    popTimer = PopShowSeconds;
+                    if (balloonSound != null) balloonSound.Play(volume);
+                    else donSound?.Play(volume);
+                    text = "風船 割れた！";
+                }
+                else
+                {
+                    donSound?.Play(volume);
+                    text = $"風船 のこり {left}";
+                }
+            }
+            else
+            {
+                (don ? donSound : kaSound)?.Play(volume);
+                text = $"連打 {rollHits[index]}打";
+            }
+
+            AddInputLog(new InputLogEntry(gameMs, key.ToString(), KeyConfig.GetDrumPartName(part), don, 0, 0, null, false, frameCount, text));
         }
 
         // 叩いたときに、どの音符に当てるか決める(OpenTaiko の GetChipToJudgeIgnoringRollBody と同じ考え方)
@@ -494,6 +693,7 @@ namespace TaikoSim.Scenes
                 case Judge.Bad: badCount++; combo = 0; break;
             }
             maxCombo = Math.Max(maxCombo, combo);
+            effects.SetCombo(combo);
 
             if (delta != null) lastDeltaMs = delta;
             shownJudge = judge;
@@ -501,9 +701,24 @@ namespace TaikoSim.Scenes
         }
 
         // 良・可で叩けた音符は消す(不可の音符はそのまま流れていく)
+        // 割れた風船も消す
         private bool IsHidden(int index)
         {
+            if (index < balloonPopped.Length && balloonPopped[index]) return true;
+            if (IsInflating(index)) return true; // ふくらむ絵の方を出す
             return index < judges.Length && judges[index] is Judge.Good or Judge.Ok;
+        }
+
+        // 叩いている途中の風船か(ふくらむ絵があるときだけ、音符の絵を隠す)
+        private bool IsInflating(int index)
+        {
+            if (course == null || index >= rollHits.Length || rollHits[index] == 0) return false;
+            Note note = course.Notes[index];
+            if (!IsBalloonNote(note) || balloonPopped[index]) return false;
+            if (SkinManager.GetTexture(BalloonAnimeImage) == null) return false;
+
+            double gameMs = nowMs - ConfigManager.Game.AudioOffsetMs;
+            return gameMs < note.EndTimeMs;
         }
 
         // Esc で選曲画面(ドロップで来たときはホーム)に戻る
@@ -521,7 +736,7 @@ namespace TaikoSim.Scenes
             if (tja == null) return;
 
             StopSong(); // 念のため、すぐ止める
-            SceneManager.ChangeScene(new TestPlayScene(tja));
+            SceneManager.ChangeScene(new PlayScene(tja));
         }
 
         // ===== 描画 =====
@@ -542,6 +757,9 @@ namespace TaikoSim.Scenes
             double viewMs = gameMs - ConfigManager.Game.ChartOffsetMs;
 
             DrawLane();
+            effects.DrawLaneLayer();   // ゴーゴーのレーン・レーンの光
+            DrawJudgeFrame();
+            effects.DrawBehindNotes(); // 判定枠の光の輪・顔のマーク
             DrawBarLines(course, viewMs);
 
             // 後ろ(右)の音符から描いて、手前(左)の音符が上に重なるようにする
@@ -554,15 +772,159 @@ namespace TaikoSim.Scenes
                 if (!IsHidden(i)) DrawSeText(course.Notes[i], viewMs);
             }
 
+            // 叩いている途中の風船(ふくらむ絵。音符の絵の上に描く)
+            DrawBalloonAnime(gameMs);
+
             // 左のパネル(判定枠を通りすぎた音符はこの下に隠れる)
             if (!SkinManager.Draw(PanelImage, 0, LaneY))
             {
                 Raylib.DrawRectangle(0, (int)LaneY, (int)LaneX + 5, (int)LaneHeight, new Color(170, 50, 40, 255));
             }
 
+            effects.DrawPanel(); // ミニ太鼓とコンボ数
+
             DrawJudgeText();
+            DrawRollPopup();
+            DrawBalloonPopup(gameMs);
+            effects.DrawFront(); // ゴーゴー開始の火花
             DrawInfo(chart, course);
             if (ShowInputLog) DrawInputLog();
+        }
+
+        // ===== 連打・風船の表示 =====
+
+        // 今叩いている途中の風船(1回以上叩いて、まだ割れていなくて、時間内)。無ければ -1
+        private int FindHittingBalloon(double gameMs)
+        {
+            foreach (int index in rolls)
+            {
+                Note note = course!.Notes[index];
+                if (!IsBalloonNote(note) || balloonPopped[index] || rollHits[index] == 0) continue;
+                if (gameMs >= note.TimeMs - BalloonEarlyMs && gameMs < note.EndTimeMs) return index;
+            }
+            return -1;
+        }
+
+        // ふくらむ風船(叩いた回数に合わせて大きくなる)。割れた瞬間は割れた絵を少しだけ出す
+        private void DrawBalloonAnime(double gameMs)
+        {
+            if (SkinManager.GetTexture(BalloonAnimeImage) is not Texture2D anime) return;
+
+            int frame;
+            int index = FindHittingBalloon(gameMs);
+            if (index >= 0)
+            {
+                // 0〜6コマ目：残りが減るほど大きく
+                Note note = course!.Notes[index];
+                float progress = note.BalloonCount > 0 ? (float)rollHits[index] / note.BalloonCount : 1f;
+                frame = Math.Clamp((int)(progress * (BalloonAnimeFrames - 1)), 0, BalloonAnimeFrames - 2);
+            }
+            else if (popTimer > 0f && poppedBalloon >= 0)
+            {
+                frame = BalloonAnimeFrames - 1; // 割れた絵
+            }
+            else
+            {
+                return;
+            }
+
+            float frameHeight = anime.Height / (float)BalloonAnimeFrames;
+            Rectangle source = new Rectangle(0, frame * frameHeight, anime.Width, frameHeight);
+            // 風船の口(左はし)を音符と同じ位置に、上下は判定枠の真ん中にそろえる
+            Rectangle dest = new Rectangle(JudgeX - NoteHalf, NoteY - frameHeight / 2f, anime.Width, frameHeight);
+            Raylib.DrawTexturePro(anime, source, dest, Vector2.Zero, 0f, Color.White);
+        }
+
+        // 連打数(扇＋数字＋「連打!!」)。最後に叩いてから2秒くらい出て、閉じて消える
+        private void DrawRollPopup()
+        {
+            if (rollShowTimer <= 0f || shownRoll < 0) return;
+            int count = rollHits[shownRoll];
+            if (IsBalloonNote(course!.Notes[shownRoll])) return; // 風船は吹き出しの方に出す
+
+            // 扇のコマ：開くとき 0→4、閉じるとき 4→0(OpenTaiko と同じく1コマ40ms)
+            int opening = (int)(rollOpenElapsed / RollFrameSeconds);
+            int closing = (int)(rollShowTimer / RollFrameSeconds);
+            int frame = Math.Clamp(Math.Min(opening, closing), 0, RollBaseFrames - 1);
+            byte numberAlpha = frame switch { 0 => 64, 1 => 128, 2 => 192, _ => 255 };
+
+            if (SkinManager.GetTexture(RollBaseImage) is Texture2D baseImage)
+            {
+                float frameHeight = baseImage.Height / (float)RollBaseFrames;
+                Rectangle source = new Rectangle(0, frame * frameHeight, baseImage.Width, frameHeight);
+                Raylib.DrawTexturePro(baseImage, source, new Rectangle(RollFrameX, RollFrameY, baseImage.Width, frameHeight), Vector2.Zero, 0f, Color.White);
+            }
+
+            // 叩いた直後は数字が縦に少し伸びる
+            int bumpIndex = (int)(rollBumpElapsed / RollBumpStep);
+            float bump = bumpIndex < RollBump.Length ? RollBump[bumpIndex] : 0f;
+            Color tint = new Color((byte)255, (byte)255, (byte)255, numberAlpha);
+
+            float right = DrawDigits(RollNumberImage, count, RollNumberX, RollNumberY, 1f, 1f + bump, tint);
+            if (right < 0)
+            {
+                // スキンに数字の画像が無いときは普通の文字で
+                string text = $"{count}打";
+                FontManager.Draw(text, RollNumberX - FontManager.Measure(text, 60).X / 2f, RollNumberY - 70, 60, tint);
+                return;
+            }
+
+            // 「連打!!」は数字の右下
+            if (SkinManager.GetTexture(RollTextImage) is Texture2D textImage)
+            {
+                Raylib.DrawTexture(textImage, (int)(right + 4), (int)(RollNumberY - textImage.Height), tint);
+            }
+        }
+
+        // 風船の残りの数(吹き出し＋数字)。叩いている途中だけ出す
+        private void DrawBalloonPopup(double gameMs)
+        {
+            int index = FindHittingBalloon(gameMs);
+            if (index < 0) return;
+
+            int left = Math.Max(0, course!.Notes[index].BalloonCount - rollHits[index]);
+
+            SkinManager.Draw(BalloonBaseImage, BalloonFrameX, BalloonFrameY);
+
+            int bumpIndex = (int)(rollBumpElapsed / RollBumpStep);
+            float bump = bumpIndex < RollBump.Length ? RollBump[bumpIndex] : 0f;
+            float scale = BalloonNumberScale;
+
+            if (DrawDigits(BalloonNumberImage, left, BalloonNumberX, BalloonNumberY, scale, scale + bump, Color.White) < 0)
+            {
+                string text = left.ToString();
+                FontManager.Draw(text, BalloonNumberX - FontManager.Measure(text, 60).X / 2f, BalloonNumberY - 70, 60, Color.Black);
+            }
+        }
+
+        // 数字の画像(0〜9 が横に10個並んだもの)で value を描く
+        //   centerX … 数字全体の真ん中、bottomY … 数字の下
+        //   scaleX・scaleY … 大きさ(縦に伸ばすと、下はそのままで上に伸びる)
+        // 描いた一番右の x を返す(画像が無ければ -1)
+        private static float DrawDigits(string image, int value, float centerX, float bottomY, float scaleX, float scaleY, Color tint)
+        {
+            if (SkinManager.GetTexture(image) is not Texture2D digits) return -1;
+
+            string text = Math.Max(0, value).ToString();
+            float digitWidth = digits.Width / 10f;
+            float digitHeight = digits.Height;
+            float step = NumberInterval * scaleX;           // 数字の間隔
+            float drawWidth = digitWidth * scaleX;
+            float drawHeight = digitHeight * scaleY;
+
+            // 全体の幅 = 間隔×(文字数−1) + 1文字の幅
+            float total = step * (text.Length - 1) + drawWidth;
+            float x = centerX - total / 2f;
+
+            foreach (char c in text)
+            {
+                int d = c - '0';
+                Rectangle source = new Rectangle(d * digitWidth, 0, digitWidth, digitHeight);
+                Rectangle dest = new Rectangle(x, bottomY - drawHeight, drawWidth, drawHeight);
+                Raylib.DrawTexturePro(digits, source, dest, Vector2.Zero, 0f, tint);
+                x += step;
+            }
+            return x - step + drawWidth;
         }
 
         // 入力ログ(右下)。新しいものが下
@@ -591,6 +953,11 @@ namespace TaikoSim.Scenes
                 {
                     text = $"{time}  見逃し　　　→ {e.NoteNumber}個目 {color}  {e.Delta:+0.0;-0.0;0.0} ms 不可";
                     textColor = new Color(140, 150, 255, 255);
+                }
+                else if (e.RollText != null)
+                {
+                    text = $"{time}  {e.KeyName} {e.PartName} {color} → {e.RollText}";
+                    textColor = new Color(255, 170, 80, 255);
                 }
                 else if (e.NoteNumber == 0)
                 {
@@ -643,14 +1010,18 @@ namespace TaikoSim.Scenes
             FontManager.Draw(text, JudgeX - width / 2f, y - 22, 44, Raylib.ColorAlpha(color, alpha));
         }
 
-        // レーンと判定枠
+        // レーン
         private static void DrawLane()
         {
             if (!SkinManager.Draw(LaneImage, LaneX, LaneY))
             {
                 Raylib.DrawRectangle((int)LaneX, (int)LaneY, Screen.Width - (int)LaneX, (int)LaneHeight, new Color(50, 50, 50, 255));
             }
+        }
 
+        // 判定枠(レーンの光より上に描く。光っていても判定枠が見えるように)
+        private static void DrawJudgeFrame()
+        {
             if (!SkinManager.Draw(JudgeFrameImage, JudgeX - NoteHalf, NoteY - NoteHalf))
             {
                 Raylib.DrawRing(new Vector2(JudgeX, NoteY), 44, 50, 0, 360, 48, Color.LightGray);
@@ -806,7 +1177,7 @@ namespace TaikoSim.Scenes
             FontManager.Draw($"時間 {nowMs / 1000.0:F2} 秒　BPM {GetCurrentBpm(chart, course):0.##}", 40, 165, 28, Color.White);
 
             // 判定の数とコンボ(本家っぽい見た目は後で)
-            FontManager.Draw($"良 {goodCount}　可 {okCount}　不可 {badCount}　コンボ {combo}（最大 {maxCombo}）",
+            FontManager.Draw($"良 {goodCount}　可 {okCount}　不可 {badCount}　コンボ {combo}（最大 {maxCombo}）　連打 {totalRollHits}打",
                 40, 690, 28, Color.Gold);
 
             // ズレ(プラスなら遅い)。平均がいつも同じ向きにズレていたら、音オフセットで直せる
@@ -828,7 +1199,7 @@ namespace TaikoSim.Scenes
             }
 
             KeyboardKey restartKey = ConfigManager.Key.SystemKeys.GetValueOrDefault(SystemAction.QuickRestart, KeyboardKey.F5);
-            FontManager.Draw($"{restartKey}：最初から　Esc：もどる　（テスト表示：連打・風船はまだ数えません）", 40, 600, 28, Color.SkyBlue);
+            FontManager.Draw($"{restartKey}：最初から　Esc：もどる", 40, 600, 28, Color.SkyBlue);
             FontManager.Draw($"ファイル：{path}", 40, 645, 22, Color.Gray);
         }
 

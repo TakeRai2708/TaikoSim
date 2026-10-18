@@ -178,8 +178,8 @@ namespace TaikoSim.Scenes
         // .tja がドロップされたら、今まで通りテスト表示
         public override void OnFilesDropped(string[] paths)
         {
-            string? tja = paths.FirstOrDefault(TestPlayScene.IsTja);
-            if (tja != null) SceneManager.ChangeScene(new TestPlayScene(tja));
+            string? tja = paths.FirstOrDefault(PlayScene.IsTja);
+            if (tja != null) SceneManager.ChangeScene(new PlayScene(tja));
         }
 
         // ===== 検索 =====
@@ -312,7 +312,7 @@ namespace TaikoSim.Scenes
             // ----- 難易度 → 演奏へ(戻ってきたら選曲画面に戻る) -----
             SetCursor(cat, song, course);
             CourseType type = entry.Courses[course].Type;
-            SceneManager.ChangeScene(new TestPlayScene(entry.TjaPath, type, returnToSelect: true));
+            SceneManager.ChangeScene(new PlayScene(entry.TjaPath, type, returnToSelect: true));
         }
 
         // 1段閉じる(難易度 → カテゴリ の順。検索中はカテゴリは無い)。閉じるものが無ければ false

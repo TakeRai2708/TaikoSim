@@ -60,6 +60,13 @@
         public bool Visible { get; set; } = true; // #BARLINEOFF の間は false
     }
 
+    // ゴーゴータイム1回分(#GOGOSTART 〜 #GOGOEND)
+    public class GoGoRange
+    {
+        public double StartMs { get; set; }
+        public double EndMs { get; set; }
+    }
+
     // 1つの難易度の譜面
     public class Course
     {
@@ -68,6 +75,19 @@
         public List<int> Balloons { get; set; } = new();
         public List<Note> Notes { get; } = new();
         public List<BarLine> BarLines { get; } = new();
+
+        // ゴーゴータイムの時間(時間の順)
+        public List<GoGoRange> GoGoRanges { get; } = new();
+
+        // その時間がゴーゴータイム中か
+        public bool IsGoGoAt(double timeMs)
+        {
+            foreach (GoGoRange range in GoGoRanges)
+            {
+                if (timeMs >= range.StartMs && timeMs < range.EndMs) return true;
+            }
+            return false;
+        }
     }
 
     // .tja 1ファイル分
