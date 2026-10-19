@@ -1,4 +1,5 @@
-﻿using System.Numerics;
+﻿using System.Diagnostics;
+using System.Numerics;
 using System.Text.Json;
 using Raylib_cs;
 using TaikoSim.Configs;
@@ -11,6 +12,55 @@ namespace TaikoSim.Graphics
     {
         // 読み込んだ画像(読めなかったものは null で覚えておいて、何度も読みに行かないようにする)
         private static readonly Dictionary<string, Texture2D?> textures = new();
+
+        // 今の演奏画面で使う画像を、表示する前にまとめて読む。
+        // ゴーゴーや大音符など、曲の途中で初めて出る画像もここに入れておく。
+        // 演奏用の画像を増やしたときは、この一覧にも追加する。
+        // 使っていない背景や別スキンの画像、曲の音源までは読み込まない。
+        private static readonly string[] PlayTexturePaths =
+        {
+            // ドン・カッ・大音符・連打・風船
+            "Image/04.EnsoGame/Notes/Normal/0/0.png",
+            "Image/04.EnsoGame/Notes/Normal/0/1.png",
+            "Image/04.EnsoGame/Notes/Normal/0/2.png",
+            "Image/04.EnsoGame/Notes/Normal/0/3.png",
+            "Image/04.EnsoGame/Notes/Normal/0/4.png",
+            "Image/04.EnsoGame/Notes/Normal/0/5.png",
+            "Image/04.EnsoGame/Notes/Normal/0/6.png",
+            "Image/04.EnsoGame/Notes/Normal/0/7.png",
+            "Image/04.EnsoGame/Notes/Normal/0/8.png",
+            "Image/04.EnsoGame/Notes/Normal/0/9.png",
+            "Image/04.EnsoGame/Notes/Normal/0/10.png",
+            "Image/04.EnsoGame/Notes/JudgementFrame.png",
+
+            // レーン・左パネル・音符の下の文字・判定文字
+            "Image/04.EnsoGame/Lane/Background_1P.png",
+            "Image/04.EnsoGame/MiniTaiko/Background_1P.png",
+            "Image/04.EnsoGame/SENotes.png",
+            "Image/04.EnsoGame/SENotes_Rolling.png",
+            "Image/04.EnsoGame/Judge.png",
+
+            // 連打と風船の表示
+            "Image/04.EnsoGame/Popup/Roll_Base.png",
+            "Image/04.EnsoGame/Popup/Roll_Number.png",
+            "Image/04.EnsoGame/Popup/Roll_Text.png",
+            "Image/04.EnsoGame/Popup/Balloon_Base.png",
+            "Image/04.EnsoGame/Popup/Balloon_Number.png",
+            "Image/04.EnsoGame/Popup/Balloon_Anime.png",
+
+            // 打鍵・判定・ミニ太鼓・コンボ・ゴーゴーの演出
+            "Image/04.EnsoGame/Lane/Red.png",
+            "Image/04.EnsoGame/Lane/Blue.png",
+            "Image/04.EnsoGame/Lane/Yellow.png",
+            "Image/04.EnsoGame/Lane/GoGo.png",
+            "Image/04.EnsoGame/Effects/Hit_Explosion.png",
+            "Image/04.EnsoGame/Effects/Hit_Explosion_Big.png",
+            "Image/04.EnsoGame/Effects/Hit_Effects.png",
+            "Image/04.EnsoGame/Effects/GoGoSplash.png",
+            "Image/04.EnsoGame/MiniTaiko/MiniTaiko.png",
+            "Image/04.EnsoGame/MiniTaiko/Combo_Number.png",
+            "Image/04.EnsoGame/MiniTaiko/Combo_MiniText.png",
+        };
 
         // 今使っているスキンのフォルダ(スキンが無ければ null)
         public static string? CurrentPath { get; private set; }
@@ -43,6 +93,10 @@ namespace TaikoSim.Graphics
             SkinNames = ConfigManager.Skin.GetSkinList();
             CurrentPath = ConfigManager.Skin.GetCurrentSkinPath();
             ReadSkinInfo();
+
+            // 起動時もスキン変更時も、演奏用画像の準備が終わってから戻る。
+            // GPUに画像を送るので、これまでどおり画面と同じスレッドで実行する。
+            PreloadPlayTextures();
 
             Generation++;
             Console.WriteLine($"[Skin] {CurrentName} を使います");
@@ -82,6 +136,24 @@ namespace TaikoSim.Graphics
         }
 
         // ===== 中身 =====
+
+        // 同じ GetTexture を使うので、読み込んだ画像は演奏中もそのまま使い回せる。
+        // 無い画像や読めない画像も null で覚え、演奏中に繰り返し読みに行かない。
+        private static void PreloadPlayTextures()
+        {
+            if (CurrentPath == null) return;
+
+            Stopwatch watch = Stopwatch.StartNew();
+            int loaded = 0;
+            foreach (string path in PlayTexturePaths)
+            {
+                if (GetTexture(path) is Texture2D) loaded++;
+            }
+            watch.Stop();
+
+            Console.WriteLine($"[Skin] 演奏用画像の事前読み込み：{loaded}/{PlayTexturePaths.Length}枚"
+                + $"（未配置または読み込み失敗 {PlayTexturePaths.Length - loaded}枚、{watch.Elapsed.TotalMilliseconds:F1}ms）");
+        }
 
         // ファイルを自分で読んでからRaylibに渡す(パスに日本語があっても読めるように)
         private static Texture2D? LoadTexture(string fullPath)
