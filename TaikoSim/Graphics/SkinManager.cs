@@ -60,6 +60,18 @@ namespace TaikoSim.Graphics
             "Image/04.EnsoGame/MiniTaiko/MiniTaiko.png",
             "Image/04.EnsoGame/MiniTaiko/Combo_Number.png",
             "Image/04.EnsoGame/MiniTaiko/Combo_MiniText.png",
+
+            // 得点・難易度・魂ゲージ(満タンになったときの虹と魂も先に読む)
+            "Image/04.EnsoGame/MiniTaiko/Background_Score.png",
+            "Image/04.EnsoGame/MiniTaiko/Score.png",
+            "Image/04.EnsoGame/MiniTaiko/CourseSymbol.png",
+            "Image/04.EnsoGame/Gauge/Gauge_Base.png",
+            "Image/04.EnsoGame/Gauge/Gauge_Light.png",
+            "Image/04.EnsoGame/Gauge/Gauge_Light_Glow.png",
+            "Image/04.EnsoGame/Gauge/Gauge_Clear_Text.png",
+            "Image/04.EnsoGame/Gauge/Rainbow.png",
+            "Image/04.EnsoGame/Gauge/Soul_Anime.png",
+            "Image/04.EnsoGame/Gauge/Soul_Text.png",
         };
 
         // 今使っているスキンのフォルダ(スキンが無ければ null)

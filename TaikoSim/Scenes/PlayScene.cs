@@ -64,6 +64,8 @@ namespace TaikoSim.Scenes
 
         private Chart? chart;
         private Course? course;
+        private readonly PlayStats stats = new();
+        private readonly PlayHUD hud = new();
         private string error = "";
 
         // 今の時間(曲の頭が0。マイナスは曲が始まる前)
@@ -384,6 +386,11 @@ namespace TaikoSim.Scenes
             if (course != null) judges = new Judge?[course.Notes.Count];
             nextHittable = 0;
             goodCount = okCount = badCount = combo = maxCombo = 0;
+            if (course != null)
+            {
+                stats.Reset(course);
+                hud.Reset(course);
+            }
             lastDeltaMs = null;
             deltaSumMs = 0;
             deltaCount = 0;
@@ -436,7 +443,9 @@ namespace TaikoSim.Scenes
                 double? outputEstimate = AudioManager.Mixer != 0 ? AudioManager.OutputLatencyMs : null;
                 diagnostics.RecordFrame(frameCount, nowMs, syncError, outputEstimate);
             }
+            stats.Update(dt);
             UpdateJudge(dt);
+            hud.Update(dt, stats.Score);
 
             effects.Update(dt);
             // ゴーゴーの演出は見た目なので、音符と同じ時間(譜面オフセット込み)で見る
@@ -770,6 +779,7 @@ namespace TaikoSim.Scenes
                 text = $"連打 {rollHits[index]}打";
             }
 
+            stats.ApplyRollHit(note, balloonPopped[index]);
             AddInputLog(new InputLogEntry(gameMs, key.ToString(), KeyConfig.GetDrumPartName(part), don, 0, 0, null, false, frameCount, text));
         }
 
@@ -841,6 +851,12 @@ namespace TaikoSim.Scenes
                 case Judge.Bad: badCount++; combo = 0; break;
             }
             maxCombo = Math.Max(maxCombo, combo);
+            stats.ApplyJudge(course!.Notes[index], combo, judge switch
+            {
+                Judge.Good => PlayJudgement.Good,
+                Judge.Ok => PlayJudgement.Ok,
+                _ => PlayJudgement.Bad,
+            });
             effects.SetCombo(combo);
 
             if (delta != null) lastDeltaMs = delta;
@@ -904,10 +920,16 @@ namespace TaikoSim.Scenes
             double gameMs = nowMs - ConfigManager.Game.AudioOffsetMs;
             double viewMs = gameMs - ConfigManager.Game.ChartOffsetMs;
 
+            // パネル画像の実際の右端で花火を分ける。画像がない場合は代わりの四角形に合わせる。
+            // レーン左端と数px違うスキンでも、パネルに隠れる細い切れ目を残さない。
+            float panelRight = SkinManager.GetTexture(PanelImage) is Texture2D panelTexture
+                ? panelTexture.Width : (int)LaneX + 5;
+
             DrawLane();
+            hud.DrawGauge(stats);
             effects.DrawLaneLayer();   // ゴーゴーのレーン・レーンの光
             DrawJudgeFrame();
-            effects.DrawBehindNotes(); // 判定枠の光の輪・顔のマーク
+            effects.DrawBehindNotes(panelRight); // レーン側の花火・顔のマーク
             DrawBarLines(course, viewMs);
 
             // 後ろ(右)の音符から描いて、手前(左)の音符が上に重なるようにする
@@ -929,6 +951,10 @@ namespace TaikoSim.Scenes
                 Raylib.DrawRectangle(0, (int)LaneY, (int)LaneX + 5, (int)LaneHeight, new Color(170, 50, 40, 255));
             }
 
+            hud.DrawPanel(course);
+
+            // パネルに重なる花火も見せる。レーン側の花火は、すでに音符の下に描いている。
+            effects.DrawHitEffectsOverPanel(panelRight);
             effects.DrawPanel(); // ミニ太鼓とコンボ数
 
             DrawJudgeText();

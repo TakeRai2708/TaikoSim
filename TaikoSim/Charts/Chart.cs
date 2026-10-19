@@ -72,6 +72,10 @@
     {
         public CourseType Type { get; set; } = CourseType.Oni;
         public int Level { get; set; }
+        // 通常配点。指定がないときは OpenTaiko の初期値を使う。
+        public int ScoreMode { get; set; } = 2;
+        public int ScoreInit { get; set; } = 300;
+        public int ScoreDiff { get; set; } = 120;
         public List<int> Balloons { get; set; } = new();
         public List<Note> Notes { get; } = new();
         public List<BarLine> BarLines { get; } = new();

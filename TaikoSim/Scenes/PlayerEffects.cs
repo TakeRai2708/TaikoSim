@@ -13,7 +13,7 @@ namespace TaikoSim.Scenes
     // 使い方(PlayScene から)
     //   ・毎フレーム Update(dt) と SetGoGo(ゴーゴー中か)
     //   ・叩いたら OnDrumHit、音符を良・可で叩けたら OnNoteHit、コンボが変わったら SetCombo
-    //   ・描く順番：(レーン) → DrawLaneLayer → (判定枠) → DrawBehindNotes → (音符) → (左のパネル) → DrawPanel → DrawFront
+    //   ・描く順番：(レーン) → DrawLaneLayer → (判定枠) → DrawBehindNotes → (音符) → (左のパネル) → DrawHitEffectsOverPanel → DrawPanel → DrawFront
     public class PlayEffects
     {
         // ===== 画像(スキンの Image/04.EnsoGame/) =====
@@ -241,18 +241,31 @@ namespace TaikoSim.Scenes
             Raylib.EndBlendMode();
         }
 
-        // 判定枠より上・音符より下：光の輪・大音符の光の線・顔のマーク
-        public void DrawBehindNotes()
+        // 判定枠より上・音符より下：レーン側の光の輪・大音符の光線・顔のマーク
+        // panelRight は、左パネルを実際に描いたときの右端。
+        public void DrawBehindNotes(float panelRight)
         {
             // 光の輪は黒い背景の画像なので、加算合成で黒いところを消す(OpenTaiko の AddBlend と同じ)
             Raylib.BeginBlendMode(BlendMode.Additive);
             foreach (Explosion e in explosions)
             {
-                DrawExplosion(e);
+                DrawExplosion(e, panelRight, overPanel: false);
             }
             Raylib.EndBlendMode();
 
             DrawFace();
+        }
+
+        // 左パネルに重なる花火は、パネル背景を描いた後に出す。
+        // レーン側とは境界で分けているので、同じ場所が二重に光ることはない。
+        public void DrawHitEffectsOverPanel(float panelRight)
+        {
+            Raylib.BeginBlendMode(BlendMode.Additive);
+            foreach (Explosion e in explosions)
+            {
+                DrawExplosion(e, panelRight, overPanel: true);
+            }
+            Raylib.EndBlendMode();
         }
 
         // 左のパネルの上：ミニ太鼓とコンボ数
@@ -343,7 +356,7 @@ namespace TaikoSim.Scenes
             return Math.Max(1, (int)(texture.Width / size));
         }
 
-        private void DrawExplosion(Explosion e)
+        private void DrawExplosion(Explosion e, float panelRight, bool overPanel)
         {
             // 光の輪(縦に 良・可・大良・大可)
             if (SkinManager.GetTexture(HitExplosionImage) is Texture2D texture)
@@ -356,7 +369,7 @@ namespace TaikoSim.Scenes
                     int row = (e.Big ? 2 : 0) + (e.Good ? 0 : 1);
                     Rectangle source = new Rectangle(frame * size, row * size, size, size);
                     Rectangle dest = new Rectangle(judgeX - size / 2f, judgeY - size / 2f, size, size);
-                    Raylib.DrawTexturePro(texture, source, dest, Vector2.Zero, 0f, Color.White);
+                    DrawHitEffectTexture(texture, source, dest, panelRight, overPanel);
                 }
             }
 
@@ -371,9 +384,30 @@ namespace TaikoSim.Scenes
                     Rectangle source = new Rectangle(0, e.Good ? 0 : frameHeight, big.Width, frameHeight);
                     float w = big.Width * scale, h = frameHeight * scale;
                     Rectangle dest = new Rectangle(judgeX - w / 2f, judgeY - h / 2f, w, h);
-                    Raylib.DrawTexturePro(big, source, dest, Vector2.Zero, 0f, Color.White);
+                    DrawHitEffectTexture(big, source, dest, panelRight, overPanel);
                 }
             }
+        }
+
+        // 花火を左右に分け、レーン側は音符の下、パネル側は背景の上に描く。
+        // 元画像も同じ割合で分けるため、花火の形や大きさは変わらない。
+        // 左側も後で描くので、前回のように境界より先が欠けることはない。
+        private static void DrawHitEffectTexture(Texture2D texture, Rectangle source, Rectangle dest,
+            float panelRight, bool overPanel)
+        {
+            if (dest.Width <= 0f || dest.Height <= 0f) return;
+
+            float left = overPanel ? dest.X : Math.Max(dest.X, panelRight);
+            float right = overPanel ? Math.Min(dest.X + dest.Width, panelRight) : dest.X + dest.Width;
+            if (right <= left) return; // 今回の描画側に画像がなければ、反対側の描画で出す
+
+            float sourcePerPixel = source.Width / dest.Width;
+            source.X += (left - dest.X) * sourcePerPixel;
+            source.Width = (right - left) * sourcePerPixel;
+            dest.X = left;
+            dest.Width = right - left;
+
+            Raylib.DrawTexturePro(texture, source, dest, Vector2.Zero, 0f, Color.White);
         }
 
         // ----- ミニ太鼓(縦に5コマ：太鼓・右面・左面・右縁・左縁) -----

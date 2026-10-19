@@ -28,6 +28,9 @@ namespace TaikoSim.Charts
             CourseType courseType = CourseType.Oni; // COURSE: が無ければおに
             int level = 0;
             List<int> balloons = new();
+            int scoreMode = 2, scoreInit = 300, scoreDiff = 120;
+            int commonScoreMode = 2, commonScoreInit = 300, commonScoreDiff = 120;
+            bool courseHeaderSeen = false;
 
             // 日本語の曲名(TITLEJA: / SUBTITLEJA:)。書いてあれば TITLE: より優先する(OpenTaiko と同じ)
             string titleJa = "";
@@ -53,6 +56,9 @@ namespace TaikoSim.Charts
                     {
                         Type = courseType,
                         Level = level,
+                        ScoreMode = scoreMode,
+                        ScoreInit = scoreInit,
+                        ScoreDiff = scoreDiff,
                         Balloons = new List<int>(balloons),
                     };
                     ParseBody(chart, course, body);
@@ -97,12 +103,43 @@ namespace TaikoSim.Charts
                         break;
                     case "COURSE":
                         courseType = ParseCourse(value);
+                        // 前の難易度の配点を、次の難易度へ持ち越さない。
+                        courseHeaderSeen = true;
+                        scoreMode = commonScoreMode;
+                        scoreInit = commonScoreInit;
+                        scoreDiff = commonScoreDiff;
                         break;
                     case "LEVEL":
                         level = (int)ParseNumber(value, 0);
                         break;
                     case "BALLOON":
                         balloons = ParseBalloons(value);
+                        break;
+                    case "SCOREMODE":
+                        if (int.TryParse(value, NumberStyles.Integer, CultureInfo.InvariantCulture, out int mode)
+                            && mode is >= 0 and <= 2)
+                        {
+                            scoreMode = mode;
+                            if (!courseHeaderSeen) commonScoreMode = mode;
+                        }
+                        break;
+                    case "SCOREINIT":
+                        // 2つ目の値は真打用。今回は通常配点の先頭の値だけを使う。
+                        string firstScore = value.Split(',')[0].Trim();
+                        if (int.TryParse(firstScore, NumberStyles.Integer, CultureInfo.InvariantCulture, out int initial)
+                            && initial >= 0)
+                        {
+                            scoreInit = initial;
+                            if (!courseHeaderSeen) commonScoreInit = initial;
+                        }
+                        break;
+                    case "SCOREDIFF":
+                        if (int.TryParse(value, NumberStyles.Integer, CultureInfo.InvariantCulture, out int difference)
+                            && difference >= 0)
+                        {
+                            scoreDiff = difference;
+                            if (!courseHeaderSeen) commonScoreDiff = difference;
+                        }
                         break;
                 }
             }
