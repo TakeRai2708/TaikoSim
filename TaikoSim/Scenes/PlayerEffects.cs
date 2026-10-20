@@ -132,6 +132,8 @@ namespace TaikoSim.Scenes
         private const float FlightSeconds = 0.56f;
         private const float SoulX = 1833f, SoulY = 246f, FlightHeight = 330f;
         private const float ArrivalSeconds = 0.408f;
+        // 参考動画の花びらに合わせた回転速度の目安。経過時間で進めるのでFPSには依存しない。
+        private const float SoulPetalDegreesPerSecond = 480f;
         private struct FlyingNote
         {
             public float Age;
@@ -367,10 +369,12 @@ namespace TaikoSim.Scenes
                 {
                     float size = ring.Height;
                     Rectangle source = new Rectangle(note.Big ? size : 0, 0, size, size);
+                    // 花びらだけを魂の中心で回す。ノーツの顔と中央の光は回転させない。
+                    float rotation = note.Age * SoulPetalDegreesPerSecond;
                     DrawCentered(ring, source, center, 1.5f + note.Age,
-                        Raylib.ColorAlpha(Color.Orange, fade));
+                        Raylib.ColorAlpha(Color.Orange, fade), rotation);
                     DrawCentered(ring, source, center, 1.1f + note.Age,
-                        Raylib.ColorAlpha(Color.White, fade));
+                        Raylib.ColorAlpha(Color.White, fade), rotation);
                 }
                 if (note.Age < 0.221f) DrawMovingNote(note, center);
                 if (SkinManager.GetTexture(NoteFlushImage) is Texture2D flush)
@@ -395,11 +399,12 @@ namespace TaikoSim.Scenes
             else Raylib.DrawCircleV(center, note.Big ? 72 : 48, note.Don ? Color.Red : Color.SkyBlue);
         }
 
-        private static void DrawCentered(Texture2D texture, Rectangle source, Vector2 center, float scale, Color tint)
+        private static void DrawCentered(Texture2D texture, Rectangle source, Vector2 center, float scale, Color tint,
+            float rotation = 0f)
         {
             float w = source.Width * scale, h = source.Height * scale;
-            Raylib.DrawTexturePro(texture, source, new Rectangle(center.X - w / 2f, center.Y - h / 2f, w, h),
-                Vector2.Zero, 0f, tint);
+            Raylib.DrawTexturePro(texture, source, new Rectangle(center.X, center.Y, w, h),
+                new Vector2(w / 2f, h / 2f), rotation, tint);
         }
 
         // 時間を進めて、終わったら -1
@@ -602,7 +607,7 @@ namespace TaikoSim.Scenes
             float scale = ComboScale[size];
 
             // 一番右の数字の位置(全体が ComboX を真ん中にして並ぶように)
-            float rightX = ComboX + (count >= 4 ? 6f : 0f) + padding * (count - 1) / 2f;
+            float rightX = ComboX + padding * (count - 1) / 2f;
 
             int bumpIndex = (int)(comboBumpTime / ComboBumpStep);
             float bump = bumpIndex < ComboBump.Length ? ComboBump[bumpIndex] : 0f;

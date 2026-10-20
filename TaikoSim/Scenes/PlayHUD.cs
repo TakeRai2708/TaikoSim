@@ -220,6 +220,15 @@ namespace TaikoSim.Scenes
                 }
             }
 
+            // 先端の光は点灯マスの中央に合わせ、目盛りより先に描いて線をにじませない。
+            if (!rainbow && filled > 0 && SkinManager.GetTexture(GaugeGlow) is Texture2D glow)
+            {
+                int column = filled - 1 < borderCell ? 0 : filled - 1 == borderCell ? 2 : 3;
+                Raylib.DrawTexturePro(glow, new Rectangle(column * 30, 0, 30, 83),
+                    new Rectangle(GaugeX + 12 + (filled - 1) * CellWidth - 4.5f, GaugeY + 3f, 30, 83),
+                    Vector2.Zero, 0f, Raylib.ColorAlpha(Color.White, 0.6f));
+            }
+
             // 虹にも目盛りは重なる。黒線が強すぎないように約28%で合成する。
             Color markTint = Raylib.ColorAlpha(Color.White, GaugeMarkAlpha);
             if (stats.Norma == templateNorma)
@@ -234,14 +243,6 @@ namespace TaikoSim.Scenes
                         GaugeX + 12 + i * CellWidth, GaugeY, tint: markTint);
                 }
                 DrawPart(frame, new Rectangle(1062, 6 * 84, 133, 84), GaugeX + 1062, GaugeY, tint: markTint);
-            }
-
-            if (!rainbow && filled > 0 && SkinManager.GetTexture(GaugeGlow) is Texture2D glow)
-            {
-                int column = filled - 1 < borderCell ? 0 : filled - 1 == borderCell ? 2 : 3;
-                Raylib.DrawTexturePro(glow, new Rectangle(column * 30, 0, 30, 83),
-                    new Rectangle(GaugeX + 12 + (filled - 1) * CellWidth - 4.5f, GaugeY, 30, 83),
-                    Vector2.Zero, 0f, Raylib.ColorAlpha(Color.White, 0.6f));
             }
 
             if (SkinManager.GetTexture(ClearText) is Texture2D clear)
