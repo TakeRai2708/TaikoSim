@@ -1,5 +1,6 @@
 ﻿using System.Diagnostics;
 using Raylib_cs;
+using System.Globalization;
 using TaikoSim.Charts;
 using TaikoSim.Configs;
 using TaikoSim.Graphics;
@@ -28,6 +29,15 @@ namespace TaikoSim.Scenes
         // 検索の箱
         private static readonly Rectangle SearchBox = new Rectangle(260, 60, 840, 56);
         private const int SearchMaxLength = 40;
+
+        // 演奏オプションは右端にそろえて、曲一覧より手前に描く。
+        private static readonly Rectangle OptionsButton = new Rectangle(1784, 60, 56, 56);
+        private static readonly Rectangle OptionsMenu = new Rectangle(1510, 124, 330, 208);
+        private static readonly Rectangle AutoPlayItem = new Rectangle(1520, 134, 310, 62);
+        private static readonly Rectangle HiSpeedBox = new Rectangle(1634, 210, 184, 52);
+        private bool optionsOpen;
+        private bool hiSpeedFocused, hiSpeedSelectAll, hiSpeedInvalid;
+        private string hiSpeedText = "0";
 
         // 色
         private static readonly Color RowColor = new Color(30, 34, 48, 255);
@@ -83,6 +93,8 @@ namespace TaikoSim.Scenes
             wasScanning = SongList.IsScanning;
             ValidateCursor();
             searchFocused = false; // 演奏から戻ってきたときは入力中にしない(検索の結果はそのまま)
+            optionsOpen = false;
+            ResetHiSpeedInput();
             scrollTarget = scroll;
         }
 
@@ -117,6 +129,13 @@ namespace TaikoSim.Scenes
                 ValidateCursor();
             }
             wasScanning = scanning;
+            if (optionsOpen)
+            {
+                searchFocused = false;
+                if (hiSpeedFocused && !Game.IsSettingsOpen) UpdateHiSpeedInput();
+                else DiscardTypedChars();
+                return;
+            }
             if (scanning)
             {
                 searchFocused = false;
@@ -161,6 +180,12 @@ namespace TaikoSim.Scenes
         // Esc：入力中なら検索をやめる → 1段閉じる → 検索中なら検索をやめる → ホームへ
         public override void OnBack()
         {
+            if (optionsOpen)
+            {
+                FinishHiSpeedInput();
+                optionsOpen = false;
+                return;
+            }
             if (searchFocused)
             {
                 ClearSearch();
@@ -178,6 +203,7 @@ namespace TaikoSim.Scenes
         // .tja がドロップされたら、今まで通りテスト表示
         public override void OnFilesDropped(string[] paths)
         {
+            if (optionsOpen) return;
             string? tja = paths.FirstOrDefault(PlayScene.IsTja);
             if (tja != null) SceneManager.ChangeScene(new PlayScene(tja));
         }
@@ -475,6 +501,10 @@ namespace TaikoSim.Scenes
             Raylib.ClearBackground(new Color(20, 22, 32, 255));
             DrawContent();
 
+            // メニューを閉じるクリックが、後ろの曲やボタンへ伝わらない順序にする。
+            Gui.ResetClip();
+            DrawPlayOptions();
+
             // 設定パネルの方に影響しないように、クリックできる範囲を元に戻す
             Gui.ResetClip();
         }
@@ -482,7 +512,7 @@ namespace TaikoSim.Scenes
         // クリックできる範囲を決める(null なら画面全体)。設定パネルが開いている間はどこも押せない
         private void Clip(Rectangle? area)
         {
-            if (!active) Gui.SetClip(NoClickArea);
+            if (!active || optionsOpen) Gui.SetClip(NoClickArea);
             else if (area is Rectangle r) Gui.SetClip(r);
             else Gui.ResetClip();
         }
@@ -493,11 +523,11 @@ namespace TaikoSim.Scenes
             FontManager.Draw("選曲", ListX, 50, 64, Color.White);
             DrawSearchBox();
 
-            if (Gui.Button(new Rectangle(1440, 60, 190, 56), "一覧を更新"))
+            if (Gui.Button(new Rectangle(1374, 60, 190, 56), "一覧を更新"))
             {
                 Refresh();
             }
-            if (Gui.Button(new Rectangle(1650, 60, 190, 56), "フォルダを開く"))
+            if (Gui.Button(new Rectangle(1580, 60, 190, 56), "フォルダを開く"))
             {
                 OpenSongsFolder();
             }
@@ -513,8 +543,10 @@ namespace TaikoSim.Scenes
             List<SongCategory> categories = SongList.Categories;
             int categoryCount = categories.Count(c => !c.IsLoose); // カテゴリに入らない曲の入れ物は数えない
             string countText = $"{categoryCount}カテゴリ　{SongList.SongCount}曲";
-            float countWidth = FontManager.Measure(countText, 26).X;
-            FontManager.Draw(countText, 1410 - countWidth, 74, 26, Gui.SubTextColor);
+            // 検索と操作ボタンの間に収め、ボタンの追加後も重ならないようにする。
+            const float countX = 1120, countSpace = 234;
+            float countSize = Math.Min(24f, 24f * countSpace / Math.Max(1f, FontManager.Measure(countText, 24).X));
+            FontManager.Draw(countText, countX, 78, countSize, Gui.SubTextColor);
 
             if (categories.Count == 0)
             {
@@ -554,6 +586,128 @@ namespace TaikoSim.Scenes
             Raylib.EndScissorMode();
 
             DrawFooter();
+        }
+
+        private void DrawPlayOptions()
+        {
+            bool enabled = ConfigManager.Game.AutoPlay;
+            System.Numerics.Vector2 mouse = Screen.GetMousePosition();
+            bool pressed = active && Raylib.IsMouseButtonPressed(MouseButton.Left);
+            bool overButton = Raylib.CheckCollisionPointRec(mouse, OptionsButton);
+            Color buttonColor = active && (overButton || optionsOpen) ? Gui.BoxHoverColor : Gui.BoxColor;
+            Raylib.DrawRectangleRec(OptionsButton, buttonColor);
+            Icons.Gear(OptionsButton.X + 28, OptionsButton.Y + 28,
+                enabled ? Gui.AccentColor : Color.White, buttonColor);
+            if (enabled)
+                Raylib.DrawCircle((int)(OptionsButton.X + 47), (int)(OptionsButton.Y + 9), 4, Color.Lime);
+
+            if (!active)
+            {
+                FinishHiSpeedInput();
+                optionsOpen = false;
+                return;
+            }
+            if (pressed && overButton)
+            {
+                if (optionsOpen) FinishHiSpeedInput();
+                else ResetHiSpeedInput();
+                optionsOpen = !optionsOpen;
+                searchFocused = false;
+                return; // 開いたクリックでは項目を切り替えない。
+            }
+            if (!optionsOpen) return;
+
+            Raylib.DrawRectangleRec(OptionsMenu, new Color(14, 17, 27, 255));
+            Raylib.DrawRectangleLinesEx(OptionsMenu, 2, Gui.AccentColor);
+            bool overItem = Raylib.CheckCollisionPointRec(mouse, AutoPlayItem);
+            if (overItem) Raylib.DrawRectangleRec(AutoPlayItem, Gui.BoxHoverColor);
+            if (pressed && overItem)
+            {
+                ConfigManager.Game.AutoPlay = enabled = !enabled;
+                ConfigManager.SaveAll();
+            }
+            FontManager.Draw("オート演奏", AutoPlayItem.X + 14, AutoPlayItem.Y + 16, 26, Color.White);
+            Gui.DrawCentered(enabled ? "ON" : "OFF",
+                new Rectangle(AutoPlayItem.X + 220, AutoPlayItem.Y, 76, AutoPlayItem.Height),
+                26, enabled ? Color.Lime : Gui.SubTextColor);
+            bool overHiSpeed = Raylib.CheckCollisionPointRec(mouse, HiSpeedBox);
+            if (pressed)
+            {
+                if (overHiSpeed)
+                {
+                    if (!hiSpeedFocused) hiSpeedSelectAll = true;
+                    hiSpeedFocused = true;
+                    caretTimer = 0f;
+                }
+                else FinishHiSpeedInput();
+            }
+            FontManager.Draw("HS倍率", 1534, 222, 24, Color.White);
+            Raylib.DrawRectangleRec(HiSpeedBox, hiSpeedFocused ? Gui.BoxHoverColor : Gui.BoxColor);
+            Raylib.DrawRectangleLinesEx(HiSpeedBox, 2,
+                hiSpeedInvalid ? ErrorColor : hiSpeedFocused ? Gui.AccentColor : Gui.SubTextColor);
+            if (hiSpeedFocused && hiSpeedSelectAll)
+                Raylib.DrawRectangleRec(new Rectangle(HiSpeedBox.X + 10, HiSpeedBox.Y + 8, 130, 36), new Color(45, 82, 130, 255));
+            string caret = hiSpeedFocused && caretTimer % 1f < 0.5f ? "|" : "";
+            FontManager.Draw(hiSpeedText + caret, HiSpeedBox.X + 12, HiSpeedBox.Y + 10, 26, Color.White);
+            FontManager.Draw(hiSpeedInvalid ? "0〜100の数値を入力してください" : "0＝譜面どおり / Enterで確定", 1524, 276, 19,
+                hiSpeedInvalid ? ErrorColor : Gui.SubTextColor);
+            FontManager.Draw("TJAのSCROLLに掛ける倍率", 1524, 303, 18, Gui.SubTextColor);
+            if (pressed && !Raylib.CheckCollisionPointRec(mouse, OptionsMenu)) optionsOpen = false;
+        }
+
+        private void ResetHiSpeedInput()
+        {
+            hiSpeedText = ConfigManager.Game.HiSpeed.ToString("0.#######", CultureInfo.InvariantCulture);
+            hiSpeedFocused = hiSpeedSelectAll = hiSpeedInvalid = false;
+        }
+
+        private void UpdateHiSpeedInput()
+        {
+            bool control = Raylib.IsKeyDown(KeyboardKey.LeftControl) || Raylib.IsKeyDown(KeyboardKey.RightControl);
+            if (control && Raylib.IsKeyPressed(KeyboardKey.A)) hiSpeedSelectAll = true;
+            int c;
+            while ((c = Raylib.GetCharPressed()) > 0)
+            {
+                if (control || (c != '.' && (c < '0' || c > '9'))) continue;
+                if (hiSpeedSelectAll) { hiSpeedText = ""; hiSpeedSelectAll = false; }
+                if (hiSpeedText.Length < 8) hiSpeedText += (char)c;
+                hiSpeedInvalid = false;
+            }
+            if (KeyPressed(KeyboardKey.Backspace))
+            {
+                if (hiSpeedSelectAll) hiSpeedText = "";
+                else if (hiSpeedText.Length > 0) hiSpeedText = hiSpeedText[..^1];
+                hiSpeedSelectAll = hiSpeedInvalid = false;
+            }
+            if (Raylib.IsKeyPressed(KeyboardKey.Enter) || Raylib.IsKeyPressed(KeyboardKey.KpEnter))
+            {
+                if (CommitHiSpeed()) hiSpeedFocused = false;
+            }
+        }
+
+        private bool CommitHiSpeed()
+        {
+            string value = hiSpeedText.Length == 0 ? "0" : hiSpeedText;
+            if (!float.TryParse(value, NumberStyles.AllowDecimalPoint, CultureInfo.InvariantCulture, out float hs)
+                || !float.IsFinite(hs) || hs < 0f || hs > 100f)
+            {
+                hiSpeedInvalid = true;
+                return false;
+            }
+            if (ConfigManager.Game.HiSpeed != hs)
+            {
+                ConfigManager.Game.HiSpeed = hs;
+                ConfigManager.SaveAll();
+            }
+            hiSpeedText = hs.ToString("0.#######", CultureInfo.InvariantCulture);
+            hiSpeedInvalid = hiSpeedSelectAll = false;
+            return true;
+        }
+
+        private void FinishHiSpeedInput()
+        {
+            if (hiSpeedFocused && !CommitHiSpeed()) ResetHiSpeedInput();
+            hiSpeedFocused = false;
         }
 
         // 検索の箱
@@ -722,11 +876,11 @@ namespace TaikoSim.Scenes
             float maxScroll = Math.Max(0, contentHeight - listHeight);
 
             // ホイール(設定パネルが開いている間は動かさない)
-            float wheel = active ? Raylib.GetMouseWheelMove() : 0f;
+            float wheel = active && !optionsOpen ? Raylib.GetMouseWheelMove() : 0f;
             if (wheel != 0) scrollTarget -= wheel * 120f;
 
             // キーで動かしたときは、選んでいる行が見えるようにする
-            if (active && rows.Count > 0 && WasKeyMoved())
+            if (active && !optionsOpen && rows.Count > 0 && WasKeyMoved())
             {
                 Row row = rows[FindCursorRow()];
                 if (row.Y < scrollTarget) scrollTarget = row.Y - 10;

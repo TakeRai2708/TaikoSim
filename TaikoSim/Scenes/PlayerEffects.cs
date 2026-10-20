@@ -2,6 +2,7 @@
 using Raylib_cs;
 using TaikoSim.Configs;
 using TaikoSim.Graphics;
+using TaikoSim.Charts;
 
 namespace TaikoSim.Scenes
 {
@@ -13,7 +14,7 @@ namespace TaikoSim.Scenes
     // 使い方(PlayScene から)
     //   ・毎フレーム Update(dt) と SetGoGo(ゴーゴー中か)
     //   ・叩いたら OnDrumHit、音符を良・可で叩けたら OnNoteHit、コンボが変わったら SetCombo
-    //   ・描く順番：(レーン) → DrawLaneLayer → (判定枠) → DrawBehindNotes → (音符) → (左のパネル) → DrawHitEffectsOverPanel → DrawPanel → DrawFront
+    //   ・描く順番：レーン → 顔 → 音符 → 左パネル → 判定花火 → ミニ太鼓 → 飛ぶ音符 → ポップアップ
     public class PlayEffects
     {
         // ===== 画像(スキンの Image/04.EnsoGame/) =====
@@ -29,6 +30,9 @@ namespace TaikoSim.Scenes
         private const string MiniTaikoImage = Dir + "MiniTaiko/MiniTaiko.png";            // ミニ太鼓(縦に5コマ)
         private const string ComboNumberImage = Dir + "MiniTaiko/Combo_Number.png";       // コンボの数字(縦に 白・銀・金)
         private const string ComboTextImage = Dir + "MiniTaiko/Combo_MiniText.png";       // 「コンボ」
+        private const string SoulExplosionImage = Dir + "Effects/Soul_Explosion.png";
+        private const string NoteFlushImage = Dir + "Effects/Note_Flush.png";
+        private const string FireWorksImage = Dir + "Effects/FireWorks.png";
 
         // ===== 位置(1920×1080) =====
         private readonly float judgeX;                        // 判定枠の真ん中(TestPlayScene からもらう)
@@ -59,16 +63,14 @@ namespace TaikoSim.Scenes
         private const float FaceBigOkOffsetX = 0f, FaceBigOkOffsetY = 0f, FaceBigOkScale = 1f;
 
         private const float LaneX = 494, LaneY = 276;         // PlayScene のレーン背景と左上をそろえる
-        private const float MiniTaikoX = 307, MiniTaikoY = 309; // ミニ太鼓の左上(OpenTaiko 205, 206)
+        private const float MiniTaikoX = 310, MiniTaikoY = 308; // 比較動画のミニ太鼓の左上
 
-        // コンボの数字：全体を少し左に移し、桁が増えても縦の中心が動かないようにする
-        //   2けた：元の大きさ、3けた：0.72倍、4けた以上：0.6倍（大きさは変更しない）
-        //   ComboBaseBottomY は2けた表示の下端。3けた以上は画像の高さから下端を計算する
-        private const float ComboX = 392;
-        private const float ComboBaseBottomY = 408;
-        private static readonly float[] ComboPadding = { 51, 48, 40 };    // 数字の間隔
-        private static readonly float[] ComboScale = { 1f, 0.72f, 0.6f }; // 数字の大きさ
-        private const float ComboTextX = 394, ComboTextY = 447; // 「コンボ」も数字に合わせて左に8px
+        // 2・3けたは調整済み。4けたは横だけ0.8倍、縦は元の高さで下端410px。
+        private const float ComboX = 400;
+        private const float ComboBaseBottomY = 410;
+        private static readonly float[] ComboPadding = { 51, 52, 40 };
+        private static readonly float[] ComboScale = { 1f, 1f, 0.8f };
+        private const float ComboTextX = 405, ComboTextY = 448;
         private const int MinShownCombo = 10;                 // これ以上で出す(OpenTaiko の初期値)
 
         // ゴーゴー開始の火花の位置(下の真ん中)と傾き。OpenTaiko の Game_Effect_GoGoSplash_X/Y
@@ -127,6 +129,30 @@ namespace TaikoSim.Scenes
         private float goGoTime = 0f;    // ゴーゴーが始まってからの時間
         private float splashTime = -1f; // 火花が出てからの時間(-1 なら出ていない)
 
+        private const float FlightSeconds = 0.56f;
+        private const float SoulX = 1833f, SoulY = 246f, FlightHeight = 330f;
+        private const float ArrivalSeconds = 0.408f;
+        private struct FlyingNote
+        {
+            public float Age;
+            public bool Don, Big;
+            public int LastTrailTick;
+        }
+        private readonly List<FlyingNote> flyingNotes = new(128);
+        private readonly List<FlyingNote> arrivals = new(128);
+        private struct Firework
+        {
+            public Vector2 Position;
+            public float Age;
+        }
+        private readonly List<Firework> fireworks = new(128);
+        private sealed class RollHeat
+        {
+            public float Level, Hold;
+        }
+        private readonly Dictionary<Note, RollHeat> rollHeat = new();
+        public event Action? SoulArrived;
+
         public PlayEffects(float judgeX, float judgeY)
         {
             this.judgeX = judgeX;
@@ -145,6 +171,10 @@ namespace TaikoSim.Scenes
             goGo = false;
             goGoTime = 0f;
             splashTime = -1f;
+            flyingNotes.Clear();
+            arrivals.Clear();
+            fireworks.Clear();
+            rollHeat.Clear();
         }
 
         // ===== 知らせてもらう =====
@@ -166,6 +196,34 @@ namespace TaikoSim.Scenes
             faceFrame = (big ? 2 : 0) + (good ? 0 : 1);
             yellowFlash = 0f;
         }
+
+        // 通常音符と連打は1打ごと、風船は割れたときに呼ぶ。色・大きさをそのまま運ぶ。
+        public void StartFlyingNote(bool don, bool big, float age = 0f)
+        {
+            FlyingNote note = new FlyingNote { Don = don, Big = big, Age = Math.Max(0f, age), LastTrailTick = (int)(age / 0.04f) };
+            if (note.Age >= FlightSeconds)
+            {
+                note.Age -= FlightSeconds;
+                AddArrival(note);
+                return;
+            }
+            if (flyingNotes.Count >= 128) flyingNotes.RemoveAt(0);
+            flyingNotes.Add(note);
+        }
+
+        public void OnRollHit(Note note)
+        {
+            if (!note.IsRoll) return;
+            if (!rollHeat.TryGetValue(note, out RollHeat? heat))
+            {
+                heat = new RollHeat();
+                rollHeat.Add(note, heat);
+            }
+            heat.Level = Math.Min(100f, heat.Level + 10f);
+            heat.Hold = heat.Level >= 100f ? 1.5f : 0.15f;
+        }
+
+        public float GetRollHeat(Note note) => rollHeat.TryGetValue(note, out RollHeat? heat) ? heat.Level / 100f : 0f;
 
         // コンボの数が変わった(増えたときだけ数字がぴょこっと伸びる)
         public void SetCombo(int value)
@@ -189,6 +247,13 @@ namespace TaikoSim.Scenes
 
         public void Update(float dt)
         {
+            UpdateFlyingNotes(dt);
+            foreach (RollHeat heat in rollHeat.Values)
+            {
+                float decay = Math.Max(0f, dt - Math.Max(0f, heat.Hold));
+                heat.Hold = Math.Max(0f, heat.Hold - dt);
+                heat.Level = Math.Max(0f, heat.Level - decay * 100f);
+            }
             if (redFlash >= 0f) redFlash = Advance(redFlash, dt, LaneFlashSeconds);
             if (blueFlash >= 0f) blueFlash = Advance(blueFlash, dt, LaneFlashSeconds);
             if (yellowFlash >= 0f) yellowFlash = Advance(yellowFlash, dt, LaneFlashSeconds);
@@ -219,6 +284,124 @@ namespace TaikoSim.Scenes
             }
         }
 
+        private void UpdateFlyingNotes(float dt)
+        {
+            for (int i = fireworks.Count - 1; i >= 0; i--)
+            {
+                Firework effect = fireworks[i];
+                effect.Age += dt;
+                if (effect.Age >= 0.26f) fireworks.RemoveAt(i);
+                else fireworks[i] = effect;
+            }
+            for (int i = arrivals.Count - 1; i >= 0; i--)
+            {
+                FlyingNote note = arrivals[i];
+                note.Age += dt;
+                if (note.Age >= ArrivalSeconds) arrivals.RemoveAt(i);
+                else arrivals[i] = note;
+            }
+            for (int i = flyingNotes.Count - 1; i >= 0; i--)
+            {
+                FlyingNote note = flyingNotes[i];
+                note.Age += dt;
+                if (note.Big)
+                {
+                    // 大音符は軌道に花火を残す。フレーム数ではなく経過時間で発生させる。
+                    int first = Math.Max(2, note.LastTrailTick + 1);
+                    int last = (int)(Math.Min(note.Age, FlightSeconds) / 0.04f);
+                    for (int tick = first; tick <= last; tick++)
+                    {
+                        float age = note.Age - tick * 0.04f;
+                        if (age >= 0.26f) continue;
+                        if (fireworks.Count >= 128) fireworks.RemoveAt(0);
+                        fireworks.Add(new Firework { Position = FlightPosition(tick * 0.04f), Age = age });
+                    }
+                    note.LastTrailTick = last;
+                }
+                if (note.Age >= FlightSeconds)
+                {
+                    flyingNotes.RemoveAt(i);
+                    note.Age -= FlightSeconds;
+                    AddArrival(note);
+                }
+                else flyingNotes[i] = note;
+            }
+        }
+
+        private void AddArrival(FlyingNote note)
+        {
+            if (note.Age >= ArrivalSeconds) return;
+            if (arrivals.Count >= 128) arrivals.RemoveAt(0);
+            arrivals.Add(note);
+            SoulArrived?.Invoke();
+        }
+
+        private Vector2 FlightPosition(float age)
+        {
+            float progress = Math.Clamp(age / FlightSeconds, 0f, 1f);
+            return new Vector2(judgeX + (SoulX - judgeX) * progress,
+                judgeY + (SoulY - judgeY) * progress - MathF.Sin(progress * MathF.PI) * FlightHeight);
+        }
+
+        // 通常音符も連打も同じ軌道。魂の到着演出は飛翔が終わった瞬間に開始する。
+        public void DrawFlyingNotes()
+        {
+            if (SkinManager.GetTexture(FireWorksImage) is Texture2D firework)
+            {
+                float size = firework.Height;
+                int frames = Math.Max(1, (int)(firework.Width / size));
+                Raylib.BeginBlendMode(BlendMode.Additive);
+                foreach (Firework effect in fireworks)
+                {
+                    int frame = Math.Min(frames - 1, (int)(effect.Age / 0.02f));
+                    DrawCentered(firework, new Rectangle(frame * size, 0, size, size), effect.Position, 1f, Color.White);
+                }
+                Raylib.EndBlendMode();
+            }
+            foreach (FlyingNote note in flyingNotes) DrawMovingNote(note, FlightPosition(note.Age));
+            foreach (FlyingNote note in arrivals)
+            {
+                Vector2 center = new Vector2(SoulX, SoulY);
+                float fade = Math.Clamp(1f - note.Age / 0.32f, 0f, 1f);
+                if (fade > 0f && SkinManager.GetTexture(SoulExplosionImage) is Texture2D ring)
+                {
+                    float size = ring.Height;
+                    Rectangle source = new Rectangle(note.Big ? size : 0, 0, size, size);
+                    DrawCentered(ring, source, center, 1.5f + note.Age,
+                        Raylib.ColorAlpha(Color.Orange, fade));
+                    DrawCentered(ring, source, center, 1.1f + note.Age,
+                        Raylib.ColorAlpha(Color.White, fade));
+                }
+                if (note.Age < 0.221f) DrawMovingNote(note, center);
+                if (SkinManager.GetTexture(NoteFlushImage) is Texture2D flush)
+                {
+                    float size = flush.Height;
+                    bool firstHalf = note.Age < 0.204f;
+                    float alpha = firstHalf ? note.Age / 0.204f * 0.88f
+                        : (ArrivalSeconds - note.Age) / 0.204f;
+                    DrawCentered(flush, new Rectangle(note.Big ? size : 0, 0, size, size), center, 1f,
+                        Raylib.ColorAlpha(firstHalf ? Color.Yellow : Color.White, Math.Clamp(alpha, 0f, 1f)));
+                }
+            }
+        }
+
+        private static void DrawMovingNote(FlyingNote note, Vector2 center)
+        {
+            string file = (note.Big ? note.Don ? "2.png" : "3.png" : note.Don ? "0.png" : "1.png");
+            Texture2D? image = SkinManager.GetTexture(Dir + "Notes/Normal/1/" + file)
+                ?? SkinManager.GetTexture(Dir + "Notes/Normal/0/" + file);
+            if (image is Texture2D texture)
+                DrawCentered(texture, new Rectangle(0, 0, texture.Width, texture.Height), center, 1f, Color.White);
+            else Raylib.DrawCircleV(center, note.Big ? 72 : 48, note.Don ? Color.Red : Color.SkyBlue);
+        }
+
+        private static void DrawCentered(Texture2D texture, Rectangle source, Vector2 center, float scale, Color tint)
+        {
+            float w = source.Width * scale, h = source.Height * scale;
+            Raylib.DrawTexturePro(texture, source, new Rectangle(center.X - w / 2f, center.Y - h / 2f, w, h),
+                Vector2.Zero, 0f, tint);
+        }
+
         // 時間を進めて、終わったら -1
         private static float Advance(float time, float dt, float length)
         {
@@ -241,29 +424,16 @@ namespace TaikoSim.Scenes
             Raylib.EndBlendMode();
         }
 
-        // 判定枠より上・音符より下：レーン側の光の輪・大音符の光線・顔のマーク
-        // panelRight は、左パネルを実際に描いたときの右端。
-        public void DrawBehindNotes(float panelRight)
-        {
-            // 光の輪は黒い背景の画像なので、加算合成で黒いところを消す(OpenTaiko の AddBlend と同じ)
-            Raylib.BeginBlendMode(BlendMode.Additive);
-            foreach (Explosion e in explosions)
-            {
-                DrawExplosion(e, panelRight, overPanel: false);
-            }
-            Raylib.EndBlendMode();
+        // 判定枠の顔だけを音符より先に描く。
+        public void DrawBehindNotes() => DrawFace();
 
-            DrawFace();
-        }
-
-        // 左パネルに重なる花火は、パネル背景を描いた後に出す。
-        // レーン側とは境界で分けているので、同じ場所が二重に光ることはない。
-        public void DrawHitEffectsOverPanel(float panelRight)
+        // 音符と左パネルを描いた後で、花火全体を一度だけ描く。境界で切らない。
+        public void DrawHitEffects()
         {
             Raylib.BeginBlendMode(BlendMode.Additive);
             foreach (Explosion e in explosions)
             {
-                DrawExplosion(e, panelRight, overPanel: true);
+                DrawExplosion(e);
             }
             Raylib.EndBlendMode();
         }
@@ -356,7 +526,7 @@ namespace TaikoSim.Scenes
             return Math.Max(1, (int)(texture.Width / size));
         }
 
-        private void DrawExplosion(Explosion e, float panelRight, bool overPanel)
+        private void DrawExplosion(Explosion e)
         {
             // 光の輪(縦に 良・可・大良・大可)
             if (SkinManager.GetTexture(HitExplosionImage) is Texture2D texture)
@@ -369,7 +539,7 @@ namespace TaikoSim.Scenes
                     int row = (e.Big ? 2 : 0) + (e.Good ? 0 : 1);
                     Rectangle source = new Rectangle(frame * size, row * size, size, size);
                     Rectangle dest = new Rectangle(judgeX - size / 2f, judgeY - size / 2f, size, size);
-                    DrawHitEffectTexture(texture, source, dest, panelRight, overPanel);
+                    Raylib.DrawTexturePro(texture, source, dest, Vector2.Zero, 0f, Color.White);
                 }
             }
 
@@ -384,30 +554,9 @@ namespace TaikoSim.Scenes
                     Rectangle source = new Rectangle(0, e.Good ? 0 : frameHeight, big.Width, frameHeight);
                     float w = big.Width * scale, h = frameHeight * scale;
                     Rectangle dest = new Rectangle(judgeX - w / 2f, judgeY - h / 2f, w, h);
-                    DrawHitEffectTexture(big, source, dest, panelRight, overPanel);
+                    Raylib.DrawTexturePro(big, source, dest, Vector2.Zero, 0f, Color.White);
                 }
             }
-        }
-
-        // 花火を左右に分け、レーン側は音符の下、パネル側は背景の上に描く。
-        // 元画像も同じ割合で分けるため、花火の形や大きさは変わらない。
-        // 左側も後で描くので、前回のように境界より先が欠けることはない。
-        private static void DrawHitEffectTexture(Texture2D texture, Rectangle source, Rectangle dest,
-            float panelRight, bool overPanel)
-        {
-            if (dest.Width <= 0f || dest.Height <= 0f) return;
-
-            float left = overPanel ? dest.X : Math.Max(dest.X, panelRight);
-            float right = overPanel ? Math.Min(dest.X + dest.Width, panelRight) : dest.X + dest.Width;
-            if (right <= left) return; // 今回の描画側に画像がなければ、反対側の描画で出す
-
-            float sourcePerPixel = source.Width / dest.Width;
-            source.X += (left - dest.X) * sourcePerPixel;
-            source.Width = (right - left) * sourcePerPixel;
-            dest.X = left;
-            dest.Width = right - left;
-
-            Raylib.DrawTexturePro(texture, source, dest, Vector2.Zero, 0f, Color.White);
         }
 
         // ----- ミニ太鼓(縦に5コマ：太鼓・右面・左面・右縁・左縁) -----
@@ -453,7 +602,7 @@ namespace TaikoSim.Scenes
             float scale = ComboScale[size];
 
             // 一番右の数字の位置(全体が ComboX を真ん中にして並ぶように)
-            float rightX = ComboX + padding * (count - 1) / 2f;
+            float rightX = ComboX + (count >= 4 ? 6f : 0f) + padding * (count - 1) / 2f;
 
             int bumpIndex = (int)(comboBumpTime / ComboBumpStep);
             float bump = bumpIndex < ComboBump.Length ? ComboBump[bumpIndex] : 0f;
@@ -463,9 +612,10 @@ namespace TaikoSim.Scenes
                 float w = numbers.Width / 10f;
                 float h = numbers.Height / 3f;
                 float drawW = w * scale;
-                float drawH = h * (scale + bump); // 叩いたときは下端を固定して上に伸びる
+                float verticalScale = count >= 4 ? 1f : scale;
+                float drawH = h * (verticalScale + bump); // 叩いたときは下端を固定して上に伸びる
                 // 拡大率が変わっても、伸びていないときの数字の中心を2けた表示と同じ高さにする
-                float bottomY = ComboBaseBottomY - h * (1f - scale) / 2f;
+                float bottomY = ComboBaseBottomY - h * (1f - verticalScale) / 2f;
 
                 // 右の数字から順に(i = 0 が一の位)
                 for (int i = 0; i < count; i++)

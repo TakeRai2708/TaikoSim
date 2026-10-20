@@ -10,15 +10,15 @@ using TaikoSim.Input;
 namespace TaikoSim.Scenes
 {
     // テスト用：.tja の譜面を読み込んで、曲に合わせて音符を流す画面
-    // ドン・カッ(大音符も片手でOK)を叩いて、良・可・不可の判定が出る。連打・風船はまだ数えない
+    // ドン・カッ(大音符も片手でOK)、連打・風船に対応。選曲オプションからオート演奏も選べる。
     public class PlayScene : Scene
     {
         // ===== 配置(1920×1080) ※動画とスキン画像の大きさから測った値 =====
         private const float LaneX = 494;          // レーンの左端
         private const float LaneY = 276;          // レーン(と左パネル)の上端
         private const float LaneHeight = 264;
-        private const float JudgeX = 615;         // 判定枠の中心x
-        private const float NoteY = 386;          // 音符の中心y
+        private const float JudgeX = 620;         // 判定枠の中心x
+        private const float NoteY = 389;          // 音符の中心y
         private const float BarTop = 288;         // 小節線の上端
         private const float BarBottom = 488;      // 小節線の下端
         private const float SeTextY = 490;        // 音符の下の文字の上端
@@ -31,6 +31,7 @@ namespace TaikoSim.Scenes
 
         // ===== スキンの画像の場所 =====
         private const string NotesDir = "Image/04.EnsoGame/Notes/Normal/0/";
+        private const string FaceNotesDir = "Image/04.EnsoGame/Notes/Normal/1/";
         private const string JudgeFrameImage = "Image/04.EnsoGame/Notes/JudgementFrame.png";
         private const string LaneImage = "Image/04.EnsoGame/Lane/Background_1P.png";
         private const string PanelImage = "Image/04.EnsoGame/MiniTaiko/Background_1P.png";
@@ -105,6 +106,13 @@ namespace TaikoSim.Scenes
 
         // hittable の中で、まだ判定していない一番前の場所
         private int nextHittable = 0;
+
+        // オートはフレーム数ではなく譜面時刻で進める。連打は50msごと(毎秒20打)。
+        private bool autoPlay;
+        private float hiSpeed = 1f;
+        private bool autoRightHand;
+        private const double AutoRollIntervalMs = 50;
+        private readonly PriorityQueue<(int Index, int Tick), double> autoHits = new();
 
         // 数
         private int goodCount, okCount, badCount, combo, maxCombo;
@@ -198,10 +206,10 @@ namespace TaikoSim.Scenes
         // X を増やすと右、Y を増やすと下へ移動する。
         // 扇子・吹き出しは「画像の左上」、数字は「全体の中心X・下端Y」、
         // 「連打!!」は「画像の中心X・上端Y」を指定する。
-        private const float RollFrameX = 420f, RollFrameY = -4f;          // 連打の扇子
-        private const float RollNumberX = 610f, RollNumberY = 170f;       // 連打の数字
-        private const float RollTextX = 610f, RollTextY = 181f;           // 「連打!!」
-        private const float BalloonFrameX = 585f, BalloonFrameY = 40f;    // 風船の吹き出し
+        private const float RollFrameX = 428f, RollFrameY = 26f;         // 連打の扇子
+        private const float RollNumberX = 613f, RollNumberY = 166f;      // 連打の数字(中央・下端)
+        private const float RollTextX = 616f, RollTextY = 170f;          // 「連打!!」
+        private const float BalloonFrameX = 589f, BalloonFrameY = 37f;    // 風船の吹き出し(数字は動かさない)
         private const float BalloonNumberX = 728f, BalloonNumberY = 180f; // 風船の数字
 
         // 数字の画像は、連打が1文字90px、風船が1文字72px。間隔を別々に調整する。
@@ -246,6 +254,8 @@ namespace TaikoSim.Scenes
             this.path = path;
             this.courseType = courseType;
             this.returnToSelect = returnToSelect;
+            stats.ScoreAdded += hud.OnScoreAdded;
+            effects.SoulArrived += hud.OnSoulArrival;
         }
 
         // .tja ファイルか
@@ -258,6 +268,8 @@ namespace TaikoSim.Scenes
 
         public override void Enter()
         {
+            autoPlay = ConfigManager.Game.AutoPlay; // 演奏開始時の選択を固定する。
+            hiSpeed = ConfigManager.Game.HiSpeed > 0f ? ConfigManager.Game.HiSpeed : 1f;
             try
             {
                 chart = TjaParser.Load(path);
@@ -418,6 +430,7 @@ namespace TaikoSim.Scenes
             popTimer = 0f;
 
             effects.Reset();
+            ResetAutoPlay();
         }
 
         public override void Update(float dt)
@@ -443,11 +456,10 @@ namespace TaikoSim.Scenes
                 double? outputEstimate = AudioManager.Mixer != 0 ? AudioManager.OutputLatencyMs : null;
                 diagnostics.RecordFrame(frameCount, nowMs, syncError, outputEstimate);
             }
-            stats.Update(dt);
-            UpdateJudge(dt);
             hud.Update(dt, stats.Score);
+            effects.Update(dt); // 新しい打撃の演出を、そのフレームのdtで先に進めない。
+            UpdateJudge(dt);
 
-            effects.Update(dt);
             // ゴーゴーの演出は見た目なので、音符と同じ時間(譜面オフセット込み)で見る
             if (course != null) effects.SetGoGo(course.IsGoGoAt(nowMs - ConfigManager.Game.AudioOffsetMs - ConfigManager.Game.ChartOffsetMs));
         }
@@ -530,7 +542,7 @@ namespace TaikoSim.Scenes
                     SaveInputTimingSettings(settings.LimitDrumHitsTo60PerSecond
                         ? "60打/秒制限：ON" : "60打/秒制限：OFF");
                 }
-                else if (TryGetDrumPart(pressed, out DrumPart part))
+                else if (!autoPlay && TryGetDrumPart(pressed, out DrumPart part))
                 {
                     long collectedAt = Stopwatch.GetTimestamp();
                     WindowsKeyEvent? native = windowsInput.Match(pressed, collectedAt);
@@ -546,11 +558,77 @@ namespace TaikoSim.Scenes
                 key = Raylib.GetKeyPressed();
             }
 
+            if (autoPlay)
+            {
+                ProcessAutoPlay(gameMs);
+                return; // 手動入力のキューと見逃し処理はオートに混ぜない。
+            }
+
             // 60Hzの場合は次の16.67ms境界まで待つ。制限がONなら1枠につき最大1打。
             // モード切替直前の未処理入力もキューに残り、消さずに最後まで処理する。
             inputScheduler.ProcessReady(gameMs, HandleScheduledHit);
             // 将来の枠を待つ入力があっても、今の譜面時刻まで見逃しを進める。
             ProcessMisses(gameMs);
+        }
+
+        private void ResetAutoPlay()
+        {
+            autoHits.Clear();
+            autoRightHand = false;
+            if (!autoPlay || course == null) return;
+            for (int i = 0; i < course.Notes.Count; i++)
+            {
+                Note note = course.Notes[i];
+                if (IsHittable(note) || ((IsRollNote(note) || IsBalloonNote(note)) && note.EndTimeMs > note.TimeMs))
+                    autoHits.Enqueue((i, 0), note.TimeMs);
+            }
+        }
+
+        private DrumPart NextAutoPart(bool don)
+        {
+            DrumPart part = don
+                ? (autoRightHand ? DrumPart.RightDon : DrumPart.LeftDon)
+                : (autoRightHand ? DrumPart.RightKa : DrumPart.LeftKa);
+            autoRightHand = !autoRightHand;
+            return part;
+        }
+
+        private void ProcessAutoPlay(double gameMs)
+        {
+            if (course == null) return;
+            SoundConfig sound = ConfigManager.Sound;
+            float volume = (float)sound.GetFinalVolume(sound.SeVolume);
+
+            // 低FPSや一時的な遅延で複数の音符を越えても、各音符の本来の時刻で処理する。
+            while (autoHits.TryPeek(out _, out double hitMs) && hitMs <= gameMs)
+            {
+                var hit = autoHits.Dequeue();
+                Note note = course.Notes[hit.Index];
+                if (IsHittable(note))
+                {
+                    if (judges[hit.Index] != null) continue;
+                    bool don = IsDonNote(note);
+                    DrumPart part = NextAutoPart(don);
+                    effects.OnDrumHit(part);
+                    (don ? donSound : kaSound)?.Play(volume);
+                    deltaCount++;
+                    SetJudge(hit.Index, Judge.Good, 0);
+                    effects.OnNoteHit(true, note.IsBig);
+                    StartFlyingNote(don, note.IsBig, hitMs);
+                    AddInputLog(new InputLogEntry(hitMs, "AUTO", KeyConfig.GetDrumPartName(part),
+                        don, noteNumbers[hit.Index], 0, Judge.Good, false, frameCount));
+                }
+                else
+                {
+                    if (balloonPopped[hit.Index]) continue;
+                    DrumPart part = NextAutoPart(true);
+                    effects.OnDrumHit(part);
+                    HitRoll(hit.Index, true, KeyboardKey.Null, part, hitMs, volume, "AUTO");
+                    double nextMs = note.TimeMs + (hit.Tick + 1) * AutoRollIntervalMs;
+                    if (!balloonPopped[hit.Index] && nextMs < note.EndTimeMs)
+                        autoHits.Enqueue((hit.Index, hit.Tick + 1), nextMs);
+                }
+            }
         }
 
         // 判定・打音・演出を1回の入力として実行する。判定時刻はSchedulerが決める。
@@ -706,6 +784,7 @@ namespace TaikoSim.Scenes
             {
                 bool big = course!.Notes[target].Type is NoteType.BigDon or NoteType.BigKa;
                 effects.OnNoteHit(judge == Judge.Good, big);
+                StartFlyingNote(don, big, gameMs);
             }
         }
 
@@ -741,7 +820,7 @@ namespace TaikoSim.Scenes
         }
 
         // 連打・風船を叩いた
-        private void HitRoll(int index, bool don, KeyboardKey key, DrumPart part, double gameMs, float volume)
+        private void HitRoll(int index, bool don, KeyboardKey key, DrumPart part, double gameMs, float volume, string? keyName = null)
         {
             Note note = course!.Notes[index];
             rollHits[index]++;
@@ -779,8 +858,17 @@ namespace TaikoSim.Scenes
                 text = $"連打 {rollHits[index]}打";
             }
 
-            stats.ApplyRollHit(note, balloonPopped[index]);
-            AddInputLog(new InputLogEntry(gameMs, key.ToString(), KeyConfig.GetDrumPartName(part), don, 0, 0, null, false, frameCount, text));
+            stats.ApplyRollHit(note);
+            effects.OnRollHit(note);
+            if (note.IsRoll || balloonPopped[index]) StartFlyingNote(don, note.IsBig || note.IsBalloon, gameMs);
+            AddInputLog(new InputLogEntry(gameMs, keyName ?? key.ToString(), KeyConfig.GetDrumPartName(part), don, 0, 0, null, false, frameCount, text));
+        }
+
+        private void StartFlyingNote(bool don, bool big, double hitMs)
+        {
+            // 入力やオートをまとめて処理したフレームでも、本来の打鍵時刻から飛ばす。
+            float age = (float)Math.Max(0, (nowMs - ConfigManager.Game.AudioOffsetMs - hitMs) / 1000.0);
+            effects.StartFlyingNote(don, big, age);
         }
 
         // 叩いたときに、どの音符に当てるか決める(OpenTaiko の GetChipToJudgeIgnoringRollBody と同じ考え方)
@@ -851,7 +939,7 @@ namespace TaikoSim.Scenes
                 case Judge.Bad: badCount++; combo = 0; break;
             }
             maxCombo = Math.Max(maxCombo, combo);
-            stats.ApplyJudge(course!.Notes[index], combo, judge switch
+            stats.ApplyJudge(course!.Notes[index], judge switch
             {
                 Judge.Good => PlayJudgement.Good,
                 Judge.Ok => PlayJudgement.Ok,
@@ -920,16 +1008,11 @@ namespace TaikoSim.Scenes
             double gameMs = nowMs - ConfigManager.Game.AudioOffsetMs;
             double viewMs = gameMs - ConfigManager.Game.ChartOffsetMs;
 
-            // パネル画像の実際の右端で花火を分ける。画像がない場合は代わりの四角形に合わせる。
-            // レーン左端と数px違うスキンでも、パネルに隠れる細い切れ目を残さない。
-            float panelRight = SkinManager.GetTexture(PanelImage) is Texture2D panelTexture
-                ? panelTexture.Width : (int)LaneX + 5;
-
             DrawLane();
             hud.DrawGauge(stats);
             effects.DrawLaneLayer();   // ゴーゴーのレーン・レーンの光
             DrawJudgeFrame();
-            effects.DrawBehindNotes(panelRight); // レーン側の花火・顔のマーク
+            effects.DrawBehindNotes(); // 判定枠の顔
             DrawBarLines(course, viewMs);
 
             // 後ろ(右)の音符から描いて、手前(左)の音符が上に重なるようにする
@@ -953,9 +1036,10 @@ namespace TaikoSim.Scenes
 
             hud.DrawPanel(course);
 
-            // パネルに重なる花火も見せる。レーン側の花火は、すでに音符の下に描いている。
-            effects.DrawHitEffectsOverPanel(panelRight);
+            // 花火全体を、音符・パネルより手前へ一度だけ描く。
+            effects.DrawHitEffects();
             effects.DrawPanel(); // ミニ太鼓とコンボ数
+            effects.DrawFlyingNotes();
 
             DrawJudgeText();
             DrawRollPopup();
@@ -1182,13 +1266,15 @@ namespace TaikoSim.Scenes
             }
         }
 
-        // 判定の文字(良・可・不可)。判定枠の上に出て、少し上にふわっと動きながら消える
+        // 判定の文字。打撃直後に上へ跳ね、約100msで定位置へ戻る。
         private void DrawJudgeText()
         {
             if (shownJudge is not Judge judge || judgeTimer <= 0f) return;
 
             float t = 1f - judgeTimer / JudgeShowSeconds;   // 0 → 1 に進む
-            float y = NoteY - 105 - t * 20f;                // 少し上に動く
+            float age = Math.Max(0f, JudgeShowSeconds - judgeTimer);
+            float bounce = age < 0.1f ? 9f * MathF.Sin(MathF.PI * age / 0.1f) : 0f;
+            float y = NoteY - 119 - bounce;
             float alpha = t < 0.7f ? 1f : (1f - t) / 0.3f;  // 最後の3割で消える
             Color tint = Raylib.ColorAlpha(Color.White, alpha);
 
@@ -1230,7 +1316,7 @@ namespace TaikoSim.Scenes
         }
 
         // 小節線
-        private static void DrawBarLines(Course course, double viewMs)
+        private void DrawBarLines(Course course, double viewMs)
         {
             foreach (BarLine bar in course.BarLines)
             {
@@ -1244,7 +1330,13 @@ namespace TaikoSim.Scenes
         }
 
         // 音符1つ
-        private static void DrawNote(Note note, double viewMs)
+        private static Texture2D? GetNoteTexture(string file)
+        {
+            // 1番の画像に通常の顔が含まれる。無いスキンは従来の0番へ戻す。
+            return SkinManager.GetTexture(FaceNotesDir + file) ?? SkinManager.GetTexture(NotesDir + file);
+        }
+
+        private void DrawNote(Note note, double viewMs)
         {
             float x = GetX(note.TimeMs, note.Bpm, note.Scroll, viewMs);
 
@@ -1256,7 +1348,9 @@ namespace TaikoSim.Scenes
                 if (x - NoteHalf > Screen.Width) return;
 
                 // 風船の画像は横長(390×195)。左の丸の中心が音符の位置
-                if (!SkinManager.Draw(NotesDir + "10.png", x - NoteHalf, NoteY - NoteHalf))
+                if (GetNoteTexture("10.png") is Texture2D balloon)
+                    Raylib.DrawTextureEx(balloon, new Vector2(x - NoteHalf, NoteY - NoteHalf), 0f, 1f, Color.White);
+                else
                 {
                     DrawFallbackCircle(x, 50, new Color(240, 130, 40, 255));
                 }
@@ -1270,12 +1364,13 @@ namespace TaikoSim.Scenes
                 if (x - NoteHalf > Screen.Width || endX + NoteHalf < 0) return;
 
                 bool big = note.IsBig;
-                Texture2D? head = SkinManager.GetTexture(NotesDir + (big ? "7" : "4") + ".png");
-                Texture2D? body = SkinManager.GetTexture(NotesDir + (big ? "8" : "5") + ".png");
-                Texture2D? tail = SkinManager.GetTexture(NotesDir + (big ? "9" : "6") + ".png");
+                Texture2D? head = GetNoteTexture((big ? "7" : "4") + ".png");
+                Texture2D? body = GetNoteTexture((big ? "8" : "5") + ".png");
+                Texture2D? tail = GetNoteTexture((big ? "9" : "6") + ".png");
 
                 if (head is Texture2D h && body is Texture2D b && tail is Texture2D t)
                 {
+                    bool heated = SkinManager.BeginRollHeat(effects.GetRollHeat(note));
                     // 胴：頭の中心〜おわりの位置まで横に伸ばす
                     Raylib.DrawTexturePro(b, new Rectangle(0, 0, b.Width, b.Height),
                         new Rectangle(x, NoteY - NoteHalf, Math.Max(0, endX - x), NoteSize), Vector2.Zero, 0f, Color.White);
@@ -1283,6 +1378,7 @@ namespace TaikoSim.Scenes
                     Raylib.DrawTexture(t, (int)endX, (int)(NoteY - NoteHalf), Color.White);
                     // 頭
                     Raylib.DrawTexture(h, (int)(x - NoteHalf), (int)(NoteY - NoteHalf), Color.White);
+                    if (heated) Raylib.EndShaderMode();
                 }
                 else
                 {
@@ -1306,7 +1402,9 @@ namespace TaikoSim.Scenes
                 _ => "0",
             };
 
-            if (!SkinManager.Draw(NotesDir + image + ".png", x - NoteHalf, NoteY - NoteHalf))
+            if (GetNoteTexture(image + ".png") is Texture2D texture)
+                Raylib.DrawTextureEx(texture, new Vector2(x - NoteHalf, NoteY - NoteHalf), 0f, 1f, Color.White);
+            else
             {
                 bool don = note.Type == NoteType.Don || note.Type == NoteType.BigDon;
                 DrawFallbackCircle(x, note.IsBig ? 72 : 48, don ? DonColor : KaColor);
@@ -1314,7 +1412,7 @@ namespace TaikoSim.Scenes
         }
 
         // 音符の下の文字(ドン・カッ・連打…)
-        private static void DrawSeText(Note note, double viewMs)
+        private void DrawSeText(Note note, double viewMs)
         {
             float x = GetX(note.TimeMs, note.Bpm, note.Scroll, viewMs);
 
@@ -1376,6 +1474,11 @@ namespace TaikoSim.Scenes
             FontManager.Draw($"{Chart.GetCourseName(course.Type)} ★{course.Level}　音符 {course.Notes.Count}個　小節 {course.BarLines.Count}",
                 40, 125, 28, Color.White);
             FontManager.Draw($"時間 {nowMs / 1000.0:F2} 秒　BPM {GetCurrentBpm(chart, course):0.##}", 40, 165, 28, Color.White);
+            if (autoPlay)
+            {
+                Raylib.DrawRectangle(24, 211, 132, 46, new Color(20, 60, 45, 240));
+                FontManager.Draw("AUTO", 44, 217, 30, Color.Lime);
+            }
 
             // 判定の数とコンボ(本家っぽい見た目は後で)
             FontManager.Draw($"良 {goodCount}　可 {okCount}　不可 {badCount}　コンボ {combo}（最大 {maxCombo}）　連打 {totalRollHits}打",
@@ -1428,9 +1531,9 @@ namespace TaikoSim.Scenes
         // ===== 計算 =====
 
         // 音符の x 座標 = 判定枠 + (音符の時間 − 今) × BPM × SCROLL ÷ 60000 × 1拍の距離
-        private static float GetX(double timeMs, double bpm, double scroll, double viewMs)
+        private float GetX(double timeMs, double bpm, double scroll, double viewMs)
         {
-            return JudgeX + (float)((timeMs - viewMs) * bpm * scroll / 60000.0 * PixelsPerBeat);
+            return JudgeX + (float)((timeMs - viewMs) * bpm * scroll * hiSpeed / 60000.0 * PixelsPerBeat);
         }
 
         // スキンが無いときの丸い音符

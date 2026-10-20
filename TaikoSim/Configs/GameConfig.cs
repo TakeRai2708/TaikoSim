@@ -63,6 +63,12 @@
         // 4キー合計の入力を秒間60打ペースに制限（余った分はキューで待つ）
         public bool LimitDrumHitsTo60PerSecond { get; set; } = false;
 
+        // 選曲画面の演奏オプション。初期値は手動、切り替えた状態は保存する。
+        public bool AutoPlay { get; set; } = false;
+
+        // 0は譜面どおり。正の値はTJAのSCROLLに掛ける表示倍率(判定時刻は変えない)。
+        public float HiSpeed { get; set; } = 0f;
+
         // FPSを表示するか
         public bool ShowFps { get; set; } = true;
 
@@ -71,6 +77,8 @@
         {
             // 未知の値なら高精度に戻す（JSONを直接編集した場合など）。
             if (!Enum.IsDefined(InputTiming)) InputTiming = InputTimingMode.HighPrecision;
+            if (!float.IsFinite(HiSpeed) || HiSpeed < 0f) HiSpeed = 0f;
+            HiSpeed = Math.Min(HiSpeed, 100f);
 
             // オフセットは -150〜150ms
             AudioOffsetMs = Math.Clamp(AudioOffsetMs, OffsetMin, OffsetMax);

@@ -4,30 +4,25 @@ namespace TaikoSim.Scenes
 {
     public enum PlayJudgement { Good, Ok, Bad }
 
-    // 得点と通常の魂ゲージを計算する係。画像や入力処理には触れない。
+    // ニジイロ配点と通常の魂ゲージ。画像や入力処理には触れない。
     public sealed class PlayStats
     {
         public long Score { get; private set; }
+        public long PointsPerGood { get; private set; }
         public double Gauge { get; private set; }
         public int Norma { get; private set; } = 80;
         public bool IsClear => Gauge >= Norma;
         public bool IsMax => Gauge >= 100;
 
-        private int scoreMode = 2;
-        private long scoreInit = 300, scoreDiff = 120;
+        // 1打ごとの加算額と合計。1フレームに複数打あっても、それぞれHUDへ知らせる。
+        public event Action<long, long>? ScoreAdded;
         private double goodGain, okGain, badGain;
-        private long pendingBonus;
-        private float bonusSeconds;
 
         public void Reset(Course course)
         {
             Score = 0;
             Gauge = 0;
-            pendingBonus = 0;
-            bonusSeconds = 0;
-            scoreMode = course.ScoreMode is >= 0 and <= 2 ? course.ScoreMode : 2;
-            scoreInit = Math.Max(0, course.ScoreInit);
-            scoreDiff = Math.Max(0, course.ScoreDiff);
+            PointsPerGood = CalculatePointsPerGood(course);
             Norma = course.Level switch
             {
                 11 => 88,
@@ -41,12 +36,11 @@ namespace TaikoSim.Scenes
                 },
             };
 
-            // 連打・風船はゲージ計算の音符数に含めない。
-            int notes = course.Notes.Count(n => n.Type is NoteType.Don or NoteType.Ka or NoteType.BigDon or NoteType.BigKa);
+            int notes = course.Notes.Count(IsRegularNote);
             goodGain = okGain = badGain = 0;
             if (notes == 0) return;
 
-            // OpenTaiko の通常ゲージ。★1〜7 / ★8 / ★9以上で係数が変わる。
+            // ゲージ増加量はOpenTaikoの通常ゲージと同じ。配点方式には連動させない。
             float rate = course.Level <= 7 ? 70.7f : course.Level == 8 ? 70f : 75f;
             float damage = course.Level <= 8 ? 0.625f : 2f;
             float gain = (10000f / (notes * (rate / 100f))) / 100f;
@@ -55,20 +49,38 @@ namespace TaikoSim.Scenes
             badGain = TruncateGain(-gain * damage);
         }
 
-        private static float TruncateGain(float value) => MathF.Truncate(value * 10000f) / 10000f;
-
-        public void Update(float dt)
+        // OpenTaikoのGen4真打方式を参考に、100万点から連打・風船の見込み点を引き、
+        // 通常音符数で割って10点単位に切り上げる。曲・難易度ごとに計算する。
+        // SCOREINIT/SCOREDIFF/SCOREMODEは旧通常配点用なので、ニジイロ配点には使用しない。
+        public static long CalculatePointsPerGood(Course course)
         {
-            if (pendingBonus == 0) return;
-            bonusSeconds -= dt;
-            if (bonusSeconds <= 0) AddPendingBonus();
+            int normalNotes = 0;
+            long expectedBalloonHits = 0;
+            double rollMilliseconds = 0;
+            foreach (Note note in course.Notes)
+            {
+                if (IsRegularNote(note)) normalNotes++;
+                else if (note.IsRoll) rollMilliseconds += Math.Max(0, note.EndTimeMs - note.TimeMs);
+                else if (note.IsBalloon)
+                {
+                    double duration = Math.Max(0, note.EndTimeMs - note.TimeMs);
+                    expectedBalloonHits += (long)Math.Min(Math.Max(0, note.BalloonCount), Math.Floor(16.6 * duration / 1000.0));
+                }
+            }
+            if (normalNotes == 0) return 0;
+
+            double remaining = 1_000_000.0 - expectedBalloonHits * 100.0 - 16.6 * rollMilliseconds / 1000.0 * 100.0;
+            return Math.Max(10L, (long)(Math.Ceiling((decimal)remaining / normalNotes / 10m) * 10m));
         }
 
-        // combo は、この音符の判定を反映した後のコンボ数。
-        public void ApplyJudge(Note note, int combo, PlayJudgement judge)
-        {
-            if (note.Type is not (NoteType.Don or NoteType.Ka or NoteType.BigDon or NoteType.BigKa)) return;
+        private static bool IsRegularNote(Note note) =>
+            note.Type is NoteType.Don or NoteType.Ka or NoteType.BigDon or NoteType.BigKa;
 
+        private static float TruncateGain(float value) => MathF.Truncate(value * 10000f) / 10000f;
+
+        public void ApplyJudge(Note note, PlayJudgement judge)
+        {
+            if (!IsRegularNote(note)) return;
             double gain = judge switch
             {
                 PlayJudgement.Good => goodGain,
@@ -78,62 +90,22 @@ namespace TaikoSim.Scenes
             Gauge = Math.Clamp(Math.Round(Gauge + gain, 5, MidpointRounding.ToEven), 0, 100);
             if (judge == PlayJudgement.Bad) return;
 
-            long points;
-            if (scoreMode == 0)
-            {
-                points = combo < 200 ? 1000 : 2000;
-                if (judge == PlayJudgement.Ok) points /= 2;
-                if (note.IsGoGo) points = points * 6 / 5;
-            }
-            else
-            {
-                int multiplier = scoreMode == 1 ? Math.Clamp(combo / 10, 0, 10)
-                    : combo < 10 ? 0 : combo < 30 ? 1 : combo < 50 ? 2 : combo < 100 ? 4 : 8;
-                points = scoreInit + scoreDiff * multiplier;
-                if (scoreMode == 2) points = points / 10 * 10;
-                if (judge == PlayJudgement.Ok) points /= 2;
-                if (note.IsGoGo) points = points * 6 / 5;
-                points = points / 10 * 10;
-
-                // SCOREMODE:2 は100コンボごとに1万点。OpenTaiko と同じく2秒後に加算する。
-                if (scoreMode == 2 && combo > 0 && combo % 100 == 0)
-                {
-                    AddPendingBonus();
-                    pendingBonus = 10000;
-                    bonusSeconds = 2f;
-                }
-            }
-
-            // 大音符は片手1打で成立。両手待ちや特良判定は設けない。
-            if (note.Type is NoteType.BigDon or NoteType.BigKa) points *= 2;
-            Score += points;
+            // 可は半分を10点単位に切り捨て。大音符も片手1打で成立し、配点の倍率は付けない。
+            long points = judge == PlayJudgement.Ok ? PointsPerGood / 20 * 10 : PointsPerGood;
+            AddScore(points);
         }
 
-        public void ApplyRollHit(Note note, bool popped)
+        public void ApplyRollHit(Note note)
         {
-            long points;
-            if (note.IsBalloon)
-            {
-                // 割れた最後の1打は、通常の300点に代えて5000点。
-                points = popped ? 5000 : 300;
-            }
-            else if (note.IsRoll)
-            {
-                points = scoreMode == 2
-                    ? note.Type == NoteType.BigRoll ? 200 : 100
-                    : note.Type == NoteType.BigRoll ? 360 : 300;
-            }
-            else return;
-
-            if (note.IsGoGo) points = points * 6 / 5;
-            Score += points;
+            // 小・大連打、風船の途中・割れた最後の1打も100点。ゴーゴー倍率なし。
+            if (note.IsRoll || note.IsBalloon) AddScore(100);
         }
 
-        private void AddPendingBonus()
+        private void AddScore(long points)
         {
-            Score += pendingBonus;
-            pendingBonus = 0;
-            bonusSeconds = 0;
+            if (points <= 0) return;
+            Score += points;
+            ScoreAdded?.Invoke(points, Score);
         }
     }
 }

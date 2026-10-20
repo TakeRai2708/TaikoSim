@@ -12,6 +12,25 @@ namespace TaikoSim.Graphics
     {
         // 読み込んだ画像(読めなかったものは null で覚えておいて、何度も読みに行かないようにする)
         private static readonly Dictionary<string, Texture2D?> textures = new();
+        private static Shader rollHeatShader;
+        private static int rollHeatLocation = -1;
+        private const string RollHeatFragment = """
+            #version 330
+            in vec2 fragTexCoord;
+            in vec4 fragColor;
+            uniform sampler2D texture0;
+            uniform vec4 colDiffuse;
+            uniform float heat;
+            out vec4 finalColor;
+            void main()
+            {
+                vec4 pixel = texture(texture0, fragTexCoord);
+                float yellow = smoothstep(0.08, 0.35, min(pixel.r, pixel.g) - pixel.b);
+                vec3 red = vec3(pixel.r, pixel.g * (1.0 - heat), pixel.b * (1.0 - heat));
+                pixel.rgb = mix(pixel.rgb, red, yellow);
+                finalColor = pixel * colDiffuse * fragColor;
+            }
+            """;
 
         // 今の演奏画面で使う画像を、表示する前にまとめて読む。
         // ゴーゴーや大音符など、曲の途中で初めて出る画像もここに入れておく。
@@ -31,6 +50,19 @@ namespace TaikoSim.Graphics
             "Image/04.EnsoGame/Notes/Normal/0/8.png",
             "Image/04.EnsoGame/Notes/Normal/0/9.png",
             "Image/04.EnsoGame/Notes/Normal/0/10.png",
+
+            // 通常の顔つき画像。無いスキンでは上の0番へフォールバックする。
+            "Image/04.EnsoGame/Notes/Normal/1/0.png",
+            "Image/04.EnsoGame/Notes/Normal/1/1.png",
+            "Image/04.EnsoGame/Notes/Normal/1/2.png",
+            "Image/04.EnsoGame/Notes/Normal/1/3.png",
+            "Image/04.EnsoGame/Notes/Normal/1/4.png",
+            "Image/04.EnsoGame/Notes/Normal/1/5.png",
+            "Image/04.EnsoGame/Notes/Normal/1/6.png",
+            "Image/04.EnsoGame/Notes/Normal/1/7.png",
+            "Image/04.EnsoGame/Notes/Normal/1/8.png",
+            "Image/04.EnsoGame/Notes/Normal/1/9.png",
+            "Image/04.EnsoGame/Notes/Normal/1/10.png",
             "Image/04.EnsoGame/Notes/JudgementFrame.png",
 
             // レーン・左パネル・音符の下の文字・判定文字
@@ -57,6 +89,9 @@ namespace TaikoSim.Graphics
             "Image/04.EnsoGame/Effects/Hit_Explosion_Big.png",
             "Image/04.EnsoGame/Effects/Hit_Effects.png",
             "Image/04.EnsoGame/Effects/GoGoSplash.png",
+            "Image/04.EnsoGame/Effects/Soul_Explosion.png",
+            "Image/04.EnsoGame/Effects/Note_Flush.png",
+            "Image/04.EnsoGame/Effects/FireWorks.png",
             "Image/04.EnsoGame/MiniTaiko/MiniTaiko.png",
             "Image/04.EnsoGame/MiniTaiko/Combo_Number.png",
             "Image/04.EnsoGame/MiniTaiko/Combo_MiniText.png",
@@ -109,6 +144,7 @@ namespace TaikoSim.Graphics
             // 起動時もスキン変更時も、演奏用画像の準備が終わってから戻る。
             // GPUに画像を送るので、これまでどおり画面と同じスレッドで実行する。
             PreloadPlayTextures();
+            PrepareRollHeatShader();
 
             Generation++;
             Console.WriteLine($"[Skin] {CurrentName} を使います");
@@ -139,6 +175,23 @@ namespace TaikoSim.Graphics
 
             Raylib.DrawTextureEx(tex, new Vector2(x, y), 0f, scale, Color.White);
             return true;
+        }
+
+        // 黄色い部分だけを赤くする。白いふちや顔はそのまま。シェーダーはスキン適用時に準備する。
+        public static bool BeginRollHeat(float heat)
+        {
+            if (heat <= 0f || rollHeatLocation < 0) return false;
+            Raylib.SetShaderValue(rollHeatShader, rollHeatLocation, Math.Clamp(heat, 0f, 1f), ShaderUniformDataType.Float);
+            Raylib.BeginShaderMode(rollHeatShader);
+            return true;
+        }
+
+        private static void PrepareRollHeatShader()
+        {
+            rollHeatShader = Raylib.LoadShaderFromMemory(null!, RollHeatFragment);
+            rollHeatLocation = Raylib.GetShaderLocation(rollHeatShader, "heat");
+            if (rollHeatLocation < 0)
+                Console.WriteLine("[Skin] 連打の着色シェーダーを準備できませんでした（通常の色で表示します）");
         }
 
         // 後片付け(ウィンドウを閉じる前に呼ぶ)
@@ -199,6 +252,10 @@ namespace TaikoSim.Graphics
         // 読み込んだ画像を全部捨てる
         private static void UnloadTextures()
         {
+            // 読み込み失敗時に返される既定シェーダーは解放しない。
+            if (rollHeatLocation >= 0) Raylib.UnloadShader(rollHeatShader);
+            rollHeatShader = default;
+            rollHeatLocation = -1;
             foreach (Texture2D? texture in textures.Values)
             {
                 if (texture is Texture2D tex) Raylib.UnloadTexture(tex);
