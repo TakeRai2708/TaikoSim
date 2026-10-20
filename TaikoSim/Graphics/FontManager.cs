@@ -1,10 +1,11 @@
 ﻿using System.Numerics;
+using System.Text;
 using Raylib_cs;
 
 namespace TaikoSim.Graphics
 {
     // フォントの係(日本語表示用)
-    // 今はシステム用のフォント(Assets/Fonts の NotoSansJP)だけ。スキンのフォントはあとで足す
+    // システム用と、曲名に使うスキンの default フォントを別々に管理する。
     public static class FontManager
     {
         // フォントを探すフォルダ(exeと同じ場所の Assets/Fonts)
@@ -12,6 +13,8 @@ namespace TaikoSim.Graphics
 
         // システム用のフォント(読み込めなかったら null で、Raylib の標準フォントを使う)
         private static DynamicFont? systemFont;
+        private static DynamicFont? skinMainFont;
+        private static string skinMainPreparedText = "";
 
         // 使っているフォントの名前(表示用)
         public static string FontName => systemFont != null
@@ -54,9 +57,46 @@ namespace TaikoSim.Graphics
             return Raylib.MeasureTextEx(Raylib.GetFontDefault(), text, size, size / 10f);
         }
 
+        // 起動時とスキン適用時に読む。現在の曲名の漢字もここで準備しておく。
+        public static void ReloadSkinMainFont(string? skinPath)
+        {
+            skinMainFont?.Dispose();
+            skinMainFont = null;
+            string? path = FindSkinMainFontFile(skinPath);
+            if (path != null)
+            {
+                skinMainFont = DynamicFont.Load(path, InitialCodepoints()
+                    .Concat(skinMainPreparedText.EnumerateRunes().Select(rune => rune.Value)));
+                if (skinMainFont != null)
+                    Console.WriteLine($"[Font] 曲名用：{path}");
+            }
+            // 未配置・読み込み失敗時も、システムフォントで曲名を表示できるようにする。
+            PrepareSkinMainText(skinMainPreparedText);
+        }
+
+        // 曲の開始前に呼ぶ。Draw中に初めて漢字を読み込んで止まらないようにする。
+        public static void PrepareSkinMainText(string text)
+        {
+            skinMainPreparedText = text;
+            MeasureSkinMain(text, DynamicFont.BaseSize);
+        }
+
+        public static void DrawSkinMain(string text, float x, float y, float size, Color color)
+        {
+            if (skinMainFont != null)
+                skinMainFont.Draw(text, new Vector2(x, y), size, color);
+            else Draw(text, x, y, size, color);
+        }
+
+        public static Vector2 MeasureSkinMain(string text, float size) =>
+            skinMainFont?.Measure(text, size) ?? Measure(text, size);
+
         // 後片付け(ウィンドウを閉じる前に呼ぶ)
         public static void Unload()
         {
+            skinMainFont?.Dispose();
+            skinMainFont = null;
+            skinMainPreparedText = "";
             systemFont?.Dispose();
             systemFont = null;
         }
@@ -71,6 +111,36 @@ namespace TaikoSim.Graphics
                 .Concat(Range(0x3040, 0x309F))   // ひらがな
                 .Concat(Range(0x30A0, 0x30FF))   // カタカナ
                 .Concat(Range(0xFF00, 0xFFEF));  // 全角英数字・半角カナ
+        }
+
+        // Font / Fonts フォルダを優先し、スキン直下にも対応する。default2 は選ばない。
+        private static string? FindSkinMainFontFile(string? skinPath)
+        {
+            if (skinPath == null || !Directory.Exists(skinPath)) return null;
+            try
+            {
+                IEnumerable<string> folders = Directory.EnumerateDirectories(skinPath)
+                    .Where(folder => Path.GetFileName(folder).Equals("Font", StringComparison.OrdinalIgnoreCase)
+                        || Path.GetFileName(folder).Equals("Fonts", StringComparison.OrdinalIgnoreCase))
+                    .OrderBy(folder => folder, StringComparer.OrdinalIgnoreCase)
+                    .Append(skinPath);
+                foreach (string folder in folders)
+                {
+                    string? path = Directory.EnumerateFiles(folder)
+                        .Where(file => Path.GetFileNameWithoutExtension(file).Equals("default", StringComparison.OrdinalIgnoreCase)
+                            && (Path.GetExtension(file).Equals(".ttf", StringComparison.OrdinalIgnoreCase)
+                                || Path.GetExtension(file).Equals(".otf", StringComparison.OrdinalIgnoreCase)))
+                        .OrderBy(file => Path.GetExtension(file).Equals(".ttf", StringComparison.OrdinalIgnoreCase) ? 0 : 1)
+                        .ThenBy(file => file, StringComparer.OrdinalIgnoreCase)
+                        .FirstOrDefault();
+                    if (path != null) return path;
+                }
+            }
+            catch (Exception ex) when (ex is IOException || ex is UnauthorizedAccessException)
+            {
+                Console.WriteLine($"[Font] スキンの曲名用フォントを探せませんでした：{ex.Message}");
+            }
+            return null;
         }
 
         // Assets/Fonts の中から .ttf か .otf を探す(複数あったら名前順で最初のもの)

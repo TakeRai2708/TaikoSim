@@ -12,6 +12,8 @@ namespace TaikoSim.Graphics
     {
         // 読み込んだ画像(読めなかったものは null で覚えておいて、何度も読みに行かないようにする)
         private static readonly Dictionary<string, Texture2D?> textures = new();
+        // 枠の内側に収めた先端の光。0:赤、3:段差、4:黄、5:右端。
+        private static readonly Texture2D?[] gaugeGlowCells = new Texture2D?[6];
         private static Shader rollHeatShader;
         private static int rollHeatLocation = -1;
         private const string RollHeatFragment = """
@@ -144,7 +146,9 @@ namespace TaikoSim.Graphics
             // 起動時もスキン変更時も、演奏用画像の準備が終わってから戻る。
             // GPUに画像を送るので、これまでどおり画面と同じスレッドで実行する。
             PreloadPlayTextures();
+            PrepareGaugeGlowCells();
             PrepareRollHeatShader();
+            FontManager.ReloadSkinMainFont(CurrentPath);
 
             Generation++;
             Console.WriteLine($"[Skin] {CurrentName} を使います");
@@ -175,6 +179,76 @@ namespace TaikoSim.Graphics
 
             Raylib.DrawTextureEx(tex, new Vector2(x, y), 0f, scale, Color.White);
             return true;
+        }
+
+        public static Texture2D? GetGaugeGlowCell(int lightColumn) =>
+            lightColumn >= 0 && lightColumn < gaugeGlowCells.Length ? gaugeGlowCells[lightColumn] : null;
+
+        // GPUから読むのも加工するのもスキン読込時だけ。演奏中は小さな画像を描くだけにする。
+        private static void PrepareGaugeGlowCells()
+        {
+            const string dir = "Image/04.EnsoGame/Gauge/";
+            if (GetTexture(dir + "Gauge_Base.png") is not Texture2D frame
+                || GetTexture(dir + "Gauge_Light_Glow.png") is not Texture2D glow
+                || frame.Width < 1195 || frame.Height < 84 || glow.Width < 120 || glow.Height < 83)
+                return;
+
+            Image mask = Raylib.LoadImageFromTexture(frame);
+            Image bloom = Raylib.LoadImageFromTexture(glow);
+            try
+            {
+                if (mask.Width < 1195 || mask.Height < 84 || bloom.Width < 120 || bloom.Height < 83) return;
+                foreach (int column in new[] { 0, 3, 4, 5 })
+                {
+                    // マスの外側にあるぼかしも残す。配置は「マスの左端-6、ゲージ上端+3」。
+                    const int width = 32, height = 81;
+                    int templateCell = column == 0 ? 0 : column == 3 ? 39 : column == 4 ? 40 : 49;
+                    int maskX = 12 + templateCell * 21 - 6;
+                    int glowColumn = column == 0 ? 0 : column == 4 ? 3 : 2;
+                    int sampleOffset = column == 4 ? 1 : 2;
+                    Image cell = Raylib.GenImageColor(width, height, Color.Blank);
+                    try
+                    {
+                        for (int y = 0; y < height; y++)
+                        {
+                            // 右端の丸みは段差用の上下反転。点灯面の中心は元画像のY=41.5。
+                            int sourceY = column == 5 ? 83 - y : y;
+                            if (sourceY >= 83) continue;
+                            for (int x = 0; x < width; x++)
+                            {
+                                byte frameAlpha = Raylib.GetImageColor(mask, maskX + x, 3 + y).A;
+                                if (frameAlpha == 0) continue;
+                                int sourceX = x - sampleOffset;
+                                Color a = sourceX >= 0 && sourceX < 30
+                                    ? Raylib.GetImageColor(bloom, glowColumn * 30 + sourceX, sourceY) : Color.Blank;
+                                Color b = sourceX + 1 >= 0 && sourceX + 1 < 30
+                                    ? Raylib.GetImageColor(bloom, glowColumn * 30 + sourceX + 1, sourceY) : Color.Blank;
+                                int alphaSum = a.A + b.A;
+                                if (alphaSum == 0) continue;
+                                // 半ピクセルの位置を補間。透明な画素の黒がぼかしに混ざらないようにする。
+                                int round = alphaSum / 2;
+                                int alpha = ((alphaSum + 1) / 2 * frameAlpha + 127) / 255;
+                                Color color = new Color((byte)((a.R * a.A + b.R * b.A + round) / alphaSum),
+                                    (byte)((a.G * a.A + b.G * b.A + round) / alphaSum),
+                                    (byte)((a.B * a.A + b.B * b.A + round) / alphaSum), (byte)alpha);
+                                Raylib.ImageDrawPixel(ref cell, x, y, color);
+                            }
+                        }
+                        Texture2D texture = Raylib.LoadTextureFromImage(cell);
+                        if (texture.Id != 0)
+                        {
+                            Raylib.SetTextureFilter(texture, TextureFilter.Bilinear);
+                            gaugeGlowCells[column] = texture;
+                        }
+                    }
+                    finally { Raylib.UnloadImage(cell); }
+                }
+            }
+            finally
+            {
+                Raylib.UnloadImage(mask);
+                Raylib.UnloadImage(bloom);
+            }
         }
 
         // 黄色い部分だけを赤くする。白いふちや顔はそのまま。シェーダーはスキン適用時に準備する。
@@ -252,6 +326,11 @@ namespace TaikoSim.Graphics
         // 読み込んだ画像を全部捨てる
         private static void UnloadTextures()
         {
+            for (int i = 0; i < gaugeGlowCells.Length; i++)
+            {
+                if (gaugeGlowCells[i] is Texture2D cell) Raylib.UnloadTexture(cell);
+                gaugeGlowCells[i] = null;
+            }
             // 読み込み失敗時に返される既定シェーダーは解放しない。
             if (rollHeatLocation >= 0) Raylib.UnloadShader(rollHeatShader);
             rollHeatShader = default;

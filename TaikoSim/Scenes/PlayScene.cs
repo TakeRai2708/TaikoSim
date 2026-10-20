@@ -401,7 +401,7 @@ namespace TaikoSim.Scenes
             if (course != null)
             {
                 stats.Reset(course);
-                hud.Reset(course);
+                hud.Reset(course, chart?.Title ?? "");
             }
             lastDeltaMs = null;
             deltaSumMs = 0;
@@ -1468,8 +1468,7 @@ namespace TaikoSim.Scenes
         // 上と下の情報
         private void DrawInfo(Chart chart, Course course)
         {
-            FontManager.Draw(chart.Title, 40, 20, 48, Color.White);
-            if (chart.Subtitle.Length > 0) FontManager.Draw(chart.Subtitle, 40, 80, 28, Color.LightGray);
+            hud.DrawSongTitle();
 
             FontManager.Draw($"{Chart.GetCourseName(course.Type)} ★{course.Level}　音符 {course.Notes.Count}個　小節 {course.BarLines.Count}",
                 40, 125, 28, Color.White);

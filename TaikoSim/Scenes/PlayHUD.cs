@@ -12,7 +12,6 @@ namespace TaikoSim.Scenes
         private const string Dir = "Image/04.EnsoGame/";
         private const string GaugeBase = Dir + "Gauge/Gauge_Base.png";
         private const string GaugeLight = Dir + "Gauge/Gauge_Light.png";
-        private const string GaugeGlow = Dir + "Gauge/Gauge_Light_Glow.png";
         private const string ClearText = Dir + "Gauge/Gauge_Clear_Text.png";
         private const string Rainbow = Dir + "Gauge/Rainbow.png";
         private const string SoulAnime = Dir + "Gauge/Soul_Anime.png";
@@ -42,8 +41,13 @@ namespace TaikoSim.Scenes
         private static readonly float[] AddMoveX = { 25, 10, -5, -9, -10, -9, -5, -3, 0 };
         private static readonly float[] AddMoveY = { -1, -5, -7, -8, -8, -6, 0, 5, 12, 20 };
         private float soulFlashAge = 1f;
+        private const float SongTitleRight = 1872f, SongTitleY = 40f;
+        private const float SongTitleMaxWidth = 1000f, SongTitleFontSize = 48f, SongTitleOutline = 3f;
+        private string songTitle = "";
+        private float songTitleX, songTitleSize;
+        private int songTitleSkinGeneration = -1;
 
-        public void Reset(Course course)
+        public void Reset(Course course, string title = "")
         {
             elapsed = 0;
             gaugeFlashElapsed = 0;
@@ -57,6 +61,32 @@ namespace TaikoSim.Scenes
             // 画像がない場合の文字も、演奏開始前に準備する。
             FontManager.Measure(courseText, 22);
             FontManager.Measure(levelText, 24);
+            songTitle = title.Replace('\r', ' ').Replace('\n', ' ').Trim();
+            FontManager.PrepareSkinMainText(songTitle);
+            PrepareSongTitleLayout();
+        }
+
+        private void PrepareSongTitleLayout()
+        {
+            float width = FontManager.MeasureSkinMain(songTitle, SongTitleFontSize).X;
+            float scale = width > SongTitleMaxWidth ? SongTitleMaxWidth / width : 1f;
+            songTitleSize = SongTitleFontSize * scale;
+            songTitleX = SongTitleRight - width * scale;
+            songTitleSkinGeneration = SkinManager.Generation;
+        }
+
+        public void DrawSongTitle()
+        {
+            if (songTitle.Length == 0) return;
+            // スキン適用時にフォントと必要な文字は準備済み。ここでは幅だけを再計算する。
+            if (songTitleSkinGeneration != SkinManager.Generation) PrepareSongTitleLayout();
+            float outline = SongTitleOutline;
+            for (int y = -1; y <= 1; y++)
+                for (int x = -1; x <= 1; x++)
+                    if (x != 0 || y != 0)
+                        FontManager.DrawSkinMain(songTitle, songTitleX + x * outline, SongTitleY + y * outline,
+                            songTitleSize, Color.Black);
+            FontManager.DrawSkinMain(songTitle, songTitleX, SongTitleY, songTitleSize, Color.White);
         }
 
         public void Update(float dt, long score)
@@ -220,13 +250,16 @@ namespace TaikoSim.Scenes
                 }
             }
 
-            // 先端の光は点灯マスの中央に合わせ、目盛りより先に描いて線をにじませない。
-            if (!rainbow && filled > 0 && SkinManager.GetTexture(GaugeGlow) is Texture2D glow)
+            // 枠内のぼかしを残した光を重ねる。色と強さはスキンの画像に合わせる。
+            if (!rainbow && filled > 0)
             {
-                int column = filled - 1 < borderCell ? 0 : filled - 1 == borderCell ? 2 : 3;
-                Raylib.DrawTexturePro(glow, new Rectangle(column * 30, 0, 30, 83),
-                    new Rectangle(GaugeX + 12 + (filled - 1) * CellWidth - 4.5f, GaugeY + 3f, 30, 83),
-                    Vector2.Zero, 0f, Raylib.ColorAlpha(Color.White, 0.6f));
+                int cell = filled - 1;
+                int column = cell < borderCell ? 0 : cell == borderCell ? 3 : cell == Cells - 1 ? 5 : 4;
+                if (SkinManager.GetGaugeGlowCell(column) is Texture2D glow)
+                {
+                    DrawPart(glow, new Rectangle(0, 0, glow.Width, glow.Height),
+                        GaugeX + 12 + cell * CellWidth - 6, GaugeY + 3);
+                }
             }
 
             // 虹にも目盛りは重なる。黒線が強すぎないように約28%で合成する。
