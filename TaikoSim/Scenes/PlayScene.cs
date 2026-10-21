@@ -129,6 +129,9 @@ namespace TaikoSim.Scenes
 
         // 画面の右下に、直近の「叩いた・見逃した」を出す。要らなくなったら false にする
         public static bool ShowInputLog = true;
+        // F3で演奏情報とログの表示を切り替える。リスタートしても選択を保つ。
+        // 診断の収集・判定・打音は、表示のON/OFFに関係なく従来どおり動かす。
+        private bool showDebugInfo;
         private const int InputLogCount = 12;
 
         // ログ1行分
@@ -522,7 +525,12 @@ namespace TaikoSim.Scenes
             while (key != 0)
             {
                 KeyboardKey pressed = (KeyboardKey)key;
-                if (pressed == KeyboardKey.F8 && ConfigManager.Key.FindOwner(KeyboardKey.F8) == null)
+                if (pressed == KeyboardKey.F3 && ConfigManager.Key.FindOwner(KeyboardKey.F3) == null)
+                {
+                    showDebugInfo = !showDebugInfo;
+                    SetDiagnosticMessage(showDebugInfo ? "デバッグ表示：ON（F3で切替）" : "デバッグ表示：OFF（F3で切替）");
+                }
+                else if (pressed == KeyboardKey.F8 && ConfigManager.Key.FindOwner(KeyboardKey.F8) == null)
                 {
                     diagnostics.Enabled = !diagnostics.Enabled;
                     SetDiagnosticMessage(diagnostics.Enabled ? "入力診断：ON" : "入力診断：OFF");
@@ -1049,9 +1057,18 @@ namespace TaikoSim.Scenes
             DrawRollPopup();
             DrawBalloonPopup(gameMs);
             effects.DrawFront(); // ゴーゴー開始の火花
-            DrawInfo(chart, course);
-            if (ShowInputLog) DrawInputLog();
-            if (diagnostics.Enabled) DrawInputDiagnostics();
+            hud.DrawSongTitle();
+            if (autoPlay)
+            {
+                Raylib.DrawRectangle(24, 211, 132, 46, new Color(20, 60, 45, 240));
+                FontManager.Draw("AUTO", 44, 217, 30, Color.Lime);
+            }
+            if (showDebugInfo)
+            {
+                DrawInfo(chart, course);
+                if (ShowInputLog) DrawInputLog();
+                if (diagnostics.Enabled) DrawInputDiagnostics();
+            }
             if (diagnosticMessageTimer > 0f)
                 FontManager.Draw(diagnosticMessage, 40, 1038, 22, Color.SkyBlue);
         }
@@ -1313,9 +1330,11 @@ namespace TaikoSim.Scenes
         // 判定枠(レーンの光より上に描く。光っていても判定枠が見えるように)
         private static void DrawJudgeFrame()
         {
-            if (!SkinManager.Draw(JudgeFrameImage, JudgeX - NoteHalf, NoteY - NoteHalf))
+            // 枠の画像だけ右へ1px。音符の流れ・判定時刻・花火の原点は変えない。
+            const float frameX = JudgeX + 1f;
+            if (!SkinManager.Draw(JudgeFrameImage, frameX - NoteHalf, NoteY - NoteHalf))
             {
-                Raylib.DrawRing(new Vector2(JudgeX, NoteY), 44, 50, 0, 360, 48, Color.LightGray);
+                Raylib.DrawRing(new Vector2(frameX, NoteY), 44, 50, 0, 360, 48, Color.LightGray);
             }
         }
 
@@ -1472,17 +1491,9 @@ namespace TaikoSim.Scenes
         // 上と下の情報
         private void DrawInfo(Chart chart, Course course)
         {
-            hud.DrawSongTitle();
-
             FontManager.Draw($"{Chart.GetCourseName(course.Type)} ★{course.Level}　音符 {course.Notes.Count}個　小節 {course.BarLines.Count}",
                 40, 125, 28, Color.White);
             FontManager.Draw($"時間 {nowMs / 1000.0:F2} 秒　BPM {GetCurrentBpm(chart, course):0.##}", 40, 165, 28, Color.White);
-            if (autoPlay)
-            {
-                Raylib.DrawRectangle(24, 211, 132, 46, new Color(20, 60, 45, 240));
-                FontManager.Draw("AUTO", 44, 217, 30, Color.Lime);
-            }
-
             // 判定の数とコンボ(本家っぽい見た目は後で)
             FontManager.Draw($"良 {goodCount}　可 {okCount}　不可 {badCount}　コンボ {combo}（最大 {maxCombo}）　連打 {totalRollHits}打",
                 40, 690, 28, Color.Gold);
@@ -1509,7 +1520,7 @@ namespace TaikoSim.Scenes
             FontManager.Draw($"{restartKey}：最初から　Esc：もどる", 40, 600, 28, Color.SkyBlue);
             FontManager.Draw($"ファイル：{path}", 40, 645, 22, Color.Gray);
             FontManager.Draw($"入力：{DrumInputScheduler.ModeName(ConfigManager.Game.InputTiming)} / 60打制限 {(ConfigManager.Game.LimitDrumHitsTo60PerSecond ? "ON" : "OFF")}", 40, 765, 22, Color.SkyBlue);
-            FontManager.Draw("F6 モード切替 / F7 60打制限 / F8 診断 / F9 CSV（未割り当て時のみ）", 40, 800, 19, Color.SkyBlue);
+            FontManager.Draw("F3 表示 / F6 モード / F7 60打制限 / F8 診断 / F9 CSV（未割り当て時のみ）", 40, 800, 19, Color.SkyBlue);
         }
 
         // ズレの表示(例：「-12.3 ms（早い）」)

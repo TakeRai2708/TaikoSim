@@ -33,6 +33,13 @@ namespace TaikoSim.Graphics
 
         public void Draw()
         {
+            // 通常のAlpha合成は描画先のAにもSRC_ALPHAを掛け、半透明の重ね描きで
+            // キャンバス自体が透けてしまう。RGBは通常のまま、Aだけ正しく積み重ねる。
+            // これでウィンドウへ転送するときの二重の暗化を防ぎ、背景の明かりは残す。
+            Rlgl.SetBlendFactorsSeparate(Rlgl.SRC_ALPHA, Rlgl.ONE_MINUS_SRC_ALPHA,
+                Rlgl.ONE, Rlgl.ONE_MINUS_SRC_ALPHA, Rlgl.FUNC_ADD, Rlgl.FUNC_ADD);
+            Raylib.BeginBlendMode(BlendMode.CustomSeparate);
+
             // キャンバスの外へ出るアニメ素材が、レーンや別の背景を覆わないようにする。
             Raylib.BeginScissorMode(0, 0, 1920, 276);
             DrawParts(skin.UpperNormal, elapsed, 0);
@@ -49,6 +56,7 @@ namespace TaikoSim.Graphics
             if (useFooter && skin.Footer is Texture2D footer)
                 Raylib.DrawTextureEx(footer, new Vector2(skin.FooterX, 1080 - footer.Height + skin.FooterY),
                     0f, 1f, Color.White);
+            Raylib.EndBlendMode();
         }
 
         private static void DrawParts(Aup2Clip[] parts, double seconds, float y)

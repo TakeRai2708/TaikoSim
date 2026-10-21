@@ -132,8 +132,10 @@ namespace TaikoSim.Scenes
         private const float FlightSeconds = 0.56f;
         private const float SoulX = 1833f, SoulY = 246f, FlightHeight = 330f;
         private const float ArrivalSeconds = 0.408f;
-        // 参考動画の花びらに合わせた回転速度の目安。経過時間で進めるのでFPSには依存しない。
-        private const float SoulPetalDegreesPerSecond = 480f;
+        // 参考では小音符も12個の丸。色・半径・回転の関係を動画から合わせる。
+        // 中央の顔と光は別に描き、輪だけを回す。
+        private const float SoulRingSeconds = 0.24f;
+        private const float SoulRingFadeStart = 0.72f;
         private struct FlyingNote
         {
             public float Age;
@@ -361,20 +363,26 @@ namespace TaikoSim.Scenes
                 Raylib.EndBlendMode();
             }
             foreach (FlyingNote note in flyingNotes) DrawMovingNote(note, FlightPosition(note.Age));
+            if (arrivals.Count == 0) return;
+            // 輪と中央の光をフェードしても、キャンバス自体のAを下げない。
+            Rlgl.SetBlendFactorsSeparate(Rlgl.SRC_ALPHA, Rlgl.ONE_MINUS_SRC_ALPHA,
+                Rlgl.ONE, Rlgl.ONE_MINUS_SRC_ALPHA, Rlgl.FUNC_ADD, Rlgl.FUNC_ADD);
+            Raylib.BeginBlendMode(BlendMode.CustomSeparate);
             foreach (FlyingNote note in arrivals)
             {
                 Vector2 center = new Vector2(SoulX, SoulY);
-                float fade = Math.Clamp(1f - note.Age / 0.32f, 0f, 1f);
-                if (fade > 0f && SkinManager.GetTexture(SoulExplosionImage) is Texture2D ring)
+                if (note.Age < SoulRingSeconds && SkinManager.GetTexture(SoulExplosionImage) is Texture2D ring)
                 {
                     float size = ring.Height;
-                    Rectangle source = new Rectangle(note.Big ? size : 0, 0, size, size);
-                    // 花びらだけを魂の中心で回す。ノーツの顔と中央の光は回転させない。
-                    float rotation = note.Age * SoulPetalDegreesPerSecond;
-                    DrawCentered(ring, source, center, 1.5f + note.Age,
-                        Raylib.ColorAlpha(Color.Orange, fade), rotation);
-                    DrawCentered(ring, source, center, 1.1f + note.Age,
-                        Raylib.ColorAlpha(Color.White, fade), rotation);
+                    // 右側が12個の丸。2列ないスキンは先頭の正方形へ戻す。
+                    Rectangle source = new Rectangle(ring.Width >= size * 2 ? size : 0, 0, size, size);
+                    float progress = Math.Clamp(note.Age / SoulRingSeconds, 0f, 1f);
+                    float fade = 1f - Math.Clamp((progress - SoulRingFadeStart) / (1f - SoulRingFadeStart), 0f, 1f);
+                    float scale = 0.775f + 0.236f * progress;
+                    float rotation = -22f + 64f * progress;
+                    // 黄から赤へ変わる輪を一度だけ描く。白い輪との二重描画で花状にしない。
+                    Color tint = new Color(255, (int)(255f * (1f - progress)), 0, (int)(255f * fade));
+                    DrawCentered(ring, source, center, scale, tint, rotation);
                 }
                 if (note.Age < 0.221f) DrawMovingNote(note, center);
                 if (SkinManager.GetTexture(NoteFlushImage) is Texture2D flush)
@@ -387,6 +395,7 @@ namespace TaikoSim.Scenes
                         Raylib.ColorAlpha(firstHalf ? Color.Yellow : Color.White, Math.Clamp(alpha, 0f, 1f)));
                 }
             }
+            Raylib.EndBlendMode();
         }
 
         private static void DrawMovingNote(FlyingNote note, Vector2 center)
