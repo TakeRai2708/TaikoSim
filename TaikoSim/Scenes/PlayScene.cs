@@ -67,6 +67,7 @@ namespace TaikoSim.Scenes
         private Course? course;
         private readonly PlayStats stats = new();
         private readonly PlayHUD hud = new();
+        private readonly PlayBackground background = new();
         private string error = "";
 
         // 今の時間(曲の頭が0。マイナスは曲が始まる前)
@@ -430,6 +431,7 @@ namespace TaikoSim.Scenes
             popTimer = 0f;
 
             effects.Reset();
+            background.Reset();
             ResetAutoPlay();
         }
 
@@ -462,6 +464,7 @@ namespace TaikoSim.Scenes
 
             // ゴーゴーの演出は見た目なので、音符と同じ時間(譜面オフセット込み)で見る
             if (course != null) effects.SetGoGo(course.IsGoGoAt(nowMs - ConfigManager.Game.AudioOffsetMs - ConfigManager.Game.ChartOffsetMs));
+            background.Update(dt, stats.IsClear);
         }
 
         // 曲の再生位置に合わせて時間を直す
@@ -1008,6 +1011,7 @@ namespace TaikoSim.Scenes
             double gameMs = nowMs - ConfigManager.Game.AudioOffsetMs;
             double viewMs = gameMs - ConfigManager.Game.ChartOffsetMs;
 
+            background.Draw();
             DrawLane();
             hud.DrawGauge(stats);
             effects.DrawLaneLayer();   // ゴーゴーのレーン・レーンの光

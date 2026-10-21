@@ -149,6 +149,7 @@ namespace TaikoSim.Graphics
             PrepareGaugeGlowCells();
             PrepareRollHeatShader();
             FontManager.ReloadSkinMainFont(CurrentPath);
+            PlayBackground.ReloadSkin();
 
             Generation++;
             Console.WriteLine($"[Skin] {CurrentName} を使います");
@@ -326,6 +327,7 @@ namespace TaikoSim.Graphics
         // 読み込んだ画像を全部捨てる
         private static void UnloadTextures()
         {
+            PlayBackground.UnloadSkin();
             for (int i = 0; i < gaugeGlowCells.Length; i++)
             {
                 if (gaugeGlowCells[i] is Texture2D cell) Raylib.UnloadTexture(cell);

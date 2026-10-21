@@ -37,9 +37,14 @@ namespace TaikoSim.Scenes
             public string Text = "";
             public float Age;
         }
-        private readonly List<ScorePopup> scorePopups = new(16);
-        private static readonly float[] AddMoveX = { 25, 10, -5, -9, -10, -9, -5, -3, 0 };
-        private static readonly float[] AddMoveY = { -1, -5, -7, -8, -8, -6, 0, 5, 12, 20 };
+        // 真上で止めてから、一の位・十の位…の順に上へ消す。
+        private const float ScorePopupHoldSeconds = 0.22f;
+        private const float ScorePopupDigitDelay = 0.03f;
+        private const float ScorePopupRiseSeconds = 0.12f;
+        private const float ScorePopupRisePixels = 24f;
+        private const int MaxScorePopups = 32;
+        private readonly List<ScorePopup> scorePopups = new(MaxScorePopups);
+        private static readonly string[] ScoreDigitText = { "0", "1", "2", "3", "4", "5", "6", "7", "8", "9" };
         private float soulFlashAge = 1f;
         private const float SongTitleRight = 1872f, SongTitleY = 40f;
         private const float SongTitleMaxWidth = 1000f, SongTitleFontSize = 48f, SongTitleOutline = 3f;
@@ -98,7 +103,10 @@ namespace TaikoSim.Scenes
             for (int i = scorePopups.Count - 1; i >= 0; i--)
             {
                 scorePopups[i].Age += dt;
-                if (scorePopups[i].Age >= 0.22f) scorePopups.RemoveAt(i);
+                // 左端の桁まで消え終わってから片付ける。
+                float life = ScorePopupHoldSeconds + ScorePopupRiseSeconds
+                    + Math.Max(0, scorePopups[i].Text.Length - 1) * ScorePopupDigitDelay;
+                if (scorePopups[i].Age >= life) scorePopups.RemoveAt(i);
             }
             if (shownScore == score) return;
             shownScore = score;
@@ -111,7 +119,7 @@ namespace TaikoSim.Scenes
             shownScore = total;
             scoreText = total.ToString(CultureInfo.InvariantCulture);
             scoreBounceElapsed = 0f;
-            if (scorePopups.Count >= 16) scorePopups.RemoveAt(0);
+            if (scorePopups.Count >= MaxScorePopups) scorePopups.RemoveAt(0);
             scorePopups.Add(new ScorePopup { Text = points.ToString(CultureInfo.InvariantCulture) });
         }
 
@@ -159,27 +167,33 @@ namespace TaikoSim.Scenes
 
         private void DrawScoreAdditions()
         {
+            Texture2D? numberTexture = SkinManager.GetTexture(ScoreNumber);
+            float width = numberTexture is Texture2D digits ? digits.Width / 10f : 20f;
+            float height = numberTexture is Texture2D image ? image.Height / 3f : 32f;
+            float spacing = numberTexture.HasValue ? 34f : 20f;
             foreach (ScorePopup popup in scorePopups)
             {
-                int step = (int)(popup.Age * 100f);
-                float x = 272 + AddMoveX[Math.Min(step, AddMoveX.Length - 1)];
-                float y = 235 + (step >= 12 ? AddMoveY[Math.Min(step - 12, AddMoveY.Length - 1)] : 0);
-                float alpha = step < 1 ? 150f / 255 : step < 2 ? 200f / 255
-                    : step >= 21 ? 0f : step >= 20 ? 150f / 255 : step >= 19 ? 200f / 255 : 1f;
-                Color tint = Raylib.ColorAlpha(Color.White, alpha);
-                if (SkinManager.GetTexture(ScoreNumber) is Texture2D texture)
+                // 合計点と同じ右端にそろえる。消える途中も横位置を変えない。
+                float x = 272 - (popup.Text.Length - 1) * spacing - width;
+                for (int i = 0; i < popup.Text.Length; i++)
                 {
-                    float w = texture.Width / 10f, h = texture.Height / 3f;
-                    x -= (popup.Text.Length - 1) * 34f + w;
-                    for (int i = 0; i < popup.Text.Length; i++)
+                    int digit = popup.Text[i] - '0';
+                    if (digit is < 0 or > 9) continue;
+                    int place = popup.Text.Length - 1 - i; // 0が一の位
+                    float riseAge = popup.Age - ScorePopupHoldSeconds - place * ScorePopupDigitDelay;
+                    float progress = Math.Clamp(riseAge / ScorePopupRiseSeconds, 0f, 1f);
+                    if (progress >= 1f) continue;
+                    float y = 235 - ScorePopupRisePixels * progress;
+                    float alpha = 1f - progress;
+                    if (numberTexture is Texture2D texture)
                     {
-                        int digit = popup.Text[i] - '0';
-                        Raylib.DrawTexturePro(texture, new Rectangle(digit * w, h, w, h),
-                            new Rectangle(x + i * 34f, y, w, h), Vector2.Zero, 0f, tint);
+                        Raylib.DrawTexturePro(texture, new Rectangle(digit * width, height, width, height),
+                            new Rectangle(x + i * spacing, y, width, height), Vector2.Zero, 0f,
+                            Raylib.ColorAlpha(Color.White, alpha));
                     }
+                    else Raylib.DrawText(ScoreDigitText[digit], (int)(x + i * spacing), (int)y, 32,
+                        Raylib.ColorAlpha(Color.Orange, alpha));
                 }
-                else Raylib.DrawText(popup.Text, (int)x - popup.Text.Length * 20, (int)y, 32,
-                    Raylib.ColorAlpha(Color.Orange, alpha));
             }
         }
 
