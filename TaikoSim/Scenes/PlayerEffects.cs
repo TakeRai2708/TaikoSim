@@ -30,7 +30,6 @@ namespace TaikoSim.Scenes
         private const string MiniTaikoImage = Dir + "MiniTaiko/MiniTaiko.png";            // ミニ太鼓(縦に5コマ)
         private const string ComboNumberImage = Dir + "MiniTaiko/Combo_Number.png";       // コンボの数字(縦に 白・銀・金)
         private const string ComboTextImage = Dir + "MiniTaiko/Combo_MiniText.png";       // 「コンボ」
-        private const string SoulExplosionImage = Dir + "Effects/Soul_Explosion.png";
         private const string NoteFlushImage = Dir + "Effects/Note_Flush.png";
         private const string FireWorksImage = Dir + "Effects/FireWorks.png";
 
@@ -132,10 +131,11 @@ namespace TaikoSim.Scenes
         private const float FlightSeconds = 0.56f;
         private const float SoulX = 1833f, SoulY = 246f, FlightHeight = 330f;
         private const float ArrivalSeconds = 0.408f;
-        // 参考では小音符も12個の丸。色・半径・回転の関係を動画から合わせる。
-        // 中央の顔と光は別に描き、輪だけを回す。
-        private const float SoulRingSeconds = 0.24f;
-        private const float SoulRingFadeStart = 0.72f;
+        // 見本全体の時間を基準に25%からフェード、50%で完全消失。
+        // 丸の大きさは固定し、消えるまでは公転と半径の拡大を続ける。
+        private const float SoulRingTimelineSeconds = 0.24f;
+        private const float SoulRingFadeStart = 0.25f, SoulRingFadeEnd = 0.50f;
+        private const float SoulDotScale = 0.775f;
         private struct FlyingNote
         {
             public float Age;
@@ -371,18 +371,21 @@ namespace TaikoSim.Scenes
             foreach (FlyingNote note in arrivals)
             {
                 Vector2 center = new Vector2(SoulX, SoulY);
-                if (note.Age < SoulRingSeconds && SkinManager.GetTexture(SoulExplosionImage) is Texture2D ring)
+                float ringProgress = Math.Clamp(note.Age / SoulRingTimelineSeconds, 0f, 1f);
+                float ringAlpha = 1f - Math.Clamp((ringProgress - SoulRingFadeStart)
+                    / (SoulRingFadeEnd - SoulRingFadeStart), 0f, 1f);
+                if (ringAlpha > 0f && SkinManager.GetSoulExplosionDot() is Texture2D dot)
                 {
-                    float size = ring.Height;
-                    // 右側が12個の丸。2列ないスキンは先頭の正方形へ戻す。
-                    Rectangle source = new Rectangle(ring.Width >= size * 2 ? size : 0, 0, size, size);
-                    float progress = Math.Clamp(note.Age / SoulRingSeconds, 0f, 1f);
-                    float fade = 1f - Math.Clamp((progress - SoulRingFadeStart) / (1f - SoulRingFadeStart), 0f, 1f);
-                    float scale = 0.775f + 0.236f * progress;
-                    float rotation = -22f + 64f * progress;
-                    // 黄から赤へ変わる輪を一度だけ描く。白い輪との二重描画で花状にしない。
-                    Color tint = new Color(255, (int)(255f * (1f - progress)), 0, (int)(255f * fade));
-                    DrawCentered(ring, source, center, scale, tint, rotation);
+                    float radius = SkinManager.SoulExplosionRadius * (0.775f + 0.236f * ringProgress);
+                    float rotation = (-22f + 64f * ringProgress) * MathF.PI / 180f;
+                    Color tint = new Color(255, (int)(255f * (1f - ringProgress)), 0, (int)(255f * ringAlpha));
+                    Rectangle source = new Rectangle(0, 0, dot.Width, dot.Height);
+                    for (int i = 0; i < SkinManager.SoulExplosionDotCount; i++)
+                    {
+                        float angle = -MathF.PI / 2f + rotation + MathF.Tau * i / SkinManager.SoulExplosionDotCount;
+                        Vector2 position = center + new Vector2(MathF.Cos(angle), MathF.Sin(angle)) * radius;
+                        DrawCentered(dot, source, position, SoulDotScale, tint);
+                    }
                 }
                 if (note.Age < 0.221f) DrawMovingNote(note, center);
                 if (SkinManager.GetTexture(NoteFlushImage) is Texture2D flush)

@@ -14,6 +14,10 @@ namespace TaikoSim.Graphics
         private static readonly Dictionary<string, Texture2D?> textures = new();
         // 枠の内側に収めた先端の光。0:赤、3:段差、4:黄、5:右端。
         private static readonly Texture2D?[] gaugeGlowCells = new Texture2D?[6];
+        // 魂の輪から切り出した丸。スキン適用時に一度だけ用意し、演奏中は使い回す。
+        private static Texture2D? soulExplosionDot;
+        public static int SoulExplosionDotCount { get; private set; } = 12;
+        public static float SoulExplosionRadius { get; private set; }
         private static Shader rollHeatShader;
         private static int rollHeatLocation = -1;
         private const string RollHeatFragment = """
@@ -146,6 +150,7 @@ namespace TaikoSim.Graphics
             // 起動時もスキン変更時も、演奏用画像の準備が終わってから戻る。
             // GPUに画像を送るので、これまでどおり画面と同じスレッドで実行する。
             PreloadPlayTextures();
+            PrepareSoulExplosionDot();
             PrepareGaugeGlowCells();
             PrepareRollHeatShader();
             FontManager.ReloadSkinMainFont(CurrentPath);
@@ -182,8 +187,66 @@ namespace TaikoSim.Graphics
             return true;
         }
 
+        public static Texture2D? GetSoulExplosionDot() => soulExplosionDot;
+
         public static Texture2D? GetGaugeGlowCell(int lightColumn) =>
             lightColumn >= 0 && lightColumn < gaugeGlowCells.Length ? gaugeGlowCells[lightColumn] : null;
+
+        private static void PrepareSoulExplosionDot()
+        {
+            if (GetTexture("Image/04.EnsoGame/Effects/Soul_Explosion.png") is not Texture2D atlas
+                || atlas.Height <= 0 || atlas.Width < atlas.Height) return;
+
+            int size = atlas.Height;
+            bool hasOuterRing = atlas.Width >= size * 2;
+            int tileX = hasOuterRing ? size : 0;
+            SoulExplosionDotCount = hasOuterRing ? 12 : 8;
+            float center = (size - 1) / 2f;
+            float sectorSlope = MathF.Tan(MathF.PI / SoulExplosionDotCount);
+            Image source = Raylib.LoadImageFromTexture(atlas);
+            try
+            {
+                if (source.Width < tileX + size || source.Height < size) return;
+                List<(int X, int Y, Color Pixel)> pixels = new();
+                int left = size, top = size, right = -1, bottom = -1;
+                double weight = 0, weightedY = 0;
+                for (int y = 0; y < size; y++)
+                {
+                    float dy = y - center;
+                    if (dy >= 0f) continue;
+                    for (int x = 0; x < size; x++)
+                    {
+                        // 真上の丸の領域だけを取る。隣の丸が接していても混ざらない。
+                        if (MathF.Abs(x - center) > -dy * sectorSlope) continue;
+                        Color pixel = Raylib.GetImageColor(source, tileX + x, y);
+                        if (pixel.A == 0) continue;
+                        pixels.Add((x, y, pixel));
+                        left = Math.Min(left, x); top = Math.Min(top, y);
+                        right = Math.Max(right, x); bottom = Math.Max(bottom, y);
+                        weight += pixel.A;
+                        weightedY += y * pixel.A;
+                    }
+                }
+                if (weight == 0) return;
+
+                // 周囲に透明な1pxを置き、補間で隣の丸の色を拾わないようにする。
+                Image dot = Raylib.GenImageColor(right - left + 3, bottom - top + 3, Color.Blank);
+                try
+                {
+                    foreach (var pixel in pixels)
+                        Raylib.ImageDrawPixel(ref dot, pixel.X - left + 1, pixel.Y - top + 1, pixel.Pixel);
+                    Texture2D texture = Raylib.LoadTextureFromImage(dot);
+                    if (texture.Id != 0)
+                    {
+                        Raylib.SetTextureFilter(texture, TextureFilter.Bilinear);
+                        soulExplosionDot = texture;
+                        SoulExplosionRadius = center - (float)(weightedY / weight);
+                    }
+                }
+                finally { Raylib.UnloadImage(dot); }
+            }
+            finally { Raylib.UnloadImage(source); }
+        }
 
         // GPUから読むのも加工するのもスキン読込時だけ。演奏中は小さな画像を描くだけにする。
         private static void PrepareGaugeGlowCells()
@@ -328,6 +391,10 @@ namespace TaikoSim.Graphics
         private static void UnloadTextures()
         {
             PlayBackground.UnloadSkin();
+            if (soulExplosionDot is Texture2D dot) Raylib.UnloadTexture(dot);
+            soulExplosionDot = null;
+            SoulExplosionDotCount = 12;
+            SoulExplosionRadius = 0f;
             for (int i = 0; i < gaugeGlowCells.Length; i++)
             {
                 if (gaugeGlowCells[i] is Texture2D cell) Raylib.UnloadTexture(cell);
@@ -372,3 +439,4 @@ namespace TaikoSim.Graphics
         }
     }
 }
+ha
