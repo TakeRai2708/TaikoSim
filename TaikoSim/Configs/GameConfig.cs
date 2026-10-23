@@ -69,12 +69,23 @@
         // 0は譜面どおり。正の値はTJAのSCROLLに掛ける表示倍率(判定時刻は変えない)。
         public float HiSpeed { get; set; } = 0f;
 
-        // オート演奏の連打の速さ(1秒に何打)。0 ならオートは連打を叩かない
+        // オート演奏の連打の速さ(1秒に何打)。0 ならオートは連打・風船を叩かない
         // 範囲は OpenTaiko と同じ 0〜1000。初期値は今までと同じ 20(50msごと)
-        // ※ 風船はこの速さを使わない(残りの回数を残りの時間で均等に叩く。OpenTaiko と同じ)
+        // 風船もこの速さで叩く。この速さで終わりまでに割れないときは、終わるギリギリで割れる叩き方(OpenTaiko と同じ)にする
         public int AutoRollPerSecond { get; set; } = 20;
         public const int AutoRollMin = 0;
         public const int AutoRollMax = 1000;
+
+        // オート演奏の良・可・不可の割合(%)。合計が100でなくても、割合として使う(全部0なら全部良)
+        //   初期値は今までと同じ全部良
+        public int AutoGoodPercent { get; set; } = 100;
+        public int AutoOkPercent { get; set; } = 0;
+        public int AutoBadPercent { get; set; } = 0;
+        public const int AutoPercentMin = 0;
+        public const int AutoPercentMax = 100;
+
+        // オートの良・可・不可の出方を、同じ曲・同じ難易度・同じ割合なら毎回同じにするか(false なら毎回ランダム)
+        public bool AutoFixedPattern { get; set; } = false;
 
         // FPSを表示するか
         public bool ShowFps { get; set; } = true;
@@ -87,6 +98,9 @@
             if (!float.IsFinite(HiSpeed) || HiSpeed < 0f) HiSpeed = 0f;
             HiSpeed = Math.Min(HiSpeed, 100f);
             AutoRollPerSecond = Math.Clamp(AutoRollPerSecond, AutoRollMin, AutoRollMax);
+            AutoGoodPercent = Math.Clamp(AutoGoodPercent, AutoPercentMin, AutoPercentMax);
+            AutoOkPercent = Math.Clamp(AutoOkPercent, AutoPercentMin, AutoPercentMax);
+            AutoBadPercent = Math.Clamp(AutoBadPercent, AutoPercentMin, AutoPercentMax);
 
             // オフセットは -150〜150ms
             AudioOffsetMs = Math.Clamp(AudioOffsetMs, OffsetMin, OffsetMax);

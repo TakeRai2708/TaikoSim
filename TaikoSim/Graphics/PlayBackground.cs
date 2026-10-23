@@ -126,6 +126,17 @@ namespace TaikoSim.Graphics
             if (!Directory.Exists(full)) return Array.Empty<Aup2Clip>();
             int loopStart = Math.Max(0, ReadInt(preset, loopKey, 0));
             List<Aup2Clip> parts = new();
+            // リザルト画面の背景は、番号のフォルダが無くて、ここに直接 Anime.aup2 がある
+            if (File.Exists(Path.Combine(full, "Anime.aup2")))
+            {
+                string project = relative + "/Anime.aup2";
+                try { parts.Add(Aup2Clip.Load(project, loopStart)); }
+                catch (Exception ex) when (ex is IOException or UnauthorizedAccessException
+                    or FormatException or NotSupportedException or OverflowException)
+                {
+                    Console.WriteLine($"[Background] {project}: {ex.Message}");
+                }
+            }
             foreach (string folder in Directory.EnumerateDirectories(full)
                 .OrderBy(path => int.TryParse(Path.GetFileName(path), out int n) ? n : int.MaxValue)
                 .ThenBy(path => path, StringComparer.OrdinalIgnoreCase))

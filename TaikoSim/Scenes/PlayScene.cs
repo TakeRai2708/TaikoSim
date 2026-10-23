@@ -118,12 +118,17 @@ namespace TaikoSim.Scenes
 
         // オートはフレーム数ではなく譜面時刻で進める。
         //   連打：設定の速さ(1秒に何打。0 なら叩かない)
-        //   風船：残りの回数を残りの時間で均等に叩く(終わりぎりぎりで割れる。OpenTaiko の AutorollBalloon と同じ)
+        //   風船：連打と同じ速さ。その速さで終わりまでに割れないときだけ、残りの回数を残りの時間で均等に叩く(OpenTaiko と同じ)
         private bool autoPlay;
         private float hiSpeed = 1f;
         private bool autoRightHand;
         private int autoRollPerSecond = 20;
         private readonly PriorityQueue<(int Index, int Tick), double> autoHits = new();
+
+        // オートの良・可・不可(音符ごと。course.Notes と同じ番号)と、叩くときのズレ(ms。プラスなら遅い)
+        //   可・不可は、本当にその分ずれた時刻に叩く(判定の幅：良 ±25、可 ±75、不可 ±108)
+        private Judge[] autoJudges = Array.Empty<Judge>();
+        private double[] autoDeltas = Array.Empty<double>();
 
         // 数
         private int goodCount, okCount, badCount, combo, maxCombo;
@@ -792,12 +797,59 @@ namespace TaikoSim.Scenes
             autoHits.Clear();
             autoRightHand = false;
             if (!autoPlay || course == null) return;
+            PrepareAutoJudges();
             for (int i = 0; i < course.Notes.Count; i++)
             {
                 Note note = course.Notes[i];
-                if (IsHittable(note) || ((IsRollNote(note) || IsBalloonNote(note)) && note.EndTimeMs > note.TimeMs))
+                if (IsHittable(note)) autoHits.Enqueue((i, 0), note.TimeMs + autoDeltas[i]);
+                else if ((IsRollNote(note) || IsBalloonNote(note)) && note.EndTimeMs > note.TimeMs)
                     autoHits.Enqueue((i, 0), note.TimeMs);
             }
+        }
+
+        // オートで、音符ごとに良・可・不可とズレを決める(設定の割合で。合計が100でなくても割合として使う)
+        private void PrepareAutoJudges()
+        {
+            GameConfig config = ConfigManager.Game;
+            int good = config.AutoGoodPercent, ok = config.AutoOkPercent, bad = config.AutoBadPercent;
+            if (good + ok + bad <= 0) good = 100;
+            int total = good + ok + bad;
+
+            // 毎回同じ：曲のファイル・難易度・割合から決まる数で始める。ランダム：毎回ちがう数
+            int seed = config.AutoFixedPattern
+                ? StableHash($"{path}|{course!.Type}|{good}|{ok}|{bad}")
+                : Environment.TickCount ^ Guid.NewGuid().GetHashCode();
+            Random random = new Random(seed);
+
+            int count = course!.Notes.Count;
+            autoJudges = new Judge[count];
+            autoDeltas = new double[count];
+            for (int i = 0; i < count; i++)
+            {
+                if (!IsHittable(course.Notes[i])) continue;
+                int roll = random.Next(total);
+                Judge judge = roll < good ? Judge.Good : roll < good + ok ? Judge.Ok : Judge.Bad;
+                double sign = random.Next(2) == 0 ? -1 : 1; // 早いか遅いか
+                autoDeltas[i] = judge switch
+                {
+                    Judge.Good => 0,
+                    Judge.Ok => sign * (GoodRangeMs + 1 + random.NextDouble() * (OkRangeMs - GoodRangeMs - 2)),
+                    _ => sign * (OkRangeMs + 1 + random.NextDouble() * (BadRangeMs - OkRangeMs - 2)),
+                };
+                autoJudges[i] = judge;
+            }
+        }
+
+        // 文字列から、いつも同じになる数を作る(string.GetHashCode は起動するたびに変わるので使わない)
+        private static int StableHash(string text)
+        {
+            uint hash = 2166136261;
+            foreach (char c in text)
+            {
+                hash ^= c;
+                hash *= 16777619;
+            }
+            return (int)hash;
         }
 
         private DrumPart NextAutoPart(bool don)
@@ -831,35 +883,47 @@ namespace TaikoSim.Scenes
                     DrumPart part = NextAutoPart(don);
                     effects.OnDrumHit(part);
                     (don ? donSound : kaSound)?.Play(volume);
+                    Judge judge = autoJudges[hit.Index];
+                    double delta = autoDeltas[hit.Index];
+                    deltaSumMs += delta;
                     deltaCount++;
-                    SetJudge(hit.Index, Judge.Good, 0);
-                    effects.OnNoteHit(true, note.IsBig);
-                    StartFlyingNote(don, note.IsBig, hitMs);
+                    SetJudge(hit.Index, judge, delta);
+                    // 良・可なら判定枠が光って、音符が飛んでいく(不可は光らない。手で叩いたときと同じ)
+                    if (judge != Judge.Bad)
+                    {
+                        effects.OnNoteHit(judge == Judge.Good, note.IsBig);
+                        StartFlyingNote(don, note.IsBig, hitMs);
+                    }
                     AddInputLog(new InputLogEntry(hitMs, "AUTO", KeyConfig.GetDrumPartName(part),
-                        don, noteNumbers[hit.Index], 0, Judge.Good, false, frameCount));
+                        don, noteNumbers[hit.Index], delta, judge, false, frameCount));
                 }
                 else
                 {
                     if (balloonPopped[hit.Index]) continue;
                     bool balloon = IsBalloonNote(note);
-                    if (!balloon && autoRollPerSecond <= 0) continue; // 連打は叩かない設定
+                    if (autoRollPerSecond <= 0) continue; // 連打・風船は叩かない設定
 
                     DrumPart part = NextAutoPart(true);
                     effects.OnDrumHit(part);
                     HitRoll(hit.Index, true, KeyboardKey.Null, part, hitMs, volume, "AUTO");
 
-                    double nextMs;
+                    // 連打・風船とも、始まりから 1000 ÷ 速さ ms ごと(オプションの「オート連打」の速さ)
+                    double interval = 1000.0 / autoRollPerSecond;
+                    double nextMs = note.TimeMs + (hit.Tick + 1) * interval;
                     if (balloon)
                     {
-                        // 風船：OpenTaiko は「今 ≧ 前に叩いた時刻 + (終わり − 今) ÷ 残り回数」で叩く。
-                        // これを「今」について解くと、次に叩く時刻 = (残り回数 × 前に叩いた時刻 + 終わり) ÷ (残り回数 + 1)
+                        // 風船：この速さだと終わりまでに割れないときは、OpenTaiko と同じ叩き方にする(終わるギリギリで必ず割れる)
+                        //   OpenTaiko は「今 ≧ 前に叩いた時刻 + (終わり − 今) ÷ 残り回数」で叩く。
+                        //   これを「今」について解くと、次に叩く時刻 = (残り回数 × 前に叩いた時刻 + 終わり) ÷ (残り回数 + 1)
                         int remaining = note.BalloonCount - rollHits[hit.Index];
-                        nextMs = remaining > 0 ? (remaining * hitMs + note.EndTimeMs) / (remaining + 1) : double.MaxValue;
-                    }
-                    else
-                    {
-                        // 連打：始まりから 1000 ÷ 速さ ms ごと
-                        nextMs = note.TimeMs + (hit.Tick + 1) * 1000.0 / autoRollPerSecond;
+                        if (remaining <= 0) nextMs = double.MaxValue;
+                        else
+                        {
+                            // この速さで、終わりまでにあと何回叩けるか
+                            int slots = nextMs < note.EndTimeMs ? (int)Math.Ceiling((note.EndTimeMs - nextMs) / interval) : 0;
+                            if (slots < remaining)
+                                nextMs = (remaining * hitMs + note.EndTimeMs) / (remaining + 1);
+                        }
                     }
                     if (!balloonPopped[hit.Index] && nextMs < note.EndTimeMs)
                         autoHits.Enqueue((hit.Index, hit.Tick + 1), nextMs);

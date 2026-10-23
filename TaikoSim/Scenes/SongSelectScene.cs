@@ -40,7 +40,7 @@ namespace TaikoSim.Scenes
 
         // 演奏オプションは右端にそろえて、曲一覧より手前に描く。
         private static readonly Rectangle OptionsButton = new Rectangle(1784, 60, 56, 56);
-        private static readonly Rectangle OptionsMenu = new Rectangle(1510, 124, 330, 300);
+        private static readonly Rectangle OptionsMenu = new Rectangle(1510, 124, 330, 474);
         private static readonly Rectangle AutoPlayItem = new Rectangle(1520, 134, 310, 62);
         private static readonly Rectangle HiSpeedBox = new Rectangle(1634, 210, 184, 52);
         private bool optionsOpen;
@@ -50,6 +50,28 @@ namespace TaikoSim.Scenes
         private static readonly Rectangle AutoRollBox = new Rectangle(1634, 330, 184, 52);
         private bool autoRollFocused, autoRollSelectAll, autoRollInvalid;
         private string autoRollText = "20";
+        // オートの精度(良・可・不可の%)の箱3つと、「毎回同じ出方」の切り替え
+        private sealed class PercentBox
+        {
+            public Rectangle Area;
+            public string Label = "";
+            public float LabelX;
+            public Func<int> Get = () => 0;
+            public Action<int> Set = _ => { };
+            public string Text = "0";
+            public bool Focused, SelectAll, Invalid;
+        }
+        private readonly PercentBox[] percentBoxes =
+        {
+            new PercentBox { Label = "良", LabelX = 1526, Area = new Rectangle(1552, 462, 58, 46),
+                Get = () => ConfigManager.Game.AutoGoodPercent, Set = v => ConfigManager.Game.AutoGoodPercent = v },
+            new PercentBox { Label = "可", LabelX = 1622, Area = new Rectangle(1648, 462, 58, 46),
+                Get = () => ConfigManager.Game.AutoOkPercent, Set = v => ConfigManager.Game.AutoOkPercent = v },
+            new PercentBox { Label = "不可", LabelX = 1716, Area = new Rectangle(1764, 462, 58, 46),
+                Get = () => ConfigManager.Game.AutoBadPercent, Set = v => ConfigManager.Game.AutoBadPercent = v },
+        };
+        private static readonly Rectangle AutoFixedItem = new Rectangle(1520, 544, 310, 44);
+
         // HS倍率を変えているときに、歯車の左上に出す印の色
         private static readonly Color HiSpeedMarkColor = new Color(90, 200, 255, 255);
 
@@ -110,6 +132,7 @@ namespace TaikoSim.Scenes
             optionsOpen = false;
             ResetHiSpeedInput();
             ResetAutoRollInput();
+            ResetPercentInputs();
             scrollTarget = scroll;
         }
 
@@ -149,6 +172,7 @@ namespace TaikoSim.Scenes
                 searchFocused = false;
                 if (hiSpeedFocused && !Game.IsSettingsOpen) UpdateHiSpeedInput();
                 else if (autoRollFocused && !Game.IsSettingsOpen) UpdateAutoRollInput();
+                else if (percentBoxes.FirstOrDefault(b => b.Focused) is PercentBox box && !Game.IsSettingsOpen) UpdatePercentInput(box);
                 else DiscardTypedChars();
                 return;
             }
@@ -200,6 +224,7 @@ namespace TaikoSim.Scenes
             {
                 FinishHiSpeedInput();
                 FinishAutoRollInput();
+                FinishPercentInputs();
                 optionsOpen = false;
                 return;
             }
@@ -646,6 +671,7 @@ namespace TaikoSim.Scenes
             {
                 FinishHiSpeedInput();
                 FinishAutoRollInput();
+                FinishPercentInputs();
                 optionsOpen = false;
                 return;
             }
@@ -655,11 +681,13 @@ namespace TaikoSim.Scenes
                 {
                     FinishHiSpeedInput();
                     FinishAutoRollInput();
+                    FinishPercentInputs();
                 }
                 else
                 {
                     ResetHiSpeedInput();
                     ResetAutoRollInput();
+                    ResetPercentInputs();
                 }
                 optionsOpen = !optionsOpen;
                 searchFocused = false;
@@ -700,6 +728,17 @@ namespace TaikoSim.Scenes
                     caretTimer = 0f;
                 }
                 else FinishAutoRollInput();
+
+                foreach (PercentBox box in percentBoxes)
+                {
+                    if (Raylib.CheckCollisionPointRec(mouse, box.Area))
+                    {
+                        if (!box.Focused) box.SelectAll = true;
+                        box.Focused = true;
+                        caretTimer = 0f;
+                    }
+                    else FinishPercentInput(box);
+                }
             }
             FontManager.Draw("HS倍率", 1534, 222, 24, Color.White);
             Raylib.DrawRectangleRec(HiSpeedBox, hiSpeedFocused ? Gui.BoxHoverColor : Gui.BoxColor);
@@ -723,8 +762,29 @@ namespace TaikoSim.Scenes
             string rollCaret = autoRollFocused && caretTimer % 1f < 0.5f ? "|" : "";
             FontManager.Draw(autoRollText + rollCaret, AutoRollBox.X + 12, AutoRollBox.Y + 10, 26, Color.White);
             FontManager.Draw("打/秒", AutoRollBox.X + 120, AutoRollBox.Y + 14, 20, Gui.SubTextColor);
-            FontManager.Draw(autoRollInvalid ? "0〜1000の整数を入力してください" : "0＝連打を叩かない / Enterで確定", 1524, 396, 19,
+            FontManager.Draw(autoRollInvalid ? "0〜1000の整数を入力してください" : "0＝連打・風船を叩かない / Enterで確定", 1524, 396, 19,
                 autoRollInvalid ? ErrorColor : Gui.SubTextColor);
+
+            // オートの精度(良・可・不可の%)
+            FontManager.Draw("オート精度（%）", 1522, 430, 21, Color.White);
+            foreach (PercentBox box in percentBoxes) DrawPercentBox(box);
+            bool percentInvalid = percentBoxes.Any(b => b.Invalid);
+            FontManager.Draw(percentInvalid ? "0〜100の整数を入力してください" : "合計が100でなくても割合で使う", 1524, 516, 18,
+                percentInvalid ? ErrorColor : Gui.SubTextColor);
+
+            // 毎回同じ出方にするか
+            bool fixedPattern = ConfigManager.Game.AutoFixedPattern;
+            bool overFixed = Raylib.CheckCollisionPointRec(mouse, AutoFixedItem);
+            if (overFixed) Raylib.DrawRectangleRec(AutoFixedItem, Gui.BoxHoverColor);
+            if (pressed && overFixed)
+            {
+                ConfigManager.Game.AutoFixedPattern = fixedPattern = !fixedPattern;
+                ConfigManager.SaveAll();
+            }
+            FontManager.Draw("毎回同じ出方", AutoFixedItem.X + 4, AutoFixedItem.Y + 10, 22, Color.White);
+            Gui.DrawCentered(fixedPattern ? "ON" : "OFF",
+                new Rectangle(AutoFixedItem.X + 220, AutoFixedItem.Y, 76, AutoFixedItem.Height),
+                24, fixedPattern ? Color.Lime : Gui.SubTextColor);
             if (pressed && !Raylib.CheckCollisionPointRec(mouse, OptionsMenu)) optionsOpen = false;
         }
 
@@ -838,6 +898,95 @@ namespace TaikoSim.Scenes
         {
             if (autoRollFocused && !CommitAutoRoll()) ResetAutoRollInput();
             autoRollFocused = false;
+        }
+
+        // ===== オートの精度の箱(良・可・不可。0〜100の整数) =====
+
+        private void ResetPercentInputs()
+        {
+            foreach (PercentBox box in percentBoxes)
+            {
+                box.Text = box.Get().ToString(CultureInfo.InvariantCulture);
+                box.Focused = box.SelectAll = box.Invalid = false;
+            }
+        }
+
+        private void FinishPercentInputs()
+        {
+            foreach (PercentBox box in percentBoxes) FinishPercentInput(box);
+        }
+
+        private void FinishPercentInput(PercentBox box)
+        {
+            if (box.Focused && !CommitPercent(box))
+            {
+                box.Text = box.Get().ToString(CultureInfo.InvariantCulture);
+                box.Invalid = false;
+            }
+            box.Focused = box.SelectAll = false;
+        }
+
+        private void UpdatePercentInput(PercentBox box)
+        {
+            bool control = Raylib.IsKeyDown(KeyboardKey.LeftControl) || Raylib.IsKeyDown(KeyboardKey.RightControl);
+            if (control && Raylib.IsKeyPressed(KeyboardKey.A)) box.SelectAll = true;
+            int c;
+            while ((c = Raylib.GetCharPressed()) > 0)
+            {
+                if (control || c < '0' || c > '9') continue; // 数字だけ
+                if (box.SelectAll) { box.Text = ""; box.SelectAll = false; }
+                if (box.Text.Length < 3) box.Text += (char)c;
+                box.Invalid = false;
+            }
+            if (KeyPressed(KeyboardKey.Backspace))
+            {
+                if (box.SelectAll) box.Text = "";
+                else if (box.Text.Length > 0) box.Text = box.Text[..^1];
+                box.SelectAll = box.Invalid = false;
+            }
+            if (Raylib.IsKeyPressed(KeyboardKey.Enter) || Raylib.IsKeyPressed(KeyboardKey.KpEnter))
+            {
+                if (CommitPercent(box)) box.Focused = false;
+            }
+            // Tab：次の箱へ
+            if (Raylib.IsKeyPressed(KeyboardKey.Tab) && CommitPercent(box))
+            {
+                int next = (Array.IndexOf(percentBoxes, box) + 1) % percentBoxes.Length;
+                box.Focused = false;
+                percentBoxes[next].Focused = percentBoxes[next].SelectAll = true;
+                caretTimer = 0f;
+            }
+        }
+
+        private bool CommitPercent(PercentBox box)
+        {
+            string value = box.Text.Length == 0 ? "0" : box.Text;
+            if (!int.TryParse(value, NumberStyles.None, CultureInfo.InvariantCulture, out int percent)
+                || percent < GameConfig.AutoPercentMin || percent > GameConfig.AutoPercentMax)
+            {
+                box.Invalid = true;
+                return false;
+            }
+            if (box.Get() != percent)
+            {
+                box.Set(percent);
+                ConfigManager.SaveAll();
+            }
+            box.Text = percent.ToString(CultureInfo.InvariantCulture);
+            box.Invalid = box.SelectAll = false;
+            return true;
+        }
+
+        private void DrawPercentBox(PercentBox box)
+        {
+            FontManager.Draw(box.Label, box.LabelX, box.Area.Y + 11, 22, Color.White);
+            Raylib.DrawRectangleRec(box.Area, box.Focused ? Gui.BoxHoverColor : Gui.BoxColor);
+            Raylib.DrawRectangleLinesEx(box.Area, 2,
+                box.Invalid ? ErrorColor : box.Focused ? Gui.AccentColor : Gui.SubTextColor);
+            if (box.Focused && box.SelectAll)
+                Raylib.DrawRectangleRec(new Rectangle(box.Area.X + 6, box.Area.Y + 7, box.Area.Width - 12, 32), new Color(45, 82, 130, 255));
+            string caret = box.Focused && caretTimer % 1f < 0.5f ? "|" : "";
+            FontManager.Draw(box.Text + caret, box.Area.X + 8, box.Area.Y + 9, 24, Color.White);
         }
 
         // 検索の箱
