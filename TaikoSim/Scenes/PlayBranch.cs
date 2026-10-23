@@ -286,14 +286,38 @@ namespace TaikoSim.Scenes
         private const float Strength = 0.40f;    // 分岐の画像の濃さ
         private const float FadeSeconds = 0.5f;  // 切り替わる時間
 
+        // ===== 「普通譜面・玄人譜面・達人譜面」の文字(レーンの右はし。音符の下) =====
+        //   TaikøNauts の動画で測った位置。画像(1426×195)の左上をここに置く
+        private static readonly string[] TextImages =
+        {
+            "Image/04.EnsoGame/Lane/Branch_Normal_Text.png",
+            "Image/04.EnsoGame/Lane/Branch_Expert_Text.png",
+            "Image/04.EnsoGame/Lane/Branch_Master_Text.png",
+        };
+        private const float TextX = 499f, TextY = 288f;
+        // 切り替わり方(OpenTaiko の「AC15～風」と同じ動き。時間は TaikøNauts の動画に合わせて 0.3 秒)
+        //   レベルアップ：前の文字が少し沈んでから上へ飛んで消え、新しい文字が下から上がってくる
+        //   レベルダウン：上下が逆
+        private const float TextSeconds = 0.3f;
+        private const float TextMove = 30f;   // 動く量(px)
+        private const double BackCoef = 1.70158;
+
+        // ===== 「レベルアップ／レベルダウン」の吹き出し =====
+        //   TaikøNauts の動画で測った値：0.1秒で出て(少し上から下りてくる)、0.9秒出して、0.1秒で消える
+        private const string PopupImage = "Image/04.EnsoGame/MiniTaiko/Branch_Popup.png"; // 308×140 が縦2段(上:アップ 下:ダウン)
+        private const float PopupX = 265f, PopupY = 181f;
+        private const float PopupIn = 0.1f, PopupDrop = 6f, PopupDropSeconds = 0.18f, PopupHold = 0.9f, PopupOut = 0.1f;
+
         private BranchType before = BranchType.Normal;
         private BranchType after = BranchType.Normal;
         private float elapsed = 999f;
+        private bool showText;   // 分岐のある譜面のときだけ文字を出す
 
-        public void Reset()
+        public void Reset(bool hasBranch = false)
         {
             before = after = BranchType.Normal;
             elapsed = 999f;
+            showText = hasBranch;
         }
 
         // 分岐が変わったとき(BranchTracker.Changed につなぐ)
@@ -314,6 +338,47 @@ namespace TaikoSim.Scenes
             if (t < 1f) DrawLayer(before, 1f - t, x, y);
             DrawLayer(after, t, x, y);
         }
+
+        // 「普通譜面」などの文字(レーンの色のすぐ後、音符より前に描く)
+        public void DrawText()
+        {
+            if (!showText) return;
+            float t = Math.Clamp(elapsed / TextSeconds, 0f, 1f);
+            if (t >= 1f || before == after)
+            {
+                DrawTextImage(after, 0f, 1f);
+                return;
+            }
+            // レベルアップは上へ(マイナス)、レベルダウンは下へ(プラス)
+            float direction = after > before ? -1f : 1f;
+            float ease = (float)EaseInBack(t);
+            DrawTextImage(before, direction * TextMove * ease, 1f - t);                 // 前の文字：0 → 動く量
+            DrawTextImage(after, direction * TextMove * (ease - 1f), t);               // 新しい文字：反対側から 0 へ
+        }
+
+        // 「レベルアップ／レベルダウン」(パネルより前に描く)
+        public void DrawPopup()
+        {
+            if (before == after || elapsed > PopupHold + PopupOut) return;
+            if (SkinManager.GetTexture(PopupImage) is not Texture2D texture) return;
+            float alpha = elapsed < PopupIn ? elapsed / PopupIn
+                : elapsed > PopupHold ? 1f - (elapsed - PopupHold) / PopupOut : 1f;
+            float drop = PopupDrop * (1f - Math.Clamp(elapsed / PopupDropSeconds, 0f, 1f));
+            int row = after > before ? 0 : 1;
+            float height = texture.Height / 2f;
+            Raylib.DrawTexturePro(texture, new Rectangle(0, row * height, texture.Width, height),
+                new Rectangle(PopupX, PopupY - drop, texture.Width, height), System.Numerics.Vector2.Zero, 0f,
+                Raylib.ColorAlpha(Color.White, Math.Clamp(alpha, 0f, 1f)));
+        }
+
+        private static void DrawTextImage(BranchType branch, float dy, float alpha)
+        {
+            if (alpha <= 0f || SkinManager.GetTexture(TextImages[(int)branch]) is not Texture2D texture) return;
+            Raylib.DrawTextureV(texture, new System.Numerics.Vector2(TextX, TextY + dy), Raylib.ColorAlpha(Color.White, alpha));
+        }
+
+        // だんだん速くなる動き(はじめに少しだけ反対へ戻る)。OpenTaiko の Easing.EaseIn(Back) と同じ式
+        private static double EaseInBack(double t) => (BackCoef + 1) * t * t * t - BackCoef * t * t;
 
         // 分岐の画像を描く(amount は切り替えの途中の割合 0〜1)。普通譜面はレーンそのままなので何も描かない
         private static void DrawLayer(BranchType branch, float amount, float x, float y)

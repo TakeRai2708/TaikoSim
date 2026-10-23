@@ -118,6 +118,14 @@ namespace TaikoSim.Graphics
             "Image/04.EnsoGame/Gauge/Soul_Anime.png",
             "Image/04.EnsoGame/Gauge/Soul_Text.png",
 
+            // 分岐の文字・レベルアップの吹き出し・判定の数の板
+            "Image/04.EnsoGame/Lane/Branch_Normal_Text.png",
+            "Image/04.EnsoGame/Lane/Branch_Expert_Text.png",
+            "Image/04.EnsoGame/Lane/Branch_Master_Text.png",
+            "Image/04.EnsoGame/MiniTaiko/Branch_Popup.png",
+            "Image/04.EnsoGame/Scoreboard/Base.png",
+            "Image/04.EnsoGame/Scoreboard/Number.png",
+
             // スコアランク(演奏中に出る 粋・雅・極)
             "Image/04.EnsoGame/ScoreRankSymbol.png",
 

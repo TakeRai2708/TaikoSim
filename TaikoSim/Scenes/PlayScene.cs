@@ -73,6 +73,9 @@ namespace TaikoSim.Scenes
         private readonly BranchTracker branches = new();
         private readonly BranchLane branchLane = new();
 
+        // 良・可・不可・連打数の板(左下)
+        private readonly PlayScoreboard scoreboard = new();
+
         // 測る用：音が聞こえるまでの遅れの目安(ms)の平均(デバッグ表示に出す)
         private double latencyAverageMs = 0;
         private bool latencyMeasured = false;
@@ -147,7 +150,7 @@ namespace TaikoSim.Scenes
         // F3で演奏情報とログの表示を切り替える。リスタートしても選択を保つ。
         // 診断の収集・判定・打音は、表示のON/OFFに関係なく従来どおり動かす。
         private bool showDebugInfo;
-        private const int InputLogCount = 12;
+        private const int InputLogCount = 8;
 
         // ログ1行分
         //   NoteNumber … 何個目の音符か(1から。空振りなら 0)
@@ -482,7 +485,8 @@ namespace TaikoSim.Scenes
                 hud.Reset(course, chart?.Title ?? "");
             }
             branches.Reset(course, () => stats.Score);
-            branchLane.Reset();
+            branchLane.Reset(course?.HasBranch ?? false);
+            scoreboard.Set(0, 0, 0, 0);
             latencyAverageMs = 0;
             latencyMeasured = false;
             lastDeltaMs = null;
@@ -1332,6 +1336,7 @@ namespace TaikoSim.Scenes
             background.Draw();
             DrawLane();
             branchLane.Draw(LaneX, LaneY); // 分岐のレーンの色(普通譜面なら何も描かない)
+            branchLane.DrawText();         // 「普通譜面・玄人譜面・達人譜面」(分岐のある譜面だけ)
             hud.DrawGauge(stats);
             effects.DrawLaneLayer();   // ゴーゴーのレーン・レーンの光
             DrawJudgeFrame();
@@ -1369,6 +1374,9 @@ namespace TaikoSim.Scenes
             DrawBalloonPopup(gameMs);
             effects.DrawFront(); // ゴーゴー開始の火花
             hud.DrawSongTitle();
+            branchLane.DrawPopup();  // 「レベルアップ／レベルダウン」
+            scoreboard.Set(goodCount, okCount, badCount, totalRollHits);
+            scoreboard.Draw();       // 良・可・不可・連打数(左下)
             scoreRank.Draw();    // 粋・雅・極
             end.Draw();          // 演奏後の演出(クリア成功・フルコンボなど)
             if (autoPlay)
@@ -1383,7 +1391,7 @@ namespace TaikoSim.Scenes
                 if (diagnostics.Enabled) DrawInputDiagnostics();
             }
             if (diagnosticMessageTimer > 0f)
-                FontManager.Draw(diagnosticMessage, 40, 1038, 22, Color.SkyBlue);
+                FontManager.Draw(diagnosticMessage, InfoX, InfoTop - 34, 22, Color.SkyBlue);
 
             // 演奏が終わって次の画面へ行く前に、だんだん暗くする
             if (endFadeElapsed > 0f)
@@ -1556,14 +1564,15 @@ namespace TaikoSim.Scenes
         // 入力ログ(右下)。新しいものが下
         //   例：「 23.715 秒  D 左面 ドン → 45個目 ドン  -12.3 ms 良」
         //   同じフレームで処理した叩きには「同」が付く(同じ時刻として判定している)
+        // 入力ログ(右下。新しいものが下)
         private void DrawInputLog()
         {
-            const float x = 1060;
-            const float top = 560;
-            const float lineHeight = 32;
-            const float size = 22;
+            const float x = 1270;
+            const float lineHeight = 24;
+            const float size = 18;
+            const float top = 1080 - 20 - lineHeight * (InputLogCount + 1) - 8;
 
-            Raylib.DrawRectangle((int)x - 16, (int)top - 12, Screen.Width - (int)x + 16, (int)(lineHeight * (InputLogCount + 1) + 20), new Color(0, 0, 0, 150));
+            Raylib.DrawRectangle((int)x - 10, (int)top - 8, Screen.Width - (int)x + 10, (int)(lineHeight * (InputLogCount + 1) + 14), InfoPanelColor);
             FontManager.Draw("入力ログ（新しいものが下）", x, top, size, Color.LightGray);
 
             for (int i = 0; i < inputLog.Count; i++)
@@ -1810,51 +1819,53 @@ namespace TaikoSim.Scenes
         }
 
         // 上と下の情報
+        // F3 のデバッグ表示(左下：判定の数の板の右どなりに、小さめの文字でまとめる)
+        private const float InfoX = 262f, InfoTop = 870f, InfoLine = 25f, InfoSize = 20f;
+        private static readonly Color InfoPanelColor = new Color(0, 0, 0, 170);
+
         private void DrawInfo(Chart chart, Course course)
         {
-            FontManager.Draw($"{Chart.GetCourseName(course.Type)} ★{course.Level}　音符 {course.Notes.Count}個　小節 {course.BarLines.Count}",
-                40, 125, 28, Color.White);
-            FontManager.Draw($"時間 {nowMs / 1000.0:F2} 秒　BPM {GetCurrentBpm(chart, course):0.##}", 40, 165, 28, Color.White);
-            // 判定の数とコンボ(本家っぽい見た目は後で)
-            FontManager.Draw($"良 {goodCount}　可 {okCount}　不可 {badCount}　コンボ {combo}（最大 {maxCombo}）　連打 {totalRollHits}打",
-                40, 690, 28, Color.Gold);
+            Raylib.DrawRectangle((int)InfoX - 10, (int)InfoTop - 8, 1000, (int)(InfoLine * 7 + 14), InfoPanelColor);
+            float y = InfoTop;
+            void Line(string text, Color color)
+            {
+                FontManager.Draw(text, InfoX, y, InfoSize, color);
+                y += InfoLine;
+            }
+
+            Line($"{Chart.GetCourseName(course.Type)} ★{course.Level}　音符 {course.Notes.Count}個　小節 {course.BarLines.Count}"
+                + $"　　時間 {nowMs / 1000.0:F2} 秒　BPM {GetCurrentBpm(chart, course):0.##}", Color.White);
 
             // ズレ(プラスなら遅い)。平均がいつも同じ向きにズレていたら、音オフセットで直せる
             string last = lastDeltaMs is double d ? DeltaText(d) : "-";
             string average = deltaCount > 0 ? $"{DeltaText(deltaSumMs / deltaCount)}（{deltaCount}回）" : "-";
-            FontManager.Draw($"最後のズレ {last}　平均のズレ {average}", 40, 730, 28, Color.Gold);
+            Line($"コンボ {combo}（最大 {maxCombo}）　　ズレ 最後 {last} / 平均 {average}", Color.Gold);
 
-            // 曲の状態
+            // 曲の状態(同期ズレ = 曲の再生位置 − 画面の時間。0 に近いほどいい)
             if (song != null)
             {
-                // ズレ = 曲の再生位置 − 画面の時間(鳴っている間だけ。0 に近いほどいい)
-                string sync = song.IsPlaying ? $"　（ズレ {song.PositionMs - nowMs:+0.0;-0.0;0.0} ms）" : "";
-                FontManager.Draw($"曲：{chart.Wave}　{song.PositionMs / 1000.0:F2} / {song.LengthMs / 1000.0:F2} 秒{sync}",
-                    40, 560, 24, Color.White);
+                string sync = song.IsPlaying ? $"（同期ズレ {song.PositionMs - nowMs:+0.0;-0.0;0.0} ms）" : "";
+                Line($"曲 {chart.Wave}　{song.PositionMs / 1000.0:F2} / {song.LengthMs / 1000.0:F2} 秒{sync}", Color.White);
             }
-            else
-            {
-                FontManager.Draw(audioMessage, 40, 560, 24, new Color(255, 170, 80, 255));
-            }
-
-            KeyboardKey restartKey = ConfigManager.Key.SystemKeys.GetValueOrDefault(SystemAction.QuickRestart, KeyboardKey.F5);
-            FontManager.Draw($"{restartKey}：最初から　Esc：もどる", 40, 600, 28, Color.SkyBlue);
-            FontManager.Draw($"ファイル：{path}", 40, 645, 22, Color.Gray);
-            FontManager.Draw($"入力：{DrumInputScheduler.ModeName(ConfigManager.Game.InputTiming)} / 60打制限 {(ConfigManager.Game.LimitDrumHitsTo60PerSecond ? "ON" : "OFF")}", 40, 765, 22, Color.SkyBlue);
-            FontManager.Draw("F3 表示 / F6 モード / F7 60打制限 / F8 診断 / F9 CSV（未割り当て時のみ）", 40, 800, 19, Color.SkyBlue);
+            else Line(audioMessage, new Color(255, 170, 80, 255));
 
             // 測る用：出力方式と、音が聞こえるまでの遅れの目安
             string latencyText = !latencyMeasured ? "（曲が鳴ると出ます）"
                 : AudioManager.Mixer != 0
                     ? $"まだ鳴っていない量 平均 {latencyAverageMs:0.0} ms（曲の位置から引いている）"
-                    : $"機器の遅れ Info.Latency {latencyAverageMs:0.0} ms・バッファ {AudioManager.BassBufferMs} ms（曲の位置からは引いていない）";
-            FontManager.Draw($"出力：{AudioManager.GetTypeName(AudioManager.CurrentType)}　{latencyText}", 40, 830, 22, Color.White);
+                    : $"機器の遅れ {latencyAverageMs:0.0} ms・バッファ {AudioManager.BassBufferMs} ms（曲の位置からは引いていない）";
+            Line($"出力 {AudioManager.GetTypeName(AudioManager.CurrentType)}　{latencyText}", Color.White);
+            Line($"入力 {DrumInputScheduler.ModeName(ConfigManager.Game.InputTiming)} / 60打制限 {(ConfigManager.Game.LimitDrumHitsTo60PerSecond ? "ON" : "OFF")}",
+                Color.SkyBlue);
 
             // 譜面分岐の状態
-            FontManager.Draw(branches.GetDebugText(), 40, 862, 22, new Color(255, 170, 230, 255));
+            Line(branches.GetDebugText(), new Color(255, 170, 230, 255));
+
+            KeyboardKey restartKey = ConfigManager.Key.SystemKeys.GetValueOrDefault(SystemAction.QuickRestart, KeyboardKey.F5);
+            Line($"{restartKey} 最初から　Esc もどる　F3 表示　F6 モード　F7 60打制限　F8 診断　F9 CSV（F6〜F9 は未割り当て時のみ）",
+                Color.SkyBlue);
         }
 
-        // ズレの表示(例：「-12.3 ms（早い）」)
         private static string DeltaText(double ms)
         {
             string direction = ms < 0 ? "早い" : ms > 0 ? "遅い" : "ぴったり";
