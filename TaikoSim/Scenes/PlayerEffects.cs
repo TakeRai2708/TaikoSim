@@ -89,8 +89,14 @@ namespace TaikoSim.Scenes
         private const float FaceSeconds = 0.300f;
         private const float FaceHoldSeconds = 0.150f;
         private const float ExplosionFrameSeconds = 0.025f; // 光の輪1コマ(25ms)
-        private const float BigFrameSeconds = 0.020f;   // 大音符の光の線1コマ(20ms × 10)
-        private const int BigFrames = 10;
+        // 大音符：TaikøNauts の動画(60fps)で測った値
+        //   点々の輪は小さい音符よりゆっくり(1コマ40ms × 5コマ ＝ 約0.2秒)
+        //   光の線は、点々の輪が終わるころ(叩いて0.17秒後)から出て、0.16秒かけて外に広がりながら消える
+        private const float BigExplosionFrameSeconds = 0.040f;
+        private const float BigRaysStart = 0.17f, BigRaysSeconds = 0.16f;
+        private const float BigRaysScaleFrom = 0.85f, BigRaysScaleTo = 1.10f;
+        // 光の線の濃さ：TaikøNauts は細く薄く見えたので、最大60%。だんだん濃くなって(前半)、だんだん消える(後半)
+        private const float BigRaysMaxAlpha = 0.6f;
         private const float MiniTaikoStepSeconds = 0.020f; // ミニ太鼓の明るさが1段下がる時間(20ms。8段)
         private const int MiniTaikoMaxBright = 8;
         private const float ComboBumpStep = 0.012f;     // コンボの数字が伸び縮みする1段(12ms)
@@ -128,13 +134,19 @@ namespace TaikoSim.Scenes
         private float goGoTime = 0f;    // ゴーゴーが始まってからの時間
         private float splashTime = -1f; // 火花が出てからの時間(-1 なら出ていない)
 
-        private const float FlightSeconds = 0.56f;
+        // 魂に飛んでいく音符と、着いたときの演出：TaikøNauts の動画(60fps)で測った値
+        //   (2回目の比べ：全体が1〜2コマ早かったので、少しずつ長くした)
+        //   飛ぶ時間：叩いてから約0.5秒で魂に着く
+        //   花びらの輪：着いた瞬間に白で出て、黄色(0.075秒)→オレンジ→赤(0.22秒)と色が変わりながら外に広がる。
+        //               0.22秒から薄くなって、0.33秒で消える
+        //   音符：白い光(Note_Flush)が0.17秒かけて重なって真っ白になり、そのあと0.15秒で消える
+        private const float FlightSeconds = 0.50f;
         private const float SoulX = 1833f, SoulY = 246f, FlightHeight = 330f;
-        private const float ArrivalSeconds = 0.408f;
-        // 見本全体の時間を基準に25%からフェード、50%で完全消失。
-        // 丸の大きさは固定し、消えるまでは公転と半径の拡大を続ける。
-        private const float SoulRingTimelineSeconds = 0.24f;
-        private const float SoulRingFadeStart = 0.25f, SoulRingFadeEnd = 0.50f;
+        private const float ArrivalSeconds = 0.33f;
+        private const float SoulRingYellowAt = 0.075f, SoulRingRedAt = 0.22f;
+        private const float SoulRingFadeStart = 0.22f, SoulRingFadeEnd = 0.33f;
+        private const float SoulRingRadiusFrom = 0.775f, SoulRingRadiusTo = 1.09f;
+        private const float SoulFlushPeak = 0.17f, SoulFlushEnd = 0.32f;
         private const float SoulDotScale = 0.775f;
         private struct FlyingNote
         {
@@ -266,7 +278,9 @@ namespace TaikoSim.Scenes
             {
                 Explosion e = explosions[i];
                 e.Time += dt;
-                float life = Math.Max(ExplosionFrameCount() * ExplosionFrameSeconds, e.Big ? BigFrames * BigFrameSeconds : 0f);
+                float life = e.Big
+                    ? Math.Max(ExplosionFrameCount() * BigExplosionFrameSeconds, BigRaysStart + BigRaysSeconds)
+                    : ExplosionFrameCount() * ExplosionFrameSeconds;
                 if (e.Time >= life) explosions.RemoveAt(i);
                 else explosions[i] = e;
             }
@@ -371,14 +385,18 @@ namespace TaikoSim.Scenes
             foreach (FlyingNote note in arrivals)
             {
                 Vector2 center = new Vector2(SoulX, SoulY);
-                float ringProgress = Math.Clamp(note.Age / SoulRingTimelineSeconds, 0f, 1f);
-                float ringAlpha = 1f - Math.Clamp((ringProgress - SoulRingFadeStart)
+                float ringProgress = Math.Clamp(note.Age / ArrivalSeconds, 0f, 1f);
+                float ringAlpha = 1f - Math.Clamp((note.Age - SoulRingFadeStart)
                     / (SoulRingFadeEnd - SoulRingFadeStart), 0f, 1f);
                 if (ringAlpha > 0f && SkinManager.GetSoulExplosionDot() is Texture2D dot)
                 {
-                    float radius = SkinManager.SoulExplosionRadius * (0.775f + 0.236f * ringProgress);
+                    float radius = SkinManager.SoulExplosionRadius
+                        * (SoulRingRadiusFrom + (SoulRingRadiusTo - SoulRingRadiusFrom) * ringProgress);
                     float rotation = (-22f + 64f * ringProgress) * MathF.PI / 180f;
-                    Color tint = new Color(255, (int)(255f * (1f - ringProgress)), 0, (int)(255f * ringAlpha));
+                    // 色：白 → 黄色(青を減らす) → 赤(緑を減らす)
+                    float blue = 1f - Math.Clamp(note.Age / SoulRingYellowAt, 0f, 1f);
+                    float green = 1f - Math.Clamp((note.Age - SoulRingYellowAt) / (SoulRingRedAt - SoulRingYellowAt), 0f, 1f);
+                    Color tint = new Color(255, (int)(255f * green), (int)(255f * blue), (int)(255f * ringAlpha));
                     Rectangle source = new Rectangle(0, 0, dot.Width, dot.Height);
                     for (int i = 0; i < SkinManager.SoulExplosionDotCount; i++)
                     {
@@ -387,15 +405,16 @@ namespace TaikoSim.Scenes
                         DrawCentered(dot, source, position, SoulDotScale, tint);
                     }
                 }
-                if (note.Age < 0.221f) DrawMovingNote(note, center);
+                // 音符は真っ白になるまで描く(そのあとは白い光だけが消えていく)
+                if (note.Age < SoulFlushPeak) DrawMovingNote(note, center);
                 if (SkinManager.GetTexture(NoteFlushImage) is Texture2D flush)
                 {
                     float size = flush.Height;
-                    bool firstHalf = note.Age < 0.204f;
-                    float alpha = firstHalf ? note.Age / 0.204f * 0.88f
-                        : (ArrivalSeconds - note.Age) / 0.204f;
+                    float alpha = note.Age < SoulFlushPeak
+                        ? note.Age / SoulFlushPeak
+                        : 1f - (note.Age - SoulFlushPeak) / (SoulFlushEnd - SoulFlushPeak);
                     DrawCentered(flush, new Rectangle(note.Big ? size : 0, 0, size, size), center, 1f,
-                        Raylib.ColorAlpha(firstHalf ? Color.Yellow : Color.White, Math.Clamp(alpha, 0f, 1f)));
+                        Raylib.ColorAlpha(Color.White, Math.Clamp(alpha, 0f, 1f)));
                 }
             }
             Raylib.EndBlendMode();
@@ -549,7 +568,7 @@ namespace TaikoSim.Scenes
             if (SkinManager.GetTexture(HitExplosionImage) is Texture2D texture)
             {
                 int frames = ExplosionFrameCount();
-                int frame = (int)(e.Time / ExplosionFrameSeconds);
+                int frame = (int)(e.Time / (e.Big ? BigExplosionFrameSeconds : ExplosionFrameSeconds));
                 if (frame < frames)
                 {
                     float size = texture.Height / 4f;
@@ -560,18 +579,20 @@ namespace TaikoSim.Scenes
                 }
             }
 
-            // 大音符の光の線(縦に 良・可。0.5倍 → 0.95倍に広がる)
+            // 大音符の光の線(縦に 良・可)。点々の輪が終わるころから、広がりながら消える
             if (e.Big && SkinManager.GetTexture(HitExplosionBigImage) is Texture2D big)
             {
-                int step = (int)(e.Time / BigFrameSeconds);
-                if (step < BigFrames)
+                float t = (e.Time - BigRaysStart) / BigRaysSeconds; // 0 → 1
+                if (t >= 0f && t < 1f)
                 {
-                    float scale = 0.5f + step * 0.5f / 10f;
+                    float scale = BigRaysScaleFrom + (BigRaysScaleTo - BigRaysScaleFrom) * t;
+                    float alpha = BigRaysMaxAlpha * (t < 0.5f ? t / 0.5f : (1f - t) / 0.5f);
                     float frameHeight = big.Height / 2f;
                     Rectangle source = new Rectangle(0, e.Good ? 0 : frameHeight, big.Width, frameHeight);
                     float w = big.Width * scale, h = frameHeight * scale;
                     Rectangle dest = new Rectangle(judgeX - w / 2f, judgeY - h / 2f, w, h);
-                    Raylib.DrawTexturePro(big, source, dest, Vector2.Zero, 0f, Color.White);
+                    Raylib.DrawTexturePro(big, source, dest, Vector2.Zero, 0f,
+                        Raylib.ColorAlpha(Color.White, Math.Clamp(alpha, 0f, 1f)));
                 }
             }
         }

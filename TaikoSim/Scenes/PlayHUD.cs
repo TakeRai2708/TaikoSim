@@ -37,10 +37,16 @@ namespace TaikoSim.Scenes
             public string Text = "";
             public float Age;
         }
-        // 真上で止めてから、一の位・十の位…の順に上へ消す。
-        private const float ScorePopupHoldSeconds = 0.22f;
-        private const float ScorePopupDigitDelay = 0.03f;
-        private const float ScorePopupRiseSeconds = 0.12f;
+        // 加算スコア：TaikøNauts の動画(60fps)で測った値
+        //   ① 少し右(100px)から、0.08秒でふわっと(だんだん濃く)すべり込んで止まる
+        //   ② 0.27秒から0.06秒かけて、全体が少し(6px)上がる
+        //   ③ 0.33秒から、一の位・十の位…の順に1桁ずつ(17msおき)上に飛んで消える(1桁0.05秒)
+        private const float ScorePopupSlideSeconds = 0.08f;
+        private const float ScorePopupSlidePixels = 100f;
+        private const float ScorePopupLiftStart = 0.27f, ScorePopupLiftSeconds = 0.06f, ScorePopupLiftPixels = 6f;
+        private const float ScorePopupHoldSeconds = 0.33f;
+        private const float ScorePopupDigitDelay = 0.017f;
+        private const float ScorePopupRiseSeconds = 0.05f;
         private const float ScorePopupRisePixels = 24f;
         private const int MaxScorePopups = 32;
         private readonly List<ScorePopup> scorePopups = new(MaxScorePopups);
@@ -173,8 +179,12 @@ namespace TaikoSim.Scenes
             float spacing = numberTexture.HasValue ? 34f : 20f;
             foreach (ScorePopup popup in scorePopups)
             {
-                // 合計点と同じ右端にそろえる。消える途中も横位置を変えない。
-                float x = 272 - (popup.Text.Length - 1) * spacing - width;
+                // 合計点と同じ右端にそろえる。出てくるときだけ右からすべり込む
+                float slide = Math.Clamp(popup.Age / ScorePopupSlideSeconds, 0f, 1f);
+                float slideEase = 1f - (1f - slide) * (1f - slide); // 最後はゆっくり止まる
+                float offsetX = ScorePopupSlidePixels * (1f - slideEase);
+                float lift = ScorePopupLiftPixels * Math.Clamp((popup.Age - ScorePopupLiftStart) / ScorePopupLiftSeconds, 0f, 1f);
+                float x = 272 - (popup.Text.Length - 1) * spacing - width + offsetX;
                 for (int i = 0; i < popup.Text.Length; i++)
                 {
                     int digit = popup.Text[i] - '0';
@@ -183,8 +193,8 @@ namespace TaikoSim.Scenes
                     float riseAge = popup.Age - ScorePopupHoldSeconds - place * ScorePopupDigitDelay;
                     float progress = Math.Clamp(riseAge / ScorePopupRiseSeconds, 0f, 1f);
                     if (progress >= 1f) continue;
-                    float y = 235 - ScorePopupRisePixels * progress;
-                    float alpha = 1f - progress;
+                    float y = 235 - lift - ScorePopupRisePixels * progress;
+                    float alpha = (1f - progress) * slide; // 出てくるときはだんだん濃く
                     if (numberTexture is Texture2D texture)
                     {
                         Raylib.DrawTexturePro(texture, new Rectangle(digit * width, height, width, height),
@@ -224,19 +234,29 @@ namespace TaikoSim.Scenes
             if (rainbow && SkinManager.GetTexture(Rainbow) is Texture2D rainbowTexture)
             {
                 // 24枚は80/70/60%の3組×8コマ。組をまたぐと段差まで移動してしまう。
+                // TaikøNauts は色がなめらかに流れていたので、今のコマに次のコマを少しずつ重ねてつなぐ
                 float height = rainbowTexture.Height / 24f;
-                int frameIndex = row * 8 + (int)(elapsed / RainbowFrameSeconds) % 8;
-                if (stats.Norma == templateNorma)
-                    DrawPart(rainbowTexture, new Rectangle(0, frameIndex * height, rainbowTexture.Width, height),
-                        GaugeX + 6, GaugeY + 6);
-                else
+                float framePosition = elapsed / RainbowFrameSeconds;
+                int current = (int)framePosition % 8;
+                int next = (current + 1) % 8;
+                float blend = framePosition - MathF.Floor(framePosition); // 次のコマの濃さ 0〜1
+                DrawRainbowFrame(rainbowTexture, row * 8 + current, height, Color.White);
+                DrawRainbowFrame(rainbowTexture, row * 8 + next, height, Raylib.ColorAlpha(Color.White, blend));
+
+                void DrawRainbowFrame(Texture2D texture, int frameIndex, float frameHeight, Color tint)
                 {
-                    // ★11以上でも背景・目盛りと同じ場所に段差を置く。
-                    float sourceStep = templateStep - 6, targetStep = stepX - 6;
-                    DrawPart(rainbowTexture, new Rectangle(0, frameIndex * height, sourceStep, height),
-                        GaugeX + 6, GaugeY + 6, targetStep, height);
-                    DrawPart(rainbowTexture, new Rectangle(sourceStep, frameIndex * height, rainbowTexture.Width - sourceStep, height),
-                        GaugeX + 6 + targetStep, GaugeY + 6, rainbowTexture.Width - targetStep, height);
+                    if (stats.Norma == templateNorma)
+                        DrawPart(texture, new Rectangle(0, frameIndex * frameHeight, texture.Width, frameHeight),
+                            GaugeX + 6, GaugeY + 6, tint: tint);
+                    else
+                    {
+                        // ★11以上でも背景・目盛りと同じ場所に段差を置く。
+                        float sourceStep = templateStep - 6, targetStep = stepX - 6;
+                        DrawPart(texture, new Rectangle(0, frameIndex * frameHeight, sourceStep, frameHeight),
+                            GaugeX + 6, GaugeY + 6, targetStep, frameHeight, tint);
+                        DrawPart(texture, new Rectangle(sourceStep, frameIndex * frameHeight, texture.Width - sourceStep, frameHeight),
+                            GaugeX + 6 + targetStep, GaugeY + 6, texture.Width - targetStep, frameHeight, tint);
+                    }
                 }
             }
             else

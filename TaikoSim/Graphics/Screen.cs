@@ -56,7 +56,17 @@ namespace TaikoSim.Graphics
             Rectangle source = new Rectangle(0, 0, Width, -Height);
             Rectangle dest = new Rectangle(x, y, Width * scale, Height * scale);
 
+            // キャンバスの色(RGB)をそのまま写す。キャンバスの透明度(A)は使わない。
+            //   半透明の絵(フェード中の光・顔など)をふつうの合成でキャンバスに描くと、
+            //   色は正しく混ざるのに、キャンバスの A だけが 1 より小さくなってしまう
+            //   (例：50% で描くと A = 0.5×0.5 + 1×0.5 = 0.75)。
+            //   そのまま A を使って黒いウィンドウに描くと、その分だけ暗く見えていた(魂ゲージの光の途中など)。
+            //   そこで「元の色 × 1 ＋ 下の色 × 0」で写して、A を無視する。
+            const int GlZero = 0; // OpenGL の GL_ZERO
+            Rlgl.SetBlendFactorsSeparate(Rlgl.ONE, GlZero, Rlgl.ONE, GlZero, Rlgl.FUNC_ADD, Rlgl.FUNC_ADD);
+            Raylib.BeginBlendMode(BlendMode.CustomSeparate);
             Raylib.DrawTexturePro(canvas.Texture, source, dest, Vector2.Zero, 0f, Color.White);
+            Raylib.EndBlendMode();
         }
 
         // マウスの位置をキャンバスの座標(1920×1080)に変換して返す
@@ -167,6 +177,8 @@ namespace TaikoSim.Graphics
 
             Image image = Raylib.LoadImageFromTexture(canvas.Texture);
             Raylib.ImageFlipVertical(ref image); // RenderTexture は上下逆さまなので戻す
+            // 透明度(A)は捨てて、色だけで保存する(画面に出しているのと同じ見え方にする)
+            Raylib.ImageFormat(ref image, PixelFormat.UncompressedR8G8B8);
             bool ok = Raylib.ExportImage(image, path);
             Raylib.UnloadImage(image);
 
