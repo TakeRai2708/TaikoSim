@@ -63,6 +63,10 @@ namespace TaikoSim.Audio
         // ASIO のとき、1秒あたりのサンプル数
         private static double asioRate = 0;
 
+        // BASS / DirectSound のとき、BASS が測った機器の遅れ(ms)と、実際のバッファ(ms)。測る用の表示に使う
+        private static int bassDeviceLatencyMs = 0;
+        public static int BassBufferMs { get; private set; } = 0;
+
         // どこまで準備できたか(片付けで使う)
         private static bool bassInitialized = false;
         private static bool wasapiInitialized = false;
@@ -194,6 +198,11 @@ namespace TaikoSim.Audio
                 return false;
             }
             bassInitialized = true;
+
+            // 測る用：BASS が測った機器の遅れ(Latency を付けて準備したので入っている)と、実際のバッファ
+            Bass.GetInfo(out var info); // OpenTaiko の CSoundDeviceBASS と同じ呼び方
+            bassDeviceLatencyMs = info.Latency;
+            BassBufferMs = Bass.GetConfig(Configuration.DeviceBufferLength);
 
             string name = directSound ? "DirectSound" : "BASS";
             string buffer = bufferMs > 0 ? $"{bufferMs}ms" : "自動";
@@ -345,6 +354,8 @@ namespace TaikoSim.Audio
             mixerBytesPerSecond = 0;
             wasapiBufferMs = 0;
             asioRate = 0;
+            bassDeviceLatencyMs = 0;
+            BassBufferMs = 0;
             IsAvailable = false;
         }
 
@@ -381,6 +392,12 @@ namespace TaikoSim.Audio
                 return 0;
             }
         }
+
+        // 測る用：今の方式で、音が実際に聞こえるまでの遅れの目安(ms)
+        //   BASS / DirectSound … BASS が測った機器の遅れ(Info.Latency)。曲の位置からは今は引いていない
+        //   WASAPI / ASIO      … OutputLatencyMs と同じ(曲の位置から引いている)
+        // ※ OpenTaiko の BASS モードは「Info.Latency + バッファ」を引いている。合わせるかは測ってから決める
+        public static double MeasuredLatencyMs => Mixer != 0 ? OutputLatencyMs : bassDeviceLatencyMs;
 
         // WASAPI が「次の音をちょうだい」と言ってきたときに呼ばれる(別の流れから呼ばれる)
         // ミキサーで混ぜた音を、そのまま渡す

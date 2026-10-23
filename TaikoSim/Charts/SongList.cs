@@ -117,7 +117,8 @@ namespace TaikoSim.Charts
 
         // キャッシュの形の版。TjaParser の読み方を変えたら 1 増やす
         // (古いやり方で読んだ結果を使わないように。増やすと次の起動で全部読み直しになる)
-        private const int CacheVersion = 1;
+        // 2：難易度ごとに LEVEL を読み直すようにした(譜面分岐の対応と一緒に)
+        private const int CacheVersion = 2;
 
         // 読めなかったときの理由。これだけはキャッシュしない(次の起動でもう一度読んでみる)
         // ※「譜面がありません」の方は .tja の中身の問題なので、キャッシュする(.tja を直せば日時が変わって読み直しになる)

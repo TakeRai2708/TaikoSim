@@ -16,7 +16,10 @@ namespace TaikoSim.Scenes
 
         // 1打ごとの加算額と合計。1フレームに複数打あっても、それぞれHUDへ知らせる。
         public event Action<long, long>? ScoreAdded;
-        private double goodGain, okGain, badGain;
+
+        // ゲージの増える量(普通・玄人・達人の分岐ごと。分岐の無い譜面は3つとも同じ)
+        //   OpenTaiko と同じく、分岐ごとの音符の数(共通 + その分岐)で計算する
+        private readonly double[] goodGain = new double[3], okGain = new double[3], badGain = new double[3];
 
         public void Reset(Course course)
         {
@@ -36,22 +39,33 @@ namespace TaikoSim.Scenes
                 },
             };
 
-            int notes = course.Notes.Count(IsRegularNote);
-            goodGain = okGain = badGain = 0;
-            if (notes == 0) return;
+            Array.Clear(goodGain);
+            Array.Clear(okGain);
+            Array.Clear(badGain);
 
             // ゲージ増加量はOpenTaikoの通常ゲージと同じ。配点方式には連動させない。
             float rate = course.Level <= 7 ? 70.7f : course.Level == 8 ? 70f : 75f;
             float damage = course.Level <= 8 ? 0.625f : 2f;
-            float gain = (10000f / (notes * (rate / 100f))) / 100f;
-            goodGain = TruncateGain(gain);
-            okGain = TruncateGain(gain * 0.5f);
-            badGain = TruncateGain(-gain * damage);
+            for (int b = 0; b < 3; b++)
+            {
+                BranchType branch = (BranchType)b;
+                int notes = course.Notes.Count(note => IsRegularNote(note) && IsOnPath(note, branch));
+                if (notes == 0) continue;
+
+                float gain = (10000f / (notes * (rate / 100f))) / 100f;
+                goodGain[b] = TruncateGain(gain);
+                okGain[b] = TruncateGain(gain * 0.5f);
+                badGain[b] = TruncateGain(-gain * damage);
+            }
         }
+
+        // その音符が、branch の分岐をずっと通ったときに出てくる音符か(共通の音符はどの分岐でも出てくる)
+        private static bool IsOnPath(Note note, BranchType branch) => note.Branch == null || note.Branch == branch;
 
         // OpenTaikoのGen4真打方式を参考に、100万点から連打・風船の見込み点を引き、
         // 通常音符数で割って10点単位に切り上げる。曲・難易度ごとに計算する。
         // SCOREINIT/SCOREDIFF/SCOREMODEは旧通常配点用なので、ニジイロ配点には使用しない。
+        // 分岐のある譜面は、OpenTaiko と同じく達人譜面を通ったときの音符で計算する。
         public static long CalculatePointsPerGood(Course course)
         {
             int normalNotes = 0;
@@ -59,6 +73,7 @@ namespace TaikoSim.Scenes
             double rollMilliseconds = 0;
             foreach (Note note in course.Notes)
             {
+                if (!IsOnPath(note, BranchType.Master)) continue;
                 if (IsRegularNote(note)) normalNotes++;
                 else if (note.IsRoll) rollMilliseconds += Math.Max(0, note.EndTimeMs - note.TimeMs);
                 else if (note.IsBalloon)
@@ -78,14 +93,16 @@ namespace TaikoSim.Scenes
 
         private static float TruncateGain(float value) => MathF.Truncate(value * 10000f) / 10000f;
 
-        public void ApplyJudge(Note note, PlayJudgement judge)
+        // gaugeBranch … どの分岐の増え方を使うか(分岐の中の音符はその分岐、共通の音符は今の分岐。OpenTaiko と同じ)
+        public void ApplyJudge(Note note, PlayJudgement judge, BranchType gaugeBranch = BranchType.Normal)
         {
             if (!IsRegularNote(note)) return;
+            int b = (int)gaugeBranch;
             double gain = judge switch
             {
-                PlayJudgement.Good => goodGain,
-                PlayJudgement.Ok => okGain,
-                _ => badGain,
+                PlayJudgement.Good => goodGain[b],
+                PlayJudgement.Ok => okGain[b],
+                _ => badGain[b],
             };
             Gauge = Math.Clamp(Math.Round(Gauge + gain, 5, MidpointRounding.ToEven), 0, 100);
             if (judge == PlayJudgement.Bad) return;

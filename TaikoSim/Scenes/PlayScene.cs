@@ -68,6 +68,14 @@ namespace TaikoSim.Scenes
         private readonly PlayStats stats = new();
         private readonly PlayHUD hud = new();
         private readonly PlayBackground background = new();
+
+        // 譜面分岐(決まり)と、分岐したときのレーンの色
+        private readonly BranchTracker branches = new();
+        private readonly BranchLane branchLane = new();
+
+        // 測る用：音が聞こえるまでの遅れの目安(ms)の平均(デバッグ表示に出す)
+        private double latencyAverageMs = 0;
+        private bool latencyMeasured = false;
         private string error = "";
 
         // 今の時間(曲の頭が0。マイナスは曲が始まる前)
@@ -260,6 +268,7 @@ namespace TaikoSim.Scenes
             this.returnToSelect = returnToSelect;
             stats.ScoreAdded += hud.OnScoreAdded;
             effects.SoulArrived += hud.OnSoulArrival;
+            branches.Changed += branchLane.OnChanged;
         }
 
         // .tja ファイルか
@@ -407,6 +416,10 @@ namespace TaikoSim.Scenes
                 stats.Reset(course);
                 hud.Reset(course, chart?.Title ?? "");
             }
+            branches.Reset(course, () => stats.Score);
+            branchLane.Reset();
+            latencyAverageMs = 0;
+            latencyMeasured = false;
             lastDeltaMs = null;
             deltaSumMs = 0;
             deltaCount = 0;
@@ -463,10 +476,14 @@ namespace TaikoSim.Scenes
             }
             hud.Update(dt, stats.Score);
             effects.Update(dt); // 新しい打撃の演出を、そのフレームのdtで先に進めない。
+            branchLane.Update(dt);
             UpdateJudge(dt);
+            UpdateLatencyAverage();
 
             // ゴーゴーの演出は見た目なので、音符と同じ時間(譜面オフセット込み)で見る
-            if (course != null) effects.SetGoGo(course.IsGoGoAt(nowMs - ConfigManager.Game.AudioOffsetMs - ConfigManager.Game.ChartOffsetMs));
+            // 分岐のある譜面は、今の分岐のゴーゴーだけを見る
+            if (course != null) effects.SetGoGo(course.IsGoGoAt(nowMs - ConfigManager.Game.AudioOffsetMs - ConfigManager.Game.ChartOffsetMs,
+                branches.IsActive));
             background.Update(dt, stats.IsClear);
         }
 
@@ -525,28 +542,28 @@ namespace TaikoSim.Scenes
             while (key != 0)
             {
                 KeyboardKey pressed = (KeyboardKey)key;
-                if (pressed == KeyboardKey.F3 && ConfigManager.Key.FindOwner(KeyboardKey.F3) == null)
+                if (pressed == KeyboardKey.F3 && IsFreeInPlay(KeyboardKey.F3))
                 {
                     showDebugInfo = !showDebugInfo;
                     SetDiagnosticMessage(showDebugInfo ? "デバッグ表示：ON（F3で切替）" : "デバッグ表示：OFF（F3で切替）");
                 }
-                else if (pressed == KeyboardKey.F8 && ConfigManager.Key.FindOwner(KeyboardKey.F8) == null)
+                else if (pressed == KeyboardKey.F8 && IsFreeInPlay(KeyboardKey.F8))
                 {
                     diagnostics.Enabled = !diagnostics.Enabled;
                     SetDiagnosticMessage(diagnostics.Enabled ? "入力診断：ON" : "入力診断：OFF");
                 }
-                else if (pressed == KeyboardKey.F9 && ConfigManager.Key.FindOwner(KeyboardKey.F9) == null)
+                else if (pressed == KeyboardKey.F9 && IsFreeInPlay(KeyboardKey.F9))
                 {
                     SaveDiagnosticCsv();
                 }
-                else if (pressed == KeyboardKey.F6 && ConfigManager.Key.FindOwner(KeyboardKey.F6) == null)
+                else if (pressed == KeyboardKey.F6 && IsFreeInPlay(KeyboardKey.F6))
                 {
                     GameConfig settings = ConfigManager.Game;
                     settings.InputTiming = settings.InputTiming == InputTimingMode.HighPrecision
                         ? InputTimingMode.Compatible60Hz : InputTimingMode.HighPrecision;
                     SaveInputTimingSettings($"入力判定：{DrumInputScheduler.ModeName(settings.InputTiming)}");
                 }
-                else if (pressed == KeyboardKey.F7 && ConfigManager.Key.FindOwner(KeyboardKey.F7) == null)
+                else if (pressed == KeyboardKey.F7 && IsFreeInPlay(KeyboardKey.F7))
                 {
                     GameConfig settings = ConfigManager.Game;
                     settings.LimitDrumHitsTo60PerSecond = !settings.LimitDrumHitsTo60PerSecond;
@@ -578,8 +595,44 @@ namespace TaikoSim.Scenes
             // 60Hzの場合は次の16.67ms境界まで待つ。制限がONなら1枠につき最大1打。
             // モード切替直前の未処理入力もキューに残り、消さずに最後まで処理する。
             inputScheduler.ProcessReady(gameMs, HandleScheduledHit);
-            // 将来の枠を待つ入力があっても、今の譜面時刻まで見逃しを進める。
-            ProcessMisses(gameMs);
+            // 将来の枠を待つ入力があっても、今の譜面時刻まで見逃しと分岐を進める。
+            AdvanceTo(gameMs);
+        }
+
+        // 演奏画面で F3・F6〜F9 を使ってよいか(叩くキーやほかの役割と重なっていないか)
+        //   「検索」は選曲画面でしか使わないので、F3 が検索に割り当てられていても演奏画面では使う
+        private static bool IsFreeInPlay(KeyboardKey key)
+        {
+            string? owner = ConfigManager.Key.FindOwner(key);
+            return owner == null || owner == KeyConfig.GetSystemActionName(SystemAction.Search);
+        }
+
+        // ms の時刻まで、見逃しと分岐の出来事(分岐を決める・#SECTION など)を時刻の順に進める
+        //   分岐を決める前に、その時刻までの見逃しを数えておく(数がずれないように)
+        private void AdvanceTo(double ms)
+        {
+            while (branches.NextEventTime is double eventMs && eventMs <= ms)
+            {
+                ProcessMisses(eventMs);
+                branches.Advance(eventMs);
+            }
+            ProcessMisses(ms);
+        }
+
+        // 測る用：音が聞こえるまでの遅れの目安を、ならして覚えておく(曲が鳴っている間だけ)
+        private void UpdateLatencyAverage()
+        {
+            if (song is not { IsPlaying: true }) return;
+            double latency = AudioManager.MeasuredLatencyMs;
+            if (!latencyMeasured)
+            {
+                latencyAverageMs = latency;
+                latencyMeasured = true;
+            }
+            else
+            {
+                latencyAverageMs += (latency - latencyAverageMs) * 0.02; // 少しずつ近づける(ガタガタしないように)
+            }
         }
 
         private void ResetAutoPlay()
@@ -613,8 +666,12 @@ namespace TaikoSim.Scenes
             // 低FPSや一時的な遅延で複数の音符を越えても、各音符の本来の時刻で処理する。
             while (autoHits.TryPeek(out _, out double hitMs) && hitMs <= gameMs)
             {
+                // その時刻までに分岐を決めておく(決めた分岐の音符だけ叩く)
+                branches.Advance(hitMs);
+
                 var hit = autoHits.Dequeue();
                 Note note = course.Notes[hit.Index];
+                if (!branches.IsActive(note)) continue; // ほかの分岐の音符は叩かない
                 if (IsHittable(note))
                 {
                     if (judges[hit.Index] != null) continue;
@@ -640,13 +697,14 @@ namespace TaikoSim.Scenes
                         autoHits.Enqueue((hit.Index, hit.Tick + 1), nextMs);
                 }
             }
+            branches.Advance(gameMs);
         }
 
         // 判定・打音・演出を1回の入力として実行する。判定時刻はSchedulerが決める。
         private void HandleScheduledHit(ScheduledDrumHit item)
         {
             // 取り出し時刻ではなく、元の入力時刻（または60Hzに調整した時刻）で判定。
-            ProcessMisses(item.JudgeGameMs);
+            AdvanceTo(item.JudgeGameMs);
             long startedAt = Stopwatch.GetTimestamp();
             Hit(item.Input.Part, item.Input.Key, item.JudgeGameMs);
             if (diagnostics.Enabled && inputLog.Count > 0)
@@ -737,9 +795,14 @@ namespace TaikoSim.Scenes
                 if (judges[index] == null)
                 {
                     if (gameMs - course!.Notes[index].TimeMs <= BadRangeMs) break; // まだ叩ける
-                    SetJudge(index, Judge.Bad, null);
-                    AddInputLog(new InputLogEntry(gameMs, "", "", IsDonNote(course.Notes[index]), noteNumbers[index],
-                        gameMs - course.Notes[index].TimeMs, Judge.Bad, true, frameCount));
+
+                    // ほかの分岐の音符は、見逃しにしないで飛ばす(無かったことにする)
+                    if (branches.IsActive(course.Notes[index]))
+                    {
+                        SetJudge(index, Judge.Bad, null);
+                        AddInputLog(new InputLogEntry(gameMs, "", "", IsDonNote(course.Notes[index]), noteNumbers[index],
+                            gameMs - course.Notes[index].TimeMs, Judge.Bad, true, frameCount));
+                    }
                 }
                 nextHittable++;
             }
@@ -818,6 +881,7 @@ namespace TaikoSim.Scenes
             foreach (int index in rolls)
             {
                 Note note = course!.Notes[index];
+                if (!branches.IsActive(note)) continue; // ほかの分岐の連打・風船
                 if (IsRollNote(note))
                 {
                     if (gameMs >= note.TimeMs && gameMs < note.EndTimeMs) return index;
@@ -870,6 +934,7 @@ namespace TaikoSim.Scenes
             }
 
             stats.ApplyRollHit(note);
+            branches.OnRollHit(note);
             effects.OnRollHit(note);
             if (note.IsRoll || balloonPopped[index]) StartFlyingNote(don, note.IsBig || note.IsBalloon, gameMs);
             AddInputLog(new InputLogEntry(gameMs, keyName ?? key.ToString(), KeyConfig.GetDrumPartName(part), don, 0, 0, null, false, frameCount, text));
@@ -904,6 +969,7 @@ namespace TaikoSim.Scenes
 
                 if (delta < -BadRangeMs) break;                         // ここから先は早すぎる(判定の幅に入っていない)
                 if (judges[index] != null) continue;                    // もう判定した
+                if (!branches.IsActive(note)) continue;                 // ほかの分岐の音符
                 if (IsDonNote(note) != don) continue;                   // 色が違う
                 if (delta > BadRangeMs) continue;                       // 過ぎすぎ(見逃しになる音符)
 
@@ -950,12 +1016,16 @@ namespace TaikoSim.Scenes
                 case Judge.Bad: badCount++; combo = 0; break;
             }
             maxCombo = Math.Max(maxCombo, combo);
-            stats.ApplyJudge(course!.Notes[index], judge switch
+            Note note = course!.Notes[index];
+            PlayJudgement result = judge switch
             {
                 Judge.Good => PlayJudgement.Good,
                 Judge.Ok => PlayJudgement.Ok,
                 _ => PlayJudgement.Bad,
-            });
+            };
+            // スコア・ゲージを先に足してから、分岐の数を数える(条件 s が新しいスコアを見るように)
+            stats.ApplyJudge(note, result, branches.GaugeBranch(note));
+            branches.OnJudge(note, result);
             effects.SetCombo(combo);
 
             if (delta != null) lastDeltaMs = delta;
@@ -967,6 +1037,7 @@ namespace TaikoSim.Scenes
         // 割れた風船も消す
         private bool IsHidden(int index)
         {
+            if (course != null && index < course.Notes.Count && !branches.IsActive(course.Notes[index])) return true; // ほかの分岐
             if (index < balloonPopped.Length && balloonPopped[index]) return true;
             if (IsInflating(index)) return true; // ふくらむ絵の方を出す
             return index < judges.Length && judges[index] is Judge.Good or Judge.Ok;
@@ -1021,6 +1092,7 @@ namespace TaikoSim.Scenes
 
             background.Draw();
             DrawLane();
+            branchLane.Draw(LaneX, LaneY); // 分岐のレーンの色(普通譜面なら何も描かない)
             hud.DrawGauge(stats);
             effects.DrawLaneLayer();   // ゴーゴーのレーン・レーンの光
             DrawJudgeFrame();
@@ -1344,6 +1416,7 @@ namespace TaikoSim.Scenes
             foreach (BarLine bar in course.BarLines)
             {
                 if (!bar.Visible) continue;
+                if (!branches.IsActive(bar)) continue; // ほかの分岐の小節線
 
                 float x = GetX(bar.TimeMs, bar.Bpm, bar.Scroll, viewMs);
                 if (x < LaneX || x > Screen.Width) continue;
@@ -1521,6 +1594,16 @@ namespace TaikoSim.Scenes
             FontManager.Draw($"ファイル：{path}", 40, 645, 22, Color.Gray);
             FontManager.Draw($"入力：{DrumInputScheduler.ModeName(ConfigManager.Game.InputTiming)} / 60打制限 {(ConfigManager.Game.LimitDrumHitsTo60PerSecond ? "ON" : "OFF")}", 40, 765, 22, Color.SkyBlue);
             FontManager.Draw("F3 表示 / F6 モード / F7 60打制限 / F8 診断 / F9 CSV（未割り当て時のみ）", 40, 800, 19, Color.SkyBlue);
+
+            // 測る用：出力方式と、音が聞こえるまでの遅れの目安
+            string latencyText = !latencyMeasured ? "（曲が鳴ると出ます）"
+                : AudioManager.Mixer != 0
+                    ? $"まだ鳴っていない量 平均 {latencyAverageMs:0.0} ms（曲の位置から引いている）"
+                    : $"機器の遅れ Info.Latency {latencyAverageMs:0.0} ms・バッファ {AudioManager.BassBufferMs} ms（曲の位置からは引いていない）";
+            FontManager.Draw($"出力：{AudioManager.GetTypeName(AudioManager.CurrentType)}　{latencyText}", 40, 830, 22, Color.White);
+
+            // 譜面分岐の状態
+            FontManager.Draw(branches.GetDebugText(), 40, 862, 22, new Color(255, 170, 230, 255));
         }
 
         // ズレの表示(例：「-12.3 ms（早い）」)

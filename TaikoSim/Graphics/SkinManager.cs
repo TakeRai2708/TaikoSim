@@ -91,6 +91,10 @@ namespace TaikoSim.Graphics
             "Image/04.EnsoGame/Lane/Blue.png",
             "Image/04.EnsoGame/Lane/Yellow.png",
             "Image/04.EnsoGame/Lane/GoGo.png",
+
+            // 譜面分岐のレーンの色(玄人・達人)
+            "Image/04.EnsoGame/Lane/Branch_Expert.png",
+            "Image/04.EnsoGame/Lane/Branch_Master.png",
             "Image/04.EnsoGame/Effects/Hit_Explosion.png",
             "Image/04.EnsoGame/Effects/Hit_Explosion_Big.png",
             "Image/04.EnsoGame/Effects/Hit_Effects.png",
@@ -439,4 +443,3 @@ namespace TaikoSim.Graphics
         }
     }
 }
-ha
