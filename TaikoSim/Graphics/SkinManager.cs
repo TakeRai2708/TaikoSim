@@ -117,6 +117,28 @@ namespace TaikoSim.Graphics
             "Image/04.EnsoGame/Gauge/Rainbow.png",
             "Image/04.EnsoGame/Gauge/Soul_Anime.png",
             "Image/04.EnsoGame/Gauge/Soul_Text.png",
+
+            // スコアランク(演奏中に出る 粋・雅・極)
+            "Image/04.EnsoGame/ScoreRankSymbol.png",
+
+            // 演奏後の演出(クリア失敗・クリア成功・フルコンボ・ドンダフルコンボ)
+            "Image/04.EnsoGame/End/Text.png",
+            "Image/04.EnsoGame/End/Chara.png",
+            "Image/04.EnsoGame/End/Fan.png",
+            "Image/04.EnsoGame/End/FullCombo_Text.png",
+            "Image/04.EnsoGame/End/DondaFullCombo_Text.png",
+            "Image/04.EnsoGame/End/DondaFullCombo_Background.png",
+            "Image/04.EnsoGame/End/Confetti.png",
+            "Image/04.EnsoGame/End/Star.png",
+        };
+
+        // 真っ白にした画像(形はそのまま。白く光らせる演出に使う)。スキンの画像と一緒に片付ける
+        private static readonly Dictionary<string, Texture2D?> whiteTextures = new();
+
+        // 演奏中に白い画像を作ると一瞬止まるので、スキンを読むときに作っておく
+        private static readonly string[] PlayWhiteTexturePaths =
+        {
+            "Image/04.EnsoGame/End/Chara.png",
         };
 
         // 今使っているスキンのフォルダ(スキンが無ければ null)
@@ -154,6 +176,7 @@ namespace TaikoSim.Graphics
             // 起動時もスキン変更時も、演奏用画像の準備が終わってから戻る。
             // GPUに画像を送るので、これまでどおり画面と同じスレッドで実行する。
             PreloadPlayTextures();
+            foreach (string path in PlayWhiteTexturePaths) GetWhiteTexture(path);
             PrepareSoulExplosionDot();
             PrepareGaugeGlowCells();
             PrepareRollHeatShader();
@@ -179,6 +202,28 @@ namespace TaikoSim.Graphics
             Texture2D? texture = LoadTexture(fullPath);
             textures[relativePath] = texture;
             return texture;
+        }
+
+        // 画像を真っ白にしたもの(透明なところはそのまま)。元の画像が無ければ null
+        public static Texture2D? GetWhiteTexture(string relativePath)
+        {
+            if (whiteTextures.TryGetValue(relativePath, out Texture2D? cached)) return cached;
+            Texture2D? result = null;
+            if (GetTexture(relativePath) is Texture2D source)
+            {
+                Image image = Raylib.LoadImageFromTexture(source);
+                // 明るさ +255 で、色は全部白になる。透明度(アルファ)は変わらない
+                Raylib.ImageColorBrightness(ref image, 255);
+                Texture2D texture = Raylib.LoadTextureFromImage(image);
+                Raylib.UnloadImage(image);
+                if (texture.Id != 0)
+                {
+                    Raylib.SetTextureFilter(texture, TextureFilter.Bilinear);
+                    result = texture;
+                }
+            }
+            whiteTextures[relativePath] = result;
+            return result;
         }
 
         // 画像をそのまま描く(scale で拡大・縮小)。描けたら true
@@ -413,6 +458,11 @@ namespace TaikoSim.Graphics
                 if (texture is Texture2D tex) Raylib.UnloadTexture(tex);
             }
             textures.Clear();
+            foreach (Texture2D? texture in whiteTextures.Values)
+            {
+                if (texture is Texture2D tex) Raylib.UnloadTexture(tex);
+            }
+            whiteTextures.Clear();
         }
 
         // スキンの SkinConfig.json から名前・バージョン・説明を読む

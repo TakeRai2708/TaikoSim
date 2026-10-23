@@ -285,6 +285,9 @@ namespace TaikoSim.Charts
             // #GOGOEND が無いゴーゴータイムも、譜面の最後で終わらせる
             CloseGoGo();
 
+            // #END の時間(演奏の終わりを決めるのに使う)
+            course.EndTimeMs = time;
+
             // ----- ここから下は ParseBody の中だけで使う関数 -----
 
             // 今のBPM・拍子での1小節の長さ(ミリ秒)

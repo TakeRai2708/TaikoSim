@@ -175,6 +175,9 @@
 
         public bool HasBranch => BranchPoints.Count > 0;
 
+        // #END の時間(最後の小節の終わり。分岐の途中で終わっていたら一番長い分岐の終わり)
+        public double EndTimeMs { get; set; }
+
         // その時間がゴーゴータイム中か
         //   isActive … 今の分岐で使うゴーゴーかを調べる関数(null なら全部使う。分岐の無い譜面はこれで同じ)
         public bool IsGoGoAt(double timeMs, Func<GoGoRange, bool>? isActive = null)

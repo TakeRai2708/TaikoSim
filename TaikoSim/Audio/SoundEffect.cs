@@ -40,8 +40,10 @@ namespace TaikoSim.Audio
         }
 
         // 効果音を読み込む。失敗したら null を返して、理由を error に入れる
-        public static SoundEffect? Load(string path, out string error)
+        //   maxOverlap … 同じ音を同時に重ねて鳴らせる数(ボイスや演奏後の音のように、重ならない長い音は 1〜2 でよい)
+        public static SoundEffect? Load(string path, out string error, int maxOverlap = MaxOverlap)
         {
+            maxOverlap = Math.Clamp(maxOverlap, 1, MaxOverlap);
             if (!AudioManager.IsAvailable)
             {
                 error = $"音が使えません：{AudioManager.Status}";
@@ -59,7 +61,7 @@ namespace TaikoSim.Audio
             if (mixer == 0)
             {
                 // 全部鳴っているときは、一番前から鳴っている音を止めて、新しい音を鳴らす
-                int sample = Bass.SampleLoad(path, 0, 0, MaxOverlap, BassFlags.SampleOverrideLongestPlaying);
+                int sample = Bass.SampleLoad(path, 0, 0, maxOverlap, BassFlags.SampleOverrideLongestPlaying);
                 if (sample == 0)
                 {
                     error = $"効果音を読み込めませんでした（{Bass.LastError}）";
@@ -69,7 +71,7 @@ namespace TaikoSim.Audio
                 return new SoundEffect(sample);
             }
 
-            // ----- WASAPI / ASIO：同じ音を MaxOverlap 個、ミキサーに入れておく -----
+            // ----- WASAPI / ASIO：同じ音を maxOverlap 個、ミキサーに入れておく -----
             byte[] data;
             try
             {
@@ -81,8 +83,8 @@ namespace TaikoSim.Audio
                 return null;
             }
 
-            int[] voices = new int[MaxOverlap];
-            for (int i = 0; i < MaxOverlap; i++)
+            int[] voices = new int[maxOverlap];
+            for (int i = 0; i < maxOverlap; i++)
             {
                 // メモリの音から作る(ManagedBass がメモリを固定しておいてくれる)
                 int stream = Bass.CreateStream(data, 0, data.Length, BassFlags.Decode | BassFlags.Float);
@@ -132,6 +134,20 @@ namespace TaikoSim.Audio
             BassMix.ChannelSetPosition(voice, 0);                      // 頭に戻す
             Bass.ChannelSetAttribute(voice, ChannelAttribute.Volume, clamped);
             BassMix.ChannelRemoveFlag(voice, BassFlags.MixerChanPause); // 鳴らす
+        }
+
+        // 鳴っている音を全部止める(F5 で最初からやり直すときなど)
+        public void Stop()
+        {
+            if (sample != 0)
+            {
+                Bass.SampleStop(sample);
+                return;
+            }
+            foreach (int voice in voices)
+            {
+                if (voice != 0) BassMix.ChannelAddFlag(voice, BassFlags.MixerChanPause);
+            }
         }
 
         // 片付け(何回呼んでも大丈夫)

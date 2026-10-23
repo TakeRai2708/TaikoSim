@@ -250,6 +250,34 @@ namespace TaikoSim.Scenes
         private float judgeTimer = 0f;
         private const float JudgeShowSeconds = 0.4f;
 
+        // ===== 演奏の終わり =====
+        // 終わりの決め方は OpenTaiko の「譜面の終わり」と同じ考え方：
+        //   最後の音符(連打・風船は終わり)の 1.5秒後 と #END の 1秒後 の早い方で、演奏後の演出を始める
+        //   ※ OpenTaiko は最後の音符の2秒後。TaikøNauts の動画では 1.5秒後だったので、そっちに合わせた
+        //   演出が終わって(6.6秒)、#END の 1秒後も過ぎたら、0.5秒で暗くして次の画面へ
+        private const double EndAfterLastNoteMs = 1500;
+        private const double EndAfterChartEndMs = 1000;
+        private const float EndFadeSeconds = 0.5f;
+        private readonly PlayEnd end = new();
+        private float endFadeElapsed = -1f; // 暗くなり始めてからの時間(-1 ならまだ)
+
+        // 演奏後の音(クリア失敗・クリア成功・フルコンボ・ドンダフルコンボ。PlayResult の順)
+        private readonly SoundEffect?[] endSounds = new SoundEffect?[4];
+        private static readonly string[] EndSoundFiles =
+        {
+            "Sound/EnsoGame/End/Failed.ogg",
+            "Sound/EnsoGame/End/Clear.ogg",
+            "Sound/EnsoGame/End/FullCombo.ogg",
+            "Sound/EnsoGame/End/DondaFullCombo.ogg",
+        };
+
+        // スコアランク(演奏中に 粋・雅・極 を出す)
+        private readonly PlayScoreRank scoreRank = new();
+
+        // コンボの声(フォルダにある「50.ogg」「100.ogg」…。その数のコンボになった瞬間に鳴らす)
+        private const string ComboVoiceDir = "Sound/EnsoGame/Combo/1P/";
+        private readonly Dictionary<int, SoundEffect> comboVoices = new();
+
         // ドン・カッの音
         private SoundEffect? donSound;
         private SoundEffect? kaSound;
@@ -327,6 +355,26 @@ namespace TaikoSim.Scenes
             donSound = SoundEffect.Load(Path.Combine(skin, DonSoundFile), out _);
             kaSound = SoundEffect.Load(Path.Combine(skin, KaSoundFile), out _);
             balloonSound = SoundEffect.Load(Path.Combine(skin, BalloonSoundFile), out _);
+
+            // 演奏後の音・コンボの声は重ならないので、重ねる数は少しでよい
+            for (int i = 0; i < EndSoundFiles.Length; i++)
+                endSounds[i] = SoundEffect.Load(Path.Combine(skin, EndSoundFiles[i]), out _, 1);
+            LoadComboVoices(skin);
+        }
+
+        // コンボの声を読む。ファイル名が数字のもの(50.ogg など)だけ使う
+        private void LoadComboVoices(string skin)
+        {
+            string folder = Path.Combine(skin, ComboVoiceDir.Replace('/', Path.DirectorySeparatorChar));
+            if (!Directory.Exists(folder)) return;
+            foreach (string file in Directory.EnumerateFiles(folder))
+            {
+                string ext = Path.GetExtension(file).ToLowerInvariant();
+                if (ext is not (".ogg" or ".wav" or ".mp3")) continue;
+                if (!int.TryParse(Path.GetFileNameWithoutExtension(file), out int count) || count <= 0) continue;
+                if (comboVoices.ContainsKey(count)) continue;
+                if (SoundEffect.Load(file, out _, 2) is SoundEffect voice) comboVoices[count] = voice;
+            }
         }
 
         // 叩ける音符の一覧を作る
@@ -398,6 +446,13 @@ namespace TaikoSim.Scenes
             kaSound = null;
             balloonSound?.Dispose();
             balloonSound = null;
+            for (int i = 0; i < endSounds.Length; i++)
+            {
+                endSounds[i]?.Dispose();
+                endSounds[i] = null;
+            }
+            foreach (SoundEffect voice in comboVoices.Values) voice.Dispose();
+            comboVoices.Clear();
         }
 
         // 最初から(最初の小節の3秒前から始める)
@@ -452,6 +507,13 @@ namespace TaikoSim.Scenes
             effects.Reset();
             background.Reset();
             ResetAutoPlay();
+
+            // 演奏の終わり・スコアランクも最初から
+            end.Reset();
+            endFadeElapsed = -1f;
+            foreach (SoundEffect? sound in endSounds) sound?.Stop();
+            scoreRank.Reset();
+            ApplyMusicVolume(1f);
         }
 
         public override void Update(float dt)
@@ -488,6 +550,80 @@ namespace TaikoSim.Scenes
             if (course != null) effects.SetGoGo(course.IsGoGoAt(nowMs - ConfigManager.Game.AudioOffsetMs - ConfigManager.Game.ChartOffsetMs,
                 branches.IsActive));
             background.Update(dt, stats.IsClear);
+            scoreRank.Update(dt, stats);
+            UpdateEnd(dt);
+        }
+
+        // ===== 演奏の終わり =====
+
+        private void UpdateEnd(float dt)
+        {
+            if (course == null) return;
+            double gameMs = nowMs - ConfigManager.Game.AudioOffsetMs;
+
+            if (!end.Started)
+            {
+                if (gameMs >= GetChartEndMs()) StartEnd();
+                return;
+            }
+
+            end.Update(dt);
+            if (endFadeElapsed < 0f)
+            {
+                // 演出が終わって、#END の1秒後も過ぎたら暗くし始める
+                if (end.IsFinished && gameMs >= course.EndTimeMs + EndAfterChartEndMs) endFadeElapsed = 0f;
+                return;
+            }
+
+            endFadeElapsed += dt;
+            ApplyMusicVolume(1f - Math.Clamp(endFadeElapsed / EndFadeSeconds, 0f, 1f)); // 曲もだんだん小さく
+            if (endFadeElapsed >= EndFadeSeconds) FinishPlay();
+        }
+
+        // 演奏後の演出を始める時間(譜面の時間)
+        //   今の分岐で出てくる音符の、最後の音符(連打・風船は終わり)の 1.5秒後 と #END の 1秒後 の早い方
+        private double GetChartEndMs()
+        {
+            double chartEnd = course!.EndTimeMs + EndAfterChartEndMs;
+            double last = double.NegativeInfinity;
+            foreach (Note note in course.Notes)
+            {
+                if (!branches.IsActive(note)) continue;
+                double time = note.IsRoll || note.IsBalloon ? Math.Max(note.TimeMs, note.EndTimeMs) : note.TimeMs;
+                if (time > last) last = time;
+            }
+            return double.IsNegativeInfinity(last) ? chartEnd : Math.Min(last + EndAfterLastNoteMs, chartEnd);
+        }
+
+        // 結果を決めて、演出と音を始める
+        //   クリア：魂ゲージがノルマ以上(OpenTaiko と同じく、フルコンボもクリアしていることが条件)
+        //   フルコンボ：不可(見逃しも)が0　ドンダフルコンボ：さらに可も0
+        private void StartEnd()
+        {
+            PlayResult result = !stats.IsClear ? PlayResult.Failed
+                : badCount > 0 ? PlayResult.Clear
+                : okCount > 0 ? PlayResult.FullCombo
+                : PlayResult.DondaFullCombo;
+            end.Start(result);
+
+            SoundConfig sound = ConfigManager.Sound;
+            endSounds[(int)result]?.Play((float)sound.GetFinalVolume(sound.SeVolume));
+        }
+
+        // 演奏を終えて次の画面へ(今は選曲画面に戻る。リザルト画面は次の回で作る)
+        private void FinishPlay()
+        {
+            StopSong();
+            if (returnToSelect) SceneManager.ChangeScene(new SongSelectScene());
+            else SceneManager.ChangeScene(new HomeScene());
+        }
+
+        // 曲の音量(rate：1 で設定どおり、0 で無音)
+        private void ApplyMusicVolume(float rate)
+        {
+            if (song == null) return;
+            SoundConfig sound = ConfigManager.Sound;
+            song.SetVolume((float)sound.GetFinalVolume(sound.MusicVolume) * rate);
         }
 
         // 曲の再生位置に合わせて時間を直す
@@ -1047,6 +1183,13 @@ namespace TaikoSim.Scenes
             branches.OnJudge(note, result);
             effects.SetCombo(combo);
 
+            // コンボの声(50・100…コンボになった瞬間。OpenTaiko と同じく、切れてからまた届けばまた鳴る)
+            if (judge != Judge.Bad && comboVoices.TryGetValue(combo, out SoundEffect? voice))
+            {
+                SoundConfig sound = ConfigManager.Sound;
+                voice.Play((float)sound.GetFinalVolume(sound.VoiceVolume));
+            }
+
             if (delta != null) lastDeltaMs = delta;
             shownJudge = judge;
             judgeTimer = JudgeShowSeconds;
@@ -1149,6 +1292,8 @@ namespace TaikoSim.Scenes
             DrawBalloonPopup(gameMs);
             effects.DrawFront(); // ゴーゴー開始の火花
             hud.DrawSongTitle();
+            scoreRank.Draw();    // 粋・雅・極
+            end.Draw();          // 演奏後の演出(クリア成功・フルコンボなど)
             if (autoPlay)
             {
                 Raylib.DrawRectangle(24, 211, 132, 46, new Color(20, 60, 45, 240));
@@ -1162,6 +1307,13 @@ namespace TaikoSim.Scenes
             }
             if (diagnosticMessageTimer > 0f)
                 FontManager.Draw(diagnosticMessage, 40, 1038, 22, Color.SkyBlue);
+
+            // 演奏が終わって次の画面へ行く前に、だんだん暗くする
+            if (endFadeElapsed > 0f)
+            {
+                float alpha = Math.Clamp(endFadeElapsed / EndFadeSeconds, 0f, 1f);
+                Raylib.DrawRectangle(0, 0, Screen.Width, Screen.Height, Raylib.ColorAlpha(Color.Black, alpha));
+            }
         }
 
         // 入力処理と音声同期の診断（判定や打音には影響しない）

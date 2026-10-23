@@ -9,6 +9,23 @@ namespace TaikoSim.Scenes
     {
         public long Score { get; private set; }
         public long PointsPerGood { get; private set; }
+
+        // スコアランクの境目(OpenTaiko と同じ)。上から 粋(白・銅・銀)、雅(金・桃・紫)、極
+        //   極は「全部良で叩いて、連打・風船も見込みどおり叩いたときの点」(100万点より低ければ100万点)
+        public long[] ScoreRankBorders { get; } = new long[ScoreRankCount];
+        public const int ScoreRankCount = 7;
+
+        // 今のスコアで取れているランク(-1 ならまだ無し。0 が粋の白 … 6 が極)
+        public int ScoreRank
+        {
+            get
+            {
+                int rank = -1;
+                for (int i = 0; i < ScoreRankCount; i++)
+                    if (Score >= ScoreRankBorders[i]) rank = i;
+                return rank;
+            }
+        }
         public double Gauge { get; private set; }
         public int Norma { get; private set; } = 80;
         public bool IsClear => Gauge >= Norma;
@@ -26,6 +43,8 @@ namespace TaikoSim.Scenes
             Score = 0;
             Gauge = 0;
             PointsPerGood = CalculatePointsPerGood(course);
+            long[] borders = { 500_000, 600_000, 700_000, 800_000, 900_000, 950_000, CalculateCeilingScore(course, PointsPerGood) };
+            Array.Copy(borders, ScoreRankBorders, ScoreRankCount);
             Norma = course.Level switch
             {
                 11 => 88,
@@ -88,6 +107,30 @@ namespace TaikoSim.Scenes
             // OpenTaiko は10点単位に切り上げだけど、TaikøNauts は切り捨てだった
             // (テスト譜面：ちょうどの値 6120.64点 → TaikøNauts 6120点、OpenTaiko の計算だと 6130点)
             return Math.Max(10L, (long)(Math.Floor((decimal)remaining / normalNotes / 10m) * 10m));
+        }
+
+        // 極の境目。OpenTaiko の GetCeilingGen4ShinUchiScore と同じ考え方
+        //   1打の点 × 音符の数 + 風船の見込みの打数 × 100 + 連打の見込み(1秒16.6打。10打単位に切り上げ) × 100
+        //   100万点より低ければ100万点(1打の点を切り捨てているので、ふつうは100万点になる)
+        public static long CalculateCeilingScore(Course course, long pointsPerGood)
+        {
+            int normalNotes = 0;
+            long balloonHits = 0;
+            double rollMilliseconds = 0;
+            foreach (Note note in course.Notes)
+            {
+                if (!IsOnPath(note, BranchType.Master)) continue;
+                if (IsRegularNote(note)) normalNotes++;
+                else if (note.IsRoll) rollMilliseconds += Math.Max(0, note.EndTimeMs - note.TimeMs);
+                else if (note.IsBalloon)
+                {
+                    double duration = Math.Max(0, note.EndTimeMs - note.TimeMs);
+                    balloonHits += (long)Math.Min(Math.Max(0, note.BalloonCount), Math.Floor(16.6 * duration / 1000.0));
+                }
+            }
+            long ceiling = pointsPerGood * normalNotes + balloonHits * 100
+                + (long)Math.Ceiling(16.6 * rollMilliseconds / 1000.0 / 10.0) * 1000;
+            return Math.Max(1_000_000L, ceiling);
         }
 
         private static bool IsRegularNote(Note note) =>
