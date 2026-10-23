@@ -66,20 +66,24 @@ namespace TaikoSim.Charts
         public Color Color { get; init; } = SongList.UncategorizedColor;
 
         // どのカテゴリにも入らない曲の入れ物か(選曲画面では、カテゴリの行を出さずに曲をそのまま並べる)
+        // ※ 今は使っていない(Songs のすぐ下の曲は「その他」カテゴリに入る)。選曲画面の処理は残してある
         public bool IsLoose { get; init; } = false;
         public List<SongEntry> Songs { get; } = new();
     }
 
     // Songs フォルダの中の曲を探して、カテゴリごとに一覧にする係
-    // カテゴリの決まりは OpenTaiko と同じ：
-    //   ・box.def があるフォルダ → 1つのカテゴリ。中の曲(奥のフォルダの曲も)はそこに入る
-    //   ・box.def が無いフォルダ → カテゴリにはならない。中の曲は1つ上のカテゴリに入る
+    // カテゴリの決まり：
+    //   ・Songs のすぐ下のフォルダ → 1つずつカテゴリ(box.def があってもなくても)。中の曲(奥のフォルダの曲も)はそこに入る
+    //       名前：box.def の #TITLE。無ければフォルダ名
+    //       色　：box.def の #BACKCOLOR → #BOXCOLOR → #GENRE の色 → 灰色
+    //   ・Songs のすぐ下に直接置いた .tja → 「その他」カテゴリ(一番下)
+    //   ・奥のフォルダの box.def は使わない(すぐ下のフォルダのカテゴリに入る)
     public static class SongList
     {
         // 曲を入れる場所(exe の横の Songs フォルダ)
         public static string SongsFolder => Path.Combine(AppContext.BaseDirectory, "Songs");
 
-        // カテゴリの一覧(フォルダの名前順。カテゴリに入らない曲の入れ物があれば一番下)
+        // カテゴリの一覧(フォルダの名前順。「その他」があれば一番下)
         public static List<SongCategory> Categories { get; private set; } = new();
 
         // 曲の数(全部のカテゴリの合計)
@@ -123,6 +127,9 @@ namespace TaikoSim.Charts
         // 読めなかったときの理由。これだけはキャッシュしない(次の起動でもう一度読んでみる)
         // ※「譜面がありません」の方は .tja の中身の問題なので、キャッシュする(.tja を直せば日時が変わって読み直しになる)
         private const string ReadFailedMessage = "読み込めませんでした";
+
+        // Songs のすぐ下に直接置いた曲のカテゴリの名前
+        public const string OthersTitle = "その他";
 
         // ジャンルが分からないカテゴリの色(灰色)
         public static readonly Color UncategorizedColor = new Color(90, 95, 110, 255);
@@ -200,7 +207,7 @@ namespace TaikoSim.Charts
             Stopwatch watch = Stopwatch.StartNew();
 
             List<SongCategory> categories = new();
-            SongCategory loose = new SongCategory { Title = "", IsLoose = true }; // カテゴリに入らない曲の入れ物
+            SongCategory others = new SongCategory { Title = OthersTitle }; // Songs のすぐ下に直接置いた曲
             List<(SongCategory Category, string Tja)> found = new();
             string root = SongsFolder;
 
@@ -208,7 +215,20 @@ namespace TaikoSim.Charts
             try
             {
                 Directory.CreateDirectory(root); // 無ければ作っておく
-                Walk(root, root, loose, categories, found);
+
+                // Songs のすぐ下の .tja は「その他」へ
+                foreach (string tja in Directory.GetFiles(root, "*.tja").OrderBy(p => p, StringComparer.OrdinalIgnoreCase))
+                {
+                    found.Add((others, tja));
+                }
+
+                // Songs のすぐ下のフォルダは、1つずつカテゴリにする(名前順。「01 J-Pop」「02 アニメ」みたいな番号の順になる)
+                foreach (string folder in Directory.GetDirectories(root).OrderBy(p => p, StringComparer.OrdinalIgnoreCase))
+                {
+                    SongCategory category = CreateCategory(folder);
+                    categories.Add(category);
+                    Walk(folder, category, found);
+                }
             }
             catch (Exception ex) when (ex is IOException || ex is UnauthorizedAccessException)
             {
@@ -237,9 +257,9 @@ namespace TaikoSim.Charts
                 found[i].Category.Songs.Add(entries[i]);
             }
 
-            // 曲が入っていないカテゴリは出さない。カテゴリに入らない曲は一番下
+            // 曲が入っていないカテゴリは出さない。「その他」は一番下
             categories.RemoveAll(c => c.Songs.Count == 0);
-            if (loose.Songs.Count > 0) categories.Add(loose);
+            if (others.Songs.Count > 0) categories.Add(others);
 
             // カテゴリの中の曲はフォルダの名前順
             foreach (SongCategory category in categories)
@@ -256,19 +276,19 @@ namespace TaikoSim.Charts
             return categories;
         }
 
+        // Songs のすぐ下のフォルダから、カテゴリを作る(box.def があれば読む。無ければフォルダ名・灰色)
+        private static SongCategory CreateCategory(string folder)
+        {
+            string name = Path.GetFileName(folder);
+            string boxDef = Path.Combine(folder, "box.def");
+            if (File.Exists(boxDef)) return ReadBoxDef(boxDef, name);
+            return new SongCategory { Title = name, Color = UncategorizedColor };
+        }
+
         // フォルダを1つ見て、中の曲を category に入れる(奥のフォルダも順番に見る)
         // ※ここでは .tja を読まない。場所を found に集めるだけ(数を先に知るため)
-        private static void Walk(string root, string folder, SongCategory category, List<SongCategory> categories,
-            List<(SongCategory Category, string Tja)> found)
+        private static void Walk(string folder, SongCategory category, List<(SongCategory Category, string Tja)> found)
         {
-            // box.def があれば、ここから下は新しいカテゴリ(Songs フォルダそのものは除く)
-            string boxDef = Path.Combine(folder, "box.def");
-            if (folder != root && File.Exists(boxDef))
-            {
-                category = ReadBoxDef(boxDef, Path.GetFileName(folder));
-                categories.Add(category);
-            }
-
             // このフォルダの .tja
             try
             {
@@ -280,7 +300,7 @@ namespace TaikoSim.Charts
                 // 奥のフォルダ(名前順。「01 ポップス」「02 アニメ」みたいな番号の順になる)
                 foreach (string sub in Directory.GetDirectories(folder).OrderBy(p => p, StringComparer.OrdinalIgnoreCase))
                 {
-                    Walk(root, sub, category, categories, found);
+                    Walk(sub, category, found);
                 }
             }
             catch (Exception ex) when (ex is IOException || ex is UnauthorizedAccessException)

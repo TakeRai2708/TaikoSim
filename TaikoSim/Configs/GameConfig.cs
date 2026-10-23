@@ -69,6 +69,13 @@
         // 0は譜面どおり。正の値はTJAのSCROLLに掛ける表示倍率(判定時刻は変えない)。
         public float HiSpeed { get; set; } = 0f;
 
+        // オート演奏の連打の速さ(1秒に何打)。0 ならオートは連打を叩かない
+        // 範囲は OpenTaiko と同じ 0〜1000。初期値は今までと同じ 20(50msごと)
+        // ※ 風船はこの速さを使わない(残りの回数を残りの時間で均等に叩く。OpenTaiko と同じ)
+        public int AutoRollPerSecond { get; set; } = 20;
+        public const int AutoRollMin = 0;
+        public const int AutoRollMax = 1000;
+
         // FPSを表示するか
         public bool ShowFps { get; set; } = true;
 
@@ -79,6 +86,7 @@
             if (!Enum.IsDefined(InputTiming)) InputTiming = InputTimingMode.HighPrecision;
             if (!float.IsFinite(HiSpeed) || HiSpeed < 0f) HiSpeed = 0f;
             HiSpeed = Math.Min(HiSpeed, 100f);
+            AutoRollPerSecond = Math.Clamp(AutoRollPerSecond, AutoRollMin, AutoRollMax);
 
             // オフセットは -150〜150ms
             AudioOffsetMs = Math.Clamp(AudioOffsetMs, OffsetMin, OffsetMax);

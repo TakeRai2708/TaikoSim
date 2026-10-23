@@ -309,44 +309,62 @@ namespace TaikoSim.Scenes
         // レーンの上に描く(x, y はレーンの光と同じ場所)
         public void Draw(float x, float y)
         {
+            // 普通譜面以外の色がどれくらい出ているか(左が明るいグラデーションの強さに使う)
+            float presence;
+
             int progress = (int)(elapsed / StepSeconds);
             if (progress >= CounterEnd)
             {
                 DrawLayer(after, 1f, x, y);
-                return;
-            }
-
-            int lower = Math.Min((int)before, (int)after);
-            int higher = Math.Max((int)before, (int)after);
-            bool levelDown = (int)after == lower;
-
-            if (higher - lower < 2)
-            {
-                // 1段の変化
-                if (levelDown) progress = Math.Max(0, 100 - progress);
+                presence = after == BranchType.Normal ? 0f : 1f;
             }
             else
             {
-                // 2段の変化
-                if (levelDown) progress = Math.Max(0, 250 - progress);
-                if (progress >= 150)
+                int lower = Math.Min((int)before, (int)after);
+                int higher = Math.Max((int)before, (int)after);
+                bool levelDown = (int)after == lower;
+
+                if (higher - lower < 2)
                 {
-                    progress -= 150;
-                    lower = 1;
+                    // 1段の変化
+                    if (levelDown) progress = Math.Max(0, 100 - progress);
                 }
+                else
+                {
+                    // 2段の変化
+                    if (levelDown) progress = Math.Max(0, 250 - progress);
+                    if (progress >= 150)
+                    {
+                        progress -= 150;
+                        lower = 1;
+                    }
+                }
+
+                // 加算合成なので、下の色から上の色へ入れ替える(足し算で2色が重ならないように)
+                float upper = Math.Min(100, progress) / 100f;
+                DrawLayer((BranchType)lower, 1f - upper, x, y);
+                DrawLayer((BranchType)(lower + 1), upper, x, y);
+                presence = lower == (int)BranchType.Normal ? upper : 1f;
             }
 
-            if (progress < 100)
-            {
-                DrawLayer((BranchType)lower, 1f, x, y);
-                DrawLayer((BranchType)(lower + 1), progress / 100f, x, y);
-            }
-            else
-            {
-                DrawLayer((BranchType)(lower + 1), 1f, x, y);
-            }
+            DrawGradient(presence, x, y);
         }
 
+        // ----- TaikøNauts の動画(達人譜面)を測って合わせた値 -----
+        //   レーンの色 ＝ 元のレーン ＋ 分岐の画像 × 強さ(加算合成) ＋ 明るさの差
+        //   強さは左(判定枠側)が少し弱く、右が少し強い。明るさの差は左が明るく、右が暗い。
+        //   どちらも、だいたいまっすぐ変わっていたので、レーンの左はしと右はしの値を決めて、間はなめらかにつなぐ
+        //   ※ 何の画像をどう重ねているのかは分からないので、見た目だけを似せている
+        private const float StrengthLeft = 0.29f;   // レーンの左はし(x=494)の強さ
+        private const float StrengthRight = 0.40f;  // レーンの右はし(x=1920)の強さ
+        private const float BrightLeft = 42f;       // 左はしで足す明るさ(0〜255)
+        private const float BrightZeroX = 1510f;    // 明るさの差が0になる x
+        private const float DarkRight = 0.14f;      // 右はしで暗くする割合(黒を14%重ねる)
+        private const int StripCount = 62;          // 強さを変えるために、画像を縦に何本に分けて描くか
+        private const float BandTop = 12f;          // 分岐の画像の色が付いているところ(上から12px、高さ195px)
+        private const float BandHeight = 195f;
+
+        // 分岐の画像を、加算合成で描く(alpha は切り替えの途中の濃さ 0〜1)
         // 普通譜面はレーンそのままなので何も描かない
         private static void DrawLayer(BranchType branch, float alpha, float x, float y)
         {
@@ -358,7 +376,43 @@ namespace TaikoSim.Scenes
             };
             if (image == null || alpha <= 0f) return;
             if (SkinManager.GetTexture(image) is not Texture2D texture) return;
-            Raylib.DrawTexture(texture, (int)x, (int)y, Raylib.ColorAlpha(Color.White, Math.Clamp(alpha, 0f, 1f)));
+
+            Raylib.BeginBlendMode(BlendMode.Additive);
+            float stripWidth = texture.Width / (float)StripCount;
+            float laneRight = x + texture.Width;
+            for (int i = 0; i < StripCount; i++)
+            {
+                float left = i * stripWidth;
+                float centerX = x + left + stripWidth / 2f;
+                float t = Math.Clamp((centerX - x) / (laneRight - x), 0f, 1f);
+                float strength = StrengthLeft + (StrengthRight - StrengthLeft) * t;
+                Rectangle source = new Rectangle(left, 0, stripWidth, texture.Height);
+                Rectangle dest = new Rectangle(x + left, y, stripWidth, texture.Height);
+                Raylib.DrawTexturePro(texture, source, dest, System.Numerics.Vector2.Zero, 0f,
+                    Raylib.ColorAlpha(Color.White, Math.Clamp(strength * alpha, 0f, 1f)));
+            }
+            Raylib.EndBlendMode();
+        }
+
+        // 左が明るく、右が暗いグラデーション(分岐しているときだけ。presence は 0〜1)
+        private static void DrawGradient(float presence, float x, float y)
+        {
+            if (presence <= 0f) return;
+            int top = (int)(y + BandTop);
+            int height = (int)BandHeight;
+            float laneRight = Screen.Width;
+
+            // 左側：白っぽい光を足す(加算合成)
+            byte bright = (byte)Math.Clamp(BrightLeft * presence, 0f, 255f);
+            Raylib.BeginBlendMode(BlendMode.Additive);
+            Raylib.DrawRectangleGradientH((int)x, top, (int)(BrightZeroX - x), height,
+                new Color(bright, bright, bright, (byte)255), new Color((byte)0, (byte)0, (byte)0, (byte)255));
+            Raylib.EndBlendMode();
+
+            // 右側：黒を少し重ねて暗くする(ふつうの合成)
+            byte dark = (byte)Math.Clamp(DarkRight * presence * 255f, 0f, 255f);
+            Raylib.DrawRectangleGradientH((int)BrightZeroX, top, (int)(laneRight - BrightZeroX), height,
+                new Color((byte)0, (byte)0, (byte)0, (byte)0), new Color((byte)0, (byte)0, (byte)0, dark));
         }
     }
 }

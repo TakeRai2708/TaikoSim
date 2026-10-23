@@ -185,6 +185,14 @@ namespace TaikoSim.Graphics
             Raylib.SetWindowPosition(x, y);
         }
 
+        // キャンバスの座標(1920×1080)を、ウィンドウの中の座標に変換して返す(GetMousePosition の逆)
+        // 日本語入力の候補の一覧を出す場所に使う
+        public static Vector2 CanvasToWindow(Vector2 point)
+        {
+            GetViewport(out float x, out float y, out float scale);
+            return new Vector2(x + point.X * scale, y + point.Y * scale);
+        }
+
         // キャンバスをウィンドウのどこに、何倍で表示するか計算する
         private static void GetViewport(out float x, out float y, out float scale)
         {

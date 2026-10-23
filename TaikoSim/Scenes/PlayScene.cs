@@ -116,11 +116,13 @@ namespace TaikoSim.Scenes
         // hittable の中で、まだ判定していない一番前の場所
         private int nextHittable = 0;
 
-        // オートはフレーム数ではなく譜面時刻で進める。連打は50msごと(毎秒20打)。
+        // オートはフレーム数ではなく譜面時刻で進める。
+        //   連打：設定の速さ(1秒に何打。0 なら叩かない)
+        //   風船：残りの回数を残りの時間で均等に叩く(終わりぎりぎりで割れる。OpenTaiko の AutorollBalloon と同じ)
         private bool autoPlay;
         private float hiSpeed = 1f;
         private bool autoRightHand;
-        private const double AutoRollIntervalMs = 50;
+        private int autoRollPerSecond = 20;
         private readonly PriorityQueue<(int Index, int Tick), double> autoHits = new();
 
         // 数
@@ -282,6 +284,7 @@ namespace TaikoSim.Scenes
         public override void Enter()
         {
             autoPlay = ConfigManager.Game.AutoPlay; // 演奏開始時の選択を固定する。
+            autoRollPerSecond = ConfigManager.Game.AutoRollPerSecond;
             hiSpeed = ConfigManager.Game.HiSpeed > 0f ? ConfigManager.Game.HiSpeed : 1f;
             try
             {
@@ -689,10 +692,26 @@ namespace TaikoSim.Scenes
                 else
                 {
                     if (balloonPopped[hit.Index]) continue;
+                    bool balloon = IsBalloonNote(note);
+                    if (!balloon && autoRollPerSecond <= 0) continue; // 連打は叩かない設定
+
                     DrumPart part = NextAutoPart(true);
                     effects.OnDrumHit(part);
                     HitRoll(hit.Index, true, KeyboardKey.Null, part, hitMs, volume, "AUTO");
-                    double nextMs = note.TimeMs + (hit.Tick + 1) * AutoRollIntervalMs;
+
+                    double nextMs;
+                    if (balloon)
+                    {
+                        // 風船：OpenTaiko は「今 ≧ 前に叩いた時刻 + (終わり − 今) ÷ 残り回数」で叩く。
+                        // これを「今」について解くと、次に叩く時刻 = (残り回数 × 前に叩いた時刻 + 終わり) ÷ (残り回数 + 1)
+                        int remaining = note.BalloonCount - rollHits[hit.Index];
+                        nextMs = remaining > 0 ? (remaining * hitMs + note.EndTimeMs) / (remaining + 1) : double.MaxValue;
+                    }
+                    else
+                    {
+                        // 連打：始まりから 1000 ÷ 速さ ms ごと
+                        nextMs = note.TimeMs + (hit.Tick + 1) * 1000.0 / autoRollPerSecond;
+                    }
                     if (!balloonPopped[hit.Index] && nextMs < note.EndTimeMs)
                         autoHits.Enqueue((hit.Index, hit.Tick + 1), nextMs);
                 }

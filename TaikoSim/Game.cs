@@ -48,6 +48,7 @@ namespace TaikoSim
             Screen.ApplyWindowSettings(); // 解像度・フルスクリーン・垂直同期・目標FPSを反映
             FontManager.Init();
             AudioManager.Init();          // 音の準備(bass.dll が無くても落ちない)
+            WindowsIme.Init();            // 日本語入力の準備(検索の箱の中に変換中の文字を出すため)
 
             // 最初は読み込み画面(スキンと曲を読む)
             // 読み終わったら、読み込み画面がホーム(または初回起動セットアップ)に進める
@@ -62,10 +63,12 @@ namespace TaikoSim
                 Screen.ApplyIfRequested(); // 設定でウィンドウの大きさなどが変わっていたら反映
                 SceneManager.ApplyChange();
                 Update(dt);
+                WindowsIme.EndFrame(); // このフレームで文字の入力を頼まれていなければ IME を切る
                 Draw();
             }
 
             // 後片付け
+            WindowsIme.Shutdown(); // ウィンドウを閉じる前に、横取りしていたメッセージを元に戻す
             SceneManager.Current?.Exit(); // 曲もここで片付く
             AudioManager.Free();
             SkinManager.Unload();

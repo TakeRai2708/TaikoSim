@@ -1,6 +1,8 @@
 ﻿using System.Diagnostics;
 using Raylib_cs;
 using System.Globalization;
+using System.Numerics;
+using System.Text;
 using TaikoSim.Charts;
 using TaikoSim.Configs;
 using TaikoSim.Graphics;
@@ -29,15 +31,27 @@ namespace TaikoSim.Scenes
         // 検索の箱
         private static readonly Rectangle SearchBox = new Rectangle(260, 60, 840, 56);
         private const int SearchMaxLength = 40;
+        // 検索の箱の中の文字の位置と大きさ
+        private const float SearchTextX = 260 + 20;
+        private const float SearchTextY = 60 + 13;
+        private const float SearchFontSize = 28;
+        // 日本語入力で変換中の文字の色(確定した文字と見分けるため、少し黄色)
+        private static readonly Color CompositionColor = new Color(255, 230, 150, 255);
 
         // 演奏オプションは右端にそろえて、曲一覧より手前に描く。
         private static readonly Rectangle OptionsButton = new Rectangle(1784, 60, 56, 56);
-        private static readonly Rectangle OptionsMenu = new Rectangle(1510, 124, 330, 208);
+        private static readonly Rectangle OptionsMenu = new Rectangle(1510, 124, 330, 300);
         private static readonly Rectangle AutoPlayItem = new Rectangle(1520, 134, 310, 62);
         private static readonly Rectangle HiSpeedBox = new Rectangle(1634, 210, 184, 52);
         private bool optionsOpen;
         private bool hiSpeedFocused, hiSpeedSelectAll, hiSpeedInvalid;
         private string hiSpeedText = "0";
+        // オートの連打の速さ(1秒に何打)の箱。作りは HS倍率の箱と同じ
+        private static readonly Rectangle AutoRollBox = new Rectangle(1634, 330, 184, 52);
+        private bool autoRollFocused, autoRollSelectAll, autoRollInvalid;
+        private string autoRollText = "20";
+        // HS倍率を変えているときに、歯車の左上に出す印の色
+        private static readonly Color HiSpeedMarkColor = new Color(90, 200, 255, 255);
 
         // 色
         private static readonly Color RowColor = new Color(30, 34, 48, 255);
@@ -95,6 +109,7 @@ namespace TaikoSim.Scenes
             searchFocused = false; // 演奏から戻ってきたときは入力中にしない(検索の結果はそのまま)
             optionsOpen = false;
             ResetHiSpeedInput();
+            ResetAutoRollInput();
             scrollTarget = scroll;
         }
 
@@ -133,6 +148,7 @@ namespace TaikoSim.Scenes
             {
                 searchFocused = false;
                 if (hiSpeedFocused && !Game.IsSettingsOpen) UpdateHiSpeedInput();
+                else if (autoRollFocused && !Game.IsSettingsOpen) UpdateAutoRollInput();
                 else DiscardTypedChars();
                 return;
             }
@@ -183,6 +199,7 @@ namespace TaikoSim.Scenes
             if (optionsOpen)
             {
                 FinishHiSpeedInput();
+                FinishAutoRollInput();
                 optionsOpen = false;
                 return;
             }
@@ -215,17 +232,22 @@ namespace TaikoSim.Scenes
         {
             string before = searchText;
 
-            // 打った文字を足す(日本語入力で確定した文字もここに来る)
+            // この箱で日本語入力(IME)を使う。候補の一覧は、箱の下・変換中の文字の位置に出す
+            WindowsIme.RequestTextInput(SearchBox,
+                new Vector2(SearchTextX + FontManager.Measure(searchText, SearchFontSize).X, SearchTextY));
+
+            // 打った文字を足す(IME を使っていないときの文字)
             int c = Raylib.GetCharPressed();
             while (c > 0)
             {
-                // 32 より小さいのは制御文字。0xD800〜0xDFFF は文字として使えない番号
-                bool usable = c >= 32 && c <= 0x10FFFF && (c < 0xD800 || c > 0xDFFF);
-                if (usable && searchText.Length < SearchMaxLength)
-                {
-                    searchText += char.ConvertFromUtf32(c);
-                }
+                AddSearchChar(c);
                 c = Raylib.GetCharPressed();
+            }
+
+            // 日本語入力で確定した文字を足す
+            foreach (Rune rune in WindowsIme.TakeResultText().EnumerateRunes())
+            {
+                AddSearchChar(rune.Value);
             }
 
             // BackSpace：1文字消す(押しっぱなしで連続)
@@ -245,10 +267,22 @@ namespace TaikoSim.Scenes
             if (searchText != before) UpdateResults();
         }
 
+        // 検索の文字を1つ足す(使えない文字・長すぎるときは足さない)
+        private static void AddSearchChar(int c)
+        {
+            // 32 より小さいのは制御文字。0xD800〜0xDFFF は文字として使えない番号
+            bool usable = c >= 32 && c <= 0x10FFFF && (c < 0xD800 || c > 0xDFFF);
+            if (usable && searchText.Length < SearchMaxLength)
+            {
+                searchText += char.ConvertFromUtf32(c);
+            }
+        }
+
         // 入力中じゃないときに打たれた文字は使わないので捨てる(あとで箱を開いたときに勝手に入らないように)
         private static void DiscardTypedChars()
         {
             while (Raylib.GetCharPressed() > 0) { }
+            WindowsIme.TakeResultText();
         }
 
         // 検索の結果を作り直す
@@ -591,26 +625,42 @@ namespace TaikoSim.Scenes
         private void DrawPlayOptions()
         {
             bool enabled = ConfigManager.Game.AutoPlay;
+            // HS倍率を変えているか(0 と 1 は譜面どおりなので変えていないことにする)
+            float hs = ConfigManager.Game.HiSpeed;
+            bool hiSpeedChanged = hs > 0f && hs != 1f;
             System.Numerics.Vector2 mouse = Screen.GetMousePosition();
             bool pressed = active && Raylib.IsMouseButtonPressed(MouseButton.Left);
             bool overButton = Raylib.CheckCollisionPointRec(mouse, OptionsButton);
             Color buttonColor = active && (overButton || optionsOpen) ? Gui.BoxHoverColor : Gui.BoxColor;
             Raylib.DrawRectangleRec(OptionsButton, buttonColor);
+            // オート演奏か HS倍率のどちらかを変えていたら、歯車を色付きにする
             Icons.Gear(OptionsButton.X + 28, OptionsButton.Y + 28,
-                enabled ? Gui.AccentColor : Color.White, buttonColor);
+                enabled || hiSpeedChanged ? Gui.AccentColor : Color.White, buttonColor);
+            // 印：右上の緑＝オート演奏、左上の水色＝HS倍率
             if (enabled)
                 Raylib.DrawCircle((int)(OptionsButton.X + 47), (int)(OptionsButton.Y + 9), 4, Color.Lime);
+            if (hiSpeedChanged)
+                Raylib.DrawCircle((int)(OptionsButton.X + 9), (int)(OptionsButton.Y + 9), 4, HiSpeedMarkColor);
 
             if (!active)
             {
                 FinishHiSpeedInput();
+                FinishAutoRollInput();
                 optionsOpen = false;
                 return;
             }
             if (pressed && overButton)
             {
-                if (optionsOpen) FinishHiSpeedInput();
-                else ResetHiSpeedInput();
+                if (optionsOpen)
+                {
+                    FinishHiSpeedInput();
+                    FinishAutoRollInput();
+                }
+                else
+                {
+                    ResetHiSpeedInput();
+                    ResetAutoRollInput();
+                }
                 optionsOpen = !optionsOpen;
                 searchFocused = false;
                 return; // 開いたクリックでは項目を切り替えない。
@@ -631,15 +681,25 @@ namespace TaikoSim.Scenes
                 new Rectangle(AutoPlayItem.X + 220, AutoPlayItem.Y, 76, AutoPlayItem.Height),
                 26, enabled ? Color.Lime : Gui.SubTextColor);
             bool overHiSpeed = Raylib.CheckCollisionPointRec(mouse, HiSpeedBox);
+            bool overAutoRoll = Raylib.CheckCollisionPointRec(mouse, AutoRollBox);
             if (pressed)
             {
                 if (overHiSpeed)
                 {
+                    FinishAutoRollInput();
                     if (!hiSpeedFocused) hiSpeedSelectAll = true;
                     hiSpeedFocused = true;
                     caretTimer = 0f;
                 }
                 else FinishHiSpeedInput();
+
+                if (overAutoRoll)
+                {
+                    if (!autoRollFocused) autoRollSelectAll = true;
+                    autoRollFocused = true;
+                    caretTimer = 0f;
+                }
+                else FinishAutoRollInput();
             }
             FontManager.Draw("HS倍率", 1534, 222, 24, Color.White);
             Raylib.DrawRectangleRec(HiSpeedBox, hiSpeedFocused ? Gui.BoxHoverColor : Gui.BoxColor);
@@ -652,6 +712,19 @@ namespace TaikoSim.Scenes
             FontManager.Draw(hiSpeedInvalid ? "0〜100の数値を入力してください" : "0＝譜面どおり / Enterで確定", 1524, 276, 19,
                 hiSpeedInvalid ? ErrorColor : Gui.SubTextColor);
             FontManager.Draw("TJAのSCROLLに掛ける倍率", 1524, 303, 18, Gui.SubTextColor);
+
+            // オートの連打の速さ
+            FontManager.Draw("オート連打", 1522, 344, 21, Color.White); // 箱にかからないように少し左・小さめ
+            Raylib.DrawRectangleRec(AutoRollBox, autoRollFocused ? Gui.BoxHoverColor : Gui.BoxColor);
+            Raylib.DrawRectangleLinesEx(AutoRollBox, 2,
+                autoRollInvalid ? ErrorColor : autoRollFocused ? Gui.AccentColor : Gui.SubTextColor);
+            if (autoRollFocused && autoRollSelectAll)
+                Raylib.DrawRectangleRec(new Rectangle(AutoRollBox.X + 10, AutoRollBox.Y + 8, 130, 36), new Color(45, 82, 130, 255));
+            string rollCaret = autoRollFocused && caretTimer % 1f < 0.5f ? "|" : "";
+            FontManager.Draw(autoRollText + rollCaret, AutoRollBox.X + 12, AutoRollBox.Y + 10, 26, Color.White);
+            FontManager.Draw("打/秒", AutoRollBox.X + 120, AutoRollBox.Y + 14, 20, Gui.SubTextColor);
+            FontManager.Draw(autoRollInvalid ? "0〜1000の整数を入力してください" : "0＝連打を叩かない / Enterで確定", 1524, 396, 19,
+                autoRollInvalid ? ErrorColor : Gui.SubTextColor);
             if (pressed && !Raylib.CheckCollisionPointRec(mouse, OptionsMenu)) optionsOpen = false;
         }
 
@@ -710,6 +783,63 @@ namespace TaikoSim.Scenes
             hiSpeedFocused = false;
         }
 
+        // ===== オートの連打の速さの箱(作りは HS倍率の箱と同じ。整数だけ) =====
+
+        private void ResetAutoRollInput()
+        {
+            autoRollText = ConfigManager.Game.AutoRollPerSecond.ToString(CultureInfo.InvariantCulture);
+            autoRollFocused = autoRollSelectAll = autoRollInvalid = false;
+        }
+
+        private void UpdateAutoRollInput()
+        {
+            bool control = Raylib.IsKeyDown(KeyboardKey.LeftControl) || Raylib.IsKeyDown(KeyboardKey.RightControl);
+            if (control && Raylib.IsKeyPressed(KeyboardKey.A)) autoRollSelectAll = true;
+            int c;
+            while ((c = Raylib.GetCharPressed()) > 0)
+            {
+                if (control || c < '0' || c > '9') continue; // 数字だけ
+                if (autoRollSelectAll) { autoRollText = ""; autoRollSelectAll = false; }
+                if (autoRollText.Length < 4) autoRollText += (char)c;
+                autoRollInvalid = false;
+            }
+            if (KeyPressed(KeyboardKey.Backspace))
+            {
+                if (autoRollSelectAll) autoRollText = "";
+                else if (autoRollText.Length > 0) autoRollText = autoRollText[..^1];
+                autoRollSelectAll = autoRollInvalid = false;
+            }
+            if (Raylib.IsKeyPressed(KeyboardKey.Enter) || Raylib.IsKeyPressed(KeyboardKey.KpEnter))
+            {
+                if (CommitAutoRoll()) autoRollFocused = false;
+            }
+        }
+
+        private bool CommitAutoRoll()
+        {
+            string value = autoRollText.Length == 0 ? "0" : autoRollText;
+            if (!int.TryParse(value, NumberStyles.None, CultureInfo.InvariantCulture, out int rate)
+                || rate < GameConfig.AutoRollMin || rate > GameConfig.AutoRollMax)
+            {
+                autoRollInvalid = true;
+                return false;
+            }
+            if (ConfigManager.Game.AutoRollPerSecond != rate)
+            {
+                ConfigManager.Game.AutoRollPerSecond = rate;
+                ConfigManager.SaveAll();
+            }
+            autoRollText = rate.ToString(CultureInfo.InvariantCulture);
+            autoRollInvalid = autoRollSelectAll = false;
+            return true;
+        }
+
+        private void FinishAutoRollInput()
+        {
+            if (autoRollFocused && !CommitAutoRoll()) ResetAutoRollInput();
+            autoRollFocused = false;
+        }
+
         // 検索の箱
         private void DrawSearchBox()
         {
@@ -726,20 +856,47 @@ namespace TaikoSim.Scenes
             Raylib.DrawRectangleRec(SearchBox, back);
             if (searchFocused) Raylib.DrawRectangleLinesEx(SearchBox, 2, Gui.AccentColor);
 
-            float textX = SearchBox.X + 20;
-            float textY = SearchBox.Y + 13;
+            float textX = SearchTextX;
+            float textY = SearchTextY;
 
             if (searchText.Length > 0 || searchFocused)
             {
-                // 入力中は「|」を点滅させる
-                string caret = searchFocused && (caretTimer % 1f) < 0.5f ? "|" : "";
-                FontManager.Draw(searchText + caret, textX, textY, 28, Color.White);
+                string composition = searchFocused ? WindowsIme.CompositionText : "";
+                if (composition.Length == 0)
+                {
+                    // 入力中は「|」を点滅させる
+                    string caret = searchFocused && (caretTimer % 1f) < 0.5f ? "|" : "";
+                    FontManager.Draw(searchText + caret, textX, textY, SearchFontSize, Color.White);
+                }
+                else
+                {
+                    DrawComposition(composition, textX, textY);
+                }
             }
             else
             {
                 KeyboardKey searchKey = ConfigManager.Key.SystemKeys.GetValueOrDefault(SystemAction.Search, KeyboardKey.F3);
                 FontManager.Draw($"曲名・アーティスト・フォルダ名で検索（{searchKey}）", textX, textY, 26, Gui.SubTextColor);
             }
+        }
+
+        // 日本語入力の変換中：確定した文字の後ろに、変換中の文字を下線付きで描く。
+        // 「|」は変換中の文字の中のカーソルの位置に、点滅させずに出す
+        private static void DrawComposition(string composition, float textX, float textY)
+        {
+            FontManager.Draw(searchText, textX, textY, SearchFontSize, Color.White);
+
+            float startX = textX + FontManager.Measure(searchText, SearchFontSize).X;
+            Vector2 size = FontManager.Measure(composition, SearchFontSize);
+            FontManager.Draw(composition, startX, textY, SearchFontSize, CompositionColor);
+
+            // 下線(文字の少し下)
+            float lineY = textY + size.Y + 2;
+            Raylib.DrawLineEx(new Vector2(startX, lineY), new Vector2(startX + size.X, lineY), 2, CompositionColor);
+
+            int cursor = Math.Clamp(WindowsIme.CompositionCursor, 0, composition.Length);
+            float caretX = startX + FontManager.Measure(composition[..cursor], SearchFontSize).X;
+            FontManager.Draw("|", caretX, textY, SearchFontSize, Color.White);
         }
 
         private static bool IsCursor(Row row)
