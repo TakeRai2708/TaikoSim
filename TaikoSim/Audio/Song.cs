@@ -118,6 +118,13 @@ namespace TaikoSim.Audio
             Bass.ChannelSetAttribute(handle, ChannelAttribute.Volume, Math.Clamp(volume, 0f, 1f));
         }
 
+        // 最後まで行ったら頭に戻って、ずっと鳴らすか(リザルト画面などの BGM 用)
+        public void SetLoop(bool loop)
+        {
+            if (handle == 0) return;
+            Bass.ChannelFlags(handle, loop ? BassFlags.Loop : BassFlags.Default, BassFlags.Loop);
+        }
+
         // startMs の位置から鳴らす
         public void Play(double startMs)
         {

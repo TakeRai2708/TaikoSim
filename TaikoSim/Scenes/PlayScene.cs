@@ -254,10 +254,12 @@ namespace TaikoSim.Scenes
         // 終わりの決め方は OpenTaiko の「譜面の終わり」と同じ考え方：
         //   最後の音符(連打・風船は終わり)の 1.5秒後 と #END の 1秒後 の早い方で、演奏後の演出を始める
         //   ※ OpenTaiko は最後の音符の2秒後。TaikøNauts の動画では 1.5秒後だったので、そっちに合わせた
-        //   演出が終わって(6.6秒)、#END の 1秒後も過ぎたら、0.5秒で暗くして次の画面へ
+        //   演出が始まって 6.9秒(#END の 1秒後も過ぎていたら)で、2秒かけて暗くして、真っ暗で 0.5秒待って次の画面へ
+        //   (TaikøNauts の動画：クリア失敗・クリア成功とも、6.9秒後から約2秒で真っ暗 → 約0.5秒後にリザルト)
         private const double EndAfterLastNoteMs = 1500;
         private const double EndAfterChartEndMs = 1000;
-        private const float EndFadeSeconds = 0.5f;
+        private const float EndFadeSeconds = 2.0f;
+        private const float EndBlackSeconds = 0.5f;
         private readonly PlayEnd end = new();
         private float endFadeElapsed = -1f; // 暗くなり始めてからの時間(-1 ならまだ)
 
@@ -577,7 +579,7 @@ namespace TaikoSim.Scenes
 
             endFadeElapsed += dt;
             ApplyMusicVolume(1f - Math.Clamp(endFadeElapsed / EndFadeSeconds, 0f, 1f)); // 曲もだんだん小さく
-            if (endFadeElapsed >= EndFadeSeconds) FinishPlay();
+            if (endFadeElapsed >= EndFadeSeconds + EndBlackSeconds) FinishPlay();
         }
 
         // 演奏後の演出を始める時間(譜面の時間)
@@ -610,12 +612,23 @@ namespace TaikoSim.Scenes
             endSounds[(int)result]?.Play((float)sound.GetFinalVolume(sound.SeVolume));
         }
 
-        // 演奏を終えて次の画面へ(今は選曲画面に戻る。リザルト画面は次の回で作る)
+        // 演奏を終えてリザルト画面へ
         private void FinishPlay()
         {
             StopSong();
-            if (returnToSelect) SceneManager.ChangeScene(new SongSelectScene());
-            else SceneManager.ChangeScene(new HomeScene());
+            PlayResultData data = new()
+            {
+                Title = chart?.Title ?? "",
+                Course = course?.Type ?? CourseType.Oni,
+                Result = end.Result,
+                Stats = stats,
+                Good = goodCount,
+                Ok = okCount,
+                Bad = badCount,
+                RollHits = totalRollHits,
+                MaxCombo = maxCombo,
+            };
+            SceneManager.ChangeScene(new ResultScene(data, returnToSelect));
         }
 
         // 曲の音量(rate：1 で設定どおり、0 で無音)

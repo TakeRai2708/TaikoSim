@@ -22,6 +22,8 @@ namespace TaikoSim.Scenes
 
         // ゲージの画像は横1195、1段84px。上から1Pの80/70/60%、2P、目盛り。
         private const float GaugeX = 725f, GaugeY = 204f;
+        // ゲージの左上(リザルト画面で小さくして描くときに使う)
+        public const float GaugeLeft = GaugeX, GaugeTop = GaugeY;
         private const float CellWidth = 21f;
         private const int Cells = 50;
         private const float ScoreBounceSeconds = 0.15f;

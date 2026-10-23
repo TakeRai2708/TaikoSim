@@ -104,7 +104,8 @@ namespace TaikoSim.Graphics
         private static string FullPath(string relative) =>
             Path.Combine(SkinManager.CurrentPath!, relative.Replace('/', Path.DirectorySeparatorChar));
 
-        private static string? FindPreset(string relative, string preferred)
+        // リザルト画面からも使う(スキンの中で、使うフォルダを探す)
+        internal static string? FindPreset(string relative, string preferred)
         {
             string full = FullPath(relative);
             if (!Directory.Exists(full)) return null;
@@ -116,13 +117,14 @@ namespace TaikoSim.Graphics
                 .FirstOrDefault(path => ReadString(path, "songGenreID", "default") == "default");
         }
 
-        private static Aup2Clip[] LoadParts(string? preset, string child = "")
+        // loopKey … Config.json の「ここからくり返す」の名前(演奏画面は bgInEndFrame、リザルトのクリア背景は clearBgInEndFrame)
+        internal static Aup2Clip[] LoadParts(string? preset, string child = "", string loopKey = "bgInEndFrame")
         {
             if (preset == null) return Array.Empty<Aup2Clip>();
             string relative = child.Length == 0 ? preset : preset + "/" + child;
             string full = FullPath(relative);
             if (!Directory.Exists(full)) return Array.Empty<Aup2Clip>();
-            int loopStart = Math.Max(0, ReadInt(preset, "bgInEndFrame", 0));
+            int loopStart = Math.Max(0, ReadInt(preset, loopKey, 0));
             List<Aup2Clip> parts = new();
             foreach (string folder in Directory.EnumerateDirectories(full)
                 .OrderBy(path => int.TryParse(Path.GetFileName(path), out int n) ? n : int.MaxValue)
@@ -180,7 +182,8 @@ namespace TaikoSim.Graphics
             public int FooterX, FooterY;
         }
 
-        private sealed class Aup2Clip
+        // AviUtl2 のアニメ1つ分(リザルト画面からも使う)
+        internal sealed class Aup2Clip
         {
             private readonly Command[][] frames;
             private readonly float fps;
@@ -193,8 +196,12 @@ namespace TaikoSim.Graphics
                 this.loopStart = Math.Clamp(loopStart, 0, frames.Length - 1);
             }
 
-            public void Draw(double seconds, float y)
+            public void Draw(double seconds, float y) => Draw(seconds, y, 1f);
+
+            // alpha … 全体の濃さ(0〜1)。背景を切り替えるときにだんだん出す用
+            public void Draw(double seconds, float y, float alpha)
             {
+                if (alpha <= 0f) return;
                 double position = Math.Floor(Math.Max(0, seconds) * fps);
                 int frame = position < frames.Length ? (int)position
                     : loopStart + (int)((position - loopStart) % (frames.Length - loopStart));
@@ -202,8 +209,9 @@ namespace TaikoSim.Graphics
                 {
                     Rectangle destination = command.Destination;
                     destination.Y += y;
+                    Color color = alpha >= 1f ? command.Color : Raylib.ColorAlpha(command.Color, command.Color.A / 255f * alpha);
                     Raylib.DrawTexturePro(command.Texture, command.Source, destination,
-                        command.Origin, command.Rotation, command.Color);
+                        command.Origin, command.Rotation, color);
                 }
             }
 

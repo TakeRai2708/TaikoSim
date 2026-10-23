@@ -139,6 +139,7 @@ namespace TaikoSim.Graphics
         private static readonly string[] PlayWhiteTexturePaths =
         {
             "Image/04.EnsoGame/End/Chara.png",
+            "Image/04.EnsoGame/End/Text.png",
         };
 
         // 今使っているスキンのフォルダ(スキンが無ければ null)
