@@ -33,7 +33,7 @@ namespace TaikoSim.Scenes
         private float gaugeFlashElapsed;
         private float scoreBounceElapsed = ScoreBounceSeconds;
         private long shownScore = -1;
-        private string scoreText = "0", levelText = "0", courseText = "";
+        private string scoreText = "0", courseText = "";
         private sealed class ScorePopup
         {
             public string Text = "";
@@ -69,11 +69,9 @@ namespace TaikoSim.Scenes
             scoreText = "0";
             scorePopups.Clear();
             soulFlashAge = 1f;
-            levelText = "★" + Math.Max(0, course.Level).ToString(CultureInfo.InvariantCulture);
             courseText = Chart.GetCourseName(course.Type);
             // 画像がない場合の文字も、演奏開始前に準備する。
             FontManager.Measure(courseText, 22);
-            FontManager.Measure(levelText, 24);
             songTitle = title.Replace('\r', ' ').Replace('\n', ' ').Trim();
             FontManager.PrepareSkinMainText(songTitle);
             PrepareSongTitleLayout();
@@ -150,8 +148,7 @@ namespace TaikoSim.Scenes
                 DrawPart(symbol, new Rectangle(0, row * height, symbol.Width, height), 27, 351);
             }
             else FontManager.Draw(courseText, 30, 370, 22, Color.White);
-
-            FontManager.Draw(levelText, 55, 448, 24, Color.White);
+            // 難易度の★の数は出さない(難易度のマークだけ)
         }
 
         private static bool DrawDigits(string text, float x, float y, float scale, float bounce, bool alignRight)
