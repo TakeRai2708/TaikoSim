@@ -11,15 +11,15 @@ namespace TaikoSim.UI
     // マウスでクリック、数字の箱はキーボードで入力。Esc・板の外のクリックで閉じる
     public sealed class PlayOptionsPanel
     {
-        // ===== 配置(1920×1080。右端) =====
-        private static readonly Rectangle Menu = new Rectangle(1510, 124, 330, 580);
-        private static readonly Rectangle AutoPlayItem = new Rectangle(1520, 134, 310, 62);
-        private static readonly Rectangle HiSpeedBox = new Rectangle(1634, 210, 184, 52);
-        private static readonly Rectangle AutoRollBox = new Rectangle(1634, 330, 184, 52);
-        private static readonly Rectangle AutoFixedItem = new Rectangle(1520, 544, 310, 44);
-        private const float DisplaySectionY = 596;
-        private static readonly Rectangle ScoreboardItem = new Rectangle(1520, 602, 310, 44);
-        private static readonly Rectangle AutoSaveCsvItem = new Rectangle(1520, 650, 310, 44);
+        // ===== 配置(1920×1080。TaikøNauts と同じく左下) =====
+        private static readonly Rectangle Menu = new Rectangle(20, 480, 330, 580);
+        private static readonly Rectangle AutoPlayItem = new Rectangle(30, 490, 310, 62);
+        private static readonly Rectangle HiSpeedBox = new Rectangle(144, 566, 184, 52);
+        private static readonly Rectangle AutoRollBox = new Rectangle(144, 686, 184, 52);
+        private static readonly Rectangle AutoFixedItem = new Rectangle(30, 900, 310, 44);
+        private const float DisplaySectionY = 952;
+        private static readonly Rectangle ScoreboardItem = new Rectangle(30, 958, 310, 44);
+        private static readonly Rectangle AutoSaveCsvItem = new Rectangle(30, 1006, 310, 44);
         private static readonly Color ErrorColor = new Color(255, 110, 100, 255);
 
         public bool IsOpen { get; private set; }
@@ -45,11 +45,11 @@ namespace TaikoSim.UI
         }
         private readonly PercentBox[] percentBoxes =
         {
-            new PercentBox { Label = "良", LabelX = 1526, Area = new Rectangle(1552, 462, 58, 46),
+            new PercentBox { Label = "良", LabelX = 36, Area = new Rectangle(62, 818, 58, 46),
                 Get = () => ConfigManager.Game.AutoGoodPercent, Set = v => ConfigManager.Game.AutoGoodPercent = v },
-            new PercentBox { Label = "可", LabelX = 1622, Area = new Rectangle(1648, 462, 58, 46),
+            new PercentBox { Label = "可", LabelX = 132, Area = new Rectangle(158, 818, 58, 46),
                 Get = () => ConfigManager.Game.AutoOkPercent, Set = v => ConfigManager.Game.AutoOkPercent = v },
-            new PercentBox { Label = "不可", LabelX = 1716, Area = new Rectangle(1764, 462, 58, 46),
+            new PercentBox { Label = "不可", LabelX = 226, Area = new Rectangle(274, 818, 58, 46),
                 Get = () => ConfigManager.Game.AutoBadPercent, Set = v => ConfigManager.Game.AutoBadPercent = v },
         };
 
@@ -134,24 +134,24 @@ namespace TaikoSim.UI
             }
 
             // HS倍率
-            FontManager.Draw("HS倍率", 1534, 222, 24, Color.White);
+            FontManager.Draw("HS倍率", 44, 578, 24, Color.White);
             DrawNumberBox(HiSpeedBox, hiSpeedText, hiSpeedFocused, hiSpeedSelectAll, hiSpeedInvalid);
-            FontManager.Draw(hiSpeedInvalid ? "0〜100の数値を入力してください" : "0＝譜面どおり / Enterで確定", 1524, 276, 19,
+            FontManager.Draw(hiSpeedInvalid ? "0〜100の数値を入力してください" : "0＝譜面どおり / Enterで確定", 34, 632, 19,
                 hiSpeedInvalid ? ErrorColor : Gui.SubTextColor);
-            FontManager.Draw("TJAのSCROLLに掛ける倍率", 1524, 303, 18, Gui.SubTextColor);
+            FontManager.Draw("TJAのSCROLLに掛ける倍率", 34, 659, 18, Gui.SubTextColor);
 
             // オートの連打の速さ
-            FontManager.Draw("オート連打", 1522, 344, 21, Color.White);
+            FontManager.Draw("オート連打", 32, 700, 21, Color.White);
             DrawNumberBox(AutoRollBox, autoRollText, autoRollFocused, autoRollSelectAll, autoRollInvalid);
             FontManager.Draw("打/秒", AutoRollBox.X + 120, AutoRollBox.Y + 14, 20, Gui.SubTextColor);
-            FontManager.Draw(autoRollInvalid ? "0〜1000の整数を入力してください" : "0＝連打・風船を叩かない / Enterで確定", 1524, 396, 19,
+            FontManager.Draw(autoRollInvalid ? "0〜1000の整数を入力してください" : "0＝連打・風船を叩かない / Enterで確定", 34, 752, 19,
                 autoRollInvalid ? ErrorColor : Gui.SubTextColor);
 
             // オートの精度(良・可・不可の%)
-            FontManager.Draw("オート精度（%）", 1522, 430, 21, Color.White);
+            FontManager.Draw("オート精度（%）", 32, 786, 21, Color.White);
             foreach (PercentBox box in percentBoxes) DrawPercentBox(box);
             bool percentInvalid = percentBoxes.Any(b => b.Invalid);
-            FontManager.Draw(percentInvalid ? "0〜100の整数を入力してください" : "合計が100でなくても割合で使う", 1524, 516, 18,
+            FontManager.Draw(percentInvalid ? "0〜100の整数を入力してください" : "合計が100でなくても割合で使う", 34, 872, 18,
                 percentInvalid ? ErrorColor : Gui.SubTextColor);
 
             // 毎回同じ出方にするか

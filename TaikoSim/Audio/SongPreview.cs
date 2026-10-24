@@ -4,15 +4,16 @@ using TaikoSim.Configs;
 namespace TaikoSim.Audio
 {
     // 選曲画面のプレビュー(選んでいる曲を DEMOSTART の位置から流す)
-    //   ・選んでから少し待ってから読み込む(速くカーソルを動かしているときに、1曲ずつ読まないように)
-    //   ・読み込みは裏でやる(大きい曲でも画面が止まらないように)
-    //   ・だんだん大きくして流し始める。曲の最後まで行ったら頭から繰り返す
+    //   ・カーソルが止まったら、裏で先に読み込んでおく(大きい曲でも画面が止まらないように)
+    //   ・流し始めるのは「流して」と言われたとき(TaikøNauts と同じく、曲の板が開いたとき)
+    //   ・最初から普通の大きさで流す(TaikøNauts と同じくフェードなし)。曲の最後まで行ったら頭から繰り返す
     public sealed class SongPreview : IDisposable
     {
-        private const float WaitSeconds = 0.35f;
-        private const float FadeInSeconds = 0.6f;
+        // カーソルが止まってから読み込みを始めるまで(速くカーソルを動かしているときに、1曲ずつ読まないように)
+        private const float LoadWaitSeconds = 0.1f;
 
         private string? wanted;        // 流したい曲(.tja)。null なら止める
+        private bool playWanted;       // 今流してよいか
         private string? attempted;     // 最後に読み込みを始めた曲(読めなかったときに、何度も読み直さないため)
         private float wait;
 
@@ -20,29 +21,46 @@ namespace TaikoSim.Audio
         private string? loadingTja;
         private int loadingAudio;
 
-        private Song? song;
+        private Song? song;            // 読み込んだ曲(wanted の曲)
         private int songAudio;
-        private float fade;
+        private double songStartMs;
+        private bool playing;
 
-        // 流したい曲を伝える(毎フレーム呼んでよい)。同じ曲なら何もしない
-        public void Request(string? tja)
+        // 流したい曲と、今流してよいかを伝える(毎フレーム呼んでよい)
+        //   tja が同じなら読み込み直さない。play が false なら、読み込みだけして待つ
+        public void Request(string? tja, bool play)
         {
-            if (string.Equals(tja, wanted, StringComparison.OrdinalIgnoreCase)) return;
-            wanted = tja;
-            attempted = null;
-            wait = WaitSeconds;
-            StopCurrent();
+            if (!string.Equals(tja, wanted, StringComparison.OrdinalIgnoreCase))
+            {
+                wanted = tja;
+                attempted = null;
+                wait = LoadWaitSeconds;
+                StopCurrent();
+            }
+            playWanted = play && tja != null;
         }
 
         public void Update(float dt)
         {
             // 音を準備し直したあとは、前の曲はもう使えない(片付けもしない)
-            if (song != null && songAudio != AudioManager.Generation) song = null;
+            if (song != null && songAudio != AudioManager.Generation) { song = null; playing = false; }
 
+            // 読み込んである曲を、流す・止める
             if (song != null)
             {
-                fade = Math.Min(1f, fade + dt / FadeInSeconds);
-                song.SetVolume(Volume * fade);
+                if (playWanted && !playing)
+                {
+                    song.SetVolume(Volume);
+                    song.SetLoop(true);
+                    song.Play(songStartMs);
+                    playing = true;
+                }
+                else if (!playWanted && playing)
+                {
+                    song.Stop();
+                    playing = false;
+                }
+                else if (playing) song.SetVolume(Volume);
             }
 
             // 裏で読み込み中
@@ -63,14 +81,12 @@ namespace TaikoSim.Audio
                 }
                 song = loaded;
                 songAudio = loadingAudio;
-                fade = 0f;
-                song.SetVolume(0f);
-                song.SetLoop(true);
-                song.Play(startMs);
-                return;
+                songStartMs = startMs;
+                playing = false;
+                return; // 次のフレームで、流してよければ流す
             }
 
-            if (wanted == null || string.Equals(wanted, attempted, StringComparison.OrdinalIgnoreCase)) return;
+            if (wanted == null || song != null || string.Equals(wanted, attempted, StringComparison.OrdinalIgnoreCase)) return;
             wait -= dt;
             if (wait > 0f) return;
 
@@ -93,16 +109,18 @@ namespace TaikoSim.Audio
         {
             if (song != null && songAudio == AudioManager.Generation)
             {
-                song.Stop();
+                if (playing) song.Stop();
                 song.Dispose();
             }
             song = null;
+            playing = false;
         }
 
         // 片付け(画面から出るとき)。裏で読み込み中の曲は、読み終わったら捨てる
         public void Dispose()
         {
             wanted = null;
+            playWanted = false;
             StopCurrent();
             if (loading != null)
             {
