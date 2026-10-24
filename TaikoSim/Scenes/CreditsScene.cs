@@ -9,7 +9,23 @@ namespace TaikoSim.Scenes
     public sealed class CreditsScene : Scene
     {
         private const float Left = 80f, Top = 150f, LineHeight = 38f;
+        private const float HeadingExtra = 8f;     // 見出しの行は少し広く空ける
+        private const float ViewBottomMargin = 110f; // 下の「もどる」ボタンと説明の分
         private float scroll;
+
+        // 見える範囲の高さ(上の Top から、下の説明の上まで)
+        private static float ViewHeight => Screen.Height - Top - ViewBottomMargin;
+
+        // 全部の行の高さ(見出しの分も入れる)
+        private static float ContentHeight()
+        {
+            float h = 0f;
+            foreach (var (_, _, kind) in Lines) h += kind == 0 ? LineHeight + HeadingExtra : LineHeight;
+            return h;
+        }
+
+        // 一番下までスクロールしたときの量(最後の行の下に少し余白を残す)
+        private static float MaxScroll => Math.Max(0f, ContentHeight() + 20f - ViewHeight);
 
         // (文字, 大きさ, 色の種類 0:見出し 1:ふつう 2:うすい)
         private static readonly (string Text, float Size, int Kind)[] Lines =
@@ -34,7 +50,7 @@ namespace TaikoSim.Scenes
             ("TaikoSim-Simple スキンの文字の画像は Noto Sans CJK（SIL Open Font License 1.1）で描きました", 24, 2),
             ("", 20, 2),
             ("TaikoSim-Simple スキン", 32, 0),
-            ("画像・効果音・BGM・キャラクター（ポンとピコ）は、すべて TaikoSim 用にプログラムで作ったものです", 24, 1),
+            ("画像・効果音・BGMは、すべて TaikoSim 用にプログラムで作ったものです", 24, 1),
             ("", 20, 2),
             ("ライセンスの全文は、exe と同じフォルダの THIRD-PARTY-NOTICES.txt を見てください。", 24, 2),
             ("「太鼓の達人」はバンダイナムコエンターテインメントの商標です。TaikoSim は公式のものではありません。", 24, 2),
@@ -45,8 +61,11 @@ namespace TaikoSim.Scenes
             float wheel = Raylib.GetMouseWheelMove();
             if (Raylib.IsKeyDown(KeyboardKey.Down)) wheel -= dt * 12f;
             if (Raylib.IsKeyDown(KeyboardKey.Up)) wheel += dt * 12f;
-            float max = Math.Max(0f, Lines.Length * LineHeight - (Screen.Height - Top - 120f));
-            scroll = Math.Clamp(scroll - wheel * 40f, 0f, max);
+            if (Raylib.IsKeyPressed(KeyboardKey.PageDown)) wheel -= ViewHeight / 40f;
+            if (Raylib.IsKeyPressed(KeyboardKey.PageUp)) wheel += ViewHeight / 40f;
+            if (Raylib.IsKeyPressed(KeyboardKey.End)) wheel -= 9999f;
+            if (Raylib.IsKeyPressed(KeyboardKey.Home)) wheel += 9999f;
+            scroll = Math.Clamp(scroll - wheel * 40f, 0f, MaxScroll);
 
             if (Raylib.IsKeyPressed(KeyboardKey.Enter) || Raylib.IsKeyPressed(KeyboardKey.KpEnter) || InputManager.IsDonPressed())
                 OnBack();
@@ -60,17 +79,28 @@ namespace TaikoSim.Scenes
             Raylib.ClearBackground(new Color(20, 22, 32, 255));
             FontManager.Draw("クレジット", Left, 60, 52, Color.White);
 
-            Raylib.BeginScissorMode(0, (int)Top - 10, Screen.Width, Screen.Height - (int)Top - 100);
+            Raylib.BeginScissorMode(0, (int)Top - 10, Screen.Width, (int)ViewHeight + 10);
             float y = Top - scroll;
             foreach (var (text, size, kind) in Lines)
             {
                 Color color = kind switch { 0 => new Color(255, 200, 80, 255), 1 => Color.White, _ => Gui.SubTextColor };
                 if (text.Length > 0) FontManager.Draw(text, Left + (kind == 0 ? 0 : 24), y, size, color);
-                y += kind == 0 ? LineHeight + 8 : LineHeight;
+                y += kind == 0 ? LineHeight + HeadingExtra : LineHeight;
             }
             Raylib.EndScissorMode();
 
-            FontManager.Draw("↑↓・ホイール：動かす　Esc・Enter・ドン：もどる", Left, Screen.Height - 70, 24, Color.SkyBlue);
+            // 右はしのスクロールバー(全部見えているときは出さない)
+            float max = MaxScroll;
+            if (max > 0f)
+            {
+                float trackX = Screen.Width - 40f, trackY = Top, trackH = ViewHeight;
+                float barH = Math.Max(40f, trackH * ViewHeight / (ViewHeight + max));
+                float barY = trackY + (trackH - barH) * (scroll / max);
+                Raylib.DrawRectangleRounded(new Rectangle(trackX, trackY, 8, trackH), 1f, 4, new Color(255, 255, 255, 30));
+                Raylib.DrawRectangleRounded(new Rectangle(trackX, barY, 8, barH), 1f, 4, new Color(255, 255, 255, 140));
+            }
+
+            FontManager.Draw("↑↓・ホイール・PageUp/Down：動かす　Esc・Enter・ドン：もどる", Left, Screen.Height - 70, 24, Color.SkyBlue);
             if (Gui.Button(new Rectangle(Screen.Width - 270, Screen.Height - 90, 190, 56), "もどる")) OnBack();
         }
     }
