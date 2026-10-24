@@ -60,7 +60,7 @@ namespace TaikoSim.Scenes
         // 遊ぶ難易度(null なら おに → 裏 → … の順で自動で選ぶ)
         private readonly CourseType? courseType;
 
-        // Esc で選曲画面に戻るか(false ならホームに戻る)
+        // Esc で選曲画面に戻るか(false ならモード選択に戻る)
         private readonly bool returnToSelect;
 
         private Chart? chart;
@@ -1341,12 +1341,12 @@ namespace TaikoSim.Scenes
             return gameMs < note.EndTimeMs;
         }
 
-        // Esc で選曲画面(ドロップで来たときはホーム)に戻る
+        // Esc で選曲画面(ドロップで来たときはモード選択)に戻る
         public override void OnBack()
         {
             StopSong(); // 念のため、すぐ止める
             if (returnToSelect) SceneManager.ChangeScene(new SongSelectScene());
-            else SceneManager.ChangeScene(new HomeScene());
+            else SceneManager.ChangeScene(new ModeSelectScene());
         }
 
         // 別の .tja がドロップされたら、そっちに切り替える

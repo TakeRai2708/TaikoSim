@@ -225,7 +225,7 @@ namespace TaikoSim.Scenes
         {
             bgm?.Stop();
             if (returnToSelect) SceneManager.ChangeScene(new SongSelectScene());
-            else SceneManager.ChangeScene(new HomeScene());
+            else SceneManager.ChangeScene(new ModeSelectScene());
         }
 
         private void PlayAt(ref bool played, float time, SoundEffect? sound, bool voice)

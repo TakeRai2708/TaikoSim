@@ -1,5 +1,6 @@
 ﻿using System.Diagnostics;
 using Raylib_cs;
+using TaikoSim.Charts;
 using TaikoSim.Audio;
 using TaikoSim.Configs;
 using TaikoSim.Graphics;
@@ -255,6 +256,42 @@ namespace TaikoSim.Overlays
 
             GameConfig game = ConfigManager.Game;
             game.ShowFps = CheckboxRow("FPS表示", game.ShowFps);
+
+            // ----- 曲(前は選曲画面の上にあったボタン) -----
+            SubHeader("曲");
+            string songText = SongList.IsScanning
+                ? (SongList.ScanTotal < 0 ? "曲ファイルを探しています…" : $"読み込み中…　{SongList.ScanDone} / {SongList.ScanTotal}")
+                : $"{SongList.SongCount}曲" + (SongList.ErrorCount > 0 ? $"（読めなかった曲 {SongList.ErrorCount}）" : "");
+            FontManager.Draw(songText, LabelX, ToScreenY(cursorY) + 6, 24, SongList.IsScanning ? Gui.AccentColor : Color.White);
+            cursorY += 44;
+
+            float y = ToScreenY(cursorY);
+            float buttonWidth = (RightEdge - LabelX - 10) / 2f;
+            if (Gui.Button(new Rectangle(LabelX, y, buttonWidth, 40), "曲の一覧を更新") && !SongList.IsScanning)
+            {
+                SongList.StartScan();
+                ShowMessage("曲を読み込み直しています", SuccessColor);
+            }
+            if (Gui.Button(new Rectangle(LabelX + buttonWidth + 10, y, buttonWidth, 40), "Songs フォルダを開く"))
+            {
+                OpenSongsFolder();
+            }
+            cursorY += 52;
+            NoteRow("※ 曲を入れたり消したりしたら［曲の一覧を更新］を押してください");
+        }
+
+        // Songs フォルダをエクスプローラーで開く(無ければ作る)
+        private static void OpenSongsFolder()
+        {
+            try
+            {
+                Directory.CreateDirectory(SongList.SongsFolder);
+                Process.Start(new ProcessStartInfo { FileName = SongList.SongsFolder, UseShellExecute = true });
+            }
+            catch (Exception ex) when (ex is IOException || ex is UnauthorizedAccessException || ex is System.ComponentModel.Win32Exception)
+            {
+                Console.WriteLine($"[Songs] フォルダを開けませんでした: {ex.Message}");
+            }
         }
 
         private void DrawWindowSection()

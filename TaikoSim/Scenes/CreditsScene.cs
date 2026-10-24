@@ -5,7 +5,7 @@ using TaikoSim.UI;
 
 namespace TaikoSim.Scenes
 {
-    // クレジット画面(ホームから開く)。ライセンスの全文は THIRD-PARTY-NOTICES.txt(exe と同じフォルダ)にある
+    // クレジット画面(モード選択から開く)。ライセンスの全文は THIRD-PARTY-NOTICES.txt(exe と同じフォルダ)にある
     public sealed class CreditsScene : Scene
     {
         private const float Left = 80f, Top = 150f, LineHeight = 38f;
@@ -71,7 +71,7 @@ namespace TaikoSim.Scenes
                 OnBack();
         }
 
-        public override void OnBack() => SceneManager.ChangeScene(new HomeScene());
+        public override void OnBack() => SceneManager.ChangeScene(new ModeSelectScene());
 
         public override void Draw()
         {

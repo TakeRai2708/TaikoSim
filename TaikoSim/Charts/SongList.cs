@@ -23,6 +23,12 @@ namespace TaikoSim.Charts
         // 読み込めなかったときの理由(読めたら空)
         public string Error { get; init; } = "";
 
+        // .tja の更新日時(UTC の Ticks。「最近追加された曲」に使う。取れなかったら 0)
+        public long WriteTime { get; init; }
+
+        // Songs フォルダから見た .tja の場所(遊んだ曲・お気に入りの記録に使う)
+        public string Key => Path.GetRelativePath(SongList.SongsFolder, TjaPath);
+
         public bool HasError => Error.Length > 0;
 
         // 検索用の文字(曲名・サブタイトル・フォルダ名をまとめて、検索しやすい形にしたもの)
@@ -389,11 +395,12 @@ namespace TaikoSim.Charts
                     Subtitle = item.Subtitle,
                     Courses = item.Courses.Select(c => (c.Type, c.Level)).ToList(),
                     Error = item.Error,
+                    WriteTime = writeTime,
                 };
             }
 
             // ----- 読み直す -----
-            SongEntry entry = ReadEntry(tja, relativeFolder);
+            SongEntry entry = ReadEntry(tja, relativeFolder, writeTime);
             if (size >= 0 && entry.Error != ReadFailedMessage)
             {
                 newItem = new SongCacheItem
@@ -411,7 +418,7 @@ namespace TaikoSim.Charts
         }
 
         // .tja を1つ読んで、一覧に出す情報だけ取り出す
-        private static SongEntry ReadEntry(string tja, string relativeFolder)
+        private static SongEntry ReadEntry(string tja, string relativeFolder, long writeTime)
         {
             try
             {
@@ -427,6 +434,7 @@ namespace TaikoSim.Charts
                         .Select(c => (c.Type, c.Level))
                         .ToList(),
                     Error = chart.Courses.Count == 0 ? "譜面（#START〜#END）がありません" : "",
+                    WriteTime = writeTime,
                 };
             }
             catch (Exception ex)
@@ -439,6 +447,7 @@ namespace TaikoSim.Charts
                     RelativeFolder = relativeFolder,
                     Title = Path.GetFileNameWithoutExtension(tja),
                     Error = ReadFailedMessage,
+                    WriteTime = writeTime,
                 };
             }
         }

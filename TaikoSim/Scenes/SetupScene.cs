@@ -214,7 +214,7 @@ namespace TaikoSim.Scenes
         private void Finish()
         {
             ConfigManager.SaveAll();
-            SceneManager.ChangeScene(new HomeScene());
+            SceneManager.ChangeScene(new ModeSelectScene());
         }
 
         // ===== 描画 =====
@@ -476,7 +476,7 @@ namespace TaikoSim.Scenes
 
             KeyboardKey settingsKey = ConfigManager.Key.SystemKeys.GetValueOrDefault(SystemAction.Settings, KeyboardKey.F1);
             FontManager.Draw($"設定はいつでも {settingsKey} で変更できます。", Left, y, 30, Gui.AccentColor);
-            FontManager.Draw("「はじめる」を押すとホーム画面に進みます。", Left, y + 46, 26, Gui.SubTextColor);
+            FontManager.Draw("「はじめる」を押すとモード選択の画面に進みます。", Left, y + 46, 26, Gui.SubTextColor);
         }
 
         // ページの大きいタイトル

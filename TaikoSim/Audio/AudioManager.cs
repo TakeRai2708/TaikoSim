@@ -79,8 +79,12 @@ namespace TaikoSim.Audio
         // ===== 起動・作り直し =====
 
         // 起動時に1回呼ぶ(ウィンドウを作った後)。設定(SoundConfig)の方式で準備する
+        // 音を準備し直すたびに 1 増える(前に読み込んだ音が使えなくなったことに気づくため。メニューの音・選曲画面のプレビュー)
+        public static int Generation { get; private set; } = 0;
+
         public static void Init()
         {
+            Generation++;
             SoundConfig sound = ConfigManager.Sound;
             AudioOutputType wanted = sound.OutputType;
             int bufferMs = GetBufferMs(sound, wanted);

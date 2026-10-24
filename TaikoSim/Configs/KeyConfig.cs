@@ -21,6 +21,7 @@ namespace TaikoSim.Configs
         QuickOption,   // クイックオプション
         Screenshot,    // スクリーンショット(どこでも反応)
         Search,        // 曲を検索(選曲画面)
+        Favorite,      // お気に入りに入れる/外す(選曲画面)
     }
 
     // キー配置の設定
@@ -55,6 +56,7 @@ namespace TaikoSim.Configs
             { SystemAction.QuickOption, KeyboardKey.F2 },
             { SystemAction.Screenshot, KeyboardKey.F11 }, // F12はVSのデバッグ中に一時停止キーになるので避ける
             { SystemAction.Search, KeyboardKey.F3 },
+            { SystemAction.Favorite, KeyboardKey.F4 },
         };
 
         // システムキーがかぶったときに、代わりに使う空きキーの候補
@@ -108,6 +110,7 @@ namespace TaikoSim.Configs
             SystemAction.QuickOption => "クイックオプション",
             SystemAction.Screenshot => "スクリーンショット",
             SystemAction.Search => "検索",
+            SystemAction.Favorite => "お気に入り",
             _ => action.ToString(),
         };
 
