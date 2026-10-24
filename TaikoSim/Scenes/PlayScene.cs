@@ -160,6 +160,10 @@ namespace TaikoSim.Scenes
         // F3で演奏情報とログの表示を切り替える。リスタートしても選択を保つ。
         // 診断の収集・判定・打音は、表示のON/OFFに関係なく従来どおり動かす。
         private bool showDebugInfo;
+
+        // 判定と音符に使う「音オフセット」。設定の値に、BASS の効果音の遅れの分(AudioManager.HitSoundLagMs)を足したもの
+        //   マイナスほど早くなる(設定の音オフセットと同じ向き)
+        private static double AudioOffsetMs => ConfigManager.Game.AudioOffsetMs - AudioManager.HitSoundLagMs;
         private bool showDiagnostics; // F8：入力診断を出すか(記録は「CSV自動保存」が ON のときも行う)
         private const int InputLogCount = 8;
 
@@ -571,7 +575,7 @@ namespace TaikoSim.Scenes
 
             // ゴーゴーの演出は見た目なので、音符と同じ時間(譜面オフセット込み)で見る
             // 分岐のある譜面は、今の分岐のゴーゴーだけを見る
-            if (course != null) effects.SetGoGo(course.IsGoGoAt(nowMs - ConfigManager.Game.AudioOffsetMs - ConfigManager.Game.ChartOffsetMs,
+            if (course != null) effects.SetGoGo(course.IsGoGoAt(nowMs - AudioOffsetMs - ConfigManager.Game.ChartOffsetMs,
                 branches.IsActive));
             background.Update(dt, stats.IsClear);
             scoreRank.Update(dt, stats);
@@ -583,7 +587,7 @@ namespace TaikoSim.Scenes
         private void UpdateEnd(float dt)
         {
             if (course == null) return;
-            double gameMs = nowMs - ConfigManager.Game.AudioOffsetMs;
+            double gameMs = nowMs - AudioOffsetMs;
 
             if (!end.Started)
             {
@@ -703,7 +707,7 @@ namespace TaikoSim.Scenes
             if (popTimer > 0f) popTimer -= dt;
             if (course == null) return;
 
-            double gameMs = nowMs - ConfigManager.Game.AudioOffsetMs;
+            double gameMs = nowMs - AudioOffsetMs;
             // ここで基準時刻をとる。Windows側のコールバック発生からの経過を引いて、
             // 「押下した時点の譜面時刻」を推定する（物理スイッチの瞬間ではない）。
             long frameClockAt = Stopwatch.GetTimestamp();
@@ -1218,7 +1222,7 @@ namespace TaikoSim.Scenes
         private void StartFlyingNote(bool don, bool big, double hitMs)
         {
             // 入力やオートをまとめて処理したフレームでも、本来の打鍵時刻から飛ばす。
-            float age = (float)Math.Max(0, (nowMs - ConfigManager.Game.AudioOffsetMs - hitMs) / 1000.0);
+            float age = (float)Math.Max(0, (nowMs - AudioOffsetMs - hitMs) / 1000.0);
             effects.StartFlyingNote(don, big, age);
         }
 
@@ -1333,7 +1337,7 @@ namespace TaikoSim.Scenes
             if (!IsBalloonNote(note) || balloonPopped[index]) return false;
             if (SkinManager.GetTexture(BalloonAnimeImage) == null) return false;
 
-            double gameMs = nowMs - ConfigManager.Game.AudioOffsetMs;
+            double gameMs = nowMs - AudioOffsetMs;
             return gameMs < note.EndTimeMs;
         }
 
@@ -1369,7 +1373,7 @@ namespace TaikoSim.Scenes
             }
 
             // 音オフセット(判定ごとずらす)と譜面オフセット(見た目だけずらす)。どちらもマイナスで早く来る
-            double gameMs = nowMs - ConfigManager.Game.AudioOffsetMs;
+            double gameMs = nowMs - AudioOffsetMs;
             double viewMs = gameMs - ConfigManager.Game.ChartOffsetMs;
 
             // システムのスキンのときは背景を描かない(背景のアニメは画像を先に持っているので)
@@ -1947,7 +1951,8 @@ namespace TaikoSim.Scenes
                 : AudioManager.Mixer != 0
                     ? $"まだ鳴っていない量 平均 {latencyAverageMs:0.0} ms（曲の位置から引いている）"
                     : $"機器の遅れ {latencyAverageMs:0.0} ms・バッファ {AudioManager.BassBufferMs} ms（曲の位置からは引いていない）";
-            Line($"出力 {AudioManager.GetTypeName(AudioManager.CurrentType)}　{latencyText}", Color.White);
+            string lagText = AudioManager.HitSoundLagMs > 0 ? $"　効果音の遅れ補正 -{AudioManager.HitSoundLagMs:0.0} ms" : "";
+            Line($"出力 {AudioManager.GetTypeName(AudioManager.CurrentType)}　{latencyText}{lagText}", Color.White);
             Line($"入力 {DrumInputScheduler.ModeName(ConfigManager.Game.InputTiming)} / 60打制限 {(ConfigManager.Game.LimitDrumHitsTo60PerSecond ? "ON" : "OFF")}",
                 Color.SkyBlue);
 
