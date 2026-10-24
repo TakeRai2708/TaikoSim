@@ -157,9 +157,37 @@ namespace TaikoSim.Scenes
             wasScanning = true;
         }
 
+        // 曲名などの文字をまとめて読み込んだ一覧(一覧が新しくなったら、もう一度読む)
+        private static List<SongCategory>? preloadedCategories;
+
+        // 一覧に出る文字(曲名・サブタイトル・エラー・カテゴリ名)を、まとめて先に読み込む
+        //   スクロールで新しい曲名が一度にたくさん出ても、その場で文字を読み込まなくていいように
+        private static void PreloadListText()
+        {
+            List<SongCategory> categories = SongList.Categories;
+            if (SongList.IsScanning || ReferenceEquals(categories, preloadedCategories)) return;
+            preloadedCategories = categories;
+
+            IEnumerable<string> Texts()
+            {
+                foreach (SongCategory category in categories)
+                {
+                    yield return category.Title;
+                    foreach (SongEntry song in category.Songs)
+                    {
+                        yield return song.Title;
+                        yield return song.Subtitle;
+                        yield return song.Error;
+                    }
+                }
+            }
+            FontManager.Preload(Texts());
+        }
+
         public override void Update(float dt)
         {
             caretTimer += dt;
+            PreloadListText();
 
             // 曲を読み込み中は、読み終わるまで操作できない(Esc でホームに戻るのはOK)
             // ※新しい一覧への入れ替えは、Game がこの画面より先に SongList.Update() でやっている

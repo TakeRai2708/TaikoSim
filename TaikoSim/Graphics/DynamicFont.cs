@@ -128,6 +128,37 @@ namespace TaikoSim.Graphics
             return new Vector2(maxWidth, lines * size + (lines - 1) * LineGap);
         }
 
+        // たくさんの文字列の文字を、まとめて先に読み込んでおく(選曲画面の曲名など)
+        //   描くときに1つずつページを足すと、新しい文字が一度にたくさん出たときに止まってしまうため
+        //   1ページが大きくなりすぎないように、PreloadChunk 文字ずつに分けて読む
+        private const int PreloadChunk = 1000;
+
+        public void Preload(IEnumerable<string> texts)
+        {
+            HashSet<int> missing = new();
+            foreach (string text in texts)
+            {
+                foreach (Rune rune in text.EnumerateRunes())
+                {
+                    int codepoint = rune.Value;
+                    if (codepoint >= 0x20 && !glyphs.ContainsKey(codepoint)) missing.Add(codepoint);
+                }
+            }
+            if (missing.Count == 0) return;
+
+            var watch = System.Diagnostics.Stopwatch.StartNew();
+            int[] all = missing.OrderBy(c => c).ToArray();
+            for (int i = 0; i < all.Length; i += PreloadChunk)
+            {
+                int[] chunk = all[i..Math.Min(all.Length, i + PreloadChunk)];
+                if (!AddPage(chunk))
+                {
+                    foreach (int codepoint in chunk) glyphs[codepoint] = (-1, 0f);
+                }
+            }
+            Console.WriteLine($"[Font] {all.Length}文字をまとめて読み込みました（{watch.ElapsedMilliseconds} ms、ページ {pages.Count}）");
+        }
+
         // まだ読み込んでいない文字があったら、その文字だけのページを足す
         private void EnsureGlyphs(string text)
         {
@@ -156,7 +187,11 @@ namespace TaikoSim.Graphics
         {
             if (codepoints.Length == 0) return true;
 
+            var watch = System.Diagnostics.Stopwatch.StartNew();
             Font page = Raylib.LoadFontFromMemory(fileType, fileData, BaseSize, codepoints, codepoints.Length);
+            // 重かったときは記録しておく(止まる原因を調べるため)
+            if (watch.ElapsedMilliseconds >= 30)
+                Console.WriteLine($"[Font] ページを1枚足すのに {watch.ElapsedMilliseconds} ms（{codepoints.Length}文字、ページ {pages.Count + 1}）");
 
             // 読み込みに失敗すると、Raylib は標準フォントを返すので、それで判定する
             if (page.Texture.Id == 0 || page.Texture.Id == Raylib.GetFontDefault().Texture.Id)
