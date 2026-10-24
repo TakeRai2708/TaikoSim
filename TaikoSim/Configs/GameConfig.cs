@@ -87,6 +87,12 @@
         // オートの良・可・不可の出方を、同じ曲・同じ難易度・同じ割合なら毎回同じにするか(false なら毎回ランダム)
         public bool AutoFixedPattern { get; set; } = false;
 
+        // 演奏画面の左下に、良・可・不可・連打数の板を出すか
+        public bool ShowScoreboard { get; set; } = true;
+
+        // 入力診断の CSV を、1曲遊び終わるたびに自動で保存するか(Logs フォルダに「曲名_日付時間.csv」)
+        public bool AutoSaveInputCsv { get; set; } = false;
+
         // FPSを表示するか
         public bool ShowFps { get; set; } = true;
 

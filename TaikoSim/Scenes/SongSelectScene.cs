@@ -40,7 +40,7 @@ namespace TaikoSim.Scenes
 
         // 演奏オプションは右端にそろえて、曲一覧より手前に描く。
         private static readonly Rectangle OptionsButton = new Rectangle(1784, 60, 56, 56);
-        private static readonly Rectangle OptionsMenu = new Rectangle(1510, 124, 330, 474);
+        private static readonly Rectangle OptionsMenu = new Rectangle(1510, 124, 330, 580);
         private static readonly Rectangle AutoPlayItem = new Rectangle(1520, 134, 310, 62);
         private static readonly Rectangle HiSpeedBox = new Rectangle(1634, 210, 184, 52);
         private bool optionsOpen;
@@ -71,6 +71,10 @@ namespace TaikoSim.Scenes
                 Get = () => ConfigManager.Game.AutoBadPercent, Set = v => ConfigManager.Game.AutoBadPercent = v },
         };
         private static readonly Rectangle AutoFixedItem = new Rectangle(1520, 544, 310, 44);
+        // 「表示・記録」の2つ(オートの項目と分けるため、少しすき間をあけて線を引く)
+        private const float DisplaySectionY = 596;
+        private static readonly Rectangle ScoreboardItem = new Rectangle(1520, 602, 310, 44);
+        private static readonly Rectangle AutoSaveCsvItem = new Rectangle(1520, 650, 310, 44);
 
         // HS倍率を変えているときに、歯車の左上に出す印の色
         private static readonly Color HiSpeedMarkColor = new Color(90, 200, 255, 255);
@@ -773,19 +777,32 @@ namespace TaikoSim.Scenes
                 percentInvalid ? ErrorColor : Gui.SubTextColor);
 
             // 毎回同じ出方にするか
-            bool fixedPattern = ConfigManager.Game.AutoFixedPattern;
-            bool overFixed = Raylib.CheckCollisionPointRec(mouse, AutoFixedItem);
-            if (overFixed) Raylib.DrawRectangleRec(AutoFixedItem, Gui.BoxHoverColor);
-            if (pressed && overFixed)
+            GameConfig game = ConfigManager.Game;
+            ToggleItem(AutoFixedItem, "毎回同じ出方", game.AutoFixedPattern, mouse, pressed, v => game.AutoFixedPattern = v);
+
+            // 表示・記録
+            Raylib.DrawLineEx(new Vector2(OptionsMenu.X + 12, DisplaySectionY),
+                new Vector2(OptionsMenu.X + OptionsMenu.Width - 12, DisplaySectionY), 1, Gui.SubTextColor);
+            ToggleItem(ScoreboardItem, "良・可・不可の板", game.ShowScoreboard, mouse, pressed, v => game.ShowScoreboard = v);
+            ToggleItem(AutoSaveCsvItem, "入力診断CSV保存", game.AutoSaveInputCsv, mouse, pressed, v => game.AutoSaveInputCsv = v);
+            if (pressed && !Raylib.CheckCollisionPointRec(mouse, OptionsMenu)) optionsOpen = false;
+        }
+
+        // ON/OFF の項目。クリックされたら set で新しい値を入れてから保存する
+        private static void ToggleItem(Rectangle area, string label, bool value, Vector2 mouse, bool pressed, Action<bool> set)
+        {
+            bool over = Raylib.CheckCollisionPointRec(mouse, area);
+            if (over) Raylib.DrawRectangleRec(area, Gui.BoxHoverColor);
+            if (pressed && over)
             {
-                ConfigManager.Game.AutoFixedPattern = fixedPattern = !fixedPattern;
+                value = !value;
+                set(value);
                 ConfigManager.SaveAll();
             }
-            FontManager.Draw("毎回同じ出方", AutoFixedItem.X + 4, AutoFixedItem.Y + 10, 22, Color.White);
-            Gui.DrawCentered(fixedPattern ? "ON" : "OFF",
-                new Rectangle(AutoFixedItem.X + 220, AutoFixedItem.Y, 76, AutoFixedItem.Height),
-                24, fixedPattern ? Color.Lime : Gui.SubTextColor);
-            if (pressed && !Raylib.CheckCollisionPointRec(mouse, OptionsMenu)) optionsOpen = false;
+            FontManager.Draw(label, area.X + 4, area.Y + 10, 22, Color.White);
+            Gui.DrawCentered(value ? "ON" : "OFF",
+                new Rectangle(area.X + 220, area.Y, 76, area.Height),
+                24, value ? Color.Lime : Gui.SubTextColor);
         }
 
         private void ResetHiSpeedInput()

@@ -200,7 +200,7 @@ namespace TaikoSim.Graphics
         // relativePath はスキンフォルダからの場所。区切りは「/」
         public static Texture2D? GetTexture(string relativePath)
         {
-            if (CurrentPath == null) return null;
+            if (CurrentPath == null || SystemSkin) return null;
 
             if (textures.TryGetValue(relativePath, out Texture2D? cached))
             {
@@ -214,8 +214,13 @@ namespace TaikoSim.Graphics
         }
 
         // 画像を真っ白にしたもの(透明なところはそのまま)。元の画像が無ければ null
+        // テスト用：true の間は、スキンの画像を全部「無い」ことにする(TaikoSim が自分で描く見た目になる)
+        //   読み込んだ画像は捨てないので、false に戻すとすぐ元のスキンに戻る
+        public static bool SystemSkin { get; set; }
+
         public static Texture2D? GetWhiteTexture(string relativePath)
         {
+            if (SystemSkin) return null;
             if (whiteTextures.TryGetValue(relativePath, out Texture2D? cached)) return cached;
             Texture2D? result = null;
             if (GetTexture(relativePath) is Texture2D source)
@@ -245,10 +250,10 @@ namespace TaikoSim.Graphics
             return true;
         }
 
-        public static Texture2D? GetSoulExplosionDot() => soulExplosionDot;
+        public static Texture2D? GetSoulExplosionDot() => SystemSkin ? null : soulExplosionDot;
 
         public static Texture2D? GetGaugeGlowCell(int lightColumn) =>
-            lightColumn >= 0 && lightColumn < gaugeGlowCells.Length ? gaugeGlowCells[lightColumn] : null;
+            !SystemSkin && lightColumn >= 0 && lightColumn < gaugeGlowCells.Length ? gaugeGlowCells[lightColumn] : null;
 
         private static void PrepareSoulExplosionDot()
         {

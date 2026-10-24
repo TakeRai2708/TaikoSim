@@ -25,6 +25,9 @@
 	</ItemGroup>
 
 	<ItemGroup>
+		<None Update="THIRD-PARTY-NOTICES.txt">
+			<CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory>
+		</None>
 		<None Update="Assets\Fonts\NotoSansJP-Regular.ttf">
 			<CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory>
 		</None>

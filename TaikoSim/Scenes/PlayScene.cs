@@ -73,6 +73,16 @@ namespace TaikoSim.Scenes
         private readonly BranchTracker branches = new();
         private readonly BranchLane branchLane = new();
 
+        // ===== 音合わせのテスト(F10) =====
+        //   0：いつもの見た目  1：いつもの見た目＋ガイド  2：システムのスキン(スキンの画像を使わない)＋ガイド
+        //   ガイド：判定枠の中心の線(黄)、±25ms(良・緑)・±75ms(可・橙)・±108ms(不可・赤)の目盛り、音符の中心の線(水色)
+        private int testView;
+        private static readonly Color GuideCenterColor = new Color(255, 230, 0, 255);
+        private static readonly Color GuideGoodColor = new Color(80, 230, 120, 255);
+        private static readonly Color GuideOkColor = new Color(255, 160, 40, 255);
+        private static readonly Color GuideBadColor = new Color(255, 70, 70, 255);
+        private static readonly Color GuideNoteColor = new Color(80, 220, 255, 255);
+
         // 良・可・不可・連打数の板(左下)
         private readonly PlayScoreboard scoreboard = new();
 
@@ -150,6 +160,7 @@ namespace TaikoSim.Scenes
         // F3で演奏情報とログの表示を切り替える。リスタートしても選択を保つ。
         // 診断の収集・判定・打音は、表示のON/OFFに関係なく従来どおり動かす。
         private bool showDebugInfo;
+        private bool showDiagnostics; // F8：入力診断を出すか(記録は「CSV自動保存」が ON のときも行う)
         private const int InputLogCount = 8;
 
         // ログ1行分
@@ -165,7 +176,7 @@ namespace TaikoSim.Scenes
         private readonly List<InputLogEntry> inputLog = new();
         private long frameCount = 0;
 
-        // ===== 入力診断（F8で表示切替、F9でCSV保存。未割り当て時だけ） =====
+        // ===== 入力診断（F8で表示切替。未割り当て時だけ。CSVは選曲画面のオプションで自動保存） =====
         // この段階では入力判定の時計やキー取得方式は一切変更しない。
         private readonly InputDiagnostics diagnostics = new();
         // Windowsの入力時刻も記録する。ゲームの判定・打音は今までどおりRaylib側で行う。
@@ -354,6 +365,7 @@ namespace TaikoSim.Scenes
             // 演奏画面から離れたら必ずWindowsフックを解除する。
             windowsInput.Dispose();
             StopSong();
+            SkinManager.SystemSkin = false; // ほかの画面は、いつものスキンで
         }
 
         // スキンの Sound フォルダから、ドン・カッの音を読み込む(無ければ音なし)
@@ -496,6 +508,7 @@ namespace TaikoSim.Scenes
             judgeTimer = 0f;
             inputLog.Clear();
             diagnostics.Reset();
+            UpdateDiagnosticsRecording();
             windowsInput.Reset();
             inputScheduler.Reset();
             diagnosticMessage = "";
@@ -625,6 +638,7 @@ namespace TaikoSim.Scenes
         private void FinishPlay()
         {
             StopSong();
+            if (ConfigManager.Game.AutoSaveInputCsv) SaveDiagnosticCsv();
             PlayResultData data = new()
             {
                 Title = chart?.Title ?? "",
@@ -708,14 +722,22 @@ namespace TaikoSim.Scenes
                     showDebugInfo = !showDebugInfo;
                     SetDiagnosticMessage(showDebugInfo ? "デバッグ表示：ON（F3で切替）" : "デバッグ表示：OFF（F3で切替）");
                 }
+                else if (pressed == KeyboardKey.F10 && IsFreeInPlay(KeyboardKey.F10))
+                {
+                    testView = (testView + 1) % 3;
+                    SkinManager.SystemSkin = testView == 2;
+                    SetDiagnosticMessage(testView switch
+                    {
+                        0 => "見た目：いつものスキン（F10で切替）",
+                        1 => "見た目：いつものスキン＋ガイド（F10で切替）",
+                        _ => "見た目：システムのスキン＋ガイド（F10で切替）",
+                    });
+                }
                 else if (pressed == KeyboardKey.F8 && IsFreeInPlay(KeyboardKey.F8))
                 {
-                    diagnostics.Enabled = !diagnostics.Enabled;
-                    SetDiagnosticMessage(diagnostics.Enabled ? "入力診断：ON" : "入力診断：OFF");
-                }
-                else if (pressed == KeyboardKey.F9 && IsFreeInPlay(KeyboardKey.F9))
-                {
-                    SaveDiagnosticCsv();
+                    showDiagnostics = !showDiagnostics;
+                    UpdateDiagnosticsRecording();
+                    SetDiagnosticMessage(showDiagnostics ? "入力診断：ON（F3 の表示も ON のときに出ます）" : "入力診断：OFF");
                 }
                 else if (pressed == KeyboardKey.F6 && IsFreeInPlay(KeyboardKey.F6))
                 {
@@ -760,7 +782,7 @@ namespace TaikoSim.Scenes
             AdvanceTo(gameMs);
         }
 
-        // 演奏画面で F3・F6〜F9 を使ってよいか(叩くキーやほかの役割と重なっていないか)
+        // 演奏画面で F3・F6〜F8・F10 を使ってよいか(叩くキーやほかの役割と重なっていないか)
         //   「検索」は選曲画面でしか使わないので、F3 が検索に割り当てられていても演奏画面では使う
         private static bool IsFreeInPlay(KeyboardKey key)
         {
@@ -983,18 +1005,35 @@ namespace TaikoSim.Scenes
             diagnosticMessageTimer = 4f;
         }
 
+        // 記録するのは「F8 で表示中」か「CSV自動保存が ON」のとき
+        private void UpdateDiagnosticsRecording()
+        {
+            diagnostics.Enabled = showDiagnostics || ConfigManager.Game.AutoSaveInputCsv;
+        }
+
+        // ファイル名：曲名_日付時間.csv(ファイル名に使えない文字は _ にする)
+        private string DiagnosticCsvName()
+        {
+            string title = (chart?.Title ?? "").Trim();
+            if (title.Length == 0) title = "InputDiag";
+            char[] invalid = Path.GetInvalidFileNameChars();
+            title = new string(title.Select(c => invalid.Contains(c) ? '_' : c).ToArray()).TrimEnd('.', ' ');
+            if (title.Length > 80) title = title[..80];
+            return $"{title}_{DateTime.Now:yyyyMMdd_HHmmss}.csv";
+        }
+
         private void SaveDiagnosticCsv()
         {
             if (diagnostics.RowCount == 0)
             {
-                SetDiagnosticMessage("保存する診断データがありません（F8で診断をONにしてください）");
+                Console.WriteLine("[入力診断] 保存する記録がないので、CSV は作りませんでした");
                 return;
             }
             try
             {
                 string folder = Path.Combine(AppContext.BaseDirectory, "Logs");
                 Directory.CreateDirectory(folder);
-                string name = $"InputDiag_{DateTime.Now:yyyyMMdd_HHmmss_fff}.csv";
+                string name = DiagnosticCsvName();
                 string saved = diagnostics.SaveCsv(Path.Combine(folder, name));
                 SetDiagnosticMessage($"入力診断CSV保存：Logs/{Path.GetFileName(saved)}");
                 Console.WriteLine($"[入力診断] CSV保存：{saved}");
@@ -1333,7 +1372,8 @@ namespace TaikoSim.Scenes
             double gameMs = nowMs - ConfigManager.Game.AudioOffsetMs;
             double viewMs = gameMs - ConfigManager.Game.ChartOffsetMs;
 
-            background.Draw();
+            // システムのスキンのときは背景を描かない(背景のアニメは画像を先に持っているので)
+            if (!SkinManager.SystemSkin) background.Draw();
             DrawLane();
             branchLane.Draw(LaneX, LaneY); // 分岐のレーンの色(普通譜面なら何も描かない)
             branchLane.DrawText();         // 「普通譜面・玄人譜面・達人譜面」(分岐のある譜面だけ)
@@ -1356,6 +1396,9 @@ namespace TaikoSim.Scenes
             // 叩いている途中の風船(ふくらむ絵。音符の絵の上に描く)
             DrawBalloonAnime(gameMs);
 
+            // 音合わせのガイド(音符より手前、左のパネルより後ろ)
+            if (testView > 0) DrawGuides(chart, course, viewMs);
+
             // 左のパネル(判定枠を通りすぎた音符はこの下に隠れる)
             if (!SkinManager.Draw(PanelImage, 0, LaneY))
             {
@@ -1376,7 +1419,7 @@ namespace TaikoSim.Scenes
             hud.DrawSongTitle();
             branchLane.DrawPopup();  // 「レベルアップ／レベルダウン」
             scoreboard.Set(goodCount, okCount, badCount, totalRollHits);
-            scoreboard.Draw();       // 良・可・不可・連打数(左下)
+            if (ConfigManager.Game.ShowScoreboard) scoreboard.Draw(); // 良・可・不可・連打数(左下。選曲画面のオプションで消せる)
             scoreRank.Draw();    // 粋・雅・極
             end.Draw();          // 演奏後の演出(クリア成功・フルコンボなど)
             if (autoPlay)
@@ -1388,7 +1431,7 @@ namespace TaikoSim.Scenes
             {
                 DrawInfo(chart, course);
                 if (ShowInputLog) DrawInputLog();
-                if (diagnostics.Enabled) DrawInputDiagnostics();
+                if (showDiagnostics) DrawInputDiagnostics();
             }
             if (diagnosticMessageTimer > 0f)
                 FontManager.Draw(diagnosticMessage, InfoX, InfoTop - 34, 22, Color.SkyBlue);
@@ -1402,24 +1445,34 @@ namespace TaikoSim.Scenes
         }
 
         // 入力処理と音声同期の診断（判定や打音には影響しない）
+        // F3 の板(左下)の真上に積む。レーンの下(y 540)から、F3 の板の上のメッセージ(y 836)の間に収める
+        private const float DiagLine = 22f, DiagSize = 18f;
+        private const float DiagTop = 548f;
+
         private void DrawInputDiagnostics()
         {
-            const float x = 35f;
-            const float y = 727f;
-            const float size = 23f;
-            Raylib.DrawRectangle(25, (int)y - 7, 1120, 369, new Color(0, 0, 0, 195));
-            FontManager.Draw("入力診断：F8 表示切替 / F9 CSV保存", x, y, 25, Color.SkyBlue);
-            FontManager.Draw($"記録：入力 {diagnostics.InputCount}回 / データ {diagnostics.RowCount}行", x, y + 35, size, Color.White);
-            FontManager.Draw($"直近0.25秒の最大フレーム時間：{diagnostics.RecentMaxFrameMs:0.###} ms", x, y + 66, size, Color.White);
-            FontManager.Draw($"直近の音声・画面ズレ：{InputDiagnostics.FormatMs(diagnostics.LatestSyncErrorMs)}", x, y + 97, size, Color.White);
-            FontManager.Draw($"直近0.25秒の最大時計補正：{diagnostics.RecentMaxCorrectionMs:+0.###;-0.###;0} ms", x, y + 128, size, Color.White);
-            FontManager.Draw($"出力遅延の推定（ミキサー時）：{InputDiagnostics.FormatMs(diagnostics.LatestOutputEstimateMs)}", x, y + 159, size, Color.White);
-            FontManager.Draw($"直近の入力処理：{InputDiagnostics.FormatMs(diagnostics.LastInputHandlingMs)}", x, y + 190, 20, Color.LightGray);
-            FontManager.Draw($"Windows：押下 {diagnostics.WindowsDownCount} / 解放 {diagnostics.WindowsUpCount} / リピート {diagnostics.WindowsRepeatCount}", x, y + 220, 20, Color.White);
-            FontManager.Draw($"Raylibとの照合：一致 {diagnostics.NativeMatchedCount} / 未照合 {diagnostics.NativeUnmatchedCount} / バッファ超過 {windowsInput.DroppedEvents}", x, y + 249, 20, Color.White);
-            FontManager.Draw($"Windows→Raylib：{InputDiagnostics.FormatMs(diagnostics.LastNativeToRaylibMs)}（OS時刻の概算） / {windowsInput.Status}", x, y + 277, 18, Color.LightGray);
-            FontManager.Draw($"判定：{DrumInputScheduler.ModeName(ConfigManager.Game.InputTiming)}  /  60打/秒制限：{(ConfigManager.Game.LimitDrumHitsTo60PerSecond ? "ON" : "OFF")}", x, y + 304, 20, Color.White);
-            FontManager.Draw($"処理待ち：{inputScheduler.PendingCount}打　最終入力：{InputDiagnostics.FormatMs(diagnostics.LastScheduledWaitMs)} 待機", x, y + 332, 19, Color.LightGray);
+            float x = InfoX;
+            float y = DiagTop;
+            Raylib.DrawRectangle((int)InfoX - 10, (int)DiagTop - 8, 1000, (int)(DiagLine * 12 + 12), InfoPanelColor);
+            void Line(string text, Color color)
+            {
+                FontManager.Draw(text, x, y, DiagSize, color);
+                y += DiagLine;
+            }
+
+            string autoSave = ConfigManager.Game.AutoSaveInputCsv ? "曲が終わったら CSV を自動保存" : "CSV 自動保存：OFF（選曲画面のオプション）";
+            Line($"入力診断（F8 で切替）　{autoSave}", Color.SkyBlue);
+            Line($"記録：入力 {diagnostics.InputCount}回 / データ {diagnostics.RowCount}行", Color.White);
+            Line($"直近0.25秒の最大フレーム時間：{diagnostics.RecentMaxFrameMs:0.###} ms", Color.White);
+            Line($"直近の音声・画面ズレ：{InputDiagnostics.FormatMs(diagnostics.LatestSyncErrorMs)}", Color.White);
+            Line($"直近0.25秒の最大時計補正：{diagnostics.RecentMaxCorrectionMs:+0.###;-0.###;0} ms", Color.White);
+            Line($"出力遅延の推定（ミキサー時）：{InputDiagnostics.FormatMs(diagnostics.LatestOutputEstimateMs)}", Color.White);
+            Line($"直近の入力処理：{InputDiagnostics.FormatMs(diagnostics.LastInputHandlingMs)}", Color.LightGray);
+            Line($"Windows：押下 {diagnostics.WindowsDownCount} / 解放 {diagnostics.WindowsUpCount} / リピート {diagnostics.WindowsRepeatCount}", Color.White);
+            Line($"Raylibとの照合：一致 {diagnostics.NativeMatchedCount} / 未照合 {diagnostics.NativeUnmatchedCount} / バッファ超過 {windowsInput.DroppedEvents}", Color.White);
+            Line($"Windows→Raylib：{InputDiagnostics.FormatMs(diagnostics.LastNativeToRaylibMs)}（OS時刻の概算） / {windowsInput.Status}", Color.LightGray);
+            Line($"判定：{DrumInputScheduler.ModeName(ConfigManager.Game.InputTiming)}  /  60打/秒制限：{(ConfigManager.Game.LimitDrumHitsTo60PerSecond ? "ON" : "OFF")}", Color.White);
+            Line($"処理待ち：{inputScheduler.PendingCount}打　最終入力：{InputDiagnostics.FormatMs(diagnostics.LastScheduledWaitMs)} 待機", Color.LightGray);
         }
 
         // ===== 連打・風船の表示 =====
@@ -1663,8 +1716,48 @@ namespace TaikoSim.Scenes
             const float frameX = JudgeX + 1f;
             if (!SkinManager.Draw(JudgeFrameImage, frameX - NoteHalf, NoteY - NoteHalf))
             {
-                Raylib.DrawRing(new Vector2(frameX, NoteY), 44, 50, 0, 360, 48, Color.LightGray);
+                // 画像が無いとき(システムのスキン)は、本当の判定の場所(JudgeX)に描く
+                Raylib.DrawRing(new Vector2(JudgeX, NoteY), 44, 50, 0, 360, 48, Color.LightGray);
             }
+        }
+
+        // 音合わせのガイド
+        //   ・判定枠の中心(この時刻ちょうどに叩くと ±0ms)に黄色の線
+        //   ・判定の幅の目盛り(今のBPM・SCROLL 1・HS倍率で、何ms が何px になるか)
+        //   ・流れてくる音符の中心に水色の線(判定枠の画像の中心と、音符の画像の中心が合っているか見る)
+        private void DrawGuides(Chart chart, Course course, double viewMs)
+        {
+            float top = LaneY, bottom = LaneY + LaneHeight;
+            float pxPerMs = (float)(GetCurrentBpm(chart, course) * hiSpeed / 60000.0 * PixelsPerBeat);
+
+            void Tick(double ms, Color color, float length)
+            {
+                foreach (int sign in new[] { -1, 1 })
+                {
+                    float x = JudgeX + sign * (float)ms * pxPerMs;
+                    Raylib.DrawLineEx(new Vector2(x, top), new Vector2(x, top + length), 2, color);
+                    Raylib.DrawLineEx(new Vector2(x, bottom - length), new Vector2(x, bottom), 2, color);
+                }
+            }
+            Tick(BadRangeMs, GuideBadColor, 26);
+            Tick(OkRangeMs, GuideOkColor, 34);
+            Tick(GoodRangeMs, GuideGoodColor, 44);
+            Raylib.DrawLineEx(new Vector2(JudgeX, top), new Vector2(JudgeX, bottom), 2, GuideCenterColor);
+
+            // 流れてくる音符の中心
+            for (int i = 0; i < course.Notes.Count; i++)
+            {
+                if (IsHidden(i)) continue;
+                Note note = course.Notes[i];
+                float x = GetX(note.TimeMs, note.Bpm, note.Scroll, viewMs);
+                if (x < LaneX - 100 || x > Screen.Width + 100) continue;
+                float half = note.IsBig ? 80f : 56f;
+                Raylib.DrawLineEx(new Vector2(x, NoteY - half), new Vector2(x, NoteY + half), 2, GuideNoteColor);
+                Raylib.DrawCircleV(new Vector2(x, NoteY), 4, GuideNoteColor);
+            }
+
+            FontManager.Draw("ガイド：判定の中心(黄)　±25ms 良(緑)　±75ms 可(橙)　±108ms 不可(赤)　音符の中心(水色)　F10 で切替",
+                LaneX + 12, bottom + 4, 18, Color.White);
         }
 
         // 小節線
@@ -1862,7 +1955,7 @@ namespace TaikoSim.Scenes
             Line(branches.GetDebugText(), new Color(255, 170, 230, 255));
 
             KeyboardKey restartKey = ConfigManager.Key.SystemKeys.GetValueOrDefault(SystemAction.QuickRestart, KeyboardKey.F5);
-            Line($"{restartKey} 最初から　Esc もどる　F3 表示　F6 モード　F7 60打制限　F8 診断　F9 CSV（F6〜F9 は未割り当て時のみ）",
+            Line($"{restartKey} 最初から　Esc もどる　F3 表示　F6 モード　F7 60打制限　F8 診断　F10 見た目（F6〜F10 は未割り当て時のみ）",
                 Color.SkyBlue);
         }
 

@@ -55,7 +55,7 @@ namespace TaikoSim.Scenes
         private static readonly string[] ScoreDigitText = { "0", "1", "2", "3", "4", "5", "6", "7", "8", "9" };
         private float soulFlashAge = 1f;
         private const float SongTitleRight = 1872f, SongTitleY = 40f;
-        private const float SongTitleMaxWidth = 1000f, SongTitleFontSize = 48f, SongTitleOutline = 3f;
+        private const float SongTitleMaxWidth = 1000f, SongTitleFontSize = 48f, SongTitleOutline = 4f; // 輪郭は 4px(3px だと細いフォントで目立たなかった)
         private string songTitle = "";
         private float songTitleX, songTitleSize;
         private int songTitleSkinGeneration = -1;

@@ -2,6 +2,7 @@
 using TaikoSim.Audio;
 using TaikoSim.Configs;
 using TaikoSim.Graphics;
+using TaikoSim.UI;
 
 namespace TaikoSim.Scenes
 {
@@ -32,6 +33,11 @@ namespace TaikoSim.Scenes
             {
                 SceneManager.ChangeScene(new SongSelectScene());
             }
+            // C：クレジット
+            else if (Raylib.IsKeyPressed(KeyboardKey.C))
+            {
+                SceneManager.ChangeScene(new CreditsScene());
+            }
         }
 
         // .tja がドロップされたら、テスト用の画面で譜面を流す
@@ -43,7 +49,12 @@ namespace TaikoSim.Scenes
 
         public override void Draw()
         {
+            Gui.BeginFrame();
             FontManager.Draw("TaikoSim", 80, 60, 72, Color.White);
+
+            // クレジット(右下のボタン か C キー)
+            if (Gui.Button(new Rectangle(Screen.Width - 270, Screen.Height - 90, 190, 56), "クレジット (C)"))
+                SceneManager.ChangeScene(new CreditsScene());
             FontManager.Draw("Enter：選曲画面へ　F1：設定を開く", 80, 150, 32, Color.SkyBlue);
             FontManager.Draw("テスト：.tja ファイルをウィンドウにドラッグ＆ドロップすると譜面が流れます", 80, 192, 28, Color.Gold);
 
