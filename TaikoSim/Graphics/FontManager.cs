@@ -50,6 +50,9 @@ namespace TaikoSim.Graphics
             Raylib.DrawTextEx(Raylib.GetFontDefault(), text, new Vector2(x, y), size, size / 10f, color);
         }
 
+        // たくさんの文字列の文字を、まとめて先に読み込む(選曲画面の曲名など。描くときに止まらないように)
+        public static void Preload(IEnumerable<string> texts) => systemFont?.Preload(texts);
+
         // 文字の幅と高さを測る(中央寄せとかで使う)
         public static Vector2 Measure(string text, float size)
         {
