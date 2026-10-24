@@ -28,6 +28,10 @@
 		<None Update="THIRD-PARTY-NOTICES.txt">
 			<CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory>
 		</None>
+		<!-- TaikoSim-Simple スキン(Git で管理する)。ビルドすると exe の横の Skins フォルダにコピーされる -->
+		<None Update="Skins\TaikoSim-Simple\**\*">
+			<CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory>
+		</None>
 		<None Update="Assets\Fonts\NotoSansJP-Regular.ttf">
 			<CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory>
 		</None>
