@@ -161,9 +161,13 @@ namespace TaikoSim.Scenes
         // 診断の収集・判定・打音は、表示のON/OFFに関係なく従来どおり動かす。
         private bool showDebugInfo;
 
-        // 判定と音符に使う「音オフセット」。設定の値に、BASS の効果音の遅れの分(AudioManager.HitSoundLagMs)を足したもの
+        // 判定に使う「音オフセット」。設定の値に、BASS の効果音の遅れの分(AudioManager.HitSoundLagMs)を足したもの
         //   マイナスほど早くなる(設定の音オフセットと同じ向き)
         private static double AudioOffsetMs => ConfigManager.Game.AudioOffsetMs - AudioManager.HitSoundLagMs;
+
+        // 見た目(音符・小節線・ゴーゴー)に使う「音オフセット」。効果音の遅れの補正は入れない
+        //   入れると、音符が曲より早く判定枠に来て、判定枠がずれたように見えるため
+        private static double ViewAudioOffsetMs => ConfigManager.Game.AudioOffsetMs;
         private bool showDiagnostics; // F8：入力診断を出すか(記録は「CSV自動保存」が ON のときも行う)
         private const int InputLogCount = 8;
 
@@ -575,7 +579,7 @@ namespace TaikoSim.Scenes
 
             // ゴーゴーの演出は見た目なので、音符と同じ時間(譜面オフセット込み)で見る
             // 分岐のある譜面は、今の分岐のゴーゴーだけを見る
-            if (course != null) effects.SetGoGo(course.IsGoGoAt(nowMs - AudioOffsetMs - ConfigManager.Game.ChartOffsetMs,
+            if (course != null) effects.SetGoGo(course.IsGoGoAt(nowMs - ViewAudioOffsetMs - ConfigManager.Game.ChartOffsetMs,
                 branches.IsActive));
             background.Update(dt, stats.IsClear);
             scoreRank.Update(dt, stats);
@@ -1373,8 +1377,9 @@ namespace TaikoSim.Scenes
             }
 
             // 音オフセット(判定ごとずらす)と譜面オフセット(見た目だけずらす)。どちらもマイナスで早く来る
+            // 効果音の遅れの補正は判定だけに入れて、見た目には入れない(ViewAudioOffsetMs)
             double gameMs = nowMs - AudioOffsetMs;
-            double viewMs = gameMs - ConfigManager.Game.ChartOffsetMs;
+            double viewMs = nowMs - ViewAudioOffsetMs - ConfigManager.Game.ChartOffsetMs;
 
             // システムのスキンのときは背景を描かない(背景のアニメは画像を先に持っているので)
             if (!SkinManager.SystemSkin) background.Draw();
