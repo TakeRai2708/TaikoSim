@@ -393,6 +393,15 @@ namespace TaikoSim.Audio
             }
         }
 
+        // BASS / DirectSound のとき、判定と音符を早める分(ms)
+        //   新しく鳴らす効果音は、BASS がためてある音(バッファ)の後ろに入るので、曲より遅れて聞こえる
+        //   (テスト譜面のオート録画では、ドンが曲のカチッより約 35 ms 遅れていた)
+        //   実際に曲に合わせて叩いたときのズレは平均 -17.6 ms(早い)だったので、
+        //   まずは「バッファ + 足し込む間隔の半分」(バッファ 15 ms なら 17.5 ms)だけ早める
+        //   WASAPI / ASIO は曲と効果音が同じミキサーを通るので 0
+        public static double HitSoundLagMs =>
+            Mixer == 0 && bassInitialized && BassBufferMs > 0 ? BassBufferMs + UpdatePeriodMs / 2.0 : 0;
+
         // 測る用：今の方式で、音が実際に聞こえるまでの遅れの目安(ms)
         //   BASS / DirectSound … BASS が測った機器の遅れ(Info.Latency)。曲の位置からは今は引いていない
         //   WASAPI / ASIO      … OutputLatencyMs と同じ(曲の位置から引いている)
