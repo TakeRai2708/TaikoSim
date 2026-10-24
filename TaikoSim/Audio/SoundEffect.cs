@@ -102,7 +102,7 @@ namespace TaikoSim.Audio
             return new SoundEffect(voices);
         }
 
-        // 鳴らす(音量 0〜1)。前の音が鳴っていても、重ねて鳴らす
+        // 鳴らす(音量 0〜1)。前の音が鳴っていても重ねて鳴らす(重ねられる数を超えたら、一番前の音を切る。1 なら毎回切る)
         public void Play(float volume)
         {
             float clamped = Math.Clamp(volume, 0f, 1f);
