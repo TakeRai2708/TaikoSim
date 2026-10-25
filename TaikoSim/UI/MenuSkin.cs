@@ -11,12 +11,22 @@ namespace TaikoSim.UI
     // 色が変わるもの(板・難易度の大きい板)は、白い「土台」に色をかけて描いてから、縁などの「上にのせる」画像を描く
     public static class MenuSkin
     {
-        public const string ModeFolder = "Image/02.ModeSelect/";
-        public const string SongFolder = "Image/03.SongSelect/";
+        // フォルダ名は TaikøNauts と同じ番号(02.SongSelect・03.SongLoading・04.EnsoGame…)。モード選択は 01 にした(TaikøNauts の名前はまだ分からない)
+        public const string ModeFolder = "Image/01.ModeSelect/";
+        public const string SongFolder = "Image/02.SongSelect/";
 
         // 画面に入ったときに、先に読み込んでおく(初めて描くときに止まらないように)
         public static readonly string[] BarImages = { "Bar_Base.png", "Bar_Overlay.png", "Bar_Overlay_Plain.png", "Bar_Cursor.png", "Bar_Cursor_Decide.png" };
         public static readonly string[] SongImages = { "Bar_Label.png", "Chip.png", "Panel_Base.png", "Panel_Overlay.png", "Back.png", "Option.png", "Card.png", "Card_Cursor.png", "Marker_1P.png", "Hint.png" };
+
+        // TaikøNauts のスキンの選曲画面の画像(あるものだけ読まれる)
+        public static readonly string[] TnSongImages = Enumerable.Range(0, 12).Select(i => $"Bar/{i}.png")
+            .Concat(Enumerable.Range(0, 12).Select(i => $"Background/{i}.png"))
+            .Concat(Enumerable.Range(0, 12).Select(i => $"Difficulty_Select/Background/{i}.png"))
+            .Concat(new[] { "Bar/Back.png", "Bar/Overlay.png", "Bar/Decoration.png", "Bar/Selected.png", "Difficulty_Panel.png",
+                "Difficulty_Select/Difficulty_Panel.png", "Difficulty_Select/Cursor_Effect.png", "Difficulty_Select/Cursor_Effect_Small.png",
+                "Difficulty_Select/Player_Cursor.png" })
+            .ToArray();
 
         public static void Preload(string folder, IEnumerable<string> names)
         {
@@ -46,6 +56,24 @@ namespace TaikoSim.UI
             float w = (float)texture.Width / columns, h = (float)texture.Height / rows;
             Rectangle source = new Rectangle(index % columns * w, index / columns * h, w, h);
             Raylib.DrawTexturePro(texture, source, dest, Vector2.Zero, 0f, tint);
+            return true;
+        }
+
+        // 画像の一部(source)を dest に描く
+        public static bool Part(string path, Rectangle source, Rectangle dest, Color tint)
+        {
+            if (SkinManager.GetTexture(path) is not Texture2D texture) return false;
+            Raylib.DrawTexturePro(texture, source, dest, Vector2.Zero, 0f, tint);
+            return true;
+        }
+
+        // 画像の一部(source)を、9つに切って伸ばして描く
+        public static bool NPatchPart(string path, Rectangle source, Rectangle dest, int border, Color tint)
+        {
+            if (SkinManager.GetTexture(path) is not Texture2D texture) return false;
+            int b = (int)Math.Min(border, Math.Min(source.Width, source.Height) / 2);
+            NPatchInfo info = new NPatchInfo { Source = source, Left = b, Top = b, Right = b, Bottom = b, Layout = NPatchLayout.NinePatch };
+            Raylib.DrawTextureNPatch(texture, info, dest, Vector2.Zero, 0f, tint);
             return true;
         }
 

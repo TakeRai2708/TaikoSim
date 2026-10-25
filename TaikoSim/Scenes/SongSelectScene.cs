@@ -14,6 +14,7 @@ namespace TaikoSim.Scenes
     // 選曲画面(演奏ゲーム)。TaikøNauts / OpenTaiko の流れに合わせた
     //   1. ジャンルをえらぶ(最近遊んだ曲・最近追加された曲・お気に入り・カテゴリ)
     //   2. 曲をえらぶ(7曲ごとに「とじる」、最後に「ランダム」。OpenTaiko と同じ並び)
+    //      TaikøNauts と同じく、開いたジャンルの場所に曲が入る(上下にはほかのジャンルが見えたまま)
     //   3. 難易度をえらぶ(左から 戻る・オプション・かんたん・ふつう・むずかしい・おに)
     //      おにを選んでいるときに、もう一度右(カッ・→)で裏おにに切り替え(OpenTaiko と同じ)。Tab でも切り替え(TaikøNauts と同じ)
     // 見た目と動きは TaikøNauts の動画を測って合わせた
@@ -42,6 +43,7 @@ namespace TaikoSim.Scenes
             public Special Special;            // ジャンル：特別な項目のとき
             public int SongCount;              // ジャンル：曲の数
             public SongEntry? Song;            // 曲
+            public SongCategory? Category;     // カテゴリ(ジャンルの板・曲のときだけ。スキンの板の番号を決めるのに使う)
             public string CategoryTitle = "";  // 曲：入っているカテゴリの名前
         }
 
@@ -62,7 +64,9 @@ namespace TaikoSim.Scenes
         private static List<SongCategory>? builtFor;   // 今の一覧を作ったときのカテゴリ(読み直したら作り直す)
 
         private readonly List<Item> genres = new();
-        private readonly List<Item> songs = new();
+        private readonly List<Item> songs = new();     // 曲をえらんでいるときの一覧(ジャンルの一覧の、開いたジャンルの場所に曲を入れたもの)
+        private int songStart;                         // songs の中で、開いたジャンルの曲が始まる場所(最初の「とじる」)
+        private int ownCount;                          // 開いたジャンルの項目の数(とじる・曲・ランダム)
         private readonly BarList list = new(MenuSkin.SongFolder);         // 斜めの板の動き
         private Action? afterBlink;                    // 決定の点滅が終わったらすること(ジャンルを開く・とじる)
         private float uraClock;                        // 板が開いてからの時間(おにと裏おにの札を入れ替えるのに使う)
@@ -75,6 +79,8 @@ namespace TaikoSim.Scenes
         private bool ura;
         private SongEntry? diffSong;
         private Color diffColor;                       // 難易度の板の色(選んだ曲のカテゴリの色)
+        private int diffType;
+        private Item? diffItem;                          // 難易度の板の番号(TaikøNauts のスキンの Difficulty_Select/Background/番号.png)
         private float diffTime;                        // 決定してからの時間(切り替えのアニメに使う)
         private readonly PlayOptionsPanel options = new();
 
@@ -129,7 +135,7 @@ namespace TaikoSim.Scenes
             if (!SongList.IsScanning) Rebuild(keepPlace: true);
             list.Reset(CurrentPos);
             afterBlink = null;
-            MenuSkin.Preload(MenuSkin.SongFolder, MenuSkin.BarImages.Concat(MenuSkin.SongImages));
+            MenuSkin.Preload(MenuSkin.SongFolder, MenuSkin.BarImages.Concat(MenuSkin.SongImages).Concat(MenuSkin.TnSongImages));
         }
 
         public override void Exit()
@@ -164,7 +170,7 @@ namespace TaikoSim.Scenes
             if (inSongs)
             {
                 BuildSongs();
-                if (songs.Count <= 1) inSongs = false; // 「とじる」しか無い
+                if (ownCount <= 1) inSongs = false; // 「とじる」しか無い
                 else SelectSong(lastSongKey);
             }
             if (genres.Count > 0 && genres[Mod(genrePos, genres.Count)].Kind == Kind.Label) genrePos = FirstSelectable(genres);
@@ -184,14 +190,15 @@ namespace TaikoSim.Scenes
 
             for (int i = 0; i < categories.Count; i++)
             {
-                genres.Add(new Item { Kind = Kind.Genre, Cat = i, Title = categories[i].Title, Color = categories[i].Color, SongCount = categories[i].Songs.Count });
+                genres.Add(new Item { Kind = Kind.Genre, Cat = i, Title = categories[i].Title, Color = categories[i].Color, SongCount = categories[i].Songs.Count, Category = categories[i] });
             }
         }
 
         // 開いているジャンルの曲を並べる(7曲ごとに「とじる」、最後に「ランダム」。OpenTaiko の tReinsertBackButtons と同じ)
+        //   TaikøNauts と同じく、ジャンルの一覧の中の、開いたジャンルの場所に入れる(検索の結果は曲だけ)
         private void BuildSongs()
         {
-            songs.Clear();
+            List<Item> own = new();
             List<(SongEntry Entry, SongCategory Category)> list = openSpecial switch
             {
                 Special.Recent => Recent(),
@@ -205,15 +212,28 @@ namespace TaikoSim.Scenes
 
             foreach (var (entry, category) in list)
             {
-                songs.Add(new Item { Kind = Kind.Song, Song = entry, Title = entry.Title, Color = category.Color, CategoryTitle = category.Title });
+                own.Add(new Item { Kind = Kind.Song, Song = entry, Title = entry.Title, Color = category.Color, CategoryTitle = category.Title, Category = category });
             }
             int count = list.Count;
             for (int index = 0; index < count / BackInterval + 1; index++)
             {
-                songs.Insert(Math.Min(index * (BackInterval + 1), songs.Count), new Item { Kind = Kind.Back, Title = "とじる", Color = BackFillColor });
+                own.Insert(Math.Min(index * (BackInterval + 1), own.Count), new Item { Kind = Kind.Back, Title = "とじる", Color = BackFillColor });
             }
-            if (count > 0) songs.Add(new Item { Kind = Kind.Random, Title = "ランダムにえらぶ", Color = RandomColor });
+            if (count > 0) own.Add(new Item { Kind = Kind.Random, Title = "ランダムにえらぶ", Color = RandomColor });
+
+            // 開いたジャンルの板の代わりに入れる
+            songs.Clear();
+            int genreIndex = OpenGenreIndex();
+            if (genreIndex >= 0) songs.AddRange(genres.Take(genreIndex));
+            songStart = songs.Count;
+            ownCount = own.Count;
+            songs.AddRange(own);
+            if (genreIndex >= 0) songs.AddRange(genres.Skip(genreIndex + 1));
         }
+
+        // 開いているジャンルが、ジャンルの一覧の何番目か(検索の結果のときは -1)
+        private int OpenGenreIndex() => genres.FindIndex(g => g.Kind == Kind.Genre && g.Special == openSpecial
+            && openSpecial != Special.Search && (openSpecial != Special.None || g.Cat == openCat));
 
         private List<(SongEntry, SongCategory)> Recent() => Resolve(SongHistory.Recent);
         private List<(SongEntry, SongCategory)> Favorites() => Resolve(SongHistory.Favorites);
@@ -248,7 +268,7 @@ namespace TaikoSim.Scenes
         private void SelectSong(string key)
         {
             int index = songs.FindIndex(s => s.Kind == Kind.Song && string.Equals(s.Song!.Key, key, StringComparison.OrdinalIgnoreCase));
-            if (index < 0) index = songs.Count > 1 ? 1 : 0;
+            if (index < 0) index = songStart + (ownCount > 1 ? 1 : 0);
             songPos = index;
         }
 
@@ -284,6 +304,7 @@ namespace TaikoSim.Scenes
             wasScanning = scanning;
 
             list.Update(dt, CurrentPos);
+            UpdateTnBackground(dt);
             uraClock = list.Expand > 0f ? uraClock + dt : 0f;
             if (diffOpen) diffTime += dt;
 
@@ -402,7 +423,12 @@ namespace TaikoSim.Scenes
                     }
                     MenuSounds.Don();
                     list.StartDecide();
-                    afterBlink = () => OpenGenre(item.Special, item.Cat);
+                    afterBlink = () =>
+                    {
+                        // 曲をえらんでいるときに、ほかのジャンルを決定したら、そのジャンルに開き直す
+                        if (inSongs) genrePos = Math.Max(0, genres.IndexOf(item));
+                        OpenGenre(item.Special, item.Cat);
+                    };
                     break;
 
                 case Kind.Back:
@@ -442,7 +468,7 @@ namespace TaikoSim.Scenes
             openCat = cat;
             inSongs = true;
             BuildSongs();
-            songPos = songs.Count > 1 ? 1 : 0; // 最初の「とじる」の次(最初の曲)
+            songPos = songStart + (ownCount > 1 ? 1 : 0); // 最初の「とじる」の次(最初の曲)
             if (songs[Mod(songPos, songs.Count)] is { Kind: Kind.Song } first) lastSongKey = first.Song!.Key;
             list.Reset(songPos);
         }
@@ -499,7 +525,7 @@ namespace TaikoSim.Scenes
                 // お気に入りの一覧から消したときは、並びを作り直す
                 int index = Mod(songPos, songs.Count);
                 BuildSongs();
-                if (songs.Count <= 1) { CloseGenre(); return; }
+                if (ownCount <= 1) { CloseGenre(); return; }
                 songPos = Math.Min(index, songs.Count - 1);
                 list.Reset(songPos);
             }
@@ -526,6 +552,8 @@ namespace TaikoSim.Scenes
             SongEntry song = item.Song!;
             diffSong = song;
             diffColor = item.Color;
+            diffType = BarType(item);
+            diffItem = item;
             diffOpen = true;
             diffTime = 0f;
             list.StartDecide(); // 枠の点滅(まだ開いていなかったら、すぐ開く)
@@ -706,6 +734,98 @@ namespace TaikoSim.Scenes
             FontManager.PreloadSkinMain(Texts()); // 文字はスキンの太字フォントで描く
         }
 
+        // ===== TaikøNauts のスキン(02.SongSelect の Bar/番号.png など) =====
+        //   板・背景・難易度の板は、box.def の #BOXTYPE(板)・#BGTYPE(背景)の番号の画像を使う
+        //   番号が書いてないときは、ジャンルの名前から決める(TaikøNauts の動画の色と合わせた)
+        //   画像が無いスキンや、番号が決まらないものは、今までどおり(Simple の画像かプログラム)で描く
+
+        private const string Tn = MenuSkin.SongFolder;
+
+        private static readonly Dictionary<string, int> GenreBarTypes = new(StringComparer.OrdinalIgnoreCase)
+        {
+            ["J-POP"] = 1, ["ポップス"] = 1, ["POPS"] = 1, ["JPOP"] = 1,
+            ["アニメ"] = 3,
+            ["ボーカロイド"] = 4, ["VOCALOID"] = 4, ["ボーカロイド曲"] = 4,
+            ["どうよう"] = 0, ["キッズ"] = 0, ["バラエティ"] = 0, ["バラエティー"] = 0,
+            ["クラシック"] = 7,
+            ["ゲームミュージック"] = 5, ["ゲームバラエティ"] = 5,
+            ["ナムコオリジナル"] = 6,
+        };
+
+        private int StarsOf(CourseType type) => Math.Clamp(LevelOf(type), 0, 10);
+
+        // 板の番号(-1：決まらない)
+        private static int BarType(Item item)
+        {
+            if (item.Kind == Kind.Genre && item.Category == null)
+                return item.Special switch { Special.Recent => 9, Special.Favorites => 10, _ => -1 };
+            if (item.Kind is Kind.Random) return 0;
+            SongCategory? category = item.Category;
+            if (category == null) return -1;
+            if (category.BoxType is int box) return box;
+            if (GenreBarTypes.TryGetValue(category.Genre, out int byGenre)) return byGenre;
+            if (GenreBarTypes.TryGetValue(category.Title, out int byTitle)) return byTitle;
+            return -1;
+        }
+
+        // 背景の番号(#BGTYPE → 板の番号 → 0)
+        private static int BackgroundType(Item? item)
+        {
+            if (item?.Category?.BgType is int bg) return bg;
+            int bar = item == null ? -1 : BarType(item);
+            return bar >= 0 ? bar : 0;
+        }
+
+        private static string TnPanelPath(int type) => Tn + $"Difficulty_Select/Background/{Math.Max(0, type)}.png";
+
+        // 板の土台を描いて、中の明るい板(文字を書く場所)を返す
+        //   TaikøNauts：Bar/番号.png(938×133。とじるは Bar/Back.png)＋ Bar/Overlay.png(中の板)＋ 番号0は Bar/Decoration.png(花の飾り)
+        private Rectangle DrawBarBody(Item item, Rectangle area, float alpha, bool plain)
+        {
+            int type = BarType(item);
+            string? path = item.Kind == Kind.Back ? Tn + "Bar/Back.png" : type >= 0 ? Tn + $"Bar/{type}.png" : null;
+            if (path != null && SkinManager.GetTexture(path) != null)
+            {
+                Rectangle dest = new Rectangle(area.X, area.Y - 1, area.Width + 6, area.Height + 9);
+                MenuSkin.NPatch(path, dest, 40, MenuSkin.White(alpha));
+                if (!plain) MenuSkin.NPatch(Tn + "Bar/Overlay.png", dest, 40, MenuSkin.White(alpha));
+                if (type == 0 && item.Kind is Kind.Genre or Kind.Song) MenuSkin.NPatch(Tn + "Bar/Decoration.png", dest, 40, MenuSkin.White(alpha));
+                return new Rectangle(area.X + 70, area.Y + 22, area.Width - 140, area.Height - 44);
+            }
+            return list.DrawBody(area, item.Color, alpha, plain);
+        }
+
+        // 背景(Background/番号.png。960×1080 を横に2つ並べる)。番号が変わったら0.25秒で入れ替える
+        private int bgShown = -1, bgPrevious = -1;
+        private float bgBlend = 1f;
+
+        private void UpdateTnBackground(float dt)
+        {
+            Item? item = diffOpen ? diffItem : CurrentItem;
+            int target = BackgroundType(item);
+            if (target != bgShown)
+            {
+                bgPrevious = bgShown;
+                bgShown = target;
+                bgBlend = bgPrevious < 0 ? 1f : 0f;
+            }
+            bgBlend = Math.Min(1f, bgBlend + dt / 0.25f);
+        }
+
+        private void DrawTnBackground()
+        {
+            if (bgPrevious >= 0 && bgBlend < 1f) DrawTnBackgroundImage(bgPrevious, 1f);
+            DrawTnBackgroundImage(bgShown, bgBlend);
+        }
+
+        private static void DrawTnBackgroundImage(int type, float alpha)
+        {
+            if (type < 0 || SkinManager.GetTexture(Tn + $"Background/{type}.png") is not Texture2D texture) return;
+            for (float x = 0; x < Screen.Width; x += texture.Width)
+                Raylib.DrawTexturePro(texture, new Rectangle(0, 0, texture.Width, texture.Height),
+                    new Rectangle(x, 0, texture.Width, Screen.Height), Vector2.Zero, 0f, MenuSkin.White(alpha));
+        }
+
         // ===== 描画 =====
 
         public override void Draw()
@@ -717,6 +837,7 @@ namespace TaikoSim.Scenes
 
             Raylib.DrawRectangleGradientV(0, 0, Screen.Width, Screen.Height,
                 Raylib.ColorBrightness(backColor, -0.35f), Raylib.ColorBrightness(backColor, -0.7f));
+            DrawTnBackground();
 
             if (SongList.IsScanning) DrawScanning();
             else if (SongList.Categories.Count == 0) DrawEmpty();
@@ -833,7 +954,7 @@ namespace TaikoSim.Scenes
             // 縁 → 色 → 中の明るい板(スキンの画像があればそれで)
             Color ink = Raylib.ColorBrightness(item.Color, -0.65f);
             bool plain = item.Kind is Kind.Back or Kind.Random; // 「とじる」「ランダム」は中の板なし
-            Rectangle inner = list.DrawBody(area, item.Color, alpha, plain);
+            Rectangle inner = DrawBarBody(item, area, alpha, plain);
 
             switch (item.Kind)
             {
@@ -939,6 +1060,12 @@ namespace TaikoSim.Scenes
             Color color = CourseColor(type);
             Color ink = Fade(Raylib.ColorBrightness(color, -0.7f), alpha);
             Rectangle right = new Rectangle(chip.X + 92, chip.Y + 6, chip.Width - 98, chip.Height - 12);
+            // TaikøNauts のスキン：Difficulty_Panel.png(横に5つ。1つ 176×86、182px ごと。★まで描いてある)。数字だけ書く
+            if (MenuSkin.Part(Tn + "Difficulty_Panel.png", new Rectangle(3 + 182 * (int)type, 2, 176, 86), chip, MenuSkin.White(alpha)))
+            {
+                Outlined(level.ToString(), new Rectangle(chip.X + 126, chip.Y + 8, 46, 70), 40, Fade(Color.White, alpha), Fade(InkColor, alpha), 3);
+                return;
+            }
             if (!MenuSkin.Cell(MenuSkin.SongFolder + "Chip.png", (int)type, 1, 5, chip, MenuSkin.White(alpha)))
             {
                 Raylib.DrawRectangleRec(chip, Fade(color, alpha));
@@ -986,7 +1113,10 @@ namespace TaikoSim.Scenes
             //   スキンに Panel_Base.png(白い土台。色をかける)と Panel_Overlay.png(縁と曲名の箱)があれば、それで描く
             Rectangle panel = S(DiffPanel);
             Rectangle titleBox = S(DiffTitleBox);
-            if (MenuSkin.Has(MenuSkin.SongFolder + "Panel_Base.png", MenuSkin.SongFolder + "Panel_Overlay.png"))
+            // TaikøNauts のスキン：Difficulty_Select/Background/番号.png(1242×779。中身は 10,10 から 1220×758)
+            Rectangle tnPanel = new Rectangle(panel.X - 5 * scale, panel.Y - 6 * scale, panel.Width + 10 * scale, panel.Height + 12 * scale);
+            if (MenuSkin.Part(TnPanelPath(diffType), new Rectangle(10, 10, 1220, 758), tnPanel, MenuSkin.White(alpha))) { }
+            else if (MenuSkin.Has(MenuSkin.SongFolder + "Panel_Base.png", MenuSkin.SongFolder + "Panel_Overlay.png"))
             {
                 MenuSkin.Whole(MenuSkin.SongFolder + "Panel_Base.png", panel, Fade(diffColor, alpha));
                 MenuSkin.Whole(MenuSkin.SongFolder + "Panel_Overlay.png", panel, MenuSkin.White(alpha));
@@ -1047,6 +1177,10 @@ namespace TaikoSim.Scenes
         private static void DrawDiffCursor(Rectangle box, float alpha)
         {
             Rectangle frame = new Rectangle(box.X - 12, box.Y - 12, box.Width + 24, box.Height + 24);
+            // TaikøNauts のスキン：カードは Cursor_Effect.png(1つ目 12,9 から 216×382)、小さい箱は Cursor_Effect_Small.png(1つ目 13,10 から 134×141)
+            bool small = box.Width < 150;
+            if (small ? MenuSkin.NPatchPart(Tn + "Difficulty_Select/Cursor_Effect_Small.png", new Rectangle(13, 10, 134, 141), frame, 30, MenuSkin.White(alpha))
+                      : MenuSkin.NPatchPart(Tn + "Difficulty_Select/Cursor_Effect.png", new Rectangle(12, 9, 216, 382), frame, 30, MenuSkin.White(alpha))) return;
             if (MenuSkin.NPatch(MenuSkin.SongFolder + "Card_Cursor.png", frame, 30, MenuSkin.White(alpha))) return;
             Raylib.DrawRectangleRounded(frame, Roundness(frame, 26), 10, Fade(CursorColor, alpha));
         }
@@ -1119,9 +1253,44 @@ namespace TaikoSim.Scenes
                 Outlined(ura ? "裏" : "表", new Rectangle(body.X + body.Width - 44 * scale, body.Y + 6 * scale, 38 * scale, 38 * scale), 26 * scale, Fade(Color.White, alpha), ink, 2);
         }
 
+        // ★の列だけ(TaikøNauts のカードの上に)
+        private void DrawCardLevelStars(CourseType type, Rectangle box, float alpha, float scale)
+        {
+            Color color = CourseColor(type);
+            Rectangle strip = new Rectangle(box.X + 13 * scale, box.Y + 280 * scale, box.Width - 26 * scale, 22 * scale);
+            float cell = strip.Width / 10f;
+            for (int s = 0; s < 10; s++)
+            {
+                Vector2 c = new Vector2(strip.X + cell * (s + 0.5f), strip.Y + strip.Height / 2f);
+                if (s < StarsOf(type)) Outlined("★", new Rectangle(c.X - cell / 2f, c.Y - 11 * scale, cell, 22 * scale), 18 * scale, Fade(Color.White, alpha), Fade(Raylib.ColorBrightness(color, -0.45f), alpha), 1);
+            }
+        }
+
         // スキンの画像で、難易度の箱を描く(Back.png・Option.png・Card.png)。画像が無ければ false
         private bool DrawDiffBoxImage(int index, Rectangle box, float alpha, float scale)
         {
+            // TaikøNauts のスキン：Difficulty_Select/Difficulty_Panel.png(戻る 114×112・オプション 114×112・カード 196×354 が横に並ぶ)
+            if (SkinManager.GetTexture(Tn + "Difficulty_Select/Difficulty_Panel.png") != null)
+            {
+                string sheet = Tn + "Difficulty_Select/Difficulty_Panel.png";
+                if (index == 0) return MenuSkin.Part(sheet, new Rectangle(1, 1, 114, 112), box, MenuSkin.White(alpha));
+                if (index == 1) return MenuSkin.Part(sheet, new Rectangle(133, 1, 114, 112), box, MenuSkin.White(alpha));
+                CourseType course = CourseAt(index);
+                bool has = HasCourse(course);
+                // 無い難易度は、暗くして描く
+                Color tint = has ? MenuSkin.White(alpha) : Fade(new Color(110, 110, 120, 255), alpha);
+                MenuSkin.Part(sheet, new Rectangle(265 + 215 * (int)course, 1, 196, 354), box, tint);
+                if (has)
+                {
+                    int level = LevelOf(course);
+                    Color ink = Fade(Raylib.ColorBrightness(CourseColor(course), -0.7f), alpha);
+                    Outlined(level.ToString(), new Rectangle(box.X + box.Width / 2f, box.Y + 236 * scale, 50 * scale, 48 * scale), 36 * scale, Fade(Color.White, alpha), ink, 3);
+                    DrawCardLevelStars(course, box, alpha, scale);
+                }
+                else Outlined("なし", new Rectangle(box.X, box.Y + 236 * scale, box.Width, 48 * scale), 32 * scale, Fade(Color.White, alpha), Fade(InkColor, alpha), 3);
+                return true;
+            }
+
             if (index == 0) return MenuSkin.Whole(MenuSkin.SongFolder + "Back.png", box, MenuSkin.White(alpha));
             if (index == 1) return MenuSkin.Whole(MenuSkin.SongFolder + "Option.png", box, MenuSkin.White(alpha));
 
@@ -1137,6 +1306,8 @@ namespace TaikoSim.Scenes
         private static void DrawPlayerMarker(Rectangle box)
         {
             Vector2 c = new Vector2(box.X + box.Width / 2f, 358);
+            // TaikøNauts のスキン：Difficulty_Select/Player_Cursor.png(縦に 1P・2P・…。1段 136×130、中身は 14,0 から 114×113)
+            if (MenuSkin.Part(Tn + "Difficulty_Select/Player_Cursor.png", new Rectangle(14, 0, 114, 113), new Rectangle(c.X - 57, c.Y - 56, 114, 113), Color.White)) return;
             if (MenuSkin.Whole(MenuSkin.SongFolder + "Marker_1P.png", new Rectangle(c.X - 56, c.Y - 56, 112, 118), Color.White)) return;
             Raylib.DrawTriangle(new Vector2(c.X - 14, c.Y + 34), new Vector2(c.X, c.Y + 58), new Vector2(c.X + 14, c.Y + 34), InkColor);
             Raylib.DrawCircleV(c, 53, InkColor);

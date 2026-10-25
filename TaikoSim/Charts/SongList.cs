@@ -71,6 +71,10 @@ namespace TaikoSim.Charts
         public string Genre { get; init; } = "";
         public Color Color { get; init; } = SongList.UncategorizedColor;
 
+        // box.def の #BOXTYPE・#BGTYPE(スキンの板・背景の番号。TaikøNauts / OpenTaiko の決まり)。書いてなければ null
+        public int? BoxType { get; init; }
+        public int? BgType { get; init; }
+
         // どのカテゴリにも入らない曲の入れ物か(選曲画面では、カテゴリの行を出さずに曲をそのまま並べる)
         // ※ 今は使っていない(Songs のすぐ下の曲は「その他」カテゴリに入る)。選曲画面の処理は残してある
         public bool IsLoose { get; init; } = false;
@@ -315,13 +319,14 @@ namespace TaikoSim.Charts
             }
         }
 
-        // box.def を読む(#TITLE・#GENRE・#BACKCOLOR・#BOXCOLOR だけ使う)
+        // box.def を読む(#TITLE・#GENRE・#BACKCOLOR・#BOXCOLOR・#BOXTYPE・#BGTYPE だけ使う)
         private static SongCategory ReadBoxDef(string path, string folderName)
         {
             string title = folderName; // #TITLE が無いときはフォルダ名
             string genre = "";
             Color? backColor = null;
             Color? boxColor = null;
+            int? boxType = null, bgType = null;
 
             try
             {
@@ -342,6 +347,8 @@ namespace TaikoSim.Charts
                         case "#GENRE": genre = value; break;
                         case "#BACKCOLOR": backColor = ParseColor(value); break;
                         case "#BOXCOLOR": boxColor = ParseColor(value); break;
+                        case "#BOXTYPE": if (int.TryParse(value, out int box)) boxType = box; break;
+                        case "#BGTYPE": if (int.TryParse(value, out int bg)) bgType = bg; break;
                     }
                 }
             }
@@ -354,7 +361,7 @@ namespace TaikoSim.Charts
             Color color = backColor ?? boxColor
                 ?? (GenreColors.TryGetValue(genre, out Color genreColor) ? genreColor : UncategorizedColor);
 
-            return new SongCategory { Title = title, Genre = genre, Color = color };
+            return new SongCategory { Title = title, Genre = genre, Color = color, BoxType = boxType, BgType = bgType };
         }
 
         // 1曲分を用意する。キャッシュが使えればキャッシュから、使えなければ .tja を読む(裏の係から何曲か同時に呼ばれる)

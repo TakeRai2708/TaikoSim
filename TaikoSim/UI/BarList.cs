@@ -122,6 +122,9 @@ namespace TaikoSim.UI
             }
             Rectangle frame = new Rectangle(area.X - FrameWidth, area.Y - FrameWidth, area.Width + FrameWidth * 2, area.Height + FrameWidth * 2);
             float a = alpha * Math.Min(1f, Expand * 2f);
+            // TaikøNauts のスキン(Bar/Selected.png：縦に 黄色・黄色の光・白 の3段。1段 1008×210、中身は 7,22 から 994×166)
+            int row = Deciding && DecideTime >= BlinkEnd ? 2 : 0;
+            if (MenuSkin.NPatchPart(Folder + "Bar/Selected.png", new Rectangle(7, 22 + 210 * row, 994, 166), frame, 40, MenuSkin.White(a))) return;
             string image = Deciding && DecideTime >= BlinkEnd ? "Bar_Cursor_Decide.png" : "Bar_Cursor.png";
             if (MenuSkin.NPatch(Folder + image, frame, 40, MenuSkin.White(a))) return;
             Raylib.DrawRectangleRounded(frame, MenuDraw.Roundness(frame, 30), 12, MenuDraw.Fade(color, a));
