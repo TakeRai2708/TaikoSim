@@ -63,8 +63,9 @@ namespace TaikoSim.Scenes
 
         private readonly List<Item> genres = new();
         private readonly List<Item> songs = new();
-        private readonly BarList list = new();         // 斜めの板の動き
+        private readonly BarList list = new(MenuSkin.SongFolder);         // 斜めの板の動き
         private Action? afterBlink;                    // 決定の点滅が終わったらすること(ジャンルを開く・とじる)
+        private float uraClock;                        // 板が開いてからの時間(おにと裏おにの札を入れ替えるのに使う)
         private Color backColor = new Color(30, 40, 70, 255);
 
         // ===== 難易度をえらぶ =====
@@ -128,6 +129,7 @@ namespace TaikoSim.Scenes
             if (!SongList.IsScanning) Rebuild(keepPlace: true);
             list.Reset(CurrentPos);
             afterBlink = null;
+            MenuSkin.Preload(MenuSkin.SongFolder, MenuSkin.BarImages.Concat(MenuSkin.SongImages));
         }
 
         public override void Exit()
@@ -282,6 +284,7 @@ namespace TaikoSim.Scenes
             wasScanning = scanning;
 
             list.Update(dt, CurrentPos);
+            uraClock = list.Expand > 0f ? uraClock + dt : 0f;
             if (diffOpen) diffTime += dt;
 
             // 背景の色を、選んでいるものの色にだんだん近づける
@@ -817,22 +820,20 @@ namespace TaikoSim.Scenes
         {
             if (item.Kind == Kind.Label)
             {
-                Raylib.DrawRectangleRounded(area, Roundness(area, 22), 10, Fade(LabelColor, alpha));
                 Rectangle labelInner = new Rectangle(area.X + 70, area.Y + 20, area.Width - 140, area.Height - 40);
-                Raylib.DrawRectangleRounded(labelInner, Roundness(labelInner, 8), 8, Fade(new Color(120, 122, 134, 200), alpha));
+                if (!MenuSkin.NPatch(MenuSkin.SongFolder + "Bar_Label.png", area, 30, MenuSkin.White(alpha)))
+                {
+                    Raylib.DrawRectangleRounded(area, Roundness(area, 22), 10, Fade(LabelColor, alpha));
+                    Raylib.DrawRectangleRounded(labelInner, Roundness(labelInner, 8), 8, Fade(new Color(120, 122, 134, 200), alpha));
+                }
                 Outlined(item.Title, labelInner, 46, Fade(new Color(225, 225, 240, 255), alpha), Fade(new Color(60, 50, 110, 255), alpha), 3);
                 return;
             }
 
-            // 縁 → 色 → 中の明るい板
-            Raylib.DrawRectangleRounded(area, Roundness(area, 22), 12, Fade(InkColor, alpha));
-            Rectangle body = new Rectangle(area.X + 6, area.Y + 6, area.Width - 12, area.Height - 12);
-            Raylib.DrawRectangleRounded(body, Roundness(body, 17), 12, Fade(item.Color, alpha));
-
+            // 縁 → 色 → 中の明るい板(スキンの画像があればそれで)
             Color ink = Raylib.ColorBrightness(item.Color, -0.65f);
             bool plain = item.Kind is Kind.Back or Kind.Random; // 「とじる」「ランダム」は中の板なし
-            Rectangle inner = new Rectangle(area.X + 70, area.Y + 20, area.Width - 140, area.Height - 40);
-            if (!plain) Raylib.DrawRectangleRounded(inner, Roundness(inner, 8), 8, Fade(Tint(item.Color, 0.6f), alpha));
+            Rectangle inner = list.DrawBody(area, item.Color, alpha, plain);
 
             switch (item.Kind)
             {
@@ -893,28 +894,59 @@ namespace TaikoSim.Scenes
         }
 
         // 難易度の札(左に名前、右に★レベル)を、真ん中にそろえて並べる
-        private static void DrawCourseChips(SongEntry song, Rectangle area, float alpha)
+        //   おにと裏おにの両方がある曲は、おにの場所で「おに」と「裏おに」を1.5秒ごとに入れ替える(TaikøNauts と同じ)
+        private void DrawCourseChips(SongEntry song, Rectangle area, float alpha)
         {
             List<(CourseType Type, int Level)> courses = song.Courses
                 .Where(c => c.Type <= CourseType.Edit).OrderBy(c => c.Type).ToList();
             if (courses.Count == 0) return;
+            bool hasOni = courses.Any(c => c.Type == CourseType.Oni);
+            int uraLevel = courses.FirstOrDefault(c => c.Type == CourseType.Edit).Level;
+            bool alternate = hasOni && courses.Any(c => c.Type == CourseType.Edit);
+            if (alternate) courses.RemoveAll(c => c.Type == CourseType.Edit); // 裏はおにの場所に出す
 
             const float chipWidth = 175, gap = 7;
             float total = courses.Count * chipWidth + (courses.Count - 1) * gap;
             float x = area.X + (area.Width - total) / 2f;
             foreach (var (type, level) in courses)
             {
-                Color color = CourseColor(type);
                 Rectangle chip = new Rectangle(x, area.Y, chipWidth, area.Height);
-                Raylib.DrawRectangleRec(chip, Fade(color, alpha));
-                Rectangle right = new Rectangle(chip.X + 92, chip.Y + 6, chipWidth - 98, chip.Height - 12);
-                Raylib.DrawRectangleRounded(right, 0.2f, 6, Fade(Raylib.ColorBrightness(color, -0.25f), alpha));
-                Color ink = Fade(Raylib.ColorBrightness(color, -0.7f), alpha);
-                Outlined(CourseMark(type), new Rectangle(chip.X + 6, chip.Y + 4, 82, 50), 40, Fade(Color.White, alpha), ink, 3);
-                Outlined(type == CourseType.Edit ? "裏おに" : Chart.GetCourseName(type), new Rectangle(chip.X + 4, chip.Y + 56, 86, 26), 20, Fade(Color.White, alpha), ink, 2);
-                Outlined($"★{level}", right, 36, Fade(Color.White, alpha), ink, 3);
+                DrawChip(type, level, chip, alpha);
+                if (alternate && type == CourseType.Oni)
+                {
+                    float ura = UraBlend(uraClock);
+                    if (ura > 0f) DrawChip(CourseType.Edit, uraLevel, chip, alpha * ura); // おにの上に、だんだん重ねる
+                }
                 x += chipWidth + gap;
             }
+        }
+
+        // おに → 裏おに の重ね具合(0 おに、1 裏おに)。3秒で1周：おに1.25秒 → 0.25秒で裏へ → 裏1.25秒 → 0.25秒でおにへ
+        private const float UraCycle = 3.0f, UraHold = 1.25f, UraFade = 0.25f;
+
+        private static float UraBlend(float clock)
+        {
+            float t = clock % UraCycle;
+            if (t < UraHold) return 0f;
+            if (t < UraHold + UraFade) return (t - UraHold) / UraFade;
+            if (t < UraHold * 2 + UraFade) return 1f;
+            return 1f - (t - UraHold * 2 - UraFade) / UraFade;
+        }
+
+        // 難易度の札を1つ(スキンの Chip.png があればそれ。★レベルはプログラムが書く)
+        private static void DrawChip(CourseType type, int level, Rectangle chip, float alpha)
+        {
+            Color color = CourseColor(type);
+            Color ink = Fade(Raylib.ColorBrightness(color, -0.7f), alpha);
+            Rectangle right = new Rectangle(chip.X + 92, chip.Y + 6, chip.Width - 98, chip.Height - 12);
+            if (!MenuSkin.Cell(MenuSkin.SongFolder + "Chip.png", (int)type, 1, 5, chip, MenuSkin.White(alpha)))
+            {
+                Raylib.DrawRectangleRec(chip, Fade(color, alpha));
+                Raylib.DrawRectangleRounded(right, 0.2f, 6, Fade(Raylib.ColorBrightness(color, -0.25f), alpha));
+                Outlined(CourseMark(type), new Rectangle(chip.X + 6, chip.Y + 4, 82, 50), 40, Fade(Color.White, alpha), ink, 3);
+                Outlined(type == CourseType.Edit ? "裏おに" : Chart.GetCourseName(type), new Rectangle(chip.X + 4, chip.Y + 56, 86, 26), 20, Fade(Color.White, alpha), ink, 2);
+            }
+            Outlined($"★{level}", right, 36, Fade(Color.White, alpha), ink, 3);
         }
 
         // 難易度の色
@@ -951,12 +983,21 @@ namespace TaikoSim.Scenes
             Rectangle S(Rectangle r) => new Rectangle(center.X + (r.X - center.X) * scale, center.Y + (r.Y - center.Y) * scale, r.Width * scale, r.Height * scale);
 
             // 大きい板(縁 → 曲のカテゴリの色)と、曲名の箱
+            //   スキンに Panel_Base.png(白い土台。色をかける)と Panel_Overlay.png(縁と曲名の箱)があれば、それで描く
             Rectangle panel = S(DiffPanel);
-            Raylib.DrawRectangleRounded(panel, Roundness(panel, 40), 12, Fade(InkColor, alpha));
-            Rectangle panelBody = new Rectangle(panel.X + 7, panel.Y + 7, panel.Width - 14, panel.Height - 14);
-            Raylib.DrawRectangleRounded(panelBody, Roundness(panelBody, 34), 12, Fade(diffColor, alpha));
             Rectangle titleBox = S(DiffTitleBox);
-            Raylib.DrawRectangleRounded(titleBox, Roundness(titleBox, 10), 8, Fade(Tint(diffColor, 0.55f), alpha));
+            if (MenuSkin.Has(MenuSkin.SongFolder + "Panel_Base.png", MenuSkin.SongFolder + "Panel_Overlay.png"))
+            {
+                MenuSkin.Whole(MenuSkin.SongFolder + "Panel_Base.png", panel, Fade(diffColor, alpha));
+                MenuSkin.Whole(MenuSkin.SongFolder + "Panel_Overlay.png", panel, MenuSkin.White(alpha));
+            }
+            else
+            {
+                Raylib.DrawRectangleRounded(panel, Roundness(panel, 40), 12, Fade(InkColor, alpha));
+                Rectangle panelBody = new Rectangle(panel.X + 7, panel.Y + 7, panel.Width - 14, panel.Height - 14);
+                Raylib.DrawRectangleRounded(panelBody, Roundness(panelBody, 34), 12, Fade(diffColor, alpha));
+                Raylib.DrawRectangleRounded(titleBox, Roundness(titleBox, 10), 8, Fade(Tint(diffColor, 0.55f), alpha));
+            }
 
             Color ink = Raylib.ColorBrightness(diffColor, -0.7f);
             Outlined(diffSong.Title, new Rectangle(titleBox.X + 30, titleBox.Y + 55 * scale, titleBox.Width - 60, 80 * scale), 64 * scale,
@@ -1006,11 +1047,14 @@ namespace TaikoSim.Scenes
         private static void DrawDiffCursor(Rectangle box, float alpha)
         {
             Rectangle frame = new Rectangle(box.X - 12, box.Y - 12, box.Width + 24, box.Height + 24);
+            if (MenuSkin.NPatch(MenuSkin.SongFolder + "Card_Cursor.png", frame, 30, MenuSkin.White(alpha))) return;
             Raylib.DrawRectangleRounded(frame, Roundness(frame, 26), 10, Fade(CursorColor, alpha));
         }
 
         private void DrawDiffBox(int index, Rectangle box, float alpha, float scale)
         {
+            if (DrawDiffBoxImage(index, box, alpha, scale)) return;
+
             Raylib.DrawRectangleRounded(box, Roundness(box, 18), 10, Fade(InkColor, alpha));
             Rectangle body = new Rectangle(box.X + 5, box.Y + 5, box.Width - 10, box.Height - 10);
 
@@ -1047,29 +1091,53 @@ namespace TaikoSim.Scenes
                 Outlined("なし", new Rectangle(body.X, box.Y + 240 * scale, body.Width, 44 * scale), 32 * scale, Fade(Color.White, alpha), ink, 3);
                 return;
             }
+            Rectangle strip = new Rectangle(body.X + 8, box.Y + 280 * scale, body.Width - 16, 22 * scale);
+            Raylib.DrawRectangleRounded(strip, 1f, 8, Fade(Raylib.ColorBrightness(color, -0.45f), alpha));
+            DrawCardLevel(index, type, box, alpha, scale, emptyDots: true);
+        }
+
+        // カードの「★ レベル」と★の列(★の列の下地はカードの画像・プログラムのどちらかで描いてある)。裏がある曲は右上に「裏」「表」
+        private void DrawCardLevel(int index, CourseType type, Rectangle box, float alpha, float scale, bool emptyDots)
+        {
+            Color color = CourseColor(type);
+            Color ink = Fade(Raylib.ColorBrightness(color, -0.7f), alpha);
             int level = LevelOf(type);
+            Rectangle body = new Rectangle(box.X + 5, box.Y + 5, box.Width - 10, box.Height - 10);
             Outlined($"★ {level}", new Rectangle(body.X, box.Y + 240 * scale, body.Width, 44 * scale), 36 * scale, Fade(Color.White, alpha), ink, 3);
 
             Rectangle strip = new Rectangle(body.X + 8, box.Y + 280 * scale, body.Width - 16, 22 * scale);
-            Raylib.DrawRectangleRounded(strip, 1f, 8, Fade(Raylib.ColorBrightness(color, -0.45f), alpha));
             int stars = Math.Clamp(level, 0, 10);
             float cell = strip.Width / 10f;
             for (int s = 0; s < 10; s++)
             {
                 Vector2 c = new Vector2(strip.X + cell * (s + 0.5f), strip.Y + strip.Height / 2f);
-                if (s < stars) Text("★", c.X - 8 * scale, c.Y - 9 * scale, 18 * scale, Fade(Color.White, alpha));
-                else Raylib.DrawCircleV(c, 2.5f * scale, Fade(new Color(255, 255, 255, 140), alpha));
+                if (s < stars) Outlined("★", new Rectangle(c.X - cell / 2f, c.Y - 11 * scale, cell, 22 * scale), 18 * scale, Fade(Color.White, alpha), Fade(Raylib.ColorBrightness(color, -0.45f), alpha), 1);
+                else if (emptyDots) Raylib.DrawCircleV(c, 2.5f * scale, Fade(new Color(255, 255, 255, 140), alpha));
             }
 
-            // 裏がある曲は、おにの箱の右上に「裏」「表」
             if (index == 5 && HasCourse(CourseType.Oni) && HasCourse(CourseType.Edit))
-                Outlined(ura ? "裏" : "表", new Rectangle(body.X + body.Width - 44, body.Y + 6, 38, 38), 26, Fade(Color.White, alpha), ink, 2);
+                Outlined(ura ? "裏" : "表", new Rectangle(body.X + body.Width - 44 * scale, body.Y + 6 * scale, 38 * scale, 38 * scale), 26 * scale, Fade(Color.White, alpha), ink, 2);
+        }
+
+        // スキンの画像で、難易度の箱を描く(Back.png・Option.png・Card.png)。画像が無ければ false
+        private bool DrawDiffBoxImage(int index, Rectangle box, float alpha, float scale)
+        {
+            if (index == 0) return MenuSkin.Whole(MenuSkin.SongFolder + "Back.png", box, MenuSkin.White(alpha));
+            if (index == 1) return MenuSkin.Whole(MenuSkin.SongFolder + "Option.png", box, MenuSkin.White(alpha));
+
+            // Card.png：上の段は かんたん〜裏おに、下の段はその難易度が無いとき
+            CourseType type = CourseAt(index);
+            bool exists = HasCourse(type);
+            if (!MenuSkin.Cell(MenuSkin.SongFolder + "Card.png", (int)type + (exists ? 0 : 5), 5, 2, box, MenuSkin.White(alpha))) return false;
+            if (exists) DrawCardLevel(index, type, box, alpha, scale, emptyDots: false);
+            return true;
         }
 
         // 1P の印(赤い丸に「1P」、下に三角)
         private static void DrawPlayerMarker(Rectangle box)
         {
             Vector2 c = new Vector2(box.X + box.Width / 2f, 358);
+            if (MenuSkin.Whole(MenuSkin.SongFolder + "Marker_1P.png", new Rectangle(c.X - 56, c.Y - 56, 112, 118), Color.White)) return;
             Raylib.DrawTriangle(new Vector2(c.X - 14, c.Y + 34), new Vector2(c.X, c.Y + 58), new Vector2(c.X + 14, c.Y + 34), InkColor);
             Raylib.DrawCircleV(c, 53, InkColor);
             Raylib.DrawCircleV(c, 48, MarkerColor);
@@ -1080,6 +1148,7 @@ namespace TaikoSim.Scenes
         // 下のまんなかの「えらぶ・決定」
         private static void DrawDiffHint()
         {
+            if (MenuSkin.Whole(MenuSkin.SongFolder + "Hint.png", DiffHintBox, Color.White)) return;
             Raylib.DrawRectangleRounded(DiffHintBox, 0.3f, 10, Color.White);
             Rectangle choose = new Rectangle(DiffHintBox.X + 18, DiffHintBox.Y + 18, 152, 50);
             Rectangle decide = new Rectangle(DiffHintBox.X + 190, DiffHintBox.Y + 18, 152, 50);

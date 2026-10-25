@@ -32,7 +32,7 @@ namespace TaikoSim.Scenes
 
         // 選んでいる項目(ほかの画面から戻ってきても同じ場所)。ぐるっと回れるので、項目の番号は Items.Length で割った余り
         private static int cursor = 0;
-        private readonly BarList list = new();
+        private readonly BarList list = new(MenuSkin.ModeFolder);
         private Item? deciding;                // 決定して、枠が点滅している項目
 
         // 終了の確認・お知らせ
@@ -49,6 +49,7 @@ namespace TaikoSim.Scenes
             cursor = ((cursor % Items.Length) + Items.Length) % Items.Length;
             list.Reset(cursor);
             deciding = null;
+            MenuSkin.Preload(MenuSkin.ModeFolder, MenuSkin.BarImages);
         }
 
         // Esc：1回目は確認を出す、確認中(3秒以内)にもう1回押したら終了。点滅中なら決定をやめる
@@ -209,10 +210,10 @@ namespace TaikoSim.Scenes
         }
 
         // 1本の板。open は開き具合(0→1)
-        private static void DrawItem(Item item, Rectangle area, float open)
+        private void DrawItem(Item item, Rectangle area, float open)
         {
             Color fill = item.Ready ? item.Color : Raylib.ColorBrightness(item.Color, -0.4f);
-            Rectangle inner = BarList.DrawBody(area, fill, 1f, plain: false);
+            Rectangle inner = list.DrawBody(area, fill, 1f, plain: false);
             Color ink = Raylib.ColorBrightness(fill, -0.65f);
             Color text = item.Ready ? Color.White : new Color(215, 215, 225, 255);
 

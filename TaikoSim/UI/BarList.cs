@@ -8,8 +8,14 @@ namespace TaikoSim.UI
     //   ・カーソルは0.15秒で1つ動く(一定の速さ)。動いている間は板は小さいまま
     //   ・止まってから0.43秒たつと、選んでいる板が0.1秒で上下に開く
     //   ・決定すると、黄色い枠が点滅する(0.53秒)
+    // 板と枠は、スキンの画像(Folder の Bar_Base.png など)があればそれで、無ければプログラムで描く
     public sealed class BarList
     {
+        // スキンの画像のフォルダ(MenuSkin.ModeFolder・MenuSkin.SongFolder)
+        public string Folder { get; }
+
+        public BarList(string folder) => Folder = folder;
+
         // ===== 配置(1920×1080) =====
         public const float BarX = 495, BarY = 478;            // 選んでいる板の左上
         public const float BarWidth = 932, BarHeight = 124;
@@ -115,16 +121,28 @@ namespace TaikoSim.UI
                 else color = Color.White;
             }
             Rectangle frame = new Rectangle(area.X - FrameWidth, area.Y - FrameWidth, area.Width + FrameWidth * 2, area.Height + FrameWidth * 2);
-            Raylib.DrawRectangleRounded(frame, MenuDraw.Roundness(frame, 30), 12, MenuDraw.Fade(color, alpha * Math.Min(1f, Expand * 2f)));
+            float a = alpha * Math.Min(1f, Expand * 2f);
+            string image = Deciding && DecideTime >= BlinkEnd ? "Bar_Cursor_Decide.png" : "Bar_Cursor.png";
+            if (MenuSkin.NPatch(Folder + image, frame, 40, MenuSkin.White(a))) return;
+            Raylib.DrawRectangleRounded(frame, MenuDraw.Roundness(frame, 30), 12, MenuDraw.Fade(color, a));
         }
 
         // 板の土台(縁 → 色 → 中の明るい板)を描いて、中の板の場所を返す。plain なら中の明るい板は描かない
-        public static Rectangle DrawBody(Rectangle area, Color color, float alpha, bool plain)
+        //   スキンに Bar_Base.png(白い土台。色をかける)と Bar_Overlay.png / Bar_Overlay_Plain.png(縁と中の板)があれば、それで描く
+        public Rectangle DrawBody(Rectangle area, Color color, float alpha, bool plain)
         {
+            Rectangle inner = new Rectangle(area.X + 70, area.Y + 20, area.Width - 140, area.Height - 40);
+            string overlay = Folder + (plain ? "Bar_Overlay_Plain.png" : "Bar_Overlay.png");
+            if (MenuSkin.Has(Folder + "Bar_Base.png", overlay))
+            {
+                MenuSkin.NPatch(Folder + "Bar_Base.png", area, 30, MenuDraw.Fade(color, alpha));
+                MenuSkin.NPatch(overlay, area, 30, MenuSkin.White(alpha));
+                return inner;
+            }
+
             Raylib.DrawRectangleRounded(area, MenuDraw.Roundness(area, 22), 12, MenuDraw.Fade(InkColor, alpha));
             Rectangle body = new Rectangle(area.X + 6, area.Y + 6, area.Width - 12, area.Height - 12);
             Raylib.DrawRectangleRounded(body, MenuDraw.Roundness(body, 17), 12, MenuDraw.Fade(color, alpha));
-            Rectangle inner = new Rectangle(area.X + 70, area.Y + 20, area.Width - 140, area.Height - 40);
             if (!plain) Raylib.DrawRectangleRounded(inner, MenuDraw.Roundness(inner, 8), 8, MenuDraw.Fade(MenuDraw.Tint(color, 0.6f), alpha));
             return inner;
         }
