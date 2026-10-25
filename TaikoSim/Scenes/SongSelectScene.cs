@@ -7,6 +7,7 @@ using TaikoSim.Configs;
 using TaikoSim.Graphics;
 using TaikoSim.Input;
 using TaikoSim.UI;
+using static TaikoSim.UI.MenuDraw;
 
 namespace TaikoSim.Scenes
 {
@@ -20,6 +21,8 @@ namespace TaikoSim.Scenes
     //   ・カーソルは0.15秒で1つ動く。動いている間は板は小さいまま
     //   ・止まってから0.43秒たつと、選んでいる板が開いて、同時に曲が流れ始める(フェードなし)
     //   ・決定すると、枠が点滅 → 一覧が消える → 少し間をあけて難易度の板が出る
+    //   ・ジャンル・「とじる」も、決定すると枠が点滅してから切り替わる
+    //   (斜めの板の動きは UI/BarList。モード選択と同じもの)
     // 操作：カッ(左縁・右縁)・↑↓←→・ホイールで動かす、ドン・Enter・クリックで決定、Esc で1つ戻る
     //       F3：検索、F4：お気に入りに入れる/外す、F2：オプション(難易度をえらんでいるとき)
     // 選んでいた場所は static に覚えておくので、演奏から戻ってきても同じ曲を選んだまま
@@ -60,9 +63,8 @@ namespace TaikoSim.Scenes
 
         private readonly List<Item> genres = new();
         private readonly List<Item> songs = new();
-        private float shown;                           // 表示上のカーソルの位置(一定の速さで近づける)
-        private float idle;                            // カーソルが止まってからの時間
-        private float expand;                          // 選んでいる板の開き具合(0→1)
+        private readonly BarList list = new();         // 斜めの板の動き
+        private Action? afterBlink;                    // 決定の点滅が終わったらすること(ジャンルを開く・とじる)
         private Color backColor = new Color(30, 40, 70, 255);
 
         // ===== 難易度をえらぶ =====
@@ -93,21 +95,7 @@ namespace TaikoSim.Scenes
         private static readonly Rectangle NoClickArea = new Rectangle(0, 0, 0, 0);
         private readonly Random random = new();
 
-        // ===== 一覧の配置(TaikøNauts を測った値。1920×1080) =====
-        private const float BarX = 495, BarY = 478;            // 選んでいる板の左上
-        private const float BarWidth = 932, BarHeight = 124;
-        private const float StepX = 40, StepY = 135;           // 1つ離れるごとにずらす量
-        private const float SelGapX = 10, SelGapY = 120;       // 選んでいる板の上下だけ、すき間を空ける(開いたときの場所)
-        private const float OpenTop = 385, OpenBottom = 695;   // 開いた板の上と下
-        private const float FrameWidth = 20;                   // 開いた板のまわりの黄色い枠
-
-        // ===== 動きの時間(TaikøNauts を測った値) =====
-        private const float MoveSeconds = 0.15f;               // カーソルが1つ動く時間
-        private const float ExpandDelay = 0.43f;               // 止まってから板が開き始めるまで
-        private const float ExpandSeconds = 0.1f;              // 板が開ききるまで
-        // 決定 → 難易度の板(決定した時を0秒として)
-        private const float BlinkEnd = 0.53f;                  // ここまで黄色い枠が点滅
-        private const float BlinkCycle = 0.15f, BlinkOn = 0.11f;
+        // ===== 決定 → 難易度の板(決定した時を0秒として。TaikøNauts を測った値) =====
         private const float ListFadeStart = 0.75f, ListFadeEnd = 0.92f;   // 一覧が消える
         private const float PanelInStart = 1.25f, PanelInEnd = 1.58f;     // 難易度の板が出る
         private const float MarkerAt = 1.7f;                   // 1P の印が出る
@@ -125,8 +113,8 @@ namespace TaikoSim.Scenes
         private static readonly Color BackFillColor = new Color(170, 122, 52, 255);
         private static readonly Color RandomColor = new Color(110, 80, 160, 255);
         private static readonly Color LabelColor = new Color(20, 24, 36, 200);
-        private static readonly Color InkColor = new Color(24, 24, 32, 255);       // 板の縁
-        private static readonly Color CursorColor = new Color(255, 240, 40, 255);
+        private static readonly Color InkColor = BarList.InkColor;
+        private static readonly Color CursorColor = BarList.CursorColor;
         private static readonly Color ErrorColor = new Color(255, 110, 100, 255);
         private static readonly Color MarkerColor = new Color(230, 60, 50, 255);
 
@@ -138,21 +126,14 @@ namespace TaikoSim.Scenes
             wasScanning = SongList.IsScanning;
             searchFocused = false;
             if (!SongList.IsScanning) Rebuild(keepPlace: true);
-            shown = inSongs ? songPos : genrePos;
-            ResetExpand();
+            list.Reset(CurrentPos);
+            afterBlink = null;
         }
 
         public override void Exit()
         {
             preview.Dispose();
             options.Close();
-        }
-
-        // 板を閉じて、止まってからの時間を数え直す
-        private void ResetExpand()
-        {
-            idle = 0f;
-            expand = 0f;
         }
 
         // ===== 一覧を作る =====
@@ -185,8 +166,8 @@ namespace TaikoSim.Scenes
                 else SelectSong(lastSongKey);
             }
             if (genres.Count > 0 && genres[Mod(genrePos, genres.Count)].Kind == Kind.Label) genrePos = FirstSelectable(genres);
-            shown = CurrentPos;
-            ResetExpand();
+            list.Reset(CurrentPos);
+            afterBlink = null;
         }
 
         private void BuildGenres()
@@ -267,7 +248,6 @@ namespace TaikoSim.Scenes
             int index = songs.FindIndex(s => s.Kind == Kind.Song && string.Equals(s.Song!.Key, key, StringComparison.OrdinalIgnoreCase));
             if (index < 0) index = songs.Count > 1 ? 1 : 0;
             songPos = index;
-            shown = index;
         }
 
         private static int FirstSelectable(List<Item> items)
@@ -301,7 +281,7 @@ namespace TaikoSim.Scenes
             else if (!scanning && !ReferenceEquals(SongList.Categories, builtFor)) Rebuild(keepPlace: false);
             wasScanning = scanning;
 
-            UpdateListMotion(dt);
+            list.Update(dt, CurrentPos);
             if (diffOpen) diffTime += dt;
 
             // 背景の色を、選んでいるものの色にだんだん近づける
@@ -321,7 +301,7 @@ namespace TaikoSim.Scenes
             // 曲を選んでいるときはプレビューを用意して、板が開いたら流す(難易度をえらんでいる間も流しっぱなし)
             string? previewTja = diffOpen ? diffSong?.TjaPath
                 : inSongs && CurrentItem is { Kind: Kind.Song } now ? now.Song!.TjaPath : null;
-            preview.Request(previewTja, diffOpen || expand > 0f);
+            preview.Request(previewTja, diffOpen || list.Expand > 0f);
 
             // 検索の箱に入力中
             if (searchFocused)
@@ -340,6 +320,17 @@ namespace TaikoSim.Scenes
             if (diffOpen)
             {
                 if (DiffReady) UpdateDifficulty();
+                return;
+            }
+
+            // ジャンル・「とじる」を決定したあとの点滅中は、何もできない。点滅が終わったら切り替える
+            if (list.Deciding)
+            {
+                if (list.DecideTime < BarList.BlinkEnd) return;
+                list.EndDecide();
+                Action? action = afterBlink;
+                afterBlink = null;
+                action?.Invoke();
                 return;
             }
 
@@ -370,23 +361,6 @@ namespace TaikoSim.Scenes
                 Decide();
         }
 
-        // カーソルを一定の速さで動かす。止まってから ExpandDelay 秒たったら板を開く
-        private void UpdateListMotion(float dt)
-        {
-            float distance = CurrentPos - shown;
-            if (distance != 0f)
-            {
-                // 1つなら0.15秒。何回も押してたまったときは、まとめて0.15秒で追いつく
-                float speed = Math.Max(1f, Math.Abs(distance)) / MoveSeconds;
-                float step = speed * dt;
-                shown = Math.Abs(distance) <= step ? CurrentPos : shown + Math.Sign(distance) * step;
-                ResetExpand();
-                return;
-            }
-            idle += dt;
-            if (idle >= ExpandDelay) expand = Math.Min(1f, expand + dt / ExpandSeconds);
-        }
-
         private void Move(int direction)
         {
             List<Item> list = CurrentList;
@@ -407,7 +381,7 @@ namespace TaikoSim.Scenes
             if (inSongs) songPos = pos; else genrePos = pos;
             List<Item> list = CurrentList;
             if (inSongs && list.Count > 0 && list[Mod(pos, list.Count)] is { Kind: Kind.Song } s) lastSongKey = s.Song!.Key;
-            ResetExpand();
+            this.list.Collapse();
         }
 
         // 決定
@@ -424,12 +398,14 @@ namespace TaikoSim.Scenes
                         return;
                     }
                     MenuSounds.Don();
-                    OpenGenre(item.Special, item.Cat);
+                    list.StartDecide();
+                    afterBlink = () => OpenGenre(item.Special, item.Cat);
                     break;
 
                 case Kind.Back:
                     MenuSounds.Don();
-                    CloseGenre();
+                    list.StartDecide();
+                    afterBlink = CloseGenre;
                     break;
 
                 case Kind.Random:
@@ -437,10 +413,9 @@ namespace TaikoSim.Scenes
                     if (candidates.Count == 0) return;
                     Item pick = candidates[random.Next(candidates.Count)];
                     songPos = songPos - Mod(songPos, songs.Count) + songs.IndexOf(pick);
-                    shown = songPos;
                     lastSongKey = pick.Song!.Key;
-                    expand = 1f; // 選んだ曲の板を開いた状態で点滅させる
-                    idle = ExpandDelay;
+                    list.Reset(songPos);
+                    list.OpenNow(); // 選んだ曲の板を開いた状態で点滅させる
                     MenuSounds.Don();
                     OpenDifficulty(pick);
                     break;
@@ -466,8 +441,7 @@ namespace TaikoSim.Scenes
             BuildSongs();
             songPos = songs.Count > 1 ? 1 : 0; // 最初の「とじる」の次(最初の曲)
             if (songs[Mod(songPos, songs.Count)] is { Kind: Kind.Song } first) lastSongKey = first.Song!.Key;
-            shown = songPos;
-            ResetExpand();
+            list.Reset(songPos);
         }
 
         private void CloseGenre()
@@ -480,8 +454,7 @@ namespace TaikoSim.Scenes
                 openSpecial = Special.None;
             }
             BuildGenres(); // 最近遊んだ曲・お気に入りの数が変わっているかもしれない
-            shown = genrePos;
-            ResetExpand();
+            list.Reset(genrePos);
         }
 
         // Esc：オプション → 難易度 → 曲の一覧 → ジャンルの一覧 → モード選択 の順に1つ戻る
@@ -495,6 +468,13 @@ namespace TaikoSim.Scenes
             }
             if (options.IsOpen) { options.Close(); return; }
             if (diffOpen) { CloseDifficulty(); return; }
+            if (afterBlink != null)
+            {
+                // 点滅中なら、決定をやめる
+                afterBlink = null;
+                list.EndDecide();
+                return;
+            }
             if (inSongs) { MenuSounds.Ka(); CloseGenre(); return; }
             SceneManager.ChangeScene(new ModeSelectScene());
         }
@@ -518,8 +498,7 @@ namespace TaikoSim.Scenes
                 BuildSongs();
                 if (songs.Count <= 1) { CloseGenre(); return; }
                 songPos = Math.Min(index, songs.Count - 1);
-                shown = songPos;
-                ResetExpand();
+                list.Reset(songPos);
             }
         }
 
@@ -546,7 +525,7 @@ namespace TaikoSim.Scenes
             diffColor = item.Color;
             diffOpen = true;
             diffTime = 0f;
-            idle = Math.Max(idle, ExpandDelay); // まだ開いていなかったら、すぐ開く
+            list.StartDecide(); // 枠の点滅(まだ開いていなかったら、すぐ開く)
             bool hasOni = HasCourse(CourseType.Oni), hasUra = HasCourse(CourseType.Edit);
             // おにが無くて裏だけある曲は、最初から裏(OpenTaiko と同じ)
             ura = hasUra && (!hasOni || lastCourse == CourseType.Edit);
@@ -567,8 +546,8 @@ namespace TaikoSim.Scenes
             options.Close();
             diffOpen = false;
             diffSong = null;
-            idle = ExpandDelay;
-            expand = 1f;
+            list.EndDecide();
+            list.OpenNow();
         }
 
         private void UpdateDifficulty()
@@ -647,7 +626,7 @@ namespace TaikoSim.Scenes
         private void UpdateSearchInput()
         {
             WindowsIme.RequestTextInput(SearchBox,
-                new Vector2(SearchTextX + FontManager.Measure(searchText, SearchFontSize).X, SearchTextY));
+                new Vector2(SearchTextX + Measure(searchText, SearchFontSize).X, SearchTextY));
 
             int c = Raylib.GetCharPressed();
             while (c > 0)
@@ -693,20 +672,23 @@ namespace TaikoSim.Scenes
             WindowsIme.TakeResultText();
         }
 
-        // 曲名などの文字をまとめて読み込んだ一覧(一覧が新しくなったら、もう一度読む)
+        // 曲名などの文字をまとめて読み込んだ一覧とフォント(一覧が新しくなったり、スキンを変えたりしたら、もう一度読む)
         private static List<SongCategory>? preloadedCategories;
+        private static int preloadedFont = -1;
 
         // 一覧に出る文字(曲名・サブタイトル・エラー・カテゴリ名)を、まとめて先に読み込む
         //   スクロールで新しい曲名が一度にたくさん出ても、その場で文字を読み込まなくていいように
         private static void PreloadListText()
         {
             List<SongCategory> categories = SongList.Categories;
-            if (SongList.IsScanning || ReferenceEquals(categories, preloadedCategories)) return;
+            if (SongList.IsScanning) return;
+            if (ReferenceEquals(categories, preloadedCategories) && preloadedFont == FontManager.SkinMainGeneration) return;
             preloadedCategories = categories;
+            preloadedFont = FontManager.SkinMainGeneration;
 
             IEnumerable<string> Texts()
             {
-                yield return "最近遊んだ曲最近追加された曲お気に入りカテゴリをえらぶとじるランダムにえらぶ全曲もどるオプション易普難鬼裏なし★0123456789えらぶ決定1P";
+                yield return "演奏ゲーム難易度ジャンルを最近遊んだ曲最近追加された曲お気に入りカテゴリをえらぶとじるランダムにえらぶ全曲もどるオプション易普難鬼裏表なし★♥◀0123456789えらぶ決定1P検索読み込み中件一覧更新設定開閉入外当";
                 foreach (SongCategory category in categories)
                 {
                     yield return category.Title;
@@ -718,7 +700,7 @@ namespace TaikoSim.Scenes
                     }
                 }
             }
-            FontManager.Preload(Texts());
+            FontManager.PreloadSkinMain(Texts()); // 文字はスキンの太字フォントで描く
         }
 
         // ===== 描画 =====
@@ -755,19 +737,19 @@ namespace TaikoSim.Scenes
 
         private void DrawHeader()
         {
-            FontManager.Draw("演奏ゲーム", 40, 26, 40, Color.White);
+            Text("演奏ゲーム", 40, 26, 40, Color.White);
             string where = diffOpen ? "難易度をえらぶ"
                 : inSongs ? (openSpecial == Special.Search ? $"検索：{searchText}" : CurrentGenreTitle()) : "ジャンルをえらぶ";
-            DrawFit(where, 44, 76, 300, 26, new Color(230, 230, 240, 255));
+            TextFit(where, 44, 76, 300, 26, new Color(230, 230, 240, 255));
 
             if (searchFocused || searchText.Length > 0 && openSpecial == Special.Search && !diffOpen) DrawSearchBox();
             else if (!diffOpen)
             {
                 KeyboardKey searchKey = ConfigManager.Key.SystemKeys.GetValueOrDefault(SystemAction.Search, KeyboardKey.F3);
-                FontManager.Draw($"{searchKey}：検索", 1700, 50, 24, Gui.SubTextColor);
+                Text($"{searchKey}：検索", 1700, 50, 24, Gui.SubTextColor);
             }
             string count = $"{SongList.SongCount}曲";
-            FontManager.Draw(count, 1860 - FontManager.Measure(count, 24).X, 84, 24, Gui.SubTextColor);
+            Text(count, 1860 - Measure(count, 24).X, 84, 24, Gui.SubTextColor);
         }
 
         private string CurrentGenreTitle()
@@ -781,24 +763,15 @@ namespace TaikoSim.Scenes
             };
         }
 
-        // 一覧の r 番目(選んでいる板が0。小数もOK)の板の左上
-        private static Vector2 BarPosition(float r)
-        {
-            float side = Math.Clamp(r, -1f, 1f);
-            return new Vector2(BarX + StepX * r + SelGapX * side, BarY + StepY * r + SelGapY * side);
-        }
-
         // 一覧(斜めに並べる。上下はぐるっとつながっている)
         private void DrawList(float alpha)
         {
-            List<Item> list = CurrentList;
-            if (list.Count == 0) return;
+            List<Item> items = CurrentList;
+            if (items.Count == 0) return;
 
-            int baseIndex = (int)MathF.Round(shown);
-
-            // 上下に何個まで描くか(一覧が短いときは、同じ項目が2回出ないようにする)
-            int before = Math.Min(4, (list.Count - 1) / 2);
-            int after = Math.Min(4, list.Count - 1 - before);
+            int baseIndex = (int)MathF.Round(list.Shown);
+            var (before, after) = BarList.VisibleRange(items.Count);
+            bool clickable = !diffOpen && !list.Deciding;
 
             // 選んでいる板は、ほかの板の上に描くので最後
             int selectedPos = CurrentPos;
@@ -808,25 +781,20 @@ namespace TaikoSim.Scenes
             for (int k = -before; k <= after; k++)
             {
                 int pos = baseIndex + k;
-                Item item = list[Mod(pos, list.Count)];
-                Vector2 at = BarPosition(pos - shown);
-                Rectangle area = new Rectangle(at.X, at.Y, BarWidth, BarHeight);
+                Item item = items[Mod(pos, items.Count)];
+                Rectangle area = BarList.BarArea(pos - list.Shown);
                 if (area.Y > Screen.Height || area.Y + area.Height < 0) continue;
 
                 bool selected = pos == selectedPos;
                 if (selected)
                 {
-                    // 開いた板(上下に広がる)
-                    float e = EaseOut(expand);
-                    float top = area.Y + (OpenTop - BarY) * e;
-                    float bottom = area.Y + BarHeight + (OpenBottom - (BarY + BarHeight)) * e;
-                    selectedArea = new Rectangle(area.X, top, BarWidth, bottom - top);
+                    selectedArea = list.OpenArea(area); // 開いた板(上下に広がる)
                     selectedItem = item;
                 }
                 else DrawBar(item, area, 0f, alpha);
 
                 // クリック：選んでいる項目なら決定、ほかなら選ぶ
-                if (!diffOpen && item.Kind != Kind.Label && Gui.Clicked(selected && selectedArea is Rectangle open ? open : area))
+                if (clickable && item.Kind != Kind.Label && Gui.Clicked(selected && selectedArea is Rectangle open ? open : area))
                 {
                     if (selected) Decide();
                     else
@@ -839,26 +807,9 @@ namespace TaikoSim.Scenes
 
             if (selectedArea is Rectangle sel && selectedItem != null)
             {
-                DrawSelectionFrame(sel, alpha);
-                DrawBar(selectedItem, sel, expand, alpha);
+                list.DrawFrame(sel, alpha);
+                DrawBar(selectedItem, sel, list.Expand, alpha);
             }
-        }
-
-        // 開いた板のまわりの黄色い枠(決定したあとは点滅 → 白)
-        private void DrawSelectionFrame(Rectangle area, float alpha)
-        {
-            if (expand <= 0f) return;
-            Color color = CursorColor;
-            if (diffOpen)
-            {
-                if (diffTime < BlinkEnd)
-                {
-                    if (diffTime % BlinkCycle >= BlinkOn) return;
-                }
-                else color = Color.White;
-            }
-            Rectangle frame = new Rectangle(area.X - FrameWidth, area.Y - FrameWidth, area.Width + FrameWidth * 2, area.Height + FrameWidth * 2);
-            Raylib.DrawRectangleRounded(frame, Roundness(frame, 30), 12, Fade(color, alpha * Math.Min(1f, expand * 2f)));
         }
 
         // 1本の板。open は開き具合(0→1)
@@ -869,7 +820,7 @@ namespace TaikoSim.Scenes
                 Raylib.DrawRectangleRounded(area, Roundness(area, 22), 10, Fade(LabelColor, alpha));
                 Rectangle labelInner = new Rectangle(area.X + 70, area.Y + 20, area.Width - 140, area.Height - 40);
                 Raylib.DrawRectangleRounded(labelInner, Roundness(labelInner, 8), 8, Fade(new Color(120, 122, 134, 200), alpha));
-                DrawOutlinedFit(item.Title, labelInner, 46, Fade(new Color(225, 225, 240, 255), alpha), Fade(new Color(60, 50, 110, 255), alpha), 3);
+                Outlined(item.Title, labelInner, 46, Fade(new Color(225, 225, 240, 255), alpha), Fade(new Color(60, 50, 110, 255), alpha), 3);
                 return;
             }
 
@@ -889,21 +840,21 @@ namespace TaikoSim.Scenes
                     if (open > 0f)
                     {
                         Rectangle titleArea = new Rectangle(inner.X + 20, inner.Y + inner.Height * 0.12f, inner.Width - 40, 80);
-                        DrawOutlinedFit(item.Title, titleArea, 60, Fade(Color.White, alpha), Fade(ink, alpha), 4);
+                        Outlined(item.Title, titleArea, 60, Fade(Color.White, alpha), Fade(ink, alpha), 4);
                         string count = item.SongCount > 0 ? $"全 {item.SongCount} 曲" : "曲がありません";
                         Rectangle pill = new Rectangle(inner.X + inner.Width / 2f - 150, inner.Y + inner.Height - 80, 300, 54);
                         Raylib.DrawRectangleRounded(pill, 1f, 12, Fade(new Color(255, 255, 255, 200), alpha * open));
-                        DrawCenteredFit(count, pill, 30, Fade(ink, alpha * open));
+                        Centered(count, pill, 30, Fade(ink, alpha * open));
                     }
-                    else DrawOutlinedFit(item.Title, inner, 46, Fade(Color.White, alpha), Fade(ink, alpha), 3);
+                    else Outlined(item.Title, inner, 46, Fade(Color.White, alpha), Fade(ink, alpha), 3);
                     break;
 
                 case Kind.Back:
-                    DrawOutlinedFit(item.Title, inner, open > 0f ? 56 : 46, Fade(Color.White, alpha), Fade(BackBoxColor, alpha), 3);
+                    Outlined(item.Title, inner, open > 0f ? 56 : 46, Fade(Color.White, alpha), Fade(BackBoxColor, alpha), 3);
                     break;
 
                 case Kind.Random:
-                    DrawOutlinedFit(item.Title, inner, open > 0f ? 56 : 46, Fade(Color.White, alpha), Fade(ink, alpha), 3);
+                    Outlined(item.Title, inner, open > 0f ? 56 : 46, Fade(Color.White, alpha), Fade(ink, alpha), 3);
                     break;
 
                 case Kind.Song:
@@ -920,22 +871,22 @@ namespace TaikoSim.Scenes
 
             if (open <= 0f)
             {
-                DrawOutlinedFit(song.Title, new Rectangle(inner.X + 30, inner.Y, inner.Width - 60, inner.Height), 46, Fade(titleColor, alpha), Fade(ink, alpha), 3);
-                if (favorite) FontManager.Draw("♥", inner.X + inner.Width - 36, inner.Y + inner.Height / 2f - 14, 26, Fade(new Color(230, 80, 130, 255), alpha));
+                Outlined(song.Title, new Rectangle(inner.X + 30, inner.Y, inner.Width - 60, inner.Height), 46, Fade(titleColor, alpha), Fade(ink, alpha), 3);
+                if (favorite) Text("♥", inner.X + inner.Width - 36, inner.Y + inner.Height / 2f - 14, 26, Fade(new Color(230, 80, 130, 255), alpha));
                 return;
             }
 
             float a = alpha * open; // 開くあいだに、だんだん出す
 
             // 上：カテゴリ名(特別な一覧のときだけ)とお気に入り
-            if (openSpecial != Special.None) FontManager.Draw(item.CategoryTitle, inner.X + 16, inner.Y + 8, 20, Fade(ink, a));
-            if (favorite) FontManager.Draw("♥ お気に入り", inner.X + inner.Width - 150, inner.Y + 8, 20, Fade(new Color(230, 80, 130, 255), a));
+            if (openSpecial != Special.None) Text(item.CategoryTitle, inner.X + 16, inner.Y + 8, 20, Fade(ink, a));
+            if (favorite) Text("♥ お気に入り", inner.X + inner.Width - 150, inner.Y + 8, 20, Fade(new Color(230, 80, 130, 255), a));
 
             // 曲名・サブタイトル(TaikøNauts と同じく板の上の方)
-            DrawOutlinedFit(song.Title, new Rectangle(inner.X + 20, inner.Y + 32, inner.Width - 40, 66), 48, Fade(titleColor, alpha), Fade(ink, alpha), 4);
+            Outlined(song.Title, new Rectangle(inner.X + 20, inner.Y + 32, inner.Width - 40, 66), 48, Fade(titleColor, alpha), Fade(ink, alpha), 4);
             string sub = song.HasError ? song.Error : song.Subtitle;
             if (sub.Length > 0)
-                DrawOutlinedFit(sub, new Rectangle(inner.X + 20, inner.Y + 96, inner.Width - 40, 34), 24, Fade(song.HasError ? ErrorColor : Color.White, a), Fade(ink, a), 2);
+                Outlined(sub, new Rectangle(inner.X + 20, inner.Y + 96, inner.Width - 40, 34), 24, Fade(song.HasError ? ErrorColor : Color.White, a), Fade(ink, a), 2);
 
             // 下：難易度と★
             DrawCourseChips(song, new Rectangle(inner.X, inner.Y + inner.Height - 100, inner.Width, 85), a);
@@ -959,9 +910,9 @@ namespace TaikoSim.Scenes
                 Rectangle right = new Rectangle(chip.X + 92, chip.Y + 6, chipWidth - 98, chip.Height - 12);
                 Raylib.DrawRectangleRounded(right, 0.2f, 6, Fade(Raylib.ColorBrightness(color, -0.25f), alpha));
                 Color ink = Fade(Raylib.ColorBrightness(color, -0.7f), alpha);
-                DrawOutlinedFit(CourseMark(type), new Rectangle(chip.X + 6, chip.Y + 4, 82, 50), 40, Fade(Color.White, alpha), ink, 3);
-                DrawOutlinedFit(type == CourseType.Edit ? "裏おに" : Chart.GetCourseName(type), new Rectangle(chip.X + 4, chip.Y + 56, 86, 26), 20, Fade(Color.White, alpha), ink, 2);
-                DrawOutlinedFit($"★{level}", right, 36, Fade(Color.White, alpha), ink, 3);
+                Outlined(CourseMark(type), new Rectangle(chip.X + 6, chip.Y + 4, 82, 50), 40, Fade(Color.White, alpha), ink, 3);
+                Outlined(type == CourseType.Edit ? "裏おに" : Chart.GetCourseName(type), new Rectangle(chip.X + 4, chip.Y + 56, 86, 26), 20, Fade(Color.White, alpha), ink, 2);
+                Outlined($"★{level}", right, 36, Fade(Color.White, alpha), ink, 3);
                 x += chipWidth + gap;
             }
         }
@@ -1008,10 +959,10 @@ namespace TaikoSim.Scenes
             Raylib.DrawRectangleRounded(titleBox, Roundness(titleBox, 10), 8, Fade(Tint(diffColor, 0.55f), alpha));
 
             Color ink = Raylib.ColorBrightness(diffColor, -0.7f);
-            DrawOutlinedFit(diffSong.Title, new Rectangle(titleBox.X + 30, titleBox.Y + 55 * scale, titleBox.Width - 60, 80 * scale), 64 * scale,
+            Outlined(diffSong.Title, new Rectangle(titleBox.X + 30, titleBox.Y + 55 * scale, titleBox.Width - 60, 80 * scale), 64 * scale,
                 Fade(Color.White, alpha), Fade(InkColor, alpha), 5);
             if (diffSong.Subtitle.Length > 0)
-                DrawOutlinedFit(diffSong.Subtitle, new Rectangle(titleBox.X + 30, titleBox.Y + 135 * scale, titleBox.Width - 60, 40 * scale), 32 * scale,
+                Outlined(diffSong.Subtitle, new Rectangle(titleBox.X + 30, titleBox.Y + 135 * scale, titleBox.Width - 60, 40 * scale), 32 * scale,
                     Fade(Color.White, alpha), Fade(InkColor, alpha), 3);
 
             // 箱：戻る・オプション・かんたん〜おに
@@ -1036,7 +987,7 @@ namespace TaikoSim.Scenes
             if (HasCourse(CourseType.Oni) && HasCourse(CourseType.Edit))
             {
                 string uraHint = diffCursor == 5 ? (ura ? "もう一度 → ・カッ・Tab：おもてにもどす" : "もう一度 → ・カッ・Tab：裏おに") : "おにで もう一度 → ・カッ・Tab：裏おに";
-                DrawOutlinedFit(uraHint, S(new Rectangle(650, 765, 834, 34)), 24 * scale, Fade(Color.White, alpha), Fade(ink, alpha), 2);
+                Outlined(uraHint, S(new Rectangle(650, 765, 834, 34)), 24 * scale, Fade(Color.White, alpha), Fade(ink, alpha), 2);
             }
 
             // 下のまんなか：えらぶ・決定
@@ -1068,8 +1019,8 @@ namespace TaikoSim.Scenes
                 Color fill = index == 0 ? BackFillColor : new Color(220, 228, 70, 255);
                 Raylib.DrawRectangleRounded(body, Roundness(body, 14), 10, Fade(fill, alpha));
                 if (index == 1) Icons.Gear(body.X + body.Width / 2f, body.Y + body.Height / 2f - 8, Fade(new Color(90, 90, 100, 255), alpha), Fade(fill, alpha));
-                else DrawOutlinedFit("◀", new Rectangle(body.X, body.Y + 6, body.Width, body.Height * 0.6f), 48 * scale, Fade(Color.White, alpha), Fade(BackBoxColor, alpha), 3);
-                DrawOutlinedFit(index == 0 ? "もどる" : "オプション", new Rectangle(body.X + 4, body.Y + body.Height - 34 * scale, body.Width - 8, 28 * scale), 22 * scale,
+                else Outlined("◀", new Rectangle(body.X, body.Y + 6, body.Width, body.Height * 0.6f), 48 * scale, Fade(Color.White, alpha), Fade(BackBoxColor, alpha), 3);
+                Outlined(index == 0 ? "もどる" : "オプション", new Rectangle(body.X + 4, body.Y + body.Height - 34 * scale, body.Width - 8, 28 * scale), 22 * scale,
                     Fade(Color.White, alpha), Fade(InkColor, alpha), 2);
                 return;
             }
@@ -1086,18 +1037,18 @@ namespace TaikoSim.Scenes
             // 印(絵の代わり)
             Vector2 mark = new Vector2(body.X + body.Width / 2f, body.Y + 110 * scale);
             Raylib.DrawCircleV(mark, 62 * scale, Fade(Color.White, alpha * 0.85f));
-            DrawOutlinedFit(CourseMark(type), new Rectangle(mark.X - 60 * scale, mark.Y - 50 * scale, 120 * scale, 100 * scale), 84 * scale, Fade(color, alpha), ink, 4);
+            Outlined(CourseMark(type), new Rectangle(mark.X - 60 * scale, mark.Y - 50 * scale, 120 * scale, 100 * scale), 84 * scale, Fade(color, alpha), ink, 4);
 
             // 名前・★レベル・★の列
             string name = type == CourseType.Edit ? "裏おに" : Chart.GetCourseName(type);
-            DrawOutlinedFit(name, new Rectangle(body.X + 6, box.Y + 198 * scale, body.Width - 12, 44 * scale), 36 * scale, Fade(Color.White, alpha), ink, 3);
+            Outlined(name, new Rectangle(body.X + 6, box.Y + 198 * scale, body.Width - 12, 44 * scale), 36 * scale, Fade(Color.White, alpha), ink, 3);
             if (!exists)
             {
-                DrawOutlinedFit("なし", new Rectangle(body.X, box.Y + 240 * scale, body.Width, 44 * scale), 32 * scale, Fade(Color.White, alpha), ink, 3);
+                Outlined("なし", new Rectangle(body.X, box.Y + 240 * scale, body.Width, 44 * scale), 32 * scale, Fade(Color.White, alpha), ink, 3);
                 return;
             }
             int level = LevelOf(type);
-            DrawOutlinedFit($"★ {level}", new Rectangle(body.X, box.Y + 240 * scale, body.Width, 44 * scale), 36 * scale, Fade(Color.White, alpha), ink, 3);
+            Outlined($"★ {level}", new Rectangle(body.X, box.Y + 240 * scale, body.Width, 44 * scale), 36 * scale, Fade(Color.White, alpha), ink, 3);
 
             Rectangle strip = new Rectangle(body.X + 8, box.Y + 280 * scale, body.Width - 16, 22 * scale);
             Raylib.DrawRectangleRounded(strip, 1f, 8, Fade(Raylib.ColorBrightness(color, -0.45f), alpha));
@@ -1106,13 +1057,13 @@ namespace TaikoSim.Scenes
             for (int s = 0; s < 10; s++)
             {
                 Vector2 c = new Vector2(strip.X + cell * (s + 0.5f), strip.Y + strip.Height / 2f);
-                if (s < stars) FontManager.Draw("★", c.X - 8 * scale, c.Y - 9 * scale, 18 * scale, Fade(Color.White, alpha));
+                if (s < stars) Text("★", c.X - 8 * scale, c.Y - 9 * scale, 18 * scale, Fade(Color.White, alpha));
                 else Raylib.DrawCircleV(c, 2.5f * scale, Fade(new Color(255, 255, 255, 140), alpha));
             }
 
             // 裏がある曲は、おにの箱の右上に「裏」「表」
             if (index == 5 && HasCourse(CourseType.Oni) && HasCourse(CourseType.Edit))
-                DrawOutlinedFit(ura ? "裏" : "表", new Rectangle(body.X + body.Width - 44, body.Y + 6, 38, 38), 26, Fade(Color.White, alpha), ink, 2);
+                Outlined(ura ? "裏" : "表", new Rectangle(body.X + body.Width - 44, body.Y + 6, 38, 38), 26, Fade(Color.White, alpha), ink, 2);
         }
 
         // 1P の印(赤い丸に「1P」、下に三角)
@@ -1123,7 +1074,7 @@ namespace TaikoSim.Scenes
             Raylib.DrawCircleV(c, 53, InkColor);
             Raylib.DrawCircleV(c, 48, MarkerColor);
             Raylib.DrawTriangle(new Vector2(c.X - 10, c.Y + 36), new Vector2(c.X, c.Y + 52), new Vector2(c.X + 10, c.Y + 36), MarkerColor);
-            DrawOutlinedFit("1P", new Rectangle(c.X - 44, c.Y - 30, 88, 60), 50, Color.White, InkColor, 3);
+            Outlined("1P", new Rectangle(c.X - 44, c.Y - 30, 88, 60), 50, Color.White, InkColor, 3);
         }
 
         // 下のまんなかの「えらぶ・決定」
@@ -1136,8 +1087,8 @@ namespace TaikoSim.Scenes
             Raylib.DrawRectangleRounded(decide, 1f, 10, InkColor);
             Raylib.DrawRectangleRounded(new Rectangle(choose.X + 3, choose.Y + 3, choose.Width - 6, choose.Height - 6), 1f, 10, Color.White);
             Raylib.DrawRectangleRounded(new Rectangle(decide.X + 3, decide.Y + 3, decide.Width - 6, decide.Height - 6), 1f, 10, Color.White);
-            DrawCenteredFit("カッ：えらぶ", choose, 26, InkColor);
-            DrawCenteredFit("ドン：決定", decide, 26, InkColor);
+            Centered("カッ：えらぶ", choose, 26, InkColor);
+            Centered("ドン：決定", decide, 26, InkColor);
         }
 
         // 検索の箱
@@ -1152,25 +1103,25 @@ namespace TaikoSim.Scenes
                 string caret = searchFocused && (caretTimer % 1f) < 0.5f ? "|" : "";
                 // まだ何も入れていないときは、薄い字で説明を出す(「|」はその前に)
                 if (searchText.Length == 0)
-                    FontManager.Draw("曲名・アーティスト・フォルダ名", SearchTextX + 14, SearchTextY + 1, 26, Gui.SubTextColor);
-                FontManager.Draw(searchText + caret, SearchTextX, SearchTextY, SearchFontSize, Color.White);
+                    Text("曲名・アーティスト・フォルダ名", SearchTextX + 14, SearchTextY + 1, 26, Gui.SubTextColor);
+                Text(searchText + caret, SearchTextX, SearchTextY, SearchFontSize, Color.White);
             }
             else
             {
-                FontManager.Draw(searchText, SearchTextX, SearchTextY, SearchFontSize, Color.White);
-                float startX = SearchTextX + FontManager.Measure(searchText, SearchFontSize).X;
-                Vector2 size = FontManager.Measure(composition, SearchFontSize);
-                FontManager.Draw(composition, startX, SearchTextY, SearchFontSize, CompositionColor);
+                Text(searchText, SearchTextX, SearchTextY, SearchFontSize, Color.White);
+                float startX = SearchTextX + Measure(searchText, SearchFontSize).X;
+                Vector2 size = Measure(composition, SearchFontSize);
+                Text(composition, startX, SearchTextY, SearchFontSize, CompositionColor);
                 float lineY = SearchTextY + size.Y + 2;
                 Raylib.DrawLineEx(new Vector2(startX, lineY), new Vector2(startX + size.X, lineY), 2, CompositionColor);
                 int cursor = Math.Clamp(WindowsIme.CompositionCursor, 0, composition.Length);
-                FontManager.Draw("|", startX + FontManager.Measure(composition[..cursor], SearchFontSize).X, SearchTextY, SearchFontSize, Color.White);
+                Text("|", startX + Measure(composition[..cursor], SearchFontSize).X, SearchTextY, SearchFontSize, Color.White);
             }
 
             if (searchFocused && searchText.Length > 0)
             {
                 int count = SearchResults().Count;
-                FontManager.Draw(count > 0 ? $"{count}曲　Enter：開く" : "当てはまる曲はありません", SearchBox.X + SearchBox.Width + 16, SearchTextY + 2, 24,
+                Text(count > 0 ? $"{count}曲　Enter：開く" : "当てはまる曲はありません", SearchBox.X + SearchBox.Width + 16, SearchTextY + 2, 24,
                     count > 0 ? Color.White : ErrorColor);
             }
         }
@@ -1190,17 +1141,17 @@ namespace TaikoSim.Scenes
             else hint = "カッ・↑↓：えらぶ　ドン・Enter：決定　Esc：モード選択へ";
             if (hint.Length == 0) return;
             // 斜めの一覧の下の方と重なるので、うしろに薄い帯
-            Vector2 size = FontManager.Measure(hint, 24);
+            Vector2 size = Measure(hint, 24);
             Raylib.DrawRectangleRounded(new Rectangle(28, 1030, size.X + 32, 40), 0.5f, 8, new Color(0, 0, 0, 150));
-            FontManager.Draw(hint, 44, 1037, 24, new Color(220, 224, 236, 255));
+            Text(hint, 44, 1037, 24, new Color(220, 224, 236, 255));
         }
 
         private void DrawToast()
         {
-            float width = FontManager.Measure(toast, 28).X;
+            float width = Measure(toast, 28).X;
             Rectangle box = new Rectangle(Screen.Width / 2f - width / 2f - 30, 140, width + 60, 52);
             Raylib.DrawRectangleRounded(box, 0.4f, 8, new Color(0, 0, 0, 210));
-            FontManager.Draw(toast, box.X + 30, box.Y + 11, 28, new Color(255, 220, 120, 255));
+            Text(toast, box.X + 30, box.Y + 11, 28, new Color(255, 220, 120, 255));
         }
 
         // 曲を読み込み中(「読み込んだ数 / 曲ファイルの総数」とバー)
@@ -1209,7 +1160,7 @@ namespace TaikoSim.Scenes
             int total = SongList.ScanTotal;
             int done = Math.Min(SongList.ScanDone, Math.Max(total, 0));
             string text = total < 0 ? "曲ファイルを探しています…" : $"曲を読み込み中…　{done} / {total}";
-            FontManager.Draw(text, 160, 420, 40, Color.White);
+            Text(text, 160, 420, 40, Color.White);
 
             float progress = total > 0 ? (float)done / total : 0f;
             Rectangle bar = new Rectangle(160, 490, 1600, 20);
@@ -1220,71 +1171,11 @@ namespace TaikoSim.Scenes
         // 曲が1つも無いとき
         private static void DrawEmpty()
         {
-            FontManager.Draw("曲がありません", 160, 360, 40, ErrorColor);
-            FontManager.Draw("下のフォルダに、曲のフォルダ（.tja と .ogg が入ったもの）を入れてください。", 160, 430, 28, Color.White);
-            FontManager.Draw(SongList.SongsFolder, 160, 480, 24, Gui.SubTextColor);
-            FontManager.Draw("カテゴリ分けしたいときは、box.def の入ったフォルダの中に入れてください。", 160, 530, 28, Color.White);
-            FontManager.Draw("入れたら、設定（F1）の「一般設定」→［曲の一覧を更新］を押してください。", 160, 580, 28, Color.White);
+            Text("曲がありません", 160, 360, 40, ErrorColor);
+            Text("下のフォルダに、曲のフォルダ（.tja と .ogg が入ったもの）を入れてください。", 160, 430, 28, Color.White);
+            Text(SongList.SongsFolder, 160, 480, 24, Gui.SubTextColor);
+            Text("カテゴリ分けしたいときは、box.def の入ったフォルダの中に入れてください。", 160, 530, 28, Color.White);
+            Text("入れたら、設定（F1）の「一般設定」→［曲の一覧を更新］を押してください。", 160, 580, 28, Color.White);
         }
-
-        // ===== 描く道具 =====
-
-        // 四角の真ん中に、はみ出さない大きさで文字を書く
-        private static void DrawCenteredFit(string text, Rectangle area, float size, Color color)
-        {
-            if (text.Length == 0) return;
-            Vector2 measured = FontManager.Measure(text, size);
-            if (measured.X > area.Width && measured.X > 0)
-            {
-                size *= area.Width / measured.X;
-                measured = FontManager.Measure(text, size);
-            }
-            FontManager.Draw(text, area.X + (area.Width - measured.X) / 2f, area.Y + (area.Height - measured.Y) / 2f, size, color);
-        }
-
-        // 縁取りした文字を、四角の真ん中にはみ出さない大きさで書く(まわり8方向に縁の色を描いてから、上に本体)
-        private static void DrawOutlinedFit(string text, Rectangle area, float size, Color fill, Color outline, float thickness)
-        {
-            if (text.Length == 0) return;
-            Vector2 measured = FontManager.Measure(text, size);
-            float limit = area.Width - thickness * 2;
-            if (measured.X > limit && measured.X > 0)
-            {
-                size *= limit / measured.X;
-                measured = FontManager.Measure(text, size);
-            }
-            float x = area.X + (area.Width - measured.X) / 2f, y = area.Y + (area.Height - measured.Y) / 2f;
-            for (int dy = -1; dy <= 1; dy++)
-                for (int dx = -1; dx <= 1; dx++)
-                    if (dx != 0 || dy != 0)
-                        FontManager.Draw(text, x + dx * thickness, y + dy * thickness, size, outline);
-            FontManager.Draw(text, x, y, size, fill);
-        }
-
-        // 左から、はみ出さない大きさで書く
-        private static void DrawFit(string text, float x, float y, float maxWidth, float size, Color color)
-        {
-            if (text.Length == 0) return;
-            float width = FontManager.Measure(text, size).X;
-            if (width > maxWidth && width > 0) size *= maxWidth / width;
-            FontManager.Draw(text, x, y, size, color);
-        }
-
-        // 角の丸さ(半径 px)を、DrawRectangleRounded の roundness(短い辺に対する割合)に直す
-        private static float Roundness(Rectangle area, float radius)
-        {
-            float shorter = Math.Min(area.Width, area.Height);
-            return shorter <= 0 ? 0f : Math.Clamp(radius * 2f / shorter, 0f, 1f);
-        }
-
-        // 白に近づけた色(amount 0 そのまま → 1 白)
-        private static Color Tint(Color color, float amount) => new Color(
-            (byte)(color.R + (255 - color.R) * amount), (byte)(color.G + (255 - color.G) * amount),
-            (byte)(color.B + (255 - color.B) * amount), color.A);
-
-        // 透明度をかける
-        private static Color Fade(Color color, float alpha) => new Color(color.R, color.G, color.B, (byte)(color.A * Math.Clamp(alpha, 0f, 1f)));
-
-        private static float EaseOut(float t) => 1f - (1f - t) * (1f - t);
     }
 }

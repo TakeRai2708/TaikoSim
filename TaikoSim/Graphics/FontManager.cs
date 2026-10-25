@@ -16,6 +16,9 @@ namespace TaikoSim.Graphics
         private static DynamicFont? skinMainFont;
         private static string skinMainPreparedText = "";
 
+        // スキンの太字フォントを読み直した回数(先読みし直すかどうかの目印)
+        public static int SkinMainGeneration { get; private set; }
+
         // 使っているフォントの名前(表示用)
         public static string FontName => systemFont != null
             ? $"{Path.GetFileName(systemFont.FilePath)}（ページ {systemFont.PageCount}）"
@@ -65,6 +68,7 @@ namespace TaikoSim.Graphics
         {
             skinMainFont?.Dispose();
             skinMainFont = null;
+            SkinMainGeneration++;
             string? path = FindSkinMainFontFile(skinPath);
             if (path != null)
             {
@@ -93,6 +97,14 @@ namespace TaikoSim.Graphics
 
         public static Vector2 MeasureSkinMain(string text, float size) =>
             skinMainFont?.Measure(text, size) ?? Measure(text, size);
+
+        // スキンの太字フォントに、たくさんの文字列の文字をまとめて先に読み込む(選曲画面の曲名など)
+        //   スキンにフォントが無いときは、代わりに使うシステム用のフォントに読み込む
+        public static void PreloadSkinMain(IEnumerable<string> texts)
+        {
+            if (skinMainFont != null) skinMainFont.Preload(texts);
+            else Preload(texts);
+        }
 
         // 後片付け(ウィンドウを閉じる前に呼ぶ)
         public static void Unload()

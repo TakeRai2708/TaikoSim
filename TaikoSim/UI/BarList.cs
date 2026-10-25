@@ -1,0 +1,140 @@
+using System.Numerics;
+using Raylib_cs;
+
+namespace TaikoSim.UI
+{
+    // モード選択・選曲画面の「斜めに並んだ板」の動き(TaikøNauts の選曲画面を測った値)
+    //   ・板は斜めに並ぶ(1つ下がるごとに右へ40px、下へ135px。選んでいる板の上下だけ120px空ける)
+    //   ・カーソルは0.15秒で1つ動く(一定の速さ)。動いている間は板は小さいまま
+    //   ・止まってから0.43秒たつと、選んでいる板が0.1秒で上下に開く
+    //   ・決定すると、黄色い枠が点滅する(0.53秒)
+    public sealed class BarList
+    {
+        // ===== 配置(1920×1080) =====
+        public const float BarX = 495, BarY = 478;            // 選んでいる板の左上
+        public const float BarWidth = 932, BarHeight = 124;
+        public const float StepX = 40, StepY = 135;           // 1つ離れるごとにずらす量
+        public const float SelGapX = 10, SelGapY = 120;       // 選んでいる板の上下だけ、すき間を空ける(開いたときの場所)
+        public const float OpenTop = 385, OpenBottom = 695;   // 開いた板の上と下
+        public const float FrameWidth = 20;                   // 開いた板のまわりの黄色い枠
+
+        // ===== 時間 =====
+        public const float MoveSeconds = 0.15f;               // カーソルが1つ動く時間
+        public const float ExpandDelay = 0.43f;               // 止まってから板が開き始めるまで
+        public const float ExpandSeconds = 0.1f;              // 板が開ききるまで
+        public const float BlinkEnd = 0.53f;                  // 決定してから、ここまで黄色い枠が点滅
+        private const float BlinkCycle = 0.15f, BlinkOn = 0.11f;
+
+        public static readonly Color InkColor = new Color(24, 24, 32, 255);       // 板の縁
+        public static readonly Color CursorColor = new Color(255, 240, 40, 255);  // 黄色い枠
+
+        public float Shown { get; private set; }        // 表示上のカーソルの位置
+        public float Expand { get; private set; }       // 選んでいる板の開き具合(0→1)
+        public float DecideTime { get; private set; } = -1f; // 決定してからの時間(決定していないときは -1)
+        private float idle;                              // カーソルが止まってからの時間
+
+        public bool Deciding => DecideTime >= 0f;
+
+        // pos に置き直す(動きのアニメなし。板は閉じる)
+        public void Reset(int pos)
+        {
+            Shown = pos;
+            Collapse();
+            DecideTime = -1f;
+        }
+
+        // 板を閉じて、止まってからの時間を数え直す
+        public void Collapse()
+        {
+            idle = 0f;
+            Expand = 0f;
+        }
+
+        // 板を開いた状態にする(難易度の板から戻ったときなど)
+        public void OpenNow()
+        {
+            idle = ExpandDelay;
+            Expand = 1f;
+        }
+
+        // 決定した(枠の点滅を始める。まだ開いていなかったら、すぐ開く)
+        public void StartDecide()
+        {
+            DecideTime = 0f;
+            idle = Math.Max(idle, ExpandDelay);
+        }
+
+        public void EndDecide() => DecideTime = -1f;
+
+        // 毎フレーム。target は本当のカーソルの位置
+        public void Update(float dt, int target)
+        {
+            if (Deciding) DecideTime += dt;
+
+            float distance = target - Shown;
+            if (distance != 0f)
+            {
+                // 1つなら0.15秒。何回も押してたまったときは、まとめて0.15秒で追いつく
+                float speed = Math.Max(1f, Math.Abs(distance)) / MoveSeconds;
+                float step = speed * dt;
+                Shown = Math.Abs(distance) <= step ? target : Shown + Math.Sign(distance) * step;
+                Collapse();
+                return;
+            }
+            idle += dt;
+            if (idle >= ExpandDelay) Expand = Math.Min(1f, Expand + dt / ExpandSeconds);
+        }
+
+        // 一覧の r 番目(選んでいる板が0。小数もOK)の板の場所
+        public static Rectangle BarArea(float r)
+        {
+            float side = Math.Clamp(r, -1f, 1f);
+            return new Rectangle(BarX + StepX * r + SelGapX * side, BarY + StepY * r + SelGapY * side, BarWidth, BarHeight);
+        }
+
+        // 選んでいる板の、開いたときの場所
+        public Rectangle OpenArea(Rectangle area)
+        {
+            float e = MenuDraw.EaseOut(Expand);
+            float top = area.Y + (OpenTop - BarY) * e;
+            float bottom = area.Y + BarHeight + (OpenBottom - (BarY + BarHeight)) * e;
+            return new Rectangle(area.X, top, area.Width, bottom - top);
+        }
+
+        // 開いた板のまわりの黄色い枠(決定したあとは点滅 → 白)
+        public void DrawFrame(Rectangle area, float alpha)
+        {
+            if (Expand <= 0f) return;
+            Color color = CursorColor;
+            if (Deciding)
+            {
+                if (DecideTime < BlinkEnd)
+                {
+                    if (DecideTime % BlinkCycle >= BlinkOn) return;
+                }
+                else color = Color.White;
+            }
+            Rectangle frame = new Rectangle(area.X - FrameWidth, area.Y - FrameWidth, area.Width + FrameWidth * 2, area.Height + FrameWidth * 2);
+            Raylib.DrawRectangleRounded(frame, MenuDraw.Roundness(frame, 30), 12, MenuDraw.Fade(color, alpha * Math.Min(1f, Expand * 2f)));
+        }
+
+        // 板の土台(縁 → 色 → 中の明るい板)を描いて、中の板の場所を返す。plain なら中の明るい板は描かない
+        public static Rectangle DrawBody(Rectangle area, Color color, float alpha, bool plain)
+        {
+            Raylib.DrawRectangleRounded(area, MenuDraw.Roundness(area, 22), 12, MenuDraw.Fade(InkColor, alpha));
+            Rectangle body = new Rectangle(area.X + 6, area.Y + 6, area.Width - 12, area.Height - 12);
+            Raylib.DrawRectangleRounded(body, MenuDraw.Roundness(body, 17), 12, MenuDraw.Fade(color, alpha));
+            Rectangle inner = new Rectangle(area.X + 70, area.Y + 20, area.Width - 140, area.Height - 40);
+            if (!plain) Raylib.DrawRectangleRounded(inner, MenuDraw.Roundness(inner, 8), 8, MenuDraw.Fade(MenuDraw.Tint(color, 0.6f), alpha));
+            return inner;
+        }
+
+        // 一覧に何個描くか(短い一覧のときは、同じ項目が2回出ないように)
+        public static (int Before, int After) VisibleRange(int count)
+        {
+            int before = Math.Min(4, (count - 1) / 2);
+            int after = Math.Min(4, count - 1 - before);
+            return (before, after);
+        }
+    }
+}
