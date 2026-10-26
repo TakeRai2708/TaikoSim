@@ -17,7 +17,8 @@ namespace TaikoSim.UI
 
         // 画面に入ったときに、先に読み込んでおく(初めて描くときに止まらないように)
         public static readonly string[] BarImages = { "Bar_Base.png", "Bar_Overlay.png", "Bar_Overlay_Plain.png", "Bar_Cursor.png", "Bar_Cursor_Decide.png" };
-        public static readonly string[] SongImages = { "Bar_Label.png", "Chip.png", "Panel_Base.png", "Panel_Overlay.png", "Back.png", "Option.png", "Card.png", "Card_Cursor.png", "Marker_1P.png", "Hint.png" };
+        public static readonly string[] SongImages = { "Bar_Label.png", "Panel_Base.png", "Panel_Overlay.png", "Marker_1P.png", "Hint.png",
+            "Difficulty_Level_Number.png", "Difficulty_Select/Difficulty_Level_Number.png", "Difficulty_Select/Difficulty_Level_Star.png" };
 
         // TaikøNauts のスキンの選曲画面の画像(あるものだけ読まれる)
         public static readonly string[] TnSongImages = Enumerable.Range(0, 12).Select(i => $"Bar/{i}.png")
@@ -56,6 +57,25 @@ namespace TaikoSim.UI
             float w = (float)texture.Width / columns, h = (float)texture.Height / rows;
             Rectangle source = new Rectangle(index % columns * w, index / columns * h, w, h);
             Raylib.DrawTexturePro(texture, source, dest, Vector2.Zero, 0f, tint);
+            return true;
+        }
+
+        // 数字の画像(0〜9 が横に10個並んだもの)で数字を書く。(centerX, centerY) が全体の真ん中
+        //   advance：1文字ずつ右へ進める量(画像の1文字の幅より少し詰める)。scale：大きさ
+        public static bool Digits(string path, string digits, float centerX, float centerY, float advance, float scale, Color tint)
+        {
+            if (digits.Length == 0 || SkinManager.GetTexture(path) is not Texture2D texture) return false;
+            float w = texture.Width / 10f, h = texture.Height;
+            float total = advance * (digits.Length - 1) * scale;
+            float x = centerX - total / 2f;
+            foreach (char ch in digits)
+            {
+                if (ch < '0' || ch > '9') continue;
+                Rectangle source = new Rectangle((ch - '0') * w, 0, w, h);
+                Rectangle dest = new Rectangle(x - w * scale / 2f, centerY - h * scale / 2f, w * scale, h * scale);
+                Raylib.DrawTexturePro(texture, source, dest, Vector2.Zero, 0f, tint);
+                x += advance * scale;
+            }
             return true;
         }
 

@@ -32,7 +32,8 @@ namespace TaikoSim.UI
         private const float BlinkCycle = 0.15f, BlinkOn = 0.11f;
 
         public static readonly Color InkColor = new Color(24, 24, 32, 255);       // 板の縁
-        public static readonly Color CursorColor = new Color(255, 240, 40, 255);  // 黄色い枠
+        public static readonly Color CursorColor = new Color(253, 253, 144, 255); // 黄色い枠(TaikøNauts の動画の色。淡い黄色)
+        private const float WhiteOnYellow = 0.565f;                                // 真っ黄色の上に白をこれだけ重ねると、上の淡い黄色になる
 
         public float Shown { get; private set; }        // 表示上のカーソルの位置
         public float Expand { get; private set; }       // 選んでいる板の開き具合(0→1)
@@ -123,8 +124,14 @@ namespace TaikoSim.UI
             Rectangle frame = new Rectangle(area.X - FrameWidth, area.Y - FrameWidth, area.Width + FrameWidth * 2, area.Height + FrameWidth * 2);
             float a = alpha * Math.Min(1f, Expand * 2f);
             // TaikøNauts のスキン(Bar/Selected.png：縦に 黄色・黄色の光・白 の3段。1段 1008×210、中身は 7,22 から 994×166)
-            int row = Deciding && DecideTime >= BlinkEnd ? 2 : 0;
-            if (MenuSkin.NPatchPart(Folder + "Bar/Selected.png", new Rectangle(7, 22 + 210 * row, 994, 166), frame, 40, MenuSkin.White(a))) return;
+            //   TaikøNauts の動画では、枠は淡い黄色(253,253,144)だった → 黄色の上に白を 56% 重ねると同じ色になる
+            bool decided = Deciding && DecideTime >= BlinkEnd;
+            Rectangle Row(int row) => new Rectangle(7, 22 + 210 * row, 994, 166);
+            if (MenuSkin.NPatchPart(Folder + "Bar/Selected.png", Row(decided ? 2 : 0), frame, 40, MenuSkin.White(a)))
+            {
+                if (!decided) MenuSkin.NPatchPart(Folder + "Bar/Selected.png", Row(2), frame, 40, MenuSkin.White(a * WhiteOnYellow));
+                return;
+            }
             string image = Deciding && DecideTime >= BlinkEnd ? "Bar_Cursor_Decide.png" : "Bar_Cursor.png";
             if (MenuSkin.NPatch(Folder + image, frame, 40, MenuSkin.White(a))) return;
             Raylib.DrawRectangleRounded(frame, MenuDraw.Roundness(frame, 30), 12, MenuDraw.Fade(color, a));

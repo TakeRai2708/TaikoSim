@@ -15,7 +15,9 @@ namespace TaikoSim.Graphics
     public sealed class DynamicFont : IDisposable
     {
         // この大きさで読み込んで、表示するときに拡大・縮小する
-        public const int BaseSize = 48;
+        //   大きい文字(開いた板の曲名など 60〜72px)を引き伸ばしてボケないように、96px で読む
+        //   小さく描くときにガタガタしないように、縮小用の画像(ミップマップ)も作っておく
+        public const int BaseSize = 96;
 
         // 改行したときの行の間(文字の大きさに足す分)
         private const float LineGap = 2f;
@@ -131,7 +133,8 @@ namespace TaikoSim.Graphics
         // たくさんの文字列の文字を、まとめて先に読み込んでおく(選曲画面の曲名など)
         //   描くときに1つずつページを足すと、新しい文字が一度にたくさん出たときに止まってしまうため
         //   1ページが大きくなりすぎないように、PreloadChunk 文字ずつに分けて読む
-        private const int PreloadChunk = 1000;
+        //   (96px なので、1ページの大きさが 4096px 四方くらいに収まるように 400 文字ずつ)
+        private const int PreloadChunk = 400;
 
         public void Preload(IEnumerable<string> texts)
         {
@@ -200,8 +203,11 @@ namespace TaikoSim.Graphics
                 return false;
             }
 
-            // 拡大・縮小してもガタガタにならないようにする
-            Raylib.SetTextureFilter(page.Texture, TextureFilter.Bilinear);
+            // 拡大・縮小してもガタガタにならないようにする(小さく描くときは縮小用の画像を使う)
+            Texture2D texture = page.Texture;
+            Raylib.GenTextureMipmaps(ref texture);
+            page.Texture = texture;
+            Raylib.SetTextureFilter(page.Texture, TextureFilter.Trilinear);
 
             int pageIndex = pages.Count;
             pages.Add(page);

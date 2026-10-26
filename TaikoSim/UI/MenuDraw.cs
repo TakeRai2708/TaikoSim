@@ -38,27 +38,34 @@ namespace TaikoSim.UI
             Text(text, area.X + (area.Width - measured.X) / 2f, area.Y + (area.Height - measured.Y) / 2f, size, color);
         }
 
+        // 縁の太さ = 文字の大きさ × この割合(どの大きさでも同じ見た目の太さになるように。46px なら約5px、60px なら約6.6px)
+        public const float OutlineRatio = 0.11f;
+
+        // 縁の太さ(文字の大きさから決める。小さい字でも 1.5px はつける)
+        public static float OutlineWidth(float size) => Math.Max(1.5f, size * OutlineRatio);
+
         // 縁取りした文字を、四角の真ん中にはみ出さない大きさで書く
         //   縁は、まわりにぐるっと(円の上に)ずらした文字を描いて作る。8方向だとななめだけ飛び出してトゲトゲになるので、細かく回す
-        public static void Outlined(string text, Rectangle area, float size, Color fill, Color outline, float thickness)
+        public static void Outlined(string text, Rectangle area, float size, Color fill, Color outline)
         {
             if (text.Length == 0) return;
             Vector2 measured = Measure(text, size);
-            float limit = area.Width - thickness * 2;
+            float limit = area.Width - OutlineWidth(size) * 2;
             if (measured.X > limit && measured.X > 0)
             {
                 size *= limit / measured.X;
                 measured = Measure(text, size);
             }
             float x = area.X + (area.Width - measured.X) / 2f, y = area.Y + (area.Height - measured.Y) / 2f;
-            OutlinedAt(text, x, y, size, fill, outline, thickness);
+            OutlinedAt(text, x, y, size, fill, outline);
         }
 
         // 縁取りした文字を (x, y) から書く
-        public static void OutlinedAt(string text, float x, float y, float size, Color fill, Color outline, float thickness)
+        public static void OutlinedAt(string text, float x, float y, float size, Color fill, Color outline)
         {
             if (text.Length == 0) return;
-            if (thickness > 0f && outline.A > 0)
+            float thickness = OutlineWidth(size);
+            if (outline.A > 0)
             {
                 int steps = thickness >= 3f ? 16 : 12;
                 for (int i = 0; i < steps; i++)

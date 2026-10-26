@@ -121,7 +121,7 @@ namespace TaikoSim.Scenes
         private static readonly Color RandomColor = new Color(110, 80, 160, 255);
         private static readonly Color LabelColor = new Color(20, 24, 36, 200);
         private static readonly Color InkColor = BarList.InkColor;
-        private static readonly Color CursorColor = BarList.CursorColor;
+        private static readonly Color CursorColor = new Color(255, 240, 40, 255);  // 難易度のカードの枠(A-Style の Cursor_Effect.png と同じ黄色)
         private static readonly Color ErrorColor = new Color(255, 110, 100, 255);
         private static readonly Color MarkerColor = new Color(230, 60, 50, 255);
 
@@ -947,7 +947,7 @@ namespace TaikoSim.Scenes
                     Raylib.DrawRectangleRounded(area, Roundness(area, 22), 10, Fade(LabelColor, alpha));
                     Raylib.DrawRectangleRounded(labelInner, Roundness(labelInner, 8), 8, Fade(new Color(120, 122, 134, 200), alpha));
                 }
-                Outlined(item.Title, labelInner, 46, Fade(new Color(225, 225, 240, 255), alpha), Fade(new Color(60, 50, 110, 255), alpha), 3);
+                Outlined(item.Title, labelInner, 46, Fade(new Color(225, 225, 240, 255), alpha), Fade(new Color(60, 50, 110, 255), alpha));
                 return;
             }
 
@@ -962,21 +962,21 @@ namespace TaikoSim.Scenes
                     if (open > 0f)
                     {
                         Rectangle titleArea = new Rectangle(inner.X + 20, inner.Y + inner.Height * 0.12f, inner.Width - 40, 80);
-                        Outlined(item.Title, titleArea, 60, Fade(Color.White, alpha), Fade(ink, alpha), 4);
+                        Outlined(item.Title, titleArea, 60, Fade(Color.White, alpha), Fade(ink, alpha));
                         string count = item.SongCount > 0 ? $"全 {item.SongCount} 曲" : "曲がありません";
                         Rectangle pill = new Rectangle(inner.X + inner.Width / 2f - 150, inner.Y + inner.Height - 80, 300, 54);
                         Raylib.DrawRectangleRounded(pill, 1f, 12, Fade(new Color(255, 255, 255, 200), alpha * open));
                         Centered(count, pill, 30, Fade(ink, alpha * open));
                     }
-                    else Outlined(item.Title, inner, 46, Fade(Color.White, alpha), Fade(ink, alpha), 3);
+                    else Outlined(item.Title, inner, 46, Fade(Color.White, alpha), Fade(ink, alpha));
                     break;
 
                 case Kind.Back:
-                    Outlined(item.Title, inner, open > 0f ? 56 : 46, Fade(Color.White, alpha), Fade(BackBoxColor, alpha), 3);
+                    Outlined(item.Title, inner, open > 0f ? 56 : 46, Fade(Color.White, alpha), Fade(BackBoxColor, alpha));
                     break;
 
                 case Kind.Random:
-                    Outlined(item.Title, inner, open > 0f ? 56 : 46, Fade(Color.White, alpha), Fade(ink, alpha), 3);
+                    Outlined(item.Title, inner, open > 0f ? 56 : 46, Fade(Color.White, alpha), Fade(ink, alpha));
                     break;
 
                 case Kind.Song:
@@ -993,7 +993,7 @@ namespace TaikoSim.Scenes
 
             if (open <= 0f)
             {
-                Outlined(song.Title, new Rectangle(inner.X + 30, inner.Y, inner.Width - 60, inner.Height), 46, Fade(titleColor, alpha), Fade(ink, alpha), 3);
+                Outlined(song.Title, new Rectangle(inner.X + 30, inner.Y, inner.Width - 60, inner.Height), 46, Fade(titleColor, alpha), Fade(ink, alpha));
                 if (favorite) Text("♥", inner.X + inner.Width - 36, inner.Y + inner.Height / 2f - 14, 26, Fade(new Color(230, 80, 130, 255), alpha));
                 return;
             }
@@ -1005,10 +1005,10 @@ namespace TaikoSim.Scenes
             if (favorite) Text("♥ お気に入り", inner.X + inner.Width - 150, inner.Y + 8, 20, Fade(new Color(230, 80, 130, 255), a));
 
             // 曲名・サブタイトル(TaikøNauts と同じく板の上の方)
-            Outlined(song.Title, new Rectangle(inner.X + 20, inner.Y + 32, inner.Width - 40, 66), 48, Fade(titleColor, alpha), Fade(ink, alpha), 4);
+            Outlined(song.Title, new Rectangle(inner.X + 20, inner.Y + 32, inner.Width - 40, 66), 48, Fade(titleColor, alpha), Fade(ink, alpha));
             string sub = song.HasError ? song.Error : song.Subtitle;
             if (sub.Length > 0)
-                Outlined(sub, new Rectangle(inner.X + 20, inner.Y + 96, inner.Width - 40, 34), 24, Fade(song.HasError ? ErrorColor : Color.White, a), Fade(ink, a), 2);
+                Outlined(sub, new Rectangle(inner.X + 20, inner.Y + 96, inner.Width - 40, 34), 24, Fade(song.HasError ? ErrorColor : Color.White, a), Fade(ink, a));
 
             // 下：難易度と★
             DrawCourseChips(song, new Rectangle(inner.X, inner.Y + inner.Height - 100, inner.Width, 85), a);
@@ -1054,26 +1054,27 @@ namespace TaikoSim.Scenes
             return 1f - (t - UraHold * 2 - UraFade) / UraFade;
         }
 
-        // 難易度の札を1つ(スキンの Chip.png があればそれ。★レベルはプログラムが書く)
+        // 難易度の札を1つ(スキンの Difficulty_Panel.png があればそれ。数字はプログラムが書く)
         private static void DrawChip(CourseType type, int level, Rectangle chip, float alpha)
         {
             Color color = CourseColor(type);
             Color ink = Fade(Raylib.ColorBrightness(color, -0.7f), alpha);
             Rectangle right = new Rectangle(chip.X + 92, chip.Y + 6, chip.Width - 98, chip.Height - 12);
-            // TaikøNauts のスキン：Difficulty_Panel.png(横に5つ。1つ 176×86、182px ごと。★まで描いてある)。数字だけ書く
+            // TaikøNauts のスキン：Difficulty_Panel.png(横に5つ。1つ 176×86、182px ごと。★まで描いてある)
+            //   数字は Difficulty_Level_Number.png(0〜9。1文字 31×37)で、★のすぐ右に書く(TaikøNauts の動画で測った場所)
             if (MenuSkin.Part(Tn + "Difficulty_Panel.png", new Rectangle(3 + 182 * (int)type, 2, 176, 86), chip, MenuSkin.White(alpha)))
             {
-                Outlined(level.ToString(), new Rectangle(chip.X + 126, chip.Y + 8, 46, 70), 40, Fade(Color.White, alpha), Fade(InkColor, alpha), 3);
+                float k = chip.Height / 86f;
+                if (!MenuSkin.Digits(Tn + "Difficulty_Level_Number.png", level.ToString(), chip.X + ChipNumberX * k, chip.Y + ChipNumberY * k, ChipNumberAdvance, k, MenuSkin.White(alpha)))
+                    Outlined(level.ToString(), new Rectangle(chip.X + 128, chip.Y + 20, 44, 46), 36, Fade(Color.White, alpha), Fade(InkColor, alpha));
                 return;
             }
-            if (!MenuSkin.Cell(MenuSkin.SongFolder + "Chip.png", (int)type, 1, 5, chip, MenuSkin.White(alpha)))
-            {
-                Raylib.DrawRectangleRec(chip, Fade(color, alpha));
-                Raylib.DrawRectangleRounded(right, 0.2f, 6, Fade(Raylib.ColorBrightness(color, -0.25f), alpha));
-                Outlined(CourseMark(type), new Rectangle(chip.X + 6, chip.Y + 4, 82, 50), 40, Fade(Color.White, alpha), ink, 3);
-                Outlined(type == CourseType.Edit ? "裏おに" : Chart.GetCourseName(type), new Rectangle(chip.X + 4, chip.Y + 56, 86, 26), 20, Fade(Color.White, alpha), ink, 2);
-            }
-            Outlined($"★{level}", right, 36, Fade(Color.White, alpha), ink, 3);
+            // 画像が無いとき(システムのスキンなど)はプログラムで描く
+            Raylib.DrawRectangleRec(chip, Fade(color, alpha));
+            Raylib.DrawRectangleRounded(right, 0.2f, 6, Fade(Raylib.ColorBrightness(color, -0.25f), alpha));
+            Outlined(CourseMark(type), new Rectangle(chip.X + 6, chip.Y + 4, 82, 50), 40, Fade(Color.White, alpha), ink);
+            Outlined(type == CourseType.Edit ? "裏おに" : Chart.GetCourseName(type), new Rectangle(chip.X + 4, chip.Y + 56, 86, 26), 20, Fade(Color.White, alpha), ink);
+            Outlined($"★{level}", right, 36, Fade(Color.White, alpha), ink);
         }
 
         // 難易度の色
@@ -1131,10 +1132,10 @@ namespace TaikoSim.Scenes
 
             Color ink = Raylib.ColorBrightness(diffColor, -0.7f);
             Outlined(diffSong.Title, new Rectangle(titleBox.X + 30, titleBox.Y + 55 * scale, titleBox.Width - 60, 80 * scale), 64 * scale,
-                Fade(Color.White, alpha), Fade(InkColor, alpha), 5);
+                Fade(Color.White, alpha), Fade(InkColor, alpha));
             if (diffSong.Subtitle.Length > 0)
                 Outlined(diffSong.Subtitle, new Rectangle(titleBox.X + 30, titleBox.Y + 135 * scale, titleBox.Width - 60, 40 * scale), 32 * scale,
-                    Fade(Color.White, alpha), Fade(InkColor, alpha), 3);
+                    Fade(Color.White, alpha), Fade(InkColor, alpha));
 
             // 箱：戻る・オプション・かんたん〜おに
             bool ready = DiffReady && active && !options.IsOpen;
@@ -1158,7 +1159,7 @@ namespace TaikoSim.Scenes
             if (HasCourse(CourseType.Oni) && HasCourse(CourseType.Edit))
             {
                 string uraHint = diffCursor == 5 ? (ura ? "もう一度 → ・カッ・Tab：おもてにもどす" : "もう一度 → ・カッ・Tab：裏おに") : "おにで もう一度 → ・カッ・Tab：裏おに";
-                Outlined(uraHint, S(new Rectangle(650, 765, 834, 34)), 24 * scale, Fade(Color.White, alpha), Fade(ink, alpha), 2);
+                Outlined(uraHint, S(new Rectangle(650, 765, 834, 34)), 24 * scale, Fade(Color.White, alpha), Fade(ink, alpha));
             }
 
             // 下のまんなか：えらぶ・決定
@@ -1181,7 +1182,6 @@ namespace TaikoSim.Scenes
             bool small = box.Width < 150;
             if (small ? MenuSkin.NPatchPart(Tn + "Difficulty_Select/Cursor_Effect_Small.png", new Rectangle(13, 10, 134, 141), frame, 30, MenuSkin.White(alpha))
                       : MenuSkin.NPatchPart(Tn + "Difficulty_Select/Cursor_Effect.png", new Rectangle(12, 9, 216, 382), frame, 30, MenuSkin.White(alpha))) return;
-            if (MenuSkin.NPatch(MenuSkin.SongFolder + "Card_Cursor.png", frame, 30, MenuSkin.White(alpha))) return;
             Raylib.DrawRectangleRounded(frame, Roundness(frame, 26), 10, Fade(CursorColor, alpha));
         }
 
@@ -1197,9 +1197,9 @@ namespace TaikoSim.Scenes
                 Color fill = index == 0 ? BackFillColor : new Color(220, 228, 70, 255);
                 Raylib.DrawRectangleRounded(body, Roundness(body, 14), 10, Fade(fill, alpha));
                 if (index == 1) Icons.Gear(body.X + body.Width / 2f, body.Y + body.Height / 2f - 8, Fade(new Color(90, 90, 100, 255), alpha), Fade(fill, alpha));
-                else Outlined("◀", new Rectangle(body.X, body.Y + 6, body.Width, body.Height * 0.6f), 48 * scale, Fade(Color.White, alpha), Fade(BackBoxColor, alpha), 3);
+                else Outlined("◀", new Rectangle(body.X, body.Y + 6, body.Width, body.Height * 0.6f), 48 * scale, Fade(Color.White, alpha), Fade(BackBoxColor, alpha));
                 Outlined(index == 0 ? "もどる" : "オプション", new Rectangle(body.X + 4, body.Y + body.Height - 34 * scale, body.Width - 8, 28 * scale), 22 * scale,
-                    Fade(Color.White, alpha), Fade(InkColor, alpha), 2);
+                    Fade(Color.White, alpha), Fade(InkColor, alpha));
                 return;
             }
 
@@ -1215,14 +1215,14 @@ namespace TaikoSim.Scenes
             // 印(絵の代わり)
             Vector2 mark = new Vector2(body.X + body.Width / 2f, body.Y + 110 * scale);
             Raylib.DrawCircleV(mark, 62 * scale, Fade(Color.White, alpha * 0.85f));
-            Outlined(CourseMark(type), new Rectangle(mark.X - 60 * scale, mark.Y - 50 * scale, 120 * scale, 100 * scale), 84 * scale, Fade(color, alpha), ink, 4);
+            Outlined(CourseMark(type), new Rectangle(mark.X - 60 * scale, mark.Y - 50 * scale, 120 * scale, 100 * scale), 84 * scale, Fade(color, alpha), ink);
 
             // 名前・★レベル・★の列
             string name = type == CourseType.Edit ? "裏おに" : Chart.GetCourseName(type);
-            Outlined(name, new Rectangle(body.X + 6, box.Y + 198 * scale, body.Width - 12, 44 * scale), 36 * scale, Fade(Color.White, alpha), ink, 3);
+            Outlined(name, new Rectangle(body.X + 6, box.Y + 198 * scale, body.Width - 12, 44 * scale), 36 * scale, Fade(Color.White, alpha), ink);
             if (!exists)
             {
-                Outlined("なし", new Rectangle(body.X, box.Y + 240 * scale, body.Width, 44 * scale), 32 * scale, Fade(Color.White, alpha), ink, 3);
+                Outlined("なし", new Rectangle(body.X, box.Y + 240 * scale, body.Width, 44 * scale), 32 * scale, Fade(Color.White, alpha), ink);
                 return;
             }
             Rectangle strip = new Rectangle(body.X + 8, box.Y + 280 * scale, body.Width - 16, 22 * scale);
@@ -1237,7 +1237,7 @@ namespace TaikoSim.Scenes
             Color ink = Fade(Raylib.ColorBrightness(color, -0.7f), alpha);
             int level = LevelOf(type);
             Rectangle body = new Rectangle(box.X + 5, box.Y + 5, box.Width - 10, box.Height - 10);
-            Outlined($"★ {level}", new Rectangle(body.X, box.Y + 240 * scale, body.Width, 44 * scale), 36 * scale, Fade(Color.White, alpha), ink, 3);
+            Outlined($"★ {level}", new Rectangle(body.X, box.Y + 240 * scale, body.Width, 44 * scale), 36 * scale, Fade(Color.White, alpha), ink);
 
             Rectangle strip = new Rectangle(body.X + 8, box.Y + 280 * scale, body.Width - 16, 22 * scale);
             int stars = Math.Clamp(level, 0, 10);
@@ -1245,28 +1245,45 @@ namespace TaikoSim.Scenes
             for (int s = 0; s < 10; s++)
             {
                 Vector2 c = new Vector2(strip.X + cell * (s + 0.5f), strip.Y + strip.Height / 2f);
-                if (s < stars) Outlined("★", new Rectangle(c.X - cell / 2f, c.Y - 11 * scale, cell, 22 * scale), 18 * scale, Fade(Color.White, alpha), Fade(Raylib.ColorBrightness(color, -0.45f), alpha), 1);
+                if (s < stars) Outlined("★", new Rectangle(c.X - cell / 2f, c.Y - 11 * scale, cell, 22 * scale), 18 * scale, Fade(Color.White, alpha), Fade(Raylib.ColorBrightness(color, -0.45f), alpha));
                 else if (emptyDots) Raylib.DrawCircleV(c, 2.5f * scale, Fade(new Color(255, 255, 255, 140), alpha));
             }
 
             if (index == 5 && HasCourse(CourseType.Oni) && HasCourse(CourseType.Edit))
-                Outlined(ura ? "裏" : "表", new Rectangle(body.X + body.Width - 44 * scale, body.Y + 6 * scale, 38 * scale, 38 * scale), 26 * scale, Fade(Color.White, alpha), ink, 2);
+                Outlined(ura ? "裏" : "表", new Rectangle(body.X + body.Width - 44 * scale, body.Y + 6 * scale, 38 * scale, 38 * scale), 26 * scale, Fade(Color.White, alpha), ink);
         }
 
-        // ★の列だけ(TaikøNauts のカードの上に)
-        private void DrawCardLevelStars(CourseType type, Rectangle box, float alpha, float scale)
+        // ===== 難易度の数字と★の場所(TaikøNauts の画像と動画を測った値。画像の中の座標) =====
+        // 開いた曲の板の札(176×86)：数字の真ん中
+        private const float ChipNumberX = 146, ChipNumberY = 43, ChipNumberAdvance = 24;
+        // 難易度のカード(196×354)：★の右に数字、下の点々の列に★
+        //   ★は 64〜91・250〜277(真ん中 77.5,263.5)、点々は 30,45,…,165 の10個・高さ 293(画像を測った)
+        private const float CardNumberX = 108, CardNumberY = 264, CardNumberAdvance = 19;
+        private const float CardDotX = 30, CardDotStep = 15, CardDotY = 293;
+
+        // カードの数字と★の列(カードの画像の上に。★の列は、画像の点々に1つずつ重ねる)
+        private void DrawCardLevel(CourseType type, Rectangle box, float alpha)
         {
-            Color color = CourseColor(type);
-            Rectangle strip = new Rectangle(box.X + 13 * scale, box.Y + 280 * scale, box.Width - 26 * scale, 22 * scale);
-            float cell = strip.Width / 10f;
-            for (int s = 0; s < 10; s++)
+            float k = box.Width / 196f;
+            string level = LevelOf(type).ToString();
+            Color ink = Fade(Raylib.ColorBrightness(CourseColor(type), -0.7f), alpha);
+            if (!MenuSkin.Digits(Tn + "Difficulty_Select/Difficulty_Level_Number.png", level, box.X + CardNumberX * k, box.Y + CardNumberY * k, CardNumberAdvance, k, MenuSkin.White(alpha)))
+                Outlined(level, new Rectangle(box.X + (CardNumberX - 18) * k, box.Y + (CardNumberY - 20) * k, 36 * k, 40 * k), 32 * k, Fade(Color.White, alpha), ink);
+
+            int stars = StarsOf(type);
+            Texture2D? star = SkinManager.GetTexture(Tn + "Difficulty_Select/Difficulty_Level_Star.png");
+            for (int s = 0; s < stars; s++)
             {
-                Vector2 c = new Vector2(strip.X + cell * (s + 0.5f), strip.Y + strip.Height / 2f);
-                if (s < StarsOf(type)) Outlined("★", new Rectangle(c.X - cell / 2f, c.Y - 11 * scale, cell, 22 * scale), 18 * scale, Fade(Color.White, alpha), Fade(Raylib.ColorBrightness(color, -0.45f), alpha), 1);
+                Vector2 c = new Vector2(box.X + (CardDotX + CardDotStep * s) * k, box.Y + CardDotY * k);
+                if (star is Texture2D tex)
+                    Raylib.DrawTexturePro(tex, new Rectangle(0, 0, tex.Width, tex.Height),
+                        new Rectangle(c.X - tex.Width * k / 2f, c.Y - tex.Height * k / 2f, tex.Width * k, tex.Height * k), Vector2.Zero, 0f, MenuSkin.White(alpha));
+                else
+                    Outlined("★", new Rectangle(c.X - 9 * k, c.Y - 10 * k, 18 * k, 20 * k), 16 * k, Fade(Color.White, alpha), ink);
             }
         }
 
-        // スキンの画像で、難易度の箱を描く(Back.png・Option.png・Card.png)。画像が無ければ false
+        // スキンの画像で、難易度の箱を描く(Difficulty_Select/Difficulty_Panel.png。Simple も A-Style も同じ並び)。画像が無ければ false
         private bool DrawDiffBoxImage(int index, Rectangle box, float alpha, float scale)
         {
             // TaikøNauts のスキン：Difficulty_Select/Difficulty_Panel.png(戻る 114×112・オプション 114×112・カード 196×354 が横に並ぶ)
@@ -1280,26 +1297,12 @@ namespace TaikoSim.Scenes
                 // 無い難易度は、暗くして描く
                 Color tint = has ? MenuSkin.White(alpha) : Fade(new Color(110, 110, 120, 255), alpha);
                 MenuSkin.Part(sheet, new Rectangle(265 + 215 * (int)course, 1, 196, 354), box, tint);
-                if (has)
-                {
-                    int level = LevelOf(course);
-                    Color ink = Fade(Raylib.ColorBrightness(CourseColor(course), -0.7f), alpha);
-                    Outlined(level.ToString(), new Rectangle(box.X + box.Width / 2f, box.Y + 236 * scale, 50 * scale, 48 * scale), 36 * scale, Fade(Color.White, alpha), ink, 3);
-                    DrawCardLevelStars(course, box, alpha, scale);
-                }
-                else Outlined("なし", new Rectangle(box.X, box.Y + 236 * scale, box.Width, 48 * scale), 32 * scale, Fade(Color.White, alpha), Fade(InkColor, alpha), 3);
+                if (has) DrawCardLevel(course, box, alpha);
+                else Outlined("なし", new Rectangle(box.X, box.Y + 236 * scale, box.Width, 48 * scale), 32 * scale, Fade(Color.White, alpha), Fade(InkColor, alpha));
                 return true;
             }
 
-            if (index == 0) return MenuSkin.Whole(MenuSkin.SongFolder + "Back.png", box, MenuSkin.White(alpha));
-            if (index == 1) return MenuSkin.Whole(MenuSkin.SongFolder + "Option.png", box, MenuSkin.White(alpha));
-
-            // Card.png：上の段は かんたん〜裏おに、下の段はその難易度が無いとき
-            CourseType type = CourseAt(index);
-            bool exists = HasCourse(type);
-            if (!MenuSkin.Cell(MenuSkin.SongFolder + "Card.png", (int)type + (exists ? 0 : 5), 5, 2, box, MenuSkin.White(alpha))) return false;
-            if (exists) DrawCardLevel(index, type, box, alpha, scale, emptyDots: false);
-            return true;
+            return false;
         }
 
         // 1P の印(赤い丸に「1P」、下に三角)
@@ -1313,7 +1316,7 @@ namespace TaikoSim.Scenes
             Raylib.DrawCircleV(c, 53, InkColor);
             Raylib.DrawCircleV(c, 48, MarkerColor);
             Raylib.DrawTriangle(new Vector2(c.X - 10, c.Y + 36), new Vector2(c.X, c.Y + 52), new Vector2(c.X + 10, c.Y + 36), MarkerColor);
-            Outlined("1P", new Rectangle(c.X - 44, c.Y - 30, 88, 60), 50, Color.White, InkColor, 3);
+            Outlined("1P", new Rectangle(c.X - 44, c.Y - 30, 88, 60), 50, Color.White, InkColor);
         }
 
         // 下のまんなかの「えらぶ・決定」

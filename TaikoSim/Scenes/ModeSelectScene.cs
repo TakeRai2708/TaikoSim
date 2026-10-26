@@ -219,12 +219,12 @@ namespace TaikoSim.Scenes
 
             if (open <= 0f)
             {
-                Outlined(item.Title, inner, 50, text, ink, 4);
+                Outlined(item.Title, inner, 50, text, ink);
                 return;
             }
 
             // 開いた板：上に名前、下に説明
-            Outlined(item.Title, new Rectangle(inner.X + 20, inner.Y + 30, inner.Width - 40, 90), 72, text, ink, 5);
+            Outlined(item.Title, new Rectangle(inner.X + 20, inner.Y + 30, inner.Width - 40, 90), 72, text, ink);
             Rectangle pill = new Rectangle(inner.X + 60, inner.Y + inner.Height - 110, inner.Width - 120, 70);
             Raylib.DrawRectangleRounded(pill, 1f, 12, Fade(new Color(255, 255, 255, 210), open));
             Centered(item.Description, new Rectangle(pill.X + 20, pill.Y, pill.Width - 40, pill.Height), 32, Fade(ink, open));
