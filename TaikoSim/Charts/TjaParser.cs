@@ -13,6 +13,36 @@ namespace TaikoSim.Charts
         // 文字の先頭にある数字を取り出す用("1+2i" → 1 など)
         private static readonly Regex NumberPattern = new(@"^[-+]?(\d+(\.\d*)?|\.\d+)");
 
+        // 選曲画面のプレビュー用：曲のファイル(WAVE)と、流し始める位置(DEMOSTART、秒)だけ読む
+        //   #START より前のヘッダーだけ見るので、譜面を全部読むより速い。読めなければ null
+        public static (string WavePath, double DemoStartSec)? ReadPreview(string path)
+        {
+            try
+            {
+                string wave = "";
+                double demoStart = 0;
+                foreach (string raw in ReadText(path).Replace("\r\n", "\n").Replace('\r', '\n').Split('\n'))
+                {
+                    string line = StripComment(raw).Trim();
+                    if (line.StartsWith("#START", StringComparison.OrdinalIgnoreCase)) break;
+
+                    int colon = line.IndexOf(':');
+                    if (colon <= 0) continue;
+                    string key = line[..colon].Trim().ToUpperInvariant();
+                    string value = line[(colon + 1)..].Trim();
+                    if (key == "WAVE" && wave.Length == 0) wave = value;
+                    else if (key == "DEMOSTART") demoStart = Math.Max(0, ParseNumber(value, 0));
+                }
+                if (wave.Length == 0) return null;
+                string folder = Path.GetDirectoryName(path) ?? "";
+                return (Path.Combine(folder, wave), demoStart);
+            }
+            catch (Exception ex) when (ex is IOException || ex is UnauthorizedAccessException || ex is ArgumentException)
+            {
+                return null;
+            }
+        }
+
         public static Chart Load(string path)
         {
             string text = ReadText(path);

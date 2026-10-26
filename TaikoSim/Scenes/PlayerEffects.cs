@@ -27,9 +27,11 @@ namespace TaikoSim.Scenes
         private const string HitExplosionBigImage = Dir + "Effects/Hit_Explosion_Big.png"; // 大音符の光の線(縦に 良・可)
         private const string HitFaceImage = Dir + "Effects/Hit_Effects.png";             // 判定枠の中の顔(横に 良・可・大良・大可)
         private const string GoGoSplashImage = Dir + "Effects/GoGoSplash.png";            // ゴーゴー開始の火花(横10×縦3コマ)
+        private const string GoGoFireImage = Dir + "Lane/GoGoSoul.png";                   // ゴーゴー中の判定枠の炎(横に8コマ。1コマ 480×600)
         private const string MiniTaikoImage = Dir + "MiniTaiko/MiniTaiko.png";            // ミニ太鼓(縦に5コマ)
         private const string ComboNumberImage = Dir + "MiniTaiko/Combo_Number.png";       // コンボの数字(縦に 白・銀・金)
         private const string ComboTextImage = Dir + "MiniTaiko/Combo_MiniText.png";       // 「コンボ」
+        private const string ComboSparkleImage = Dir + "MiniTaiko/Effect.png";             // コンボの数字のキラキラ(小さい星)
         private const string NoteFlushImage = Dir + "Effects/Note_Flush.png";
         private const string FireWorksImage = Dir + "Effects/FireWorks.png";
 
@@ -71,6 +73,11 @@ namespace TaikoSim.Scenes
         private static readonly float[] ComboScale = { 1f, 1f, 0.8f };
         private const float ComboTextX = 405, ComboTextY = 448;
         private const int MinShownCombo = 10;                 // これ以上で出す(OpenTaiko の初期値)
+        // コンボの数字のキラキラ(OpenTaiko の showComboEffect と同じ。TaikøNauts の動画でも50コンボの銀の数字から光っていた)
+        //   0〜35 の36段(1段16ms)で1周。まんなか(0〜12段)→ 右(8〜22段)→ 左(17〜31段)の順に、少しずつ上がりながら光る
+        private const int ComboSparkleFrom = 50;
+        private const float ComboSparkleStep = 0.016f;
+        private const int ComboSparkleSteps = 36;
 
         // ゴーゴー開始の火花の位置(下の真ん中)と傾き。OpenTaiko の Game_Effect_GoGoSplash_X/Y
         private static readonly float[] SplashX = { 180, 450, 780, 1140, 1470, 1740 };
@@ -101,6 +108,16 @@ namespace TaikoSim.Scenes
         private const int MiniTaikoMaxBright = 8;
         private const float ComboBumpStep = 0.012f;     // コンボの数字が伸び縮みする1段(12ms)
         private const float GoGoStepSeconds = 0.018f;   // ゴーゴーが始まってからの動き1段(18ms × 18段)
+        // ゴーゴーの炎(TaikøNauts の「愛をこめて花束を」の動画を測った値)
+        //   ・炎の玉の中心(1コマの中の 243,297)を判定枠の中心に合わせて、0.9倍で描く(玉の半径が約83px)
+        //   ・加算合成(レーンの上で明るいオレンジになる。動画の色と合った)
+        //   ・TaikøNauts はレーンの外(魂ゲージの上)を切っていたが、本家と同じく切らずに描く
+        //   ・始まったときは大きく出て、小さくなる(OpenTaiko の倍率 × 18段)
+        //   ・コマを進める速さは動画では測れなかったので、OpenTaiko と同じ 50ms
+        private const float FireScale = 0.9f;
+        private const float FireCenterX = 243f / 480f, FireCenterY = 297f / 600f; // 1コマの中の、炎の玉の中心(割合)
+        private const float FireFrameSeconds = 0.05f;
+        private static readonly float[] FirePop = { 0.8f, 1.2f, 1.7f, 2.5f, 2.3f, 2.2f, 2.0f, 1.8f, 1.7f, 1.6f, 1.6f, 1.5f, 1.5f, 1.4f, 1.3f, 1.2f, 1.1f, 1.0f };
         private const int GoGoSteps = 18;
         private const float SplashFrameSeconds = 0.018f; // 火花1コマ(18ms × 30コマ)
         private const int SplashColumns = 10, SplashRows = 3;
@@ -129,6 +146,7 @@ namespace TaikoSim.Scenes
 
         private int combo = 0;
         private float comboBumpTime = 99f;
+        private float comboSparkleTime = 0f;
 
         private bool goGo = false;
         private float goGoTime = 0f;    // ゴーゴーが始まってからの時間
@@ -293,6 +311,7 @@ namespace TaikoSim.Scenes
             }
 
             comboBumpTime += dt;
+            comboSparkleTime = (comboSparkleTime + dt) % (ComboSparkleStep * ComboSparkleSteps);
             if (goGo) goGoTime += dt;
 
             if (splashTime >= 0f)
@@ -454,6 +473,7 @@ namespace TaikoSim.Scenes
             // 光は重ねると明るくなる(加算合成)。TaikoNauts の見え方もこれと同じだった
             Raylib.BeginBlendMode(BlendMode.Additive);
             DrawGoGoLane();
+            DrawGoGoFire(); // 魂ゲージより後に描くので、ゲージにかかるところも隠れない
             DrawLaneFlash(LaneRedImage, redFlash);
             DrawLaneFlash(LaneBlueImage, blueFlash);
             DrawLaneFlash(LaneYellowImage, yellowFlash);
@@ -664,6 +684,7 @@ namespace TaikoSim.Scenes
                     Rectangle dest = new Rectangle(centerX - drawW / 2f, bottomY - drawH, drawW, drawH);
                     Raylib.DrawTexturePro(numbers, source, dest, Vector2.Zero, 0f, Color.White);
                 }
+                if (combo >= ComboSparkleFrom) DrawComboSparkles(rightX, padding, count, w * scale, h * verticalScale, bottomY);
             }
             else
             {
@@ -677,6 +698,25 @@ namespace TaikoSim.Scenes
                 Raylib.DrawTexture(text, (int)(ComboTextX - text.Width / 2f), (int)(ComboTextY - text.Height), Color.White);
             }
         }
+
+        // コンボの数字のキラキラ(けたごとに、まんなか・右・左の3つ)
+        //   OpenTaiko：b = 数字の幅 / 4、c = 数字の高さ / 4、d = 数字の下端。星は「下の真ん中」を合わせて描く
+        private void DrawComboSparkles(float rightX, float padding, int count, float digitWidth, float digitHeight, float bottomY)
+        {
+            if (SkinManager.GetTexture(ComboSparkleImage) is not Texture2D star) return;
+            int v = (int)(comboSparkleTime / ComboSparkleStep) % ComboSparkleSteps;
+            float b = digitWidth / 4f, c = digitHeight / 4f, d = bottomY;
+            for (int i = 0; i < count; i++)
+            {
+                float a = rightX - padding * i;
+                if (v < 13) DrawSparkle(star, a, d - c - (int)(1.05f * v) - 13);                  // まんなか
+                if (v >= 8 && v < 23) DrawSparkle(star, a + b, d - c - (int)(1.05f * (v - 10)) - 3); // 右
+                if (v >= 17 && v < 32) DrawSparkle(star, a - b, d - c - (int)(1.05f * v - 20) - 8);  // 左
+            }
+        }
+
+        private static void DrawSparkle(Texture2D star, float x, float bottom) =>
+            Raylib.DrawTexture(star, (int)(x - star.Width / 2f), (int)(bottom - star.Height), Color.White);
 
         // ----- ゴーゴー -----
 
@@ -702,6 +742,22 @@ namespace TaikoSim.Scenes
             Rectangle source = new Rectangle(0, 0, texture.Width, texture.Height);
             Rectangle dest = new Rectangle(LaneX, LaneY + offset, texture.Width, texture.Height * scaleY);
             Raylib.DrawTexturePro(texture, source, dest, Vector2.Zero, 0f, Raylib.ColorAlpha(Color.White, GoGoLaneStrength));
+        }
+
+        // ゴーゴー中の判定枠の炎(横に並んだコマを、くり返す)
+        private void DrawGoGoFire()
+        {
+            if (!goGo || SkinManager.GetTexture(GoGoFireImage) is not Texture2D texture) return;
+
+            // 1コマは 縦:横 = 5:4(480×600)。コマの数は画像の横幅から決める
+            int frames = Math.Max(1, (int)MathF.Round(texture.Width / (texture.Height * 0.8f)));
+            float w = texture.Width / (float)frames, h = texture.Height;
+            int frame = (int)(goGoTime / FireFrameSeconds) % frames;
+            float scale = FireScale * FirePop[GoGoStep()];
+
+            Rectangle source = new Rectangle(frame * w, 0, w, h);
+            Rectangle dest = new Rectangle(judgeX - w * FireCenterX * scale, judgeY - h * FireCenterY * scale, w * scale, h * scale);
+            Raylib.DrawTexturePro(texture, source, dest, Vector2.Zero, 0f, Color.White);
         }
 
         // ゴーゴー開始の火花(画面の下から6か所、30コマ)

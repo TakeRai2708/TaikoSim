@@ -6,7 +6,7 @@ using TaikoSim.Graphics;
 namespace TaikoSim.Scenes
 {
     // 起動したときの読み込み画面
-    // スキン → 曲 の順に読んで、終わったらホームへ(叩くキーが決まっていなければ初回起動セットアップへ)
+    // スキン → 曲 の順に読んで、終わったらモード選択へ(叩くキーが決まっていなければ初回起動セットアップへ)
     public class LoadingScene : Scene
     {
         private enum Step
@@ -93,7 +93,7 @@ namespace TaikoSim.Scenes
             }
             else
             {
-                SceneManager.ChangeScene(new HomeScene());
+                SceneManager.ChangeScene(new ModeSelectScene());
             }
         }
 

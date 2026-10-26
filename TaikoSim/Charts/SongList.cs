@@ -23,6 +23,12 @@ namespace TaikoSim.Charts
         // 読み込めなかったときの理由(読めたら空)
         public string Error { get; init; } = "";
 
+        // .tja の更新日時(UTC の Ticks。「最近追加された曲」に使う。取れなかったら 0)
+        public long WriteTime { get; init; }
+
+        // Songs フォルダから見た .tja の場所(遊んだ曲・お気に入りの記録に使う)
+        public string Key => Path.GetRelativePath(SongList.SongsFolder, TjaPath);
+
         public bool HasError => Error.Length > 0;
 
         // 検索用の文字(曲名・サブタイトル・フォルダ名をまとめて、検索しやすい形にしたもの)
@@ -64,6 +70,10 @@ namespace TaikoSim.Charts
         public string Title { get; init; } = "";
         public string Genre { get; init; } = "";
         public Color Color { get; init; } = SongList.UncategorizedColor;
+
+        // box.def の #BOXTYPE・#BGTYPE(スキンの板・背景の番号。TaikøNauts / OpenTaiko の決まり)。書いてなければ null
+        public int? BoxType { get; init; }
+        public int? BgType { get; init; }
 
         // どのカテゴリにも入らない曲の入れ物か(選曲画面では、カテゴリの行を出さずに曲をそのまま並べる)
         // ※ 今は使っていない(Songs のすぐ下の曲は「その他」カテゴリに入る)。選曲画面の処理は残してある
@@ -309,13 +319,14 @@ namespace TaikoSim.Charts
             }
         }
 
-        // box.def を読む(#TITLE・#GENRE・#BACKCOLOR・#BOXCOLOR だけ使う)
+        // box.def を読む(#TITLE・#GENRE・#BACKCOLOR・#BOXCOLOR・#BOXTYPE・#BGTYPE だけ使う)
         private static SongCategory ReadBoxDef(string path, string folderName)
         {
             string title = folderName; // #TITLE が無いときはフォルダ名
             string genre = "";
             Color? backColor = null;
             Color? boxColor = null;
+            int? boxType = null, bgType = null;
 
             try
             {
@@ -336,6 +347,8 @@ namespace TaikoSim.Charts
                         case "#GENRE": genre = value; break;
                         case "#BACKCOLOR": backColor = ParseColor(value); break;
                         case "#BOXCOLOR": boxColor = ParseColor(value); break;
+                        case "#BOXTYPE": if (int.TryParse(value, out int box)) boxType = box; break;
+                        case "#BGTYPE": if (int.TryParse(value, out int bg)) bgType = bg; break;
                     }
                 }
             }
@@ -348,7 +361,7 @@ namespace TaikoSim.Charts
             Color color = backColor ?? boxColor
                 ?? (GenreColors.TryGetValue(genre, out Color genreColor) ? genreColor : UncategorizedColor);
 
-            return new SongCategory { Title = title, Genre = genre, Color = color };
+            return new SongCategory { Title = title, Genre = genre, Color = color, BoxType = boxType, BgType = bgType };
         }
 
         // 1曲分を用意する。キャッシュが使えればキャッシュから、使えなければ .tja を読む(裏の係から何曲か同時に呼ばれる)
@@ -389,11 +402,12 @@ namespace TaikoSim.Charts
                     Subtitle = item.Subtitle,
                     Courses = item.Courses.Select(c => (c.Type, c.Level)).ToList(),
                     Error = item.Error,
+                    WriteTime = writeTime,
                 };
             }
 
             // ----- 読み直す -----
-            SongEntry entry = ReadEntry(tja, relativeFolder);
+            SongEntry entry = ReadEntry(tja, relativeFolder, writeTime);
             if (size >= 0 && entry.Error != ReadFailedMessage)
             {
                 newItem = new SongCacheItem
@@ -411,7 +425,7 @@ namespace TaikoSim.Charts
         }
 
         // .tja を1つ読んで、一覧に出す情報だけ取り出す
-        private static SongEntry ReadEntry(string tja, string relativeFolder)
+        private static SongEntry ReadEntry(string tja, string relativeFolder, long writeTime)
         {
             try
             {
@@ -427,6 +441,7 @@ namespace TaikoSim.Charts
                         .Select(c => (c.Type, c.Level))
                         .ToList(),
                     Error = chart.Courses.Count == 0 ? "譜面（#START〜#END）がありません" : "",
+                    WriteTime = writeTime,
                 };
             }
             catch (Exception ex)
@@ -439,6 +454,7 @@ namespace TaikoSim.Charts
                     RelativeFolder = relativeFolder,
                     Title = Path.GetFileNameWithoutExtension(tja),
                     Error = ReadFailedMessage,
+                    WriteTime = writeTime,
                 };
             }
         }

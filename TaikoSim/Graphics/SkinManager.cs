@@ -105,6 +105,8 @@ namespace TaikoSim.Graphics
             "Image/04.EnsoGame/MiniTaiko/MiniTaiko.png",
             "Image/04.EnsoGame/MiniTaiko/Combo_Number.png",
             "Image/04.EnsoGame/MiniTaiko/Combo_MiniText.png",
+            "Image/04.EnsoGame/MiniTaiko/Effect.png",
+            "Image/04.EnsoGame/Lane/GoGoSoul.png",
 
             // 得点・難易度・魂ゲージ(満タンになったときの虹と魂も先に読む)
             "Image/04.EnsoGame/MiniTaiko/Background_Score.png",

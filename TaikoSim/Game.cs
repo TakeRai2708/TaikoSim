@@ -18,6 +18,9 @@ namespace TaikoSim
         // 設定パネルが開いているか(後ろの画面がクリックに反応しないようにするのに使う)
         public static bool IsSettingsOpen => settings.IsOpen;
 
+        // 設定パネルを開く(モード選択の「設定」から)
+        public static void OpenSettings() => settings.Open();
+
         // 右上に少しだけ出すお知らせ(スクショ保存したよ、とか)
         private string toastText = "";
         private float toastTimer = 0f;
