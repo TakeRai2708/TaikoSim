@@ -382,8 +382,10 @@ namespace TaikoSim.Scenes
             string? skin = SkinManager.CurrentPath;
             if (skin == null) return;
 
-            donSound = SoundEffect.Load(Path.Combine(skin, DonSoundFile), out _);
-            kaSound = SoundEffect.Load(Path.Combine(skin, KaSoundFile), out _);
+            // ドン・カッは1つずつだけ持って、叩くたびに前の音を切って頭から鳴らし直す(OpenTaiko の CSound と同じ)
+            //   重ねて鳴らすと、連打で前の音の余韻が全部残って、音が厚く濁ってしまうため
+            donSound = SoundEffect.Load(Path.Combine(skin, DonSoundFile), out _, 1);
+            kaSound = SoundEffect.Load(Path.Combine(skin, KaSoundFile), out _, 1);
             balloonSound = SoundEffect.Load(Path.Combine(skin, BalloonSoundFile), out _);
 
             // 演奏後の音・コンボの声は重ならないので、重ねる数は少しでよい
