@@ -26,6 +26,7 @@ namespace TaikoSim.UI
 
         // ===== 時間 =====
         public const float MoveSeconds = 0.15f;               // カーソルが1つ動く時間
+        public const float FrameDelay = 0.33f;                // 止まってから黄色い枠が出るまで(板が開く0.1秒前。TaikøNauts の動画を1/30秒ずつ見た)
         public const float ExpandDelay = 0.43f;               // 止まってから板が開き始めるまで
         public const float ExpandSeconds = 0.1f;              // 板が開ききるまで
         public const float BlinkEnd = 0.53f;                  // 決定してから、ここまで黄色い枠が点滅
@@ -44,6 +45,12 @@ namespace TaikoSim.UI
 
         // 板が開き始めてからの時間(開いていないときは 0)
         public float OpenSeconds => Math.Max(0f, idle - ExpandDelay);
+
+        // 黄色い枠が出ているか(止まってから0.33秒。板が開くより0.1秒早い)
+        public bool FrameShown => idle >= FrameDelay;
+
+        // 黄色い枠が出てからの時間(出ていないときは 0)
+        public float FrameSeconds => Math.Max(0f, idle - FrameDelay);
 
         // pos に置き直す(動きのアニメなし。板は閉じる)
         public void Reset(int pos)
@@ -114,7 +121,7 @@ namespace TaikoSim.UI
         // 開いた板のまわりの黄色い枠(決定したあとは点滅 → 白)
         public void DrawFrame(Rectangle area, float alpha)
         {
-            if (Expand <= 0f) return;
+            if (!FrameShown) return;
             Color color = CursorColor;
             if (Deciding)
             {
@@ -125,7 +132,7 @@ namespace TaikoSim.UI
                 else color = Color.White;
             }
             Rectangle frame = new Rectangle(area.X - FrameWidth, area.Y - FrameWidth, area.Width + FrameWidth * 2, area.Height + FrameWidth * 2);
-            float a = alpha * Math.Min(1f, Expand * 2f);
+            float a = alpha; // 枠は、出るときにいきなり出る(動画では1コマで出ていた)
             // TaikøNauts のスキン(Bar/Selected.png：縦に 黄色・黄色の光・白 の3段。1段 1008×210、塗った形は 18,22 から 972×166・角の丸み 約48px)
             //   形ぴったりで切り取る(前は 7 から切っていて、左右に 11px の透明が入り、横だけ枠が細くなっていた)
             //   TaikøNauts の動画では、枠は淡い黄色(253,253,144)だった → 黄色の上に白を 56% 重ねると同じ色になる
@@ -142,23 +149,38 @@ namespace TaikoSim.UI
             Raylib.DrawRectangleRounded(frame, MenuDraw.Roundness(frame, 30), 12, MenuDraw.Fade(color, a));
         }
 
+        // 開いたジャンルの板の、中の明るい板(TaikøNauts の動画：ジャンル名の帯より下だけ。板の上から113px〜下から22px)
+        //   枠が出ると、閉じた板の中の板はいったん消える。板が開くと、ジャンル名の帯の下から下へ広がる
+        //   (板が閉じているときは高さが0より小さくなるので、描かない)
+        public const float OpenPlateTop = 113, OpenPlateBottom = 22;
+
+        public static Rectangle OpenPlateArea(Rectangle area) =>
+            new Rectangle(area.X + 70, area.Y + OpenPlateTop, area.Width - 140, area.Height - OpenPlateTop - OpenPlateBottom);
+
         // 板の土台(縁 → 色 → 中の明るい板)を描いて、中の板の場所を返す。plain なら中の明るい板は描かない
         //   スキンに Bar_Base.png(白い土台。色をかける)と Bar_Overlay.png / Bar_Overlay_Plain.png(縁と中の板)があれば、それで描く
-        public Rectangle DrawBody(Rectangle area, Color color, float alpha, bool plain)
+        //   plate を渡すと、中の明るい板をその場所に描く(開いたジャンルの板。高さが0以下なら描かない)
+        public Rectangle DrawBody(Rectangle area, Color color, float alpha, bool plain, Rectangle? plate = null)
         {
             Rectangle inner = new Rectangle(area.X + 70, area.Y + 20, area.Width - 140, area.Height - 40);
-            string overlay = Folder + (plain ? "Bar_Overlay_Plain.png" : "Bar_Overlay.png");
+            bool movedPlate = !plain && plate != null;
+            string overlay = Folder + (plain || movedPlate ? "Bar_Overlay_Plain.png" : "Bar_Overlay.png");
             if (MenuSkin.Has(Folder + "Bar_Base.png", overlay))
             {
                 MenuSkin.NPatch(Folder + "Bar_Base.png", area, 30, MenuDraw.Fade(color, alpha));
                 MenuSkin.NPatch(overlay, area, 30, MenuSkin.White(alpha));
+                // Bar_Overlay.png の中の板(70,20 から 792×84)だけを切り取って、plate に伸ばす
+                if (movedPlate && plate!.Value.Height > 0)
+                    MenuSkin.NPatchPart(Folder + "Bar_Overlay.png", new Rectangle(70, 20, 792, 84), plate.Value, 8, MenuSkin.White(alpha));
                 return inner;
             }
 
             Raylib.DrawRectangleRounded(area, MenuDraw.Roundness(area, 22), 12, MenuDraw.Fade(InkColor, alpha));
             Rectangle body = new Rectangle(area.X + 6, area.Y + 6, area.Width - 12, area.Height - 12);
             Raylib.DrawRectangleRounded(body, MenuDraw.Roundness(body, 17), 12, MenuDraw.Fade(color, alpha));
-            if (!plain) Raylib.DrawRectangleRounded(inner, MenuDraw.Roundness(inner, 8), 8, MenuDraw.Fade(MenuDraw.Tint(color, 0.6f), alpha));
+            Rectangle innerPlate = movedPlate ? plate!.Value : inner;
+            if (!plain && innerPlate.Height > 0)
+                Raylib.DrawRectangleRounded(innerPlate, MenuDraw.Roundness(innerPlate, 8), 8, MenuDraw.Fade(MenuDraw.Tint(color, 0.6f), alpha));
             return inner;
         }
 
