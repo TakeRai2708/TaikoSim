@@ -25,6 +25,10 @@
         // ファイルやフォルダがウィンドウにドロップされたとき
         public virtual void OnFilesDropped(string[] paths) { }
 
+        // 設定パネルで音量が変わったとき(今鳴っている曲に、すぐ新しい音量をかける)
+        //   設定パネルを開いている間は Update が止まるので、ここで直接かけ直す
+        public virtual void ApplyVolume() { }
+
         // 毎フレーム呼ばれる(描画)。座標は1920×1080で考える
         public abstract void Draw();
     }

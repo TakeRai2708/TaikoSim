@@ -245,6 +245,10 @@ namespace TaikoSim.Scenes
             }
         }
 
+        // 設定パネルで音量が変わったとき(戻る途中で小さくしているときは、その割合のまま)
+        public override void ApplyVolume() =>
+            SetBgmVolume(exitElapsed >= 0f ? 1f - Math.Clamp(exitElapsed / ExitFadeSeconds, 0f, 1f) : 1f);
+
         private void SetBgmVolume(float rate)
         {
             SoundConfig config = ConfigManager.Sound;

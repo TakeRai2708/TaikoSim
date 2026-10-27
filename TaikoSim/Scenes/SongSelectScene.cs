@@ -146,6 +146,9 @@ namespace TaikoSim.Scenes
             options.Close();
         }
 
+        // 設定パネルで音量が変わったとき：流れているプレビューの曲に、すぐ新しい音量をかける
+        public override void ApplyVolume() => preview.ApplyVolume();
+
         // ===== 一覧を作る =====
 
         // 曲の場所(Songs から見た .tja の場所) → 曲

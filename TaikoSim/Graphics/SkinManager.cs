@@ -150,6 +150,7 @@ namespace TaikoSim.Graphics
         {
             "Image/04.EnsoGame/End/Chara.png",
             "Image/04.EnsoGame/End/Text.png",
+            "Image/04.EnsoGame/MiniTaiko/Effect.png", // コンボのキラキラ(白くして、銀・金の色をかける)
         };
 
         // 今使っているスキンのフォルダ(スキンが無ければ null)

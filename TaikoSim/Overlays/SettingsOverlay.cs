@@ -5,6 +5,7 @@ using TaikoSim.Audio;
 using TaikoSim.Configs;
 using TaikoSim.Graphics;
 using TaikoSim.Input;
+using TaikoSim.Scenes;
 using TaikoSim.UI;
 
 namespace TaikoSim.Overlays
@@ -103,6 +104,7 @@ namespace TaikoSim.Overlays
         {
             IsOpen = true;
             Gui.Reset();
+            LoadVolumes(); // 音量のバーは、今の設定の値から始める
 
             // スキンを入れたあとに開いたときのために、スキン一覧を読み直す
             SkinManager.Reload();
@@ -365,13 +367,56 @@ namespace TaikoSim.Overlays
             Section(Category.Sound, "サウンド設定");
 
             SoundConfig sound = ConfigManager.Sound;
-            sound.MasterVolume = SliderRow("master", "Master", sound.MasterVolume, 0, 100);
-            sound.SeVolume = SliderRow("se", "SE", sound.SeVolume, 0, 100);
-            sound.MusicVolume = SliderRow("music", "Music", sound.MusicVolume, 0, 100);
-            sound.BgmVolume = SliderRow("bgm", "BGM", sound.BgmVolume, 0, 100);
-            sound.VoiceVolume = SliderRow("voice", "Voice", sound.VoiceVolume, 0, 100);
+
+            // 音量のバーは、動かしただけでは変わらない。下の［音量を適用］を押したときに反映する
+            //   (バーは「まだ適用していない値」を動かす。パネルを開き直すと、今の設定の値に戻る)
+            volumeMaster = SliderRow("master", "Master", volumeMaster, 0, 100);
+            volumeSe = SliderRow("se", "SE", volumeSe, 0, 100);
+            volumeMusic = SliderRow("music", "Music", volumeMusic, 0, 100);
+            volumeBgm = SliderRow("bgm", "BGM", volumeBgm, 0, 100);
+            volumeVoice = SliderRow("voice", "Voice", volumeVoice, 0, 100);
+
+            bool volumePending = volumeMaster != sound.MasterVolume || volumeSe != sound.SeVolume
+                || volumeMusic != sound.MusicVolume || volumeBgm != sound.BgmVolume || volumeVoice != sound.VoiceVolume;
+            string volumeLabel = volumePending ? "音量を適用（まだ反映されていません）" : "音量を適用";
+            if (Gui.Button(new Rectangle(LabelX, ToScreenY(cursorY), RightEdge - LabelX, 40), volumeLabel) && volumePending)
+            {
+                ApplyVolumes();
+            }
+            cursorY += 52;
 
             DrawAudioOutputRows(sound);
+        }
+
+        // ----- 音量(［音量を適用］を押すまで、ここに置いておく) -----
+        private int volumeMaster, volumeSe, volumeMusic, volumeBgm, volumeVoice;
+
+        // 今の設定の音量を、バーの値に読み込む(パネルを開いたとき)
+        private void LoadVolumes()
+        {
+            SoundConfig sound = ConfigManager.Sound;
+            volumeMaster = sound.MasterVolume;
+            volumeSe = sound.SeVolume;
+            volumeMusic = sound.MusicVolume;
+            volumeBgm = sound.BgmVolume;
+            volumeVoice = sound.VoiceVolume;
+        }
+
+        // バーの値を設定に入れて、保存して、今鳴っている曲(選曲画面のプレビュー・リザルトの曲)にかけ直す
+        //   効果音と声は、鳴らすたびに設定を読むので、次に鳴る音から変わる
+        private void ApplyVolumes()
+        {
+            SoundConfig sound = ConfigManager.Sound;
+            sound.MasterVolume = volumeMaster;
+            sound.SeVolume = volumeSe;
+            sound.MusicVolume = volumeMusic;
+            sound.BgmVolume = volumeBgm;
+            sound.VoiceVolume = volumeVoice;
+            sound.Fix();
+            LoadVolumes(); // 直した値(範囲の外だったときなど)をバーにも戻す
+            ConfigManager.SaveSound();
+            SceneManager.Current?.ApplyVolume();
+            ShowMessage("音量を適用しました", SuccessColor);
         }
 
         // ----- 音の出力(出力方式・バッファ) -----
@@ -574,6 +619,7 @@ namespace TaikoSim.Overlays
             if (newIndex != index && newIndex >= 0)
             {
                 skin.SkinName = names[newIndex];
+                ConfigManager.SaveSkin(); // すぐ保存(パネルを閉じる前にゲームが止まっても、選んだスキンが残るように)
                 SkinManager.Reload(); // その場で切り替え
                 ShowMessage($"スキンを {SkinManager.CurrentName} にしました", SuccessColor);
             }
@@ -895,6 +941,7 @@ namespace TaikoSim.Overlays
             skin.SkinsFolder = folder;
             if (skinName != null) skin.SkinName = skinName;
             skin.Fix();
+            ConfigManager.SaveSkin(); // すぐ保存
 
             SkinManager.Reload(); // その場で切り替え
 
