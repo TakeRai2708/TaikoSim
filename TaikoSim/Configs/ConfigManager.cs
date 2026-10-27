@@ -68,6 +68,19 @@ namespace TaikoSim.Configs
             }
         }
 
+        // 音の設定だけ、すぐ保存する(設定パネルで［音量を適用］を押したとき)
+        public static void SaveSound()
+        {
+            try
+            {
+                Save(SoundConfig.FileName, Sound);
+            }
+            catch (Exception ex) when (ex is IOException || ex is UnauthorizedAccessException)
+            {
+                Console.WriteLine($"[Config] {SoundConfig.FileName} を保存できませんでした: {ex.Message}");
+            }
+        }
+
         // 1つの設定ファイルを読み込む(共通処理)
         private static T Load<T>(string fileName) where T : class, new()
         {
