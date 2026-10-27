@@ -5,6 +5,7 @@ using TaikoSim.Audio;
 using TaikoSim.Configs;
 using TaikoSim.Graphics;
 using TaikoSim.Input;
+using TaikoSim.Scenes;
 using TaikoSim.UI;
 
 namespace TaikoSim.Overlays
@@ -365,11 +366,17 @@ namespace TaikoSim.Overlays
             Section(Category.Sound, "サウンド設定");
 
             SoundConfig sound = ConfigManager.Sound;
+            var before = (sound.MasterVolume, sound.SeVolume, sound.MusicVolume, sound.BgmVolume, sound.VoiceVolume);
             sound.MasterVolume = SliderRow("master", "Master", sound.MasterVolume, 0, 100);
             sound.SeVolume = SliderRow("se", "SE", sound.SeVolume, 0, 100);
             sound.MusicVolume = SliderRow("music", "Music", sound.MusicVolume, 0, 100);
             sound.BgmVolume = SliderRow("bgm", "BGM", sound.BgmVolume, 0, 100);
             sound.VoiceVolume = SliderRow("voice", "Voice", sound.VoiceVolume, 0, 100);
+
+            // バーが動いたら、今鳴っている曲(選曲画面のプレビュー・リザルトの曲)にすぐ反映する
+            //   効果音と声は、鳴らすたびに設定を読むので、次に鳴る音から反映される
+            if (before != (sound.MasterVolume, sound.SeVolume, sound.MusicVolume, sound.BgmVolume, sound.VoiceVolume))
+                SceneManager.Current?.ApplyVolume();
 
             DrawAudioOutputRows(sound);
         }
@@ -574,6 +581,7 @@ namespace TaikoSim.Overlays
             if (newIndex != index && newIndex >= 0)
             {
                 skin.SkinName = names[newIndex];
+                ConfigManager.SaveSkin(); // すぐ保存(パネルを閉じる前にゲームが止まっても、選んだスキンが残るように)
                 SkinManager.Reload(); // その場で切り替え
                 ShowMessage($"スキンを {SkinManager.CurrentName} にしました", SuccessColor);
             }
@@ -895,6 +903,7 @@ namespace TaikoSim.Overlays
             skin.SkinsFolder = folder;
             if (skinName != null) skin.SkinName = skinName;
             skin.Fix();
+            ConfigManager.SaveSkin(); // すぐ保存
 
             SkinManager.Reload(); // その場で切り替え
 

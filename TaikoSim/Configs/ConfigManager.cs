@@ -54,6 +54,20 @@ namespace TaikoSim.Configs
             Save(SkinConfig.FileName, Skin);
         }
 
+        // スキンの設定だけ、すぐ保存する(設定パネルでスキンやスキンフォルダを変えたとき)
+        public static void SaveSkin()
+        {
+            try
+            {
+                Save(SkinConfig.FileName, Skin);
+            }
+            catch (Exception ex) when (ex is IOException || ex is UnauthorizedAccessException)
+            {
+                // 保存できなくても、ゲームは止めない(パネルを閉じたとき・終了したときにもう一度保存する)
+                Console.WriteLine($"[Config] {SkinConfig.FileName} を保存できませんでした: {ex.Message}");
+            }
+        }
+
         // 1つの設定ファイルを読み込む(共通処理)
         private static T Load<T>(string fileName) where T : class, new()
         {

@@ -40,6 +40,12 @@ namespace TaikoSim.Audio
             playWanted = play && tja != null;
         }
 
+        // 設定パネルで音量が変わったとき、流れている曲にすぐ新しい音量をかける
+        public void ApplyVolume()
+        {
+            if (song != null && playing && songAudio == AudioManager.Generation) song.SetVolume(Volume);
+        }
+
         public void Update(float dt)
         {
             // 音を準備し直したあとは、前の曲はもう使えない(片付けもしない)

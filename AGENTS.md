@@ -52,6 +52,8 @@
 - **master**：選曲画面まで全部入っている（`claude/song-select-v5` をマージ済み）。新しい作業は master から作る
 - `claude/visual-no-lag`（効果音の遅れの補正を判定だけに入れる）と `claude/hit-sound-mono`（ドン・カッを1つずつ鳴らす）もマージ済み
 - `claude/` で始まるブランチは、全部マージ済み（消してよい。消すのはたけらいが VS でやる）
+  - ただし `claude/song-select-v6`（選曲画面の飾り・枠・カード・背景・キャラ・吹き出し）と
+    `claude/settings-instant`（スキンを変えたらすぐ保存・音量バーをすぐ反映）は、まだマージしていない
 
 ---
 
