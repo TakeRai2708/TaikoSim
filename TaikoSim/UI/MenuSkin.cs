@@ -18,12 +18,14 @@ namespace TaikoSim.UI
         // 画面に入ったときに、先に読み込んでおく(初めて描くときに止まらないように)
         public static readonly string[] BarImages = { "Bar_Base.png", "Bar_Overlay.png", "Bar_Overlay_Plain.png", "Bar_Cursor.png", "Bar_Cursor_Decide.png" };
         public static readonly string[] SongImages = { "Bar_Label.png", "Panel_Base.png", "Panel_Overlay.png", "Marker_1P.png", "Hint.png",
-            "Difficulty_Level_Number.png", "Difficulty_Select/Difficulty_Level_Number.png", "Difficulty_Select/Difficulty_Level_Star.png" };
+            "Difficulty_Level_Number.png", "Difficulty_Select/Difficulty_Level_Number.png", "Difficulty_Select/Difficulty_Level_Star.png",
+            "Maker_Balloon.png" };
 
         // TaikøNauts のスキンの選曲画面の画像(あるものだけ読まれる)
         public static readonly string[] TnSongImages = Enumerable.Range(0, 12).Select(i => $"Bar/{i}.png")
             .Concat(Enumerable.Range(0, 12).Select(i => $"Background/{i}.png"))
             .Concat(Enumerable.Range(0, 12).Select(i => $"Difficulty_Select/Background/{i}.png"))
+            .Concat(Enumerable.Range(0, 14).Select(i => $"Box_Pop/{i}.png"))
             .Concat(new[] { "Bar/Back.png", "Bar/Overlay.png", "Bar/Decoration.png", "Bar/Selected.png", "Difficulty_Panel.png",
                 "Difficulty_Select/Difficulty_Panel.png", "Difficulty_Select/Cursor_Effect.png", "Difficulty_Select/Cursor_Effect_Small.png",
                 "Difficulty_Select/Player_Cursor.png" })

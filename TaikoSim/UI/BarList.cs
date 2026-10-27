@@ -42,6 +42,9 @@ namespace TaikoSim.UI
 
         public bool Deciding => DecideTime >= 0f;
 
+        // 板が開き始めてからの時間(開いていないときは 0)
+        public float OpenSeconds => Math.Max(0f, idle - ExpandDelay);
+
         // pos に置き直す(動きのアニメなし。板は閉じる)
         public void Reset(int pos)
         {
@@ -123,13 +126,15 @@ namespace TaikoSim.UI
             }
             Rectangle frame = new Rectangle(area.X - FrameWidth, area.Y - FrameWidth, area.Width + FrameWidth * 2, area.Height + FrameWidth * 2);
             float a = alpha * Math.Min(1f, Expand * 2f);
-            // TaikøNauts のスキン(Bar/Selected.png：縦に 黄色・黄色の光・白 の3段。1段 1008×210、中身は 7,22 から 994×166)
+            // TaikøNauts のスキン(Bar/Selected.png：縦に 黄色・黄色の光・白 の3段。1段 1008×210、塗った形は 18,22 から 972×166・角の丸み 約48px)
+            //   形ぴったりで切り取る(前は 7 から切っていて、左右に 11px の透明が入り、横だけ枠が細くなっていた)
             //   TaikøNauts の動画では、枠は淡い黄色(253,253,144)だった → 黄色の上に白を 56% 重ねると同じ色になる
             bool decided = Deciding && DecideTime >= BlinkEnd;
-            Rectangle Row(int row) => new Rectangle(7, 22 + 210 * row, 994, 166);
-            if (MenuSkin.NPatchPart(Folder + "Bar/Selected.png", Row(decided ? 2 : 0), frame, 40, MenuSkin.White(a)))
+            Rectangle Row(int row) => new Rectangle(18, 22 + 210 * row, 972, 166);
+            const int corner = 50; // 角の丸み(48px)より大きく切る(丸みが伸ばす場所に入って、ゆがまないように)
+            if (MenuSkin.NPatchPart(Folder + "Bar/Selected.png", Row(decided ? 2 : 0), frame, corner, MenuSkin.White(a)))
             {
-                if (!decided) MenuSkin.NPatchPart(Folder + "Bar/Selected.png", Row(2), frame, 40, MenuSkin.White(a * WhiteOnYellow));
+                if (!decided) MenuSkin.NPatchPart(Folder + "Bar/Selected.png", Row(2), frame, corner, MenuSkin.White(a * WhiteOnYellow));
                 return;
             }
             string image = Deciding && DecideTime >= BlinkEnd ? "Bar_Cursor_Decide.png" : "Bar_Cursor.png";
