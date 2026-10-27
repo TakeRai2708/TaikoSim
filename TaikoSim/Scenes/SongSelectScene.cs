@@ -110,10 +110,12 @@ namespace TaikoSim.Scenes
         // ===== 難易度の板の配置(TaikøNauts を測った値) =====
         private static readonly Rectangle DiffPanel = new Rectangle(352, 62, 1210, 746);
         private static readonly Rectangle DiffTitleBox = new Rectangle(388, 97, 1140, 210);
-        private static readonly Rectangle DiffBackBox = new Rectangle(385, 410, 110, 105);
-        private static readonly Rectangle DiffOptionBox = new Rectangle(518, 410, 108, 105);
-        private static readonly float[] DiffCardX = { 650, 865, 1080, 1296 };
-        private const float DiffCardY = 410, DiffCardWidth = 188, DiffCardHeight = 345;
+        // 戻る・オプション・カードは、画像の原寸(戻る・オプション 114×112、カード 196×354)。カードは 215px ずつ右へ
+        //   (前は少しつぶして描いていたので、★と数字が上にずれていた)
+        private static readonly Rectangle DiffBackBox = new Rectangle(383, 406, 114, 112);
+        private static readonly Rectangle DiffOptionBox = new Rectangle(514, 406, 114, 112);
+        private static readonly float[] DiffCardX = { 647, 862, 1077, 1292 };
+        private const float DiffCardY = 406, DiffCardWidth = 196, DiffCardHeight = 354;
         private static readonly Rectangle DiffHintBox = new Rectangle(780, 945, 360, 85);
 
         private static readonly Color BackBoxColor = new Color(81, 48, 9, 255);    // 「とじる」の縁(OpenTaiko の #513009)
@@ -780,7 +782,9 @@ namespace TaikoSim.Scenes
 
         // 板の土台を描いて、中の明るい板(文字を書く場所)を返す
         //   TaikøNauts：Bar/番号.png(938×133。とじるは Bar/Back.png)＋ Bar/Overlay.png(中の板)＋ 番号0は Bar/Decoration.png(花の飾り)
-        private Rectangle DrawBarBody(Item item, Rectangle area, float alpha, bool plain)
+        //   開いた板：土台と中の板は上下に伸ばす。飾りは伸ばさずに、閉じた板と同じ大きさで上にくっつける(TaikøNauts の動画と同じ)
+        //   plate を渡すと、中の板(Bar/Overlay.png の 70,23 から 794×84)をその場所に描く(開いたジャンルの板)
+        private Rectangle DrawBarBody(Item item, Rectangle area, float alpha, bool plain, Rectangle? plate = null)
         {
             int type = BarType(item);
             string? path = item.Kind == Kind.Back ? Tn + "Bar/Back.png" : type >= 0 ? Tn + $"Bar/{type}.png" : null;
@@ -788,19 +792,29 @@ namespace TaikoSim.Scenes
             {
                 Rectangle dest = new Rectangle(area.X, area.Y - 1, area.Width + 6, area.Height + 9);
                 MenuSkin.NPatch(path, dest, 40, MenuSkin.White(alpha));
-                if (!plain) MenuSkin.NPatch(Tn + "Bar/Overlay.png", dest, 40, MenuSkin.White(alpha));
-                if (type == 0 && item.Kind is Kind.Genre or Kind.Song) MenuSkin.NPatch(Tn + "Bar/Decoration.png", dest, 40, MenuSkin.White(alpha));
+                if (!plain && plate is Rectangle p)
+                {
+                    if (p.Height > 0)
+                        MenuSkin.NPatchPart(Tn + "Bar/Overlay.png", new Rectangle(70, 23, 794, 84), new Rectangle(p.X, p.Y, p.Width + 2, p.Height), 10, MenuSkin.White(alpha));
+                }
+                else if (!plain) MenuSkin.NPatch(Tn + "Bar/Overlay.png", dest, 40, MenuSkin.White(alpha));
+                if (type == 0 && item.Kind is Kind.Genre or Kind.Song)
+                    MenuSkin.Whole(Tn + "Bar/Decoration.png", new Rectangle(dest.X, dest.Y, dest.Width, BarList.BarHeight + 9), MenuSkin.White(alpha));
                 return new Rectangle(area.X + 70, area.Y + 22, area.Width - 140, area.Height - 44);
             }
-            return list.DrawBody(area, item.Color, alpha, plain);
+            return list.DrawBody(area, item.Color, alpha, plain, plate);
         }
 
-        // 背景(Background/番号.png。960×1080 を横に2つ並べる)。番号が変わったら0.25秒で入れ替える
+        // 背景(Background/番号.png。960×1080 を横に並べる)。番号が変わったら0.25秒で入れ替える
+        //   背景は左へ流れる(TaikøNauts の動画：0.1秒で10px、1秒で96px。縦には動かない)
+        private const float BgScrollSpeed = 96f;
         private int bgShown = -1, bgPrevious = -1;
         private float bgBlend = 1f;
+        private float bgScroll;
 
         private void UpdateTnBackground(float dt)
         {
+            bgScroll = (bgScroll + BgScrollSpeed * dt) % 3840f; // 960 の倍数で戻す(数が大きくなりすぎないように)
             Item? item = diffOpen ? diffItem : CurrentItem;
             int target = BackgroundType(item);
             if (target != bgShown)
@@ -818,10 +832,10 @@ namespace TaikoSim.Scenes
             DrawTnBackgroundImage(bgShown, bgBlend);
         }
 
-        private static void DrawTnBackgroundImage(int type, float alpha)
+        private void DrawTnBackgroundImage(int type, float alpha)
         {
             if (type < 0 || SkinManager.GetTexture(Tn + $"Background/{type}.png") is not Texture2D texture) return;
-            for (float x = 0; x < Screen.Width; x += texture.Width)
+            for (float x = -(bgScroll % texture.Width); x < Screen.Width; x += texture.Width)
                 Raylib.DrawTexturePro(texture, new Rectangle(0, 0, texture.Width, texture.Height),
                     new Rectangle(x, 0, texture.Width, Screen.Height), Vector2.Zero, 0f, MenuSkin.White(alpha));
         }
@@ -932,12 +946,44 @@ namespace TaikoSim.Scenes
             if (selectedArea is Rectangle sel && selectedItem != null)
             {
                 list.DrawFrame(sel, alpha);
-                DrawBar(selectedItem, sel, list.Expand, alpha);
+                DrawBar(selectedItem, sel, list.Expand, alpha, list.FrameShown);
+                if (selectedItem.Kind == Kind.Genre) DrawGenrePop(selectedItem, sel, alpha);
             }
         }
 
-        // 1本の板。open は開き具合(0→1)
-        private void DrawBar(Item item, Rectangle area, float open, float alpha)
+        // ===== 開いたジャンルの板のまわり(TaikøNauts の動画を測った値) =====
+        // 両わきのキャラ：Box_Pop/番号.png(1344×486)を原寸で (288, 271) に。枠が出たときから0.13秒でじわっと出て、カーソルが動くと消える
+        private const float PopX = 288, PopY = 271, PopFade = 0.13f;
+        // 曲の数の吹き出し：Maker_Balloon.png(870×122)を原寸で、開いた板の左上から (+33, -94) に(= 528, 291)
+        //   板が開ききってから0.07秒で出る。文字は吹き出しの (435, 58) が真ん中
+        private const float BalloonX = 33, BalloonY = -94, BalloonWidth = 870, BalloonHeight = 122, BalloonFade = 0.07f;
+        private static readonly Color BalloonTextColor = new Color(40, 40, 40, 255);
+
+        private void DrawGenrePop(Item item, Rectangle open, float alpha)
+        {
+            if (!list.FrameShown) return;
+            int type = BarType(item);
+            // キャラは枠が出たときからじわっと出て、板が開ききるころ(0.13秒)にはっきり見える
+            float pop = Math.Clamp(list.FrameSeconds / PopFade, 0f, 1f);
+            if (type >= 0) MenuSkin.Whole(Tn + $"Box_Pop/{type}.png", new Rectangle(PopX, PopY, 1344, 486), MenuSkin.White(alpha * pop));
+
+            float a = alpha * Math.Clamp((list.OpenSeconds - BarList.ExpandSeconds) / BalloonFade, 0f, 1f);
+            if (a <= 0f) return;
+            Rectangle balloon = new Rectangle(open.X + BalloonX, open.Y + BalloonY, BalloonWidth, BalloonHeight);
+            if (!MenuSkin.Whole(Tn + "Maker_Balloon.png", balloon, MenuSkin.White(a)))
+            {
+                // 画像が無いとき(テスト用)：白い角丸の箱
+                Rectangle body = new Rectangle(balloon.X + 45, balloon.Y + 24, BalloonWidth - 90, 70);
+                Raylib.DrawRectangleRounded(body, 1f, 16, Fade(InkColor, a));
+                Rectangle fill = new Rectangle(body.X + 6, body.Y + 6, body.Width - 12, body.Height - 12);
+                Raylib.DrawRectangleRounded(fill, 1f, 16, Fade(new Color(244, 244, 244, 255), a));
+            }
+            string count = item.SongCount > 0 ? $"全 {item.SongCount} 曲" : "曲がありません";
+            Centered(count, new Rectangle(balloon.X + 60, balloon.Y + 58 - 25, BalloonWidth - 120, 50), 36, Fade(BalloonTextColor, a));
+        }
+
+        // 1本の板。open は開き具合(0→1)。framed は黄色い枠が出ている(選んで止まっている)板
+        private void DrawBar(Item item, Rectangle area, float open, float alpha, bool framed = false)
         {
             if (item.Kind == Kind.Label)
             {
@@ -954,21 +1000,18 @@ namespace TaikoSim.Scenes
             // 縁 → 色 → 中の明るい板(スキンの画像があればそれで)
             Color ink = Raylib.ColorBrightness(item.Color, -0.65f);
             bool plain = item.Kind is Kind.Back or Kind.Random; // 「とじる」「ランダム」は中の板なし
-            Rectangle inner = DrawBarBody(item, area, alpha, plain);
+            // 枠が出ているジャンルの板は、中の板をジャンル名の帯より下だけに描く(開くにつれて下へ広がる)
+            Rectangle? plate = framed && item.Kind == Kind.Genre ? BarList.OpenPlateArea(area) : null;
+            Rectangle inner = DrawBarBody(item, area, alpha, plain, plate);
 
             switch (item.Kind)
             {
                 case Kind.Genre:
-                    if (open > 0f)
-                    {
-                        Rectangle titleArea = new Rectangle(inner.X + 20, inner.Y + inner.Height * 0.12f, inner.Width - 40, 80);
-                        Outlined(item.Title, titleArea, 60, Fade(Color.White, alpha), Fade(ink, alpha));
-                        string count = item.SongCount > 0 ? $"全 {item.SongCount} 曲" : "曲がありません";
-                        Rectangle pill = new Rectangle(inner.X + inner.Width / 2f - 150, inner.Y + inner.Height - 80, 300, 54);
-                        Raylib.DrawRectangleRounded(pill, 1f, 12, Fade(new Color(255, 255, 255, 200), alpha * open));
-                        Centered(count, pill, 30, Fade(ink, alpha * open));
-                    }
-                    else Outlined(item.Title, inner, 46, Fade(Color.White, alpha), Fade(ink, alpha));
+                    // 開いても、ジャンル名は閉じた板と同じ場所・同じ大きさ(板の一番上。TaikøNauts と同じ)
+                    //   曲の数は、板の上の吹き出しに出す(DrawGenrePop)
+                    float topPad = inner.Y - area.Y;
+                    Rectangle titleArea = new Rectangle(inner.X, inner.Y, inner.Width, BarList.BarHeight - topPad * 2);
+                    Outlined(item.Title, titleArea, 46, Fade(Color.White, alpha), Fade(ink, alpha));
                     break;
 
                 case Kind.Back:
@@ -1264,17 +1307,18 @@ namespace TaikoSim.Scenes
         // カードの数字と★の列(カードの画像の上に。★の列は、画像の点々に1つずつ重ねる)
         private void DrawCardLevel(CourseType type, Rectangle box, float alpha)
         {
-            float k = box.Width / 196f;
+            // 横と縦で別々に倍率を出す(ふつうは原寸なので両方 1。板が広がる途中だけ小さくなる)
+            float k = box.Width / 196f, ky = box.Height / 354f;
             string level = LevelOf(type).ToString();
             Color ink = Fade(Raylib.ColorBrightness(CourseColor(type), -0.7f), alpha);
-            if (!MenuSkin.Digits(Tn + "Difficulty_Select/Difficulty_Level_Number.png", level, box.X + CardNumberX * k, box.Y + CardNumberY * k, CardNumberAdvance, k, MenuSkin.White(alpha)))
-                Outlined(level, new Rectangle(box.X + (CardNumberX - 18) * k, box.Y + (CardNumberY - 20) * k, 36 * k, 40 * k), 32 * k, Fade(Color.White, alpha), ink);
+            if (!MenuSkin.Digits(Tn + "Difficulty_Select/Difficulty_Level_Number.png", level, box.X + CardNumberX * k, box.Y + CardNumberY * ky, CardNumberAdvance, k, MenuSkin.White(alpha)))
+                Outlined(level, new Rectangle(box.X + (CardNumberX - 18) * k, box.Y + (CardNumberY - 20) * ky, 36 * k, 40 * k), 32 * k, Fade(Color.White, alpha), ink);
 
             int stars = StarsOf(type);
             Texture2D? star = SkinManager.GetTexture(Tn + "Difficulty_Select/Difficulty_Level_Star.png");
             for (int s = 0; s < stars; s++)
             {
-                Vector2 c = new Vector2(box.X + (CardDotX + CardDotStep * s) * k, box.Y + CardDotY * k);
+                Vector2 c = new Vector2(box.X + (CardDotX + CardDotStep * s) * k, box.Y + CardDotY * ky);
                 if (star is Texture2D tex)
                     Raylib.DrawTexturePro(tex, new Rectangle(0, 0, tex.Width, tex.Height),
                         new Rectangle(c.X - tex.Width * k / 2f, c.Y - tex.Height * k / 2f, tex.Width * k, tex.Height * k), Vector2.Zero, 0f, MenuSkin.White(alpha));

@@ -236,10 +236,23 @@ def tn_cards():
     c = Canvas(240, 400); c.rect(12, 9, 228, 391, fill=(255, 240, 40, 255), radius=26); c.save(S + 'Difficulty_Select/Cursor_Effect.png')
     c = Canvas(160, 160); c.rect(13, 10, 147, 151, fill=(255, 240, 40, 255), radius=22); c.save(S + 'Difficulty_Select/Cursor_Effect_Small.png')
 
+def balloon():
+    """Maker_Balloon.png(870×122)：開いたジャンルの板の上に出る「全 ○ 曲」の吹き出し。下のまんなかに三角(文字はプログラム)
+    A-Style と同じ大きさ・同じ場所(箱は 45〜825 × 24〜94、三角の先は 435, 112)"""
+    W, H = 870, 122
+    c = Canvas(W, H)
+    # 黒いふち(箱＋三角)
+    c.rect(45, 24, 825, 94, fill=INK2 + (255,), radius=35)
+    c.poly([(413, 90), (457, 90), (435, 112)], fill=INK2 + (255,))
+    # 中(明るい灰色)
+    c.rect(51, 30, 819, 88, fill=(244, 244, 244, 255), radius=29)
+    c.poly([(420, 86), (450, 86), (435, 103)], fill=(244, 244, 244, 255))
+    c.save(S + 'Maker_Balloon.png')
+
 def run():
     bars(M); bars(S); label_bar()
     panel(); marker(); hint()
-    tn_chips(); tn_cards()
+    tn_chips(); tn_cards(); balloon()
     number_sheet(S + 'Difficulty_Level_Number.png', 31, 37, 40, 3)
     number_sheet(S + 'Difficulty_Select/Difficulty_Level_Number.png', 23, 28, 30, 2)
 
