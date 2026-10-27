@@ -78,6 +78,13 @@ namespace TaikoSim.Scenes
         private const int ComboSparkleFrom = 50;
         private const float ComboSparkleStep = 0.016f;
         private const int ComboSparkleSteps = 36;
+        // 色：50〜99コンボは銀、100コンボからは金(たけらいが TaikøNauts で見た色)
+        //   画像を白くしたもの(GetWhiteTexture)に色をかけるので、スキンの画像が黄色でも白でも同じ色になる
+        //   明るすぎたので、少し透かして描く
+        private const int ComboSparkleGoldFrom = 100;
+        private static readonly Color ComboSparkleSilver = new Color(214, 222, 236, 255);
+        private static readonly Color ComboSparkleGold = new Color(255, 206, 64, 255);
+        private const float ComboSparkleAlpha = 0.7f;
 
         // ゴーゴー開始の火花の位置(下の真ん中)と傾き。OpenTaiko の Game_Effect_GoGoSplash_X/Y
         private static readonly float[] SplashX = { 180, 450, 780, 1140, 1470, 1740 };
@@ -684,7 +691,7 @@ namespace TaikoSim.Scenes
                     Rectangle dest = new Rectangle(centerX - drawW / 2f, bottomY - drawH, drawW, drawH);
                     Raylib.DrawTexturePro(numbers, source, dest, Vector2.Zero, 0f, Color.White);
                 }
-                if (combo >= ComboSparkleFrom) DrawComboSparkles(rightX, padding, count, w * scale, h * verticalScale, bottomY);
+                if (combo >= ComboSparkleFrom) DrawComboSparkles(combo, rightX, padding, count, w * scale, h * verticalScale, bottomY);
             }
             else
             {
@@ -701,22 +708,24 @@ namespace TaikoSim.Scenes
 
         // コンボの数字のキラキラ(けたごとに、まんなか・右・左の3つ)
         //   OpenTaiko：b = 数字の幅 / 4、c = 数字の高さ / 4、d = 数字の下端。星は「下の真ん中」を合わせて描く
-        private void DrawComboSparkles(float rightX, float padding, int count, float digitWidth, float digitHeight, float bottomY)
+        private void DrawComboSparkles(int combo, float rightX, float padding, int count, float digitWidth, float digitHeight, float bottomY)
         {
-            if (SkinManager.GetTexture(ComboSparkleImage) is not Texture2D star) return;
+            if (SkinManager.GetWhiteTexture(ComboSparkleImage) is not Texture2D star) return;
+            Color tint = combo >= ComboSparkleGoldFrom ? ComboSparkleGold : ComboSparkleSilver;
+            tint = new Color(tint.R, tint.G, tint.B, (byte)(255 * ComboSparkleAlpha));
             int v = (int)(comboSparkleTime / ComboSparkleStep) % ComboSparkleSteps;
             float b = digitWidth / 4f, c = digitHeight / 4f, d = bottomY;
             for (int i = 0; i < count; i++)
             {
                 float a = rightX - padding * i;
-                if (v < 13) DrawSparkle(star, a, d - c - (int)(1.05f * v) - 13);                  // まんなか
-                if (v >= 8 && v < 23) DrawSparkle(star, a + b, d - c - (int)(1.05f * (v - 10)) - 3); // 右
-                if (v >= 17 && v < 32) DrawSparkle(star, a - b, d - c - (int)(1.05f * v - 20) - 8);  // 左
+                if (v < 13) DrawSparkle(star, a, d - c - (int)(1.05f * v) - 13, tint);                  // まんなか
+                if (v >= 8 && v < 23) DrawSparkle(star, a + b, d - c - (int)(1.05f * (v - 10)) - 3, tint); // 右
+                if (v >= 17 && v < 32) DrawSparkle(star, a - b, d - c - (int)(1.05f * v - 20) - 8, tint);  // 左
             }
         }
 
-        private static void DrawSparkle(Texture2D star, float x, float bottom) =>
-            Raylib.DrawTexture(star, (int)(x - star.Width / 2f), (int)(bottom - star.Height), Color.White);
+        private static void DrawSparkle(Texture2D star, float x, float bottom, Color tint) =>
+            Raylib.DrawTexture(star, (int)(x - star.Width / 2f), (int)(bottom - star.Height), tint);
 
         // ----- ゴーゴー -----
 
