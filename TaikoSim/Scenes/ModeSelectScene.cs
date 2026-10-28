@@ -34,7 +34,10 @@ namespace TaikoSim.Scenes
         private static int cursor = 0;
         private readonly BarList list = new(MenuSkin.ModeFolder);
         private Item? deciding;                // 決定して、枠が点滅している項目
-        private const string EntryBackground = "Image/01.Entry/Background.png";
+        private const string EntryFolder = "Image/01.Entry/";
+        private const string EntryBarFolder = EntryFolder + "Bar/";
+        private const string EntryBackground = EntryFolder + "Background.png";
+        private float backgroundTime;
 
         // 終了の確認・お知らせ
         private const float ExitConfirmSeconds = 3f;
@@ -49,9 +52,11 @@ namespace TaikoSim.Scenes
             cursor = Math.Clamp(cursor, 0, Items.Length - 1);
             list.Reset(cursor);
             deciding = null;
+            backgroundTime = 0f;
             MenuSkin.Preload(MenuSkin.ModeFolder, MenuSkin.BarImages.Concat(new[] { "Background.png", "Background/0.png" }));
-            SkinManager.GetTexture(EntryBackground);
-            SkinManager.GetTexture(MenuSkin.SongFolder + "Background/0.png");
+            MenuSkin.Preload(EntryFolder, new[] { "Background.png", "Header.png", "Background_Fireworks.png" });
+            MenuSkin.Preload(EntryBarFolder, new[] { "Bar/0.png", "Bar/1.png", "Title/0.png", "Title/1.png",
+                "Overlay.png", "Selected.png", "Pop/0.png", "1POnly.png" });
         }
 
         // Esc：1回目は確認を出す、確認中(3秒以内)にもう1回押したら終了。点滅中なら決定をやめる
@@ -73,6 +78,7 @@ namespace TaikoSim.Scenes
 
         public override void Update(float dt)
         {
+            backgroundTime = (backgroundTime + dt) % 3.2f;
             if (exitTimer > 0f) exitTimer -= dt;
             if (toastTimer > 0f) toastTimer -= dt;
             list.Update(dt, cursor);
@@ -157,7 +163,9 @@ namespace TaikoSim.Scenes
         public override void Draw()
         {
             Gui.BeginFrame();
-            if (!DrawSkinBackground())
+            bool entryBackground = MenuSkin.Whole(EntryBackground, new Rectangle(0, 0, Screen.Width, Screen.Height), Color.White);
+            if (entryBackground) DrawEntryDecorations();
+            else if (!DrawSkinBackground())
             {
                 Color baseColor = Current.Color;
                 Raylib.DrawRectangleGradientV(0, 0, Screen.Width, Screen.Height,
@@ -166,47 +174,78 @@ namespace TaikoSim.Scenes
 
             DrawList();
 
-            Text("モードをえらぶ", 40, 26, 44, Color.White);
-
-            DrawHint("カッ・↑↓：えらぶ　ドン・Enter：決定　Esc：終了（2回）", 1030);
-            DrawHint("テスト：.tja ファイルをウィンドウにドラッグ＆ドロップすると譜面が流れます", 984, new Color(240, 205, 120, 255), 20);
+            if (entryBackground)
+            {
+                Outlined("フリープレイ", new Rectangle(800, 1028, 320, 48), 30, Color.White, new Color(12, 12, 16, 255));
+            }
+            else
+            {
+                Text("モードをえらぶ", 40, 26, 44, Color.White);
+                DrawHint("カッ・↑↓：えらぶ　ドン・Enter：決定　Esc：終了（2回）", 1030);
+                DrawHint("テスト：.tja ファイルをウィンドウにドラッグ＆ドロップすると譜面が流れます", 984, new Color(240, 205, 120, 255), 20);
+            }
 
             if (toastTimer > 0f) DrawBanner(toast, new Color(255, 200, 60, 255));
             else if (exitTimer > 0f) DrawBanner("3秒以内にもう一度 Esc を押すと終了します", new Color(255, 200, 60, 255));
         }
 
-        // 01.Entry の背景は画面全体の一枚絵。無いスキンでは従来のモード/選曲背景を使う
+        // 01.Entry が無いスキンはモード専用画像を試し、無ければシステムのグラデーションに戻す
         private static bool DrawSkinBackground()
         {
             Rectangle screen = new(0, 0, Screen.Width, Screen.Height);
-            if (MenuSkin.Whole(EntryBackground, screen, Color.White)
-                || MenuSkin.Whole(MenuSkin.ModeFolder + "Background.png", screen, Color.White)
-                || MenuSkin.Whole(MenuSkin.ModeFolder + "Background/0.png", screen, Color.White)) return true;
+            return MenuSkin.Whole(MenuSkin.ModeFolder + "Background.png", screen, Color.White)
+                || MenuSkin.Whole(MenuSkin.ModeFolder + "Background/0.png", screen, Color.White);
+        }
 
-            // 選曲の背景は横に繰り返す素材なので、幅を伸ばさず並べる
-            if (SkinManager.GetTexture(MenuSkin.SongFolder + "Background/0.png") is not Texture2D texture || texture.Width <= 0)
-                return false;
-            for (float x = 0; x < Screen.Width; x += texture.Width)
-                Raylib.DrawTexturePro(texture, new Rectangle(0, 0, texture.Width, texture.Height),
-                    new Rectangle(x, 0, texture.Width, Screen.Height), System.Numerics.Vector2.Zero, 0f, Color.White);
-            return true;
+        private void DrawEntryDecorations()
+        {
+            // 背景と別になっている花火(300×300 の2コマ)をゆっくり浮かべる
+            DrawFirework(380, 75, 0, 0.25f);
+            DrawFirework(1360, 85, 1, 1.45f);
+            MenuSkin.Whole(EntryFolder + "Header.png", new Rectangle(0, 0, Screen.Width, Screen.Height), Color.White);
+        }
+
+        private void DrawFirework(float x, float y, int cell, float offset)
+        {
+            if (SkinManager.GetTexture(EntryFolder + "Background_Fireworks.png") is not Texture2D texture) return;
+            float age = (backgroundTime + offset) % 3.2f;
+            if (age >= 1.4f) return;
+            float size = 300f * (0.7f + 0.3f * age / 1.4f);
+            float alpha = MathF.Sin(age / 1.4f * MathF.PI) * 0.6f;
+            Raylib.DrawTexturePro(texture, new Rectangle(cell * 300, 0, 300, 300),
+                new Rectangle(x - size / 2, y - size / 2, size, size), System.Numerics.Vector2.Zero, 0f, Fade(Color.White, alpha));
         }
 
         // 項目(斜めに並べる。先頭と末尾の外には項目を描かない)
         private void DrawList()
         {
             bool clickable = deciding == null;
+            bool entryLayout = EntryBarType(Items[0]) >= 0;
+            int selectedPos = cursor;
 
             // 選んでいる板は、ほかの板の上に描くので最後
             Rectangle? selectedArea = null;
             for (int pos = 0; pos < Items.Length; pos++)
             {
                 Item item = Items[pos];
-                Rectangle area = BarList.BarArea(pos - list.Shown);
+                float distance = pos - list.Shown;
+                Rectangle area = BarList.BarArea(distance);
+                // モード選択の動画は選曲より上下の板が50px離れている
+                if (entryLayout) area.Y += Math.Clamp(distance, -1f, 1f) * 50f;
                 if (area.Y > Screen.Height || area.Y + area.Height < 0) continue;
 
-                bool selected = pos == cursor;
-                if (selected) selectedArea = list.OpenArea(area);
+                bool selected = pos == selectedPos;
+                if (selected)
+                {
+                    Rectangle open = list.OpenArea(area);
+                    if (entryLayout)
+                    {
+                        float spread = 23f * EaseOut(list.Expand);
+                        open.Y -= spread;
+                        open.Height += spread * 2;
+                    }
+                    selectedArea = open;
+                }
                 else DrawItem(item, area, 0f);
 
                 // クリック：ほかの項目なら選ぶ、選んでいる項目なら決定
@@ -225,14 +264,36 @@ namespace TaikoSim.Scenes
 
             if (selectedArea is Rectangle sel)
             {
-                list.DrawFrame(sel, 1f);
-                DrawItem(Current, sel, list.Expand);
+                Item selectedItem = Items[selectedPos];
+                int entryType = EntryBarType(selectedItem);
+                list.DrawFrame(sel, 1f, entryType >= 0 ? EntryBarFolder + "Selected.png" : null);
+                DrawItem(selectedItem, sel, list.Expand);
+                if (entryType == 0 && list.FrameShown)
+                {
+                    float alpha = Math.Clamp(list.FrameSeconds / 0.13f, 0f, 1f);
+                    MenuSkin.Whole(EntryBarFolder + $"Pop/{entryType}.png", new Rectangle(288, 271, 1344, 486), MenuSkin.White(alpha));
+                }
             }
+        }
+
+        // A-Style の 2・3 は「プレイヤー設定」「AIバトル演奏」で、TaikoSim の項目とは違う
+        private static int EntryBarType(Item item)
+        {
+            int type = item.Title switch { "演奏ゲーム" => 0, "段位道場" => 1, _ => -1 };
+            return type >= 0 && MenuSkin.Has(EntryBarFolder + $"Bar/{type}.png", EntryBarFolder + $"Title/{type}.png")
+                ? type : -1;
         }
 
         // 1本の板。open は開き具合(0→1)
         private void DrawItem(Item item, Rectangle area, float open)
         {
+            int entryType = EntryBarType(item);
+            if (entryType >= 0)
+            {
+                DrawEntryBar(item, entryType, area, open);
+                return;
+            }
+
             Color fill = item.Ready ? item.Color : Raylib.ColorBrightness(item.Color, -0.4f);
             Rectangle inner = list.DrawBody(area, fill, 1f, plain: false);
             Color ink = Raylib.ColorBrightness(fill, -0.65f);
@@ -249,6 +310,41 @@ namespace TaikoSim.Scenes
             Rectangle pill = new Rectangle(inner.X + 60, inner.Y + inner.Height - 110, inner.Width - 120, 70);
             Raylib.DrawRectangleRounded(pill, 1f, 12, Fade(new Color(255, 255, 255, 210), open));
             Centered(item.Description, new Rectangle(pill.X + 20, pill.Y, pill.Width - 40, pill.Height), 32, Fade(ink, open));
+        }
+
+        // 980×160 の板とタイトル。開いたときは土台だけ伸ばし、タイトルは原寸で上に置く
+        private static void DrawEntryBar(Item item, int type, Rectangle area, float open)
+        {
+            Rectangle imageArea = new(area.X - 24, area.Y - 18, area.Width + 48, area.Height + 36);
+            MenuSkin.NPatch(EntryBarFolder + $"Bar/{type}.png", imageArea, 40, Color.White);
+
+            if (open <= 0f)
+                MenuSkin.Whole(EntryBarFolder + "Overlay.png", imageArea, Color.White);
+            else
+            {
+                // 閉じた板の白い帯を、開いた板の説明欄に伸ばす
+                Rectangle plate = new(area.X + 70, area.Y + 135, area.Width - 140, area.Height - 157);
+                if (plate.Height > 0)
+                    MenuSkin.NPatchPart(EntryBarFolder + "Overlay.png", new Rectangle(93, 38, 794, 84), plate, 10, Color.White);
+
+                if (plate.Height > 90)
+                {
+                    Color ink = new(20, 20, 24, 255);
+                    if (type == 0)
+                    {
+                        Outlined("すきな曲や、むずかしさを", new Rectangle(plate.X + 20, plate.Y + 42, plate.Width - 40, 48), 36, Color.White, ink);
+                        Outlined("えらんであそべるよ！", new Rectangle(plate.X + 20, plate.Y + 100, plate.Width - 40, 48), 36, Color.White, ink);
+                    }
+                    else
+                        Outlined(item.Description, plate, 38, Color.White, ink);
+                }
+            }
+
+            MenuSkin.Whole(EntryBarFolder + $"Title/{type}.png",
+                new Rectangle(imageArea.X, imageArea.Y, imageArea.Width, 160), Color.White);
+            if (type == 1)
+                MenuSkin.Whole(EntryBarFolder + "1POnly.png",
+                    new Rectangle(area.X - 80, area.Y - 35, 400, 70), Color.White);
         }
 
         // 下の操作説明(うしろに薄い帯)
