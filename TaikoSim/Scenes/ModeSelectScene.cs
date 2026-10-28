@@ -13,7 +13,7 @@ namespace TaikoSim.Scenes
     //   段位道場・特訓モード → まだ無い(準備中)
     //   設定 → 設定パネル、クレジット → クレジット画面
     // 見た目と動きは選曲画面と同じ(UI/BarList。TaikøNauts の選曲画面を測った値)
-    //   ・板は斜めに並ぶ。上下はぐるっとつながっている
+    //   ・板は斜めに並ぶ。先頭と末尾で止まる
     //   ・カーソルは0.15秒で1つ動く。止まってから0.43秒で選んでいる板が開く
     //   ・決定すると、黄色い枠が点滅してから次の画面へ
     // 操作：カッ・↑↓・ホイールで選ぶ、ドン・Enter・クリックで決定、Esc を2回で終了
@@ -30,10 +30,11 @@ namespace TaikoSim.Scenes
             new("クレジット", "使っているソフト・フォント・ライセンス", new Color(60, 130, 150, 255), true),
         };
 
-        // 選んでいる項目(ほかの画面から戻ってきても同じ場所)。ぐるっと回れるので、項目の番号は Items.Length で割った余り
+        // 選んでいる項目(ほかの画面から戻ってきても同じ場所)。先頭・末尾を越えない
         private static int cursor = 0;
         private readonly BarList list = new(MenuSkin.ModeFolder);
         private Item? deciding;                // 決定して、枠が点滅している項目
+        private const string EntryBackground = "Image/01.Entry/Background.png";
 
         // 終了の確認・お知らせ
         private const float ExitConfirmSeconds = 3f;
@@ -41,15 +42,16 @@ namespace TaikoSim.Scenes
         private string toast = "";
         private float toastTimer = 0f;
 
-        private static Item ItemAt(int pos) => Items[((pos % Items.Length) + Items.Length) % Items.Length];
-        private static Item Current => ItemAt(cursor);
+        private static Item Current => Items[cursor];
 
         public override void Enter()
         {
-            cursor = ((cursor % Items.Length) + Items.Length) % Items.Length;
+            cursor = Math.Clamp(cursor, 0, Items.Length - 1);
             list.Reset(cursor);
             deciding = null;
-            MenuSkin.Preload(MenuSkin.ModeFolder, MenuSkin.BarImages);
+            MenuSkin.Preload(MenuSkin.ModeFolder, MenuSkin.BarImages.Concat(new[] { "Background.png", "Background/0.png" }));
+            SkinManager.GetTexture(EntryBackground);
+            SkinManager.GetTexture(MenuSkin.SongFolder + "Background/0.png");
         }
 
         // Esc：1回目は確認を出す、確認中(3秒以内)にもう1回押したら終了。点滅中なら決定をやめる
@@ -101,7 +103,9 @@ namespace TaikoSim.Scenes
 
         private void Move(int direction)
         {
-            cursor += Math.Sign(direction);
+            int next = Math.Clamp(cursor + Math.Sign(direction), 0, Items.Length - 1);
+            if (next == cursor) return;
+            cursor = next;
             list.Collapse();
             exitTimer = 0f;
             MenuSounds.Ka();
@@ -153,9 +157,12 @@ namespace TaikoSim.Scenes
         public override void Draw()
         {
             Gui.BeginFrame();
-            Color baseColor = Current.Color;
-            Raylib.DrawRectangleGradientV(0, 0, Screen.Width, Screen.Height,
-                Raylib.ColorBrightness(baseColor, -0.55f), Raylib.ColorBrightness(baseColor, -0.8f));
+            if (!DrawSkinBackground())
+            {
+                Color baseColor = Current.Color;
+                Raylib.DrawRectangleGradientV(0, 0, Screen.Width, Screen.Height,
+                    Raylib.ColorBrightness(baseColor, -0.55f), Raylib.ColorBrightness(baseColor, -0.8f));
+            }
 
             DrawList();
 
@@ -168,19 +175,33 @@ namespace TaikoSim.Scenes
             else if (exitTimer > 0f) DrawBanner("3秒以内にもう一度 Esc を押すと終了します", new Color(255, 200, 60, 255));
         }
 
-        // 項目(斜めに並べる。上下はぐるっとつながっている)
+        // 01.Entry の背景は画面全体の一枚絵。無いスキンでは従来のモード/選曲背景を使う
+        private static bool DrawSkinBackground()
+        {
+            Rectangle screen = new(0, 0, Screen.Width, Screen.Height);
+            if (MenuSkin.Whole(EntryBackground, screen, Color.White)
+                || MenuSkin.Whole(MenuSkin.ModeFolder + "Background.png", screen, Color.White)
+                || MenuSkin.Whole(MenuSkin.ModeFolder + "Background/0.png", screen, Color.White)) return true;
+
+            // 選曲の背景は横に繰り返す素材なので、幅を伸ばさず並べる
+            if (SkinManager.GetTexture(MenuSkin.SongFolder + "Background/0.png") is not Texture2D texture || texture.Width <= 0)
+                return false;
+            for (float x = 0; x < Screen.Width; x += texture.Width)
+                Raylib.DrawTexturePro(texture, new Rectangle(0, 0, texture.Width, texture.Height),
+                    new Rectangle(x, 0, texture.Width, Screen.Height), System.Numerics.Vector2.Zero, 0f, Color.White);
+            return true;
+        }
+
+        // 項目(斜めに並べる。先頭と末尾の外には項目を描かない)
         private void DrawList()
         {
-            int baseIndex = (int)MathF.Round(list.Shown);
-            var (before, after) = BarList.VisibleRange(Items.Length);
             bool clickable = deciding == null;
 
             // 選んでいる板は、ほかの板の上に描くので最後
             Rectangle? selectedArea = null;
-            for (int k = -before; k <= after; k++)
+            for (int pos = 0; pos < Items.Length; pos++)
             {
-                int pos = baseIndex + k;
-                Item item = ItemAt(pos);
+                Item item = Items[pos];
                 Rectangle area = BarList.BarArea(pos - list.Shown);
                 if (area.Y > Screen.Height || area.Y + area.Height < 0) continue;
 
