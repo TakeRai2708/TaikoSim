@@ -164,7 +164,7 @@ namespace TaikoSim.Scenes
         {
             Gui.BeginFrame();
             bool entryBackground = MenuSkin.Whole(EntryBackground, new Rectangle(0, 0, Screen.Width, Screen.Height), Color.White);
-            if (entryBackground) DrawEntryDecorations();
+            if (entryBackground) DrawEntryFireworks();
             else if (!DrawSkinBackground())
             {
                 Color baseColor = Current.Color;
@@ -176,6 +176,8 @@ namespace TaikoSim.Scenes
 
             if (entryBackground)
             {
+                // 上のプレイ情報は板より手前に出す（板が上へ流れても隠さない）
+                MenuSkin.Whole(EntryFolder + "Header.png", new Rectangle(0, 0, Screen.Width, Screen.Height), Color.White);
                 Outlined("フリープレイ", new Rectangle(800, 1028, 320, 48), 30, Color.White, new Color(12, 12, 16, 255));
             }
             else
@@ -197,12 +199,11 @@ namespace TaikoSim.Scenes
                 || MenuSkin.Whole(MenuSkin.ModeFolder + "Background/0.png", screen, Color.White);
         }
 
-        private void DrawEntryDecorations()
+        private void DrawEntryFireworks()
         {
             // 背景と別になっている花火(300×300 の2コマ)をゆっくり浮かべる
             DrawFirework(380, 75, 0, 0.25f);
             DrawFirework(1360, 85, 1, 1.45f);
-            MenuSkin.Whole(EntryFolder + "Header.png", new Rectangle(0, 0, Screen.Width, Screen.Height), Color.White);
         }
 
         private void DrawFirework(float x, float y, int cell, float offset)
@@ -237,14 +238,14 @@ namespace TaikoSim.Scenes
                 bool selected = pos == selectedPos;
                 if (selected)
                 {
-                    Rectangle open = list.OpenArea(area);
+                    Rectangle openedArea = list.OpenArea(area);
                     if (entryLayout)
                     {
                         float spread = 23f * EaseOut(list.Expand);
-                        open.Y -= spread;
-                        open.Height += spread * 2;
+                        openedArea.Y -= spread;
+                        openedArea.Height += spread * 2;
                     }
-                    selectedArea = open;
+                    selectedArea = openedArea;
                 }
                 else DrawItem(item, area, 0f);
 
