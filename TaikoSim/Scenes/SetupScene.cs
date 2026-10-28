@@ -225,16 +225,15 @@ namespace TaikoSim.Scenes
 
             // 背景
             Raylib.DrawRectangle(0, 0, Screen.Width, Screen.Height, Gui.BackgroundColor);
-            Raylib.DrawRectangleRounded(Panel, 0.018f, 8, Gui.PanelColor);
-            Raylib.DrawRectangleLinesEx(Panel, 1, Gui.BorderColor);
+            Raylib.DrawRectangleRounded(Panel, 0.009f, 8, Gui.PanelColor);
 
-            // 5つの手順。キーだけを聞くときは進行状況を出さない
-            FontManager.Draw(isFirstRun ? "TaikoSim  |  初期設定" : "TaikoSim  |  キーの設定", 680, 24, 38, Color.White);
+            // 文字と細い進行線だけで、どこまで設定したか分かるようにする
+            FontManager.Draw(isFirstRun ? "初期設定" : "キーの設定", Left, 32, 38, Color.White);
             if (isFirstRun)
             {
                 string pageText = $"{(int)step + 1} / {StepCount}";
                 float pageWidth = FontManager.Measure(pageText, 30).X;
-                FontManager.Draw(pageText, Right - pageWidth, 78, 30, Gui.SubTextColor);
+                FontManager.Draw(pageText, Right - pageWidth, 42, 28, Gui.SubTextColor);
                 DrawProgress();
             }
 
@@ -259,13 +258,11 @@ namespace TaikoSim.Scenes
             string[] names = { "ようこそ", "画面", "音量", "キー", "完了" };
             for (int i = 0; i < names.Length; i++)
             {
-                int x = 370 + i * 270;
-                if (i < names.Length - 1)
-                    Raylib.DrawLine(x + 28, 105, x + 242, 105, i < (int)step ? Gui.AccentColor : Gui.BorderColor);
-                Color color = i <= (int)step ? Gui.AccentColor : Gui.BoxColor;
-                Raylib.DrawCircle(x, 105, 23, color);
-                Gui.DrawCentered((i + 1).ToString(), new Rectangle(x - 23, 82, 46, 46), 24, Color.White);
-                FontManager.Draw(names[i], x - 46, 132, 23, i == (int)step ? Gui.AccentColor : Gui.SubTextColor);
+                int x = 160 + i * 325;
+                Color color = i <= (int)step ? Gui.AccentColor : Gui.BorderColor;
+                FontManager.Draw($"{i + 1:00}  {names[i]}", x, 98, 21,
+                    i == (int)step ? Color.White : Gui.SubTextColor);
+                Raylib.DrawRectangle(x, 139, 300, 4, color);
             }
         }
 
@@ -415,29 +412,31 @@ namespace TaikoSim.Scenes
                 int askIndex = Array.IndexOf(partsToAsk, part);
                 bool done = askIndex < 0 || askIndex < keyIndex;
                 bool current = askIndex >= 0 && askIndex == keyIndex;
+                Raylib.DrawRectangleRounded(row, 0.1f, 8, Gui.BoxColor);
+                FontManager.Draw(name, Left + 24, y + 14, 30, Color.White);
 
                 if (done)
                 {
                     // 決まった場所
-                    Raylib.DrawRectangleRec(row, new Color(30, 50, 40, 255));
                     string keys = string.Join(", ", ConfigManager.Key.DrumKeys.GetValueOrDefault(part, new List<KeyboardKey>()));
-                    FontManager.Draw($"●  {name}：{keys}", Left + 24, y + 14, 32, SuccessColor);
+                    Raylib.DrawRectangle((int)Left, (int)y + 10, 3, 44, SuccessColor);
+                    FontManager.Draw(keys, Left + 350, y + 17, 27, Gui.SubTextColor);
+                    FontManager.Draw("登録済み", Right - 130, y + 19, 22, SuccessColor);
                 }
                 else if (current)
                 {
                     // 今聞いている場所(点滅)
-                    Raylib.DrawRectangleRec(row, new Color(18, 22, 36, 255));
-                    Raylib.DrawRectangleLinesEx(row, 3, Gui.AccentColor);
+                    Raylib.DrawRectangle((int)Left, (int)y + 10, 3, 44, Gui.AccentColor);
                     if ((blinkTimer % 1f) < 0.7f)
                     {
-                        FontManager.Draw($"→  {name}のキーを押してください", Left + 24, y + 14, 32, Gui.AccentColor);
+                        FontManager.Draw("キーを押してください", Left + 350, y + 17, 27, Gui.AccentColor);
                     }
+                    FontManager.Draw("入力中", Right - 110, y + 19, 22, Gui.AccentColor);
                 }
                 else
                 {
                     // まだの場所
-                    Raylib.DrawRectangleRec(row, new Color(28, 31, 42, 255));
-                    FontManager.Draw($"○  {name}", Left + 24, y + 14, 32, PendingColor);
+                    FontManager.Draw("未登録", Right - 110, y + 19, 22, PendingColor);
                 }
                 y += 76;
             }

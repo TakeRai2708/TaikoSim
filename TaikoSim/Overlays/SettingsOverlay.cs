@@ -14,23 +14,23 @@ namespace TaikoSim.Overlays
     public class SettingsOverlay
     {
         // ===== 大きさ(1920×1080の座標) =====
-        public const int PanelWidth = 820; // F1 のパネル幅
+        public const int PanelWidth = 900; // F1 でも説明と操作欄が並ぶ幅
         private bool fullScreen;
         public bool IsFullScreen => IsOpen && fullScreen;
-        private float HeaderHeight => fullScreen ? 112 : 96;
-        private float SidebarWidth => fullScreen ? 300 : 170;
-        private float HintHeight => fullScreen ? 100 : 86;
+        private float HeaderHeight => fullScreen ? 104 : 90;
+        private float SidebarWidth => fullScreen ? 280 : 176;
+        private float HintHeight => fullScreen ? 88 : 80;
         private float CurrentWidth => fullScreen ? Screen.Width : PanelWidth;
 
         // 中身の並び
-        private float SectionX => fullScreen ? 350 : 190;
-        private float LabelX => fullScreen ? 370 : 205;
-        private float ControlX => fullScreen ? 1050 : 490;
-        private float BoxX => fullScreen ? 1510 : 685;
-        private float RightEdge => fullScreen ? 1780 : 790;
-        private float RowHeight => fullScreen ? 70 : 58;
+        private float SectionX => fullScreen ? 340 : 198;
+        private float LabelX => fullScreen ? 360 : 212;
+        private float ControlX => fullScreen ? 1210 : 530;
+        private float BoxX => fullScreen ? 1560 : 730;
+        private float RightEdge => fullScreen ? 1760 : 850;
+        private float RowHeight => fullScreen ? 66 : 60;
 
-        // カテゴリ(左のアイコンの順番)
+        // カテゴリ(アイコンを使わず、番号と文字で探せるようにする)
         private enum Category { General, Window, Sound, Play, Key, Skin }
         private static readonly string[] CategoryNames = { "一般", "画面", "音", "演奏", "キー", "スキン" };
         private Category selectedCategory = Category.General;
@@ -63,11 +63,13 @@ namespace TaikoSim.Overlays
         private float contentHeight = 0f; // 中身全体の高さ
         private float cursorY = 0f;       // 今描いている行の位置(中身の座標)
 
-        // 各カテゴリの見出しの位置(アイコンを押したときのジャンプ先)
+        // 各カテゴリの見出しの位置(左の項目を押したときのジャンプ先)
         private readonly Dictionary<Category, float> sectionPos = new();
 
-        // アイコンでジャンプしたカテゴリ(ホイールでスクロールしたら解除)
+        // 左の項目でジャンプしたカテゴリ(ホイールでスクロールしたら解除)
         private Category? clickedCategory = null;
+        private bool scrollDragging;
+        private float scrollGrabOffset;
 
         // ===== キー設定用 =====
 
@@ -127,6 +129,7 @@ namespace TaikoSim.Overlays
             Gui.Reset();
             selectedCategory = Category.General;
             scroll = scrollTarget = contentHeight = 0f;
+            scrollDragging = false;
             unsavedOpen = false;
             savedSkin = ConfigManager.Copy(ConfigManager.Skin);
             visibleSkinNames = ConfigManager.Skin.GetSkinList();
@@ -153,6 +156,7 @@ namespace TaikoSim.Overlays
             IsOpen = false;
             Gui.Reset();
             waitingTarget = null;
+            scrollDragging = false;
             messageTimer = 0f;
             confirmOpen = false;
             unsavedOpen = false;
@@ -319,22 +323,23 @@ namespace TaikoSim.Overlays
         {
             Gui.BeginFrame();
 
-            Rectangle content = new Rectangle(SidebarWidth + 16, HeaderHeight + 18,
-                CurrentWidth - SidebarWidth - 40, Screen.Height - HeaderHeight - HintHeight - 36);
+            Rectangle content = new Rectangle(SidebarWidth + 18, HeaderHeight + 16,
+                CurrentWidth - SidebarWidth - 42, Screen.Height - HeaderHeight - HintHeight - 32);
             if (!confirmOpen && !unsavedOpen) UpdateScroll(content);
 
             if (fullScreen) Raylib.DrawRectangle(0, 0, Screen.Width, Screen.Height, Gui.BackgroundColor);
-            else Raylib.DrawRectangle(0, 0, Screen.Width, Screen.Height, new Color(0, 0, 0, 170));
+            else Raylib.DrawRectangle(0, 0, Screen.Width, Screen.Height, new Color(0, 0, 0, 205));
 
-            Raylib.DrawRectangle(0, 0, (int)CurrentWidth, Screen.Height, Gui.PanelColor);
-            Raylib.DrawRectangleRec(new Rectangle(SidebarWidth + 8, HeaderHeight + 8,
-                CurrentWidth - SidebarWidth - 16, Screen.Height - HeaderHeight - HintHeight - 16),
-                Gui.BackgroundColor);
+            Raylib.DrawRectangle(0, 0, (int)CurrentWidth, Screen.Height, Gui.BackgroundColor);
+            Raylib.DrawRectangleRec(new Rectangle(SidebarWidth, HeaderHeight,
+                CurrentWidth - SidebarWidth, Screen.Height - HeaderHeight - HintHeight), Gui.PanelColor);
+            Raylib.DrawLine((int)SidebarWidth, (int)HeaderHeight, (int)SidebarWidth,
+                Screen.Height - (int)HintHeight, Gui.BorderColor);
 
             Raylib.BeginScissorMode((int)content.X, (int)content.Y, (int)content.Width, (int)content.Height);
             Gui.SetClip(confirmOpen || unsavedOpen ? NoClickArea : content);
 
-            cursorY = 20;
+            cursorY = 18;
             if (fullScreen)
             {
                 switch (selectedCategory)
@@ -379,7 +384,7 @@ namespace TaikoSim.Overlays
         {
             if (contentHeight <= content.Height) return;
             float max = contentHeight - content.Height;
-            Rectangle track = new Rectangle(content.X + content.Width - 8, content.Y, 7, content.Height);
+            Rectangle track = new Rectangle(content.X + content.Width - 12, content.Y, 10, content.Height);
             Raylib.DrawRectangleRounded(track, 1f, 8, Gui.BorderColor);
             float thumbHeight = Math.Max(64, track.Height * content.Height / contentHeight);
             Rectangle thumb = new Rectangle(track.X, track.Y + (track.Height - thumbHeight) * scroll / max,
@@ -391,7 +396,7 @@ namespace TaikoSim.Overlays
 
         private void DrawGeneralSection()
         {
-            Section(Category.General, "一般設定");
+            Section(Category.General, "一般");
 
             GameConfig game = ActiveGame;
             game.ShowFps = CheckboxRow("FPS表示", game.ShowFps);
@@ -435,7 +440,7 @@ namespace TaikoSim.Overlays
 
         private void DrawWindowSection()
         {
-            Section(Category.Window, "ウィンドウ設定");
+            Section(Category.Window, "画面");
 
             GameConfig game = ActiveGame;
             bool windowChanged = false;
@@ -501,7 +506,7 @@ namespace TaikoSim.Overlays
 
         private void DrawSoundSection()
         {
-            Section(Category.Sound, "サウンド設定");
+            Section(Category.Sound, "音");
 
             SoundConfig sound = ActiveSound;
 
@@ -653,7 +658,7 @@ namespace TaikoSim.Overlays
 
         private void DrawPlaySection()
         {
-            Section(Category.Play, "プレイ設定");
+            Section(Category.Play, "演奏");
 
             GameConfig game = ActiveGame;
 
@@ -670,7 +675,7 @@ namespace TaikoSim.Overlays
 
         private void DrawKeySection()
         {
-            Section(Category.Key, "キー設定");
+            Section(Category.Key, "キー");
 
             KeyConfig key = ActiveKey;
 
@@ -712,7 +717,7 @@ namespace TaikoSim.Overlays
 
         private void DrawSkinSection()
         {
-            Section(Category.Skin, "スキン設定");
+            Section(Category.Skin, "スキン");
 
             SkinConfig skin = ActiveSkin;
 
@@ -806,12 +811,14 @@ namespace TaikoSim.Overlays
         // 見出し
         private void Section(Category category, string title)
         {
-            if (category != Category.General && !fullScreen) cursorY += 30;
+            if (category != Category.General && !fullScreen) cursorY += 24;
             sectionPos[category] = cursorY;
-            Gui.Header(title, SectionX, ToScreenY(cursorY));
-            Raylib.DrawLine((int)SectionX, (int)(ToScreenY(cursorY) + 53), (int)RightEdge,
-                (int)(ToScreenY(cursorY) + 53), Gui.BorderColor);
-            cursorY += 64;
+            float y = ToScreenY(cursorY);
+            Gui.Header(title, SectionX, y);
+            FontManager.Draw($"{(int)category + 1:00} / 06", RightEdge - 93, y + 15, 20, Gui.SubTextColor);
+            Raylib.DrawLine((int)SectionX, (int)(y + 55), (int)RightEdge,
+                (int)(y + 55), Gui.BorderColor);
+            cursorY += 72;
         }
 
         // チェックボックスの行
@@ -855,8 +862,8 @@ namespace TaikoSim.Overlays
         // 小さい説明文の行
         private void NoteRow(string text)
         {
-            FontManager.Draw(text, LabelX, ToScreenY(cursorY), 22, Gui.SubTextColor);
-            cursorY += 36;
+            cursorY += SettingTexts.DrawWrapped(text, LabelX, ToScreenY(cursorY),
+                RightEdge - LabelX, 22, Gui.SubTextColor, 30) + 6;
         }
 
         // 説明文の行(長い文はパネルの幅で折り返す)
@@ -892,7 +899,8 @@ namespace TaikoSim.Overlays
             if (!open)
             {
                 if (keys.Count == 0) FontManager.Draw("未割り当て", ControlX, y + 8, 24, ErrorColor);
-                else FontManager.Draw(string.Join(", ", keys), ControlX, y + 8, 24, Gui.SubTextColor);
+                else FontManager.Draw(FitText(string.Join(", ", keys), RightEdge - ControlX - 12, 24),
+                    ControlX, y + 8, 24, Gui.SubTextColor);
             }
 
             if (Gui.Clicked(header))
@@ -1016,12 +1024,12 @@ namespace TaikoSim.Overlays
             Rectangle bar = new Rectangle(0, Screen.Height - HintHeight, CurrentWidth, HintHeight);
             Raylib.DrawRectangleRec(bar, Gui.BackgroundColor);
             Raylib.DrawLine(0, (int)bar.Y, (int)CurrentWidth, (int)bar.Y, Gui.BorderColor);
-            FontManager.Draw(hint, fullScreen ? 40 : 24, bar.Y + 30, 20, Gui.SubTextColor);
+            FontManager.Draw(hint, fullScreen ? LabelX : 24, bar.Y + 26, 20, Gui.SubTextColor);
             if (fullScreen)
             {
                 if (HasPendingChanges)
-                    FontManager.Draw("未適用の変更があります", 1170, bar.Y + 32, 22, Gui.AccentColor);
-                Rectangle apply = new Rectangle(1540, bar.Y + 18, 225, 60);
+                    FontManager.Draw("未適用の変更があります", RightEdge - 550, bar.Y + 28, 22, Gui.AccentColor);
+                Rectangle apply = new Rectangle(RightEdge - 220, bar.Y + 14, 220, 58);
                 if (HasPendingChanges)
                 {
                     if (Gui.PrimaryButton(apply, "適用")) ApplyFullSettings();
@@ -1219,24 +1227,48 @@ namespace TaikoSim.Overlays
 
         private void UpdateScroll(Rectangle content)
         {
+            float maxScroll = Math.Max(0f, contentHeight - content.Height);
+
+            // スクロールバーをつまむか、レールを押すとその場所へ移動する
+            if (maxScroll > 0f && !Gui.IsPopupOpen)
+            {
+                Rectangle track = new Rectangle(content.X + content.Width - 12, content.Y, 10, content.Height);
+                float thumbHeight = Math.Max(64f, track.Height * content.Height / contentHeight);
+                var mouse = Screen.GetMousePosition();
+                if (Raylib.IsMouseButtonPressed(MouseButton.Left) && Raylib.CheckCollisionPointRec(mouse, track))
+                {
+                    float thumbY = track.Y + (track.Height - thumbHeight) * scroll / maxScroll;
+                    scrollGrabOffset = mouse.Y >= thumbY && mouse.Y <= thumbY + thumbHeight
+                        ? mouse.Y - thumbY : thumbHeight / 2f;
+                    scrollDragging = true;
+                }
+
+                if (scrollDragging && Raylib.IsMouseButtonDown(MouseButton.Left))
+                {
+                    float travel = track.Height - thumbHeight;
+                    if (travel > 0f)
+                        scroll = scrollTarget = Math.Clamp((mouse.Y - track.Y - scrollGrabOffset) / travel, 0f, 1f) * maxScroll;
+                }
+            }
+            if (!Raylib.IsMouseButtonDown(MouseButton.Left)) scrollDragging = false;
+
             // マウスホイール(プルダウンが開いている間は無効)
             float wheel = Raylib.GetMouseWheelMove();
-            if (!Gui.IsPopupOpen && wheel != 0 && Gui.IsMouseOver(content))
+            if (!scrollDragging && !Gui.IsPopupOpen && wheel != 0 && Gui.IsMouseOver(content))
             {
                 scrollTarget -= wheel * 100f;
                 clickedCategory = null;
             }
 
             // 行きすぎないようにする
-            float maxScroll = Math.Max(0f, contentHeight - content.Height);
             scrollTarget = Math.Clamp(scrollTarget, 0f, maxScroll);
 
             // なめらかに動かす
-            scroll += (scrollTarget - scroll) * Math.Min(1f, Raylib.GetFrameTime() * 15f);
+            if (!scrollDragging) scroll += (scrollTarget - scroll) * Math.Min(1f, Raylib.GetFrameTime() * 15f);
             if (Math.Abs(scrollTarget - scroll) < 0.5f) scroll = scrollTarget;
         }
 
-        // 今見ているカテゴリ(左のアイコンを光らせる用)
+        // 今見ているカテゴリ(左の文字を目立たせる用)
         private Category GetCurrentCategory()
         {
             if (fullScreen) return selectedCategory;
@@ -1263,22 +1295,24 @@ namespace TaikoSim.Overlays
             Raylib.DrawLine(0, (int)HeaderHeight, (int)CurrentWidth, (int)HeaderHeight, Gui.BorderColor);
             if (fullScreen)
             {
-                if (Gui.PrimaryButton(new Rectangle(32, 22, 188, 62), "← 戻る")) RequestClose();
-                FontManager.Draw("設定", 720, 29, 45, Color.White);
-                FontManager.Draw("モード選択 / 設定", 900, 43, 28, Gui.SubTextColor);
+                FontManager.Draw("TaikoSim", 26, 34, 28, Gui.SubTextColor);
+                FontManager.Draw("設定", SectionX, 24, 40, Color.White);
+                FontManager.Draw("演奏環境", SectionX + 120, 39, 22, Gui.SubTextColor);
+                if (Gui.Button(new Rectangle(CurrentWidth - 176, 22, 145, 56), "戻る")) RequestClose();
             }
             else
             {
-                FontManager.Draw("設定", 30, 24, 42, Color.White);
-                FontManager.Draw("F1", 150, 39, 24, Gui.SubTextColor);
-                if (Gui.Button(new Rectangle(745, 20, 55, 55), "×")) RequestClose();
+                FontManager.Draw("設定", 24, 17, 38, Color.White);
+                FontManager.Draw("TaikoSim  /  F1", 26, 57, 19, Gui.SubTextColor);
+                if (Gui.Button(new Rectangle(PanelWidth - 68, 18, 48, 48), "×")) RequestClose();
             }
         }
 
         private void DrawSidebar()
         {
-            Color background = Gui.PanelColor;
-            Raylib.DrawRectangle(0, (int)HeaderHeight, (int)SidebarWidth, Screen.Height - (int)HeaderHeight - (int)HintHeight, background);
+            Raylib.DrawRectangle(0, (int)HeaderHeight, (int)SidebarWidth,
+                Screen.Height - (int)HeaderHeight - (int)HintHeight, Gui.BackgroundColor);
+            FontManager.Draw("カテゴリ", 28, HeaderHeight + 20, 19, Gui.SubTextColor);
             Category current = GetCurrentCategory();
             Category[] categories = Enum.GetValues<Category>();
 
@@ -1286,25 +1320,26 @@ namespace TaikoSim.Overlays
             {
                 Category category = categories[i];
                 Rectangle area = fullScreen
-                    ? new Rectangle(25, 150 + i * 88, SidebarWidth - 50, 74)
-                    : new Rectangle(12, 132 + i * 93, SidebarWidth - 24, 74);
+                    ? new Rectangle(18, HeaderHeight + 62 + i * 68, SidebarWidth - 36, 58)
+                    : new Rectangle(12, HeaderHeight + 58 + i * 62, SidebarWidth - 24, 54);
                 bool hover = !Gui.IsPopupOpen && Gui.IsMouseOver(area);
 
-                Color back = background;
-                if (category == current) back = new Color(24, 48, 83, 255);
-                else if (hover) back = Gui.BoxHoverColor;
-                Raylib.DrawRectangleRounded(area, 0.15f, 8, back);
-                if (category == current) Raylib.DrawRectangle((int)area.X, (int)area.Y, 6, (int)area.Height, Gui.AccentColor);
+                if (category == current || hover)
+                    Raylib.DrawRectangleRounded(area, 0.12f, 8,
+                        category == current ? new Color(24, 42, 67, 255) : Gui.BoxColor);
+                if (category == current)
+                    Raylib.DrawRectangle((int)area.X, (int)(area.Y + 10), 3, (int)area.Height - 20, Gui.AccentColor);
 
-                float iconX = fullScreen ? area.X + 44 : area.X + 35;
-                DrawCategoryIcon(category, iconX, area.Y + area.Height / 2f, back);
-                FontManager.Draw(CategoryNames[i], iconX + (fullScreen ? 47 : 31), area.Y + 21, fullScreen ? 28 : 24,
-                    category == current ? new Color(126, 177, 255, 255) : Color.White);
+                FontManager.Draw($"{i + 1:00}", area.X + 16, area.Y + (fullScreen ? 17 : 16), 19,
+                    category == current ? Gui.AccentColor : Gui.SubTextColor);
+                FontManager.Draw(CategoryNames[i], area.X + (fullScreen ? 66 : 53), area.Y + (fullScreen ? 13 : 13),
+                    fullScreen ? 27 : 23, category == current ? Color.White : Gui.SubTextColor);
 
                 if (Gui.Clicked(area) && fullScreen)
                 {
                     selectedCategory = category;
                     scroll = scrollTarget = contentHeight = 0f;
+                    scrollDragging = false;
                     Gui.Reset();
                 }
                 else if (Gui.Clicked(area) && sectionPos.TryGetValue(category, out float pos))
@@ -1314,27 +1349,11 @@ namespace TaikoSim.Overlays
                 }
             }
 
-            // F1 にあった終了ボタンは残す
+            // 終了操作は残す。装飾アイコンの代わりに文字で明示する
             if (!fullScreen)
             {
-                Rectangle power = new Rectangle(12, Screen.Height - HintHeight - 90, SidebarWidth - 24, 70);
-                if (Gui.IsMouseOver(power)) Raylib.DrawRectangleRounded(power, 0.15f, 8, new Color(70, 25, 25, 255));
-                Icons.Power(SidebarWidth / 2f, power.Y + power.Height / 2f, new Color(230, 70, 60, 255));
-                if (Gui.Clicked(power)) Game.ShouldExit = true;
-            }
-        }
-
-        private static void DrawCategoryIcon(Category category, float x, float y, Color background)
-        {
-            Color color = Color.White;
-            switch (category)
-            {
-                case Category.General: Icons.Gear(x, y, color, background); break;
-                case Category.Window: Icons.Monitor(x, y, color); break;
-                case Category.Sound: Icons.Speaker(x, y, color); break;
-                case Category.Play: Icons.Drum(x, y, color); break;
-                case Category.Key: Icons.Keyboard(x, y, color); break;
-                case Category.Skin: Icons.Brush(x, y, color); break;
+                Rectangle quit = new Rectangle(12, Screen.Height - HintHeight - 74, SidebarWidth - 24, 52);
+                if (Gui.Button(quit, "終了")) Game.ShouldExit = true;
             }
         }
     }

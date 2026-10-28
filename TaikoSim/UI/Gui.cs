@@ -335,7 +335,8 @@ namespace TaikoSim.UI
             Raylib.DrawRectangleRounded(area, 0.18f, 8, hover || open ? BoxHoverColor : BoxColor);
 
             string text = (selected >= 0 && selected < options.Length) ? options[selected] : "-";
-            DrawCentered(text, area, 26, TextColor);
+            FontManager.Draw(FitDropdownText(text, area.Width - 58), area.X + 16,
+                area.Y + (area.Height - FontManager.Measure(text, 26).Y) / 2f, 26, TextColor);
             FontManager.Draw("▼", area.X + area.Width - 32, area.Y + (area.Height - 20) / 2f, 20, SubTextColor);
 
             if (Clicked(area))
@@ -375,7 +376,8 @@ namespace TaikoSim.UI
                 if (i == popupSelected) Raylib.DrawRectangleRec(item, new Color(40, 70, 140, 255));
                 else if (hover) Raylib.DrawRectangleRec(item, BoxHoverColor);
 
-                DrawCentered(popupOptions[i], item, 26, TextColor);
+                FontManager.Draw(FitDropdownText(popupOptions[i], item.Width - 32), item.X + 16,
+                    item.Y + (item.Height - FontManager.Measure(popupOptions[i], 26).Y) / 2f, 26, TextColor);
 
                 if (hover && mousePressed && !popupJustOpened)
                 {
@@ -390,6 +392,16 @@ namespace TaikoSim.UI
             {
                 popupId = null;
             }
+        }
+
+        // 長いスキン名なども矢印やパネルの外に重ならないようにする
+        private static string FitDropdownText(string text, float maxWidth)
+        {
+            if (FontManager.Measure(text, 26).X <= maxWidth) return text;
+            string cut = text;
+            while (cut.Length > 1 && FontManager.Measure(cut + "…", 26).X > maxWidth)
+                cut = cut[..^1];
+            return cut + "…";
         }
 
         private static Rectangle FullScreen() => new Rectangle(0, 0, Screen.Width, Screen.Height);
