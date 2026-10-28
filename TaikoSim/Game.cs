@@ -19,7 +19,7 @@ namespace TaikoSim
         public static bool IsSettingsOpen => settings.IsOpen;
 
         // 設定パネルを開く(モード選択の「設定」から)
-        public static void OpenSettings() => settings.Open();
+        public static void OpenSettings() => settings.Open(fullScreen: true);
 
         // 右上に少しだけ出すお知らせ(スクショ保存したよ、とか)
         private string toastText = "";
@@ -160,7 +160,8 @@ namespace TaikoSim
             Screen.BeginCanvas();
             Raylib.ClearBackground(Color.Black);
 
-            SceneManager.Current?.Draw();
+            // モード選択からの全画面設定では、後ろのモード画面を描かない
+            if (!settings.IsFullScreen) SceneManager.Current?.Draw();
 
             if (settings.IsOpen)
             {
@@ -168,7 +169,7 @@ namespace TaikoSim
             }
 
             // FPS表示(左上)
-            if (ConfigManager.Game.ShowFps)
+            if (ConfigManager.Game.ShowFps && !settings.IsFullScreen)
             {
                 // 設定パネルが開いているときはパネルの右隣に出す(ロゴとかぶらないように)
                 float fpsX = settings.IsOpen ? SettingsOverlay.PanelWidth + 10 : 10;

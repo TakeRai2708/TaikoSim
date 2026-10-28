@@ -10,25 +10,44 @@ using TaikoSim.UI;
 
 namespace TaikoSim.Overlays
 {
-    // 設定パネル(TaikoNauts風に左側にかぶさる)
+    // モード選択からは全画面、F1 からは左側のパネルとして開く
     public class SettingsOverlay
     {
         // ===== 大きさ(1920×1080の座標) =====
-        public const int PanelWidth = 700;
-        private const int HeaderHeight = 100;
-        private const int SidebarWidth = 100;
-        private const int HintHeight = 44;    // 一番下の操作説明の高さ
+        public const int PanelWidth = 820; // F1 のパネル幅
+        private bool fullScreen;
+        public bool IsFullScreen => IsOpen && fullScreen;
+        private float HeaderHeight => fullScreen ? 112 : 96;
+        private float SidebarWidth => fullScreen ? 300 : 170;
+        private float HintHeight => fullScreen ? 100 : 86;
+        private float CurrentWidth => fullScreen ? Screen.Width : PanelWidth;
 
         // 中身の並び
-        private const float SectionX = 120;  // 見出しの左端
-        private const float LabelX = 140;    // 項目名の左端
-        private const float ControlX = 380;  // スライダー・プルダウンの左端
-        private const float BoxX = 590;      // 数値ボックスの左端
-        private const float RightEdge = 680; // 右端
-        private const float RowHeight = 50;  // 1行の高さ
+        private float SectionX => fullScreen ? 350 : 190;
+        private float LabelX => fullScreen ? 370 : 205;
+        private float ControlX => fullScreen ? 1050 : 490;
+        private float BoxX => fullScreen ? 1510 : 685;
+        private float RightEdge => fullScreen ? 1780 : 790;
+        private float RowHeight => fullScreen ? 70 : 58;
 
         // カテゴリ(左のアイコンの順番)
         private enum Category { General, Window, Sound, Play, Key, Skin }
+        private static readonly string[] CategoryNames = { "一般", "画面", "音", "演奏", "キー", "スキン" };
+        private Category selectedCategory = Category.General;
+
+        // 全画面では、適用を押すまで本番の設定に触れない
+        private GameConfig? draftGame, savedGame;
+        private SoundConfig? draftSound, savedSound;
+        private KeyConfig? draftKey, savedKey;
+        private SkinConfig? draftSkin, savedSkin;
+        private bool unsavedOpen;
+        private GameConfig ActiveGame => fullScreen ? draftGame! : ConfigManager.Game;
+        private SoundConfig ActiveSound => fullScreen ? draftSound! : ConfigManager.Sound;
+        private KeyConfig ActiveKey => fullScreen ? draftKey! : ConfigManager.Key;
+        private SkinConfig ActiveSkin => fullScreen ? draftSkin! : ConfigManager.Skin;
+        private bool HasPendingChanges => fullScreen && (
+            !ConfigManager.Same(draftGame!, savedGame!) || !ConfigManager.Same(draftSound!, savedSound!)
+            || !ConfigManager.Same(draftKey!, savedKey!) || !ConfigManager.Same(draftSkin!, savedSkin!));
 
         // プルダウンの選択肢
         private static readonly string[] ResolutionNames =
@@ -100,10 +119,25 @@ namespace TaikoSim.Overlays
 
         // ===== 開閉 =====
 
-        public void Open()
+        public void Open(bool fullScreen = false)
         {
+            this.fullScreen = fullScreen;
             IsOpen = true;
             Gui.Reset();
+            selectedCategory = Category.General;
+            scroll = scrollTarget = contentHeight = 0f;
+            unsavedOpen = false;
+            if (fullScreen)
+            {
+                savedGame = ConfigManager.Copy(ConfigManager.Game);
+                savedSound = ConfigManager.Copy(ConfigManager.Sound);
+                savedKey = ConfigManager.Copy(ConfigManager.Key);
+                savedSkin = ConfigManager.Copy(ConfigManager.Skin);
+                draftGame = ConfigManager.Copy(savedGame);
+                draftSound = ConfigManager.Copy(savedSound);
+                draftKey = ConfigManager.Copy(savedKey);
+                draftSkin = ConfigManager.Copy(savedSkin);
+            }
             LoadVolumes(); // 音量のバーは、今の設定の値から始める
 
             // スキンを入れたあとに開いたときのために、スキン一覧を読み直す
@@ -112,18 +146,31 @@ namespace TaikoSim.Overlays
 
         public void Close()
         {
+            bool wasFullScreen = fullScreen;
             IsOpen = false;
             Gui.Reset();
             waitingTarget = null;
             messageTimer = 0f;
             confirmOpen = false;
-            ConfigManager.SaveAll(); // 閉じたら自動保存
+            unsavedOpen = false;
+            fullScreen = false;
+            draftGame = savedGame = null;
+            draftSound = savedSound = null;
+            draftKey = savedKey = null;
+            draftSkin = savedSkin = null;
+            if (!wasFullScreen) ConfigManager.SaveAll(); // F1 は今までどおり閉じたときに保存
         }
 
         // 閉じたいとき(キーが無い場所があれば確認ダイアログを出す)
         public void RequestClose()
         {
-            List<DrumPart> emptyParts = ConfigManager.Key.GetEmptyParts();
+            if (HasPendingChanges)
+            {
+                unsavedOpen = true;
+                Gui.Reset();
+                return;
+            }
+            List<DrumPart> emptyParts = ActiveKey.GetEmptyParts();
             if (emptyParts.Count > 0)
             {
                 confirmEmptyParts = emptyParts;
@@ -133,6 +180,57 @@ namespace TaikoSim.Overlays
                 return;
             }
             Close();
+        }
+
+        // 全画面の［適用］：値をまとめて反映して保存する
+        private void ApplyFullSettings()
+        {
+            if (!HasPendingChanges) return;
+            GameConfig beforeGame = ConfigManager.Game;
+            SoundConfig beforeSound = ConfigManager.Sound;
+            SkinConfig beforeSkin = ConfigManager.Skin;
+
+            draftGame!.Fix();
+            draftSound!.Fix();
+            draftKey!.Fix();
+            draftSkin!.Fix();
+            ConfigManager.Replace(draftGame, draftSound, draftKey, draftSkin);
+
+            if (beforeGame.WindowWidth != draftGame.WindowWidth || beforeGame.WindowHeight != draftGame.WindowHeight
+                || beforeGame.Fullscreen != draftGame.Fullscreen || beforeGame.FullscreenType != draftGame.FullscreenType)
+                Screen.RequestApply();
+            if (beforeGame.VSync != draftGame.VSync || beforeGame.TargetFps != draftGame.TargetFps)
+                Screen.ApplyFrameSettings();
+            if (beforeSkin.SkinsFolder != draftSkin.SkinsFolder || beforeSkin.SkinName != draftSkin.SkinName)
+                SkinManager.Reload();
+
+            bool outputChanged = beforeSound.OutputType != draftSound.OutputType
+                || beforeSound.BassBufferMs != draftSound.BassBufferMs
+                || beforeSound.WasapiBufferMs != draftSound.WasapiBufferMs
+                || beforeSound.AsioDevice != draftSound.AsioDevice;
+            if (outputChanged) AudioManager.Restart();
+            if (!ConfigManager.Same(beforeSound, draftSound)) SceneManager.Current?.ApplyVolume();
+
+            savedGame = ConfigManager.Copy(draftGame);
+            savedSound = ConfigManager.Copy(draftSound);
+            savedKey = ConfigManager.Copy(draftKey);
+            savedSkin = ConfigManager.Copy(draftSkin);
+            // 適用後も画面は開いたまま。次の編集が本番の設定へ直接入らないようコピーを作り直す
+            draftGame = ConfigManager.Copy(savedGame);
+            draftSound = ConfigManager.Copy(savedSound);
+            draftKey = ConfigManager.Copy(savedKey);
+            draftSkin = ConfigManager.Copy(savedSkin);
+            ShowMessage("設定を適用して保存しました", SuccessColor);
+        }
+
+        private void DiscardAndClose()
+        {
+            draftGame = ConfigManager.Copy(ConfigManager.Game);
+            draftSound = ConfigManager.Copy(ConfigManager.Sound);
+            draftKey = ConfigManager.Copy(ConfigManager.Key);
+            draftSkin = ConfigManager.Copy(ConfigManager.Skin);
+            unsavedOpen = false;
+            RequestClose();
         }
 
         // ===== 更新 =====
@@ -150,7 +248,14 @@ namespace TaikoSim.Overlays
                 return;
             }
 
-            // 確認ダイアログ中は、Escで「設定に戻る」
+            // 未保存の確認は Esc で閉じて、編集中の画面に戻る
+            if (unsavedOpen)
+            {
+                if (InputManager.IsBackPressed()) unsavedOpen = false;
+                return;
+            }
+
+            // キーの確認ダイアログ中は、Escで「設定に戻る」
             if (confirmOpen)
             {
                 if (InputManager.IsBackPressed()) confirmOpen = false;
@@ -172,7 +277,7 @@ namespace TaikoSim.Overlays
                 if (pressed != 0)
                 {
                     KeyboardKey newKey = (KeyboardKey)pressed;
-                    KeyConfig keyConfig = ConfigManager.Key;
+                    KeyConfig keyConfig = ActiveKey;
 
                     bool success;
                     string result;
@@ -207,47 +312,72 @@ namespace TaikoSim.Overlays
         {
             Gui.BeginFrame();
 
-            // 中身が表示される範囲(ヘッダー・左の帯・一番下の操作説明を除いた部分)
-            Rectangle content = new Rectangle(SidebarWidth, HeaderHeight, PanelWidth - SidebarWidth, Screen.Height - HeaderHeight - HintHeight);
-            if (!confirmOpen) UpdateScroll(content); // ダイアログ中はスクロールしない
+            Rectangle content = new Rectangle(SidebarWidth + 16, HeaderHeight + 18,
+                CurrentWidth - SidebarWidth - 40, Screen.Height - HeaderHeight - HintHeight - 36);
+            if (!confirmOpen && !unsavedOpen) UpdateScroll(content);
 
-            // 後ろの画面を暗くする
-            Raylib.DrawRectangle(0, 0, Screen.Width, Screen.Height, new Color(0, 0, 0, 140));
+            if (fullScreen) Raylib.DrawRectangle(0, 0, Screen.Width, Screen.Height, Gui.BackgroundColor);
+            else Raylib.DrawRectangle(0, 0, Screen.Width, Screen.Height, new Color(0, 0, 0, 170));
 
-            // パネル本体
-            Raylib.DrawRectangle(0, 0, PanelWidth, Screen.Height, new Color(22, 24, 30, 250));
+            Raylib.DrawRectangle(0, 0, (int)CurrentWidth, Screen.Height, Gui.PanelColor);
+            Raylib.DrawRectangleRec(new Rectangle(SidebarWidth + 8, HeaderHeight + 8,
+                CurrentWidth - SidebarWidth - 16, Screen.Height - HeaderHeight - HintHeight - 16),
+                Gui.BackgroundColor);
 
-            // 中身(はみ出した部分は描かない)
             Raylib.BeginScissorMode((int)content.X, (int)content.Y, (int)content.Width, (int)content.Height);
-            Gui.SetClip(confirmOpen ? NoClickArea : content); // ダイアログ中は後ろを押せないようにする
+            Gui.SetClip(confirmOpen || unsavedOpen ? NoClickArea : content);
 
             cursorY = 20;
-            DrawGeneralSection();
-            DrawWindowSection();
-            DrawSoundSection();
-            DrawPlaySection();
-            DrawKeySection();
-            DrawSkinSection();
+            if (fullScreen)
+            {
+                switch (selectedCategory)
+                {
+                    case Category.General: DrawGeneralSection(); break;
+                    case Category.Window: DrawWindowSection(); break;
+                    case Category.Sound: DrawSoundSection(); break;
+                    case Category.Play: DrawPlaySection(); break;
+                    case Category.Key: DrawKeySection(); break;
+                    case Category.Skin: DrawSkinSection(); break;
+                }
+            }
+            else
+            {
+                DrawGeneralSection();
+                DrawWindowSection();
+                DrawSoundSection();
+                DrawPlaySection();
+                DrawKeySection();
+                DrawSkinSection();
+            }
             contentHeight = cursorY + 40;
 
             Gui.ResetClip();
             Raylib.EndScissorMode();
+            DrawScrollbar(content);
 
-            // ヘッダーと左の帯は中身より上に描く
-            if (confirmOpen) Gui.SetClip(NoClickArea);
+            if (confirmOpen || unsavedOpen) Gui.SetClip(NoClickArea);
             DrawHeader();
             DrawSidebar();
+            DrawHint();
             Gui.ResetClip();
 
-            // 結果メッセージ(パネルの下)
             DrawMessage();
 
-            // 一番下の操作説明
-            DrawHint();
-
-            // 一番上：確認ダイアログ or プルダウンの一覧
             if (confirmOpen) DrawConfirmDialog();
+            else if (unsavedOpen) DrawUnsavedDialog();
             else Gui.DrawPopups();
+        }
+
+        private void DrawScrollbar(Rectangle content)
+        {
+            if (contentHeight <= content.Height) return;
+            float max = contentHeight - content.Height;
+            Rectangle track = new Rectangle(content.X + content.Width - 8, content.Y, 7, content.Height);
+            Raylib.DrawRectangleRounded(track, 1f, 8, Gui.BorderColor);
+            float thumbHeight = Math.Max(64, track.Height * content.Height / contentHeight);
+            Rectangle thumb = new Rectangle(track.X, track.Y + (track.Height - thumbHeight) * scroll / max,
+                track.Width, thumbHeight);
+            Raylib.DrawRectangleRounded(thumb, 1f, 8, Gui.AccentColor);
         }
 
         // ===== 各カテゴリ =====
@@ -256,7 +386,7 @@ namespace TaikoSim.Overlays
         {
             Section(Category.General, "一般設定");
 
-            GameConfig game = ConfigManager.Game;
+            GameConfig game = ActiveGame;
             game.ShowFps = CheckboxRow("FPS表示", game.ShowFps);
 
             // ----- 曲(前は選曲画面の上にあったボタン) -----
@@ -300,7 +430,7 @@ namespace TaikoSim.Overlays
         {
             Section(Category.Window, "ウィンドウ設定");
 
-            GameConfig game = ConfigManager.Game;
+            GameConfig game = ActiveGame;
             bool windowChanged = false;
 
             // 画面解像度
@@ -341,7 +471,7 @@ namespace TaikoSim.Overlays
             if (vsync != game.VSync)
             {
                 game.VSync = vsync;
-                Screen.ApplyFrameSettings();
+                if (!fullScreen) Screen.ApplyFrameSettings();
             }
             DescRows(SettingTexts.VSync);
 
@@ -351,12 +481,12 @@ namespace TaikoSim.Overlays
             {
                 game.TargetFps = fps;
                 game.Fix(); // 1〜29 は 30 にする
-                Screen.ApplyFrameSettings();
+                if (!fullScreen) Screen.ApplyFrameSettings();
             }
             DescRows(SettingTexts.TargetFps);
 
             // ウィンドウの大きさやフルスクリーンは、次のフレームの最初に反映する
-            if (windowChanged)
+            if (windowChanged && !fullScreen)
             {
                 Screen.RequestApply();
             }
@@ -366,24 +496,32 @@ namespace TaikoSim.Overlays
         {
             Section(Category.Sound, "サウンド設定");
 
-            SoundConfig sound = ConfigManager.Sound;
+            SoundConfig sound = ActiveSound;
 
-            // 音量のバーは、動かしただけでは変わらない。下の［音量を適用］を押したときに反映する
-            //   (バーは「まだ適用していない値」を動かす。パネルを開き直すと、今の設定の値に戻る)
+            // 全画面では値だけ編集中にして、下の［適用］でまとめて反映する
             volumeMaster = SliderRow("master", "Master", volumeMaster, 0, 100);
             volumeSe = SliderRow("se", "SE", volumeSe, 0, 100);
             volumeMusic = SliderRow("music", "Music", volumeMusic, 0, 100);
             volumeBgm = SliderRow("bgm", "BGM", volumeBgm, 0, 100);
             volumeVoice = SliderRow("voice", "Voice", volumeVoice, 0, 100);
 
+            if (fullScreen)
+            {
+                sound.MasterVolume = volumeMaster;
+                sound.SeVolume = volumeSe;
+                sound.MusicVolume = volumeMusic;
+                sound.BgmVolume = volumeBgm;
+                sound.VoiceVolume = volumeVoice;
+            }
+
             bool volumePending = volumeMaster != sound.MasterVolume || volumeSe != sound.SeVolume
                 || volumeMusic != sound.MusicVolume || volumeBgm != sound.BgmVolume || volumeVoice != sound.VoiceVolume;
             string volumeLabel = volumePending ? "音量を適用（まだ反映されていません）" : "音量を適用";
-            if (Gui.Button(new Rectangle(LabelX, ToScreenY(cursorY), RightEdge - LabelX, 40), volumeLabel) && volumePending)
+            if (!fullScreen && Gui.Button(new Rectangle(LabelX, ToScreenY(cursorY), RightEdge - LabelX, 40), volumeLabel) && volumePending)
             {
                 ApplyVolumes();
             }
-            cursorY += 52;
+            if (!fullScreen) cursorY += 52;
 
             DrawAudioOutputRows(sound);
         }
@@ -394,7 +532,7 @@ namespace TaikoSim.Overlays
         // 今の設定の音量を、バーの値に読み込む(パネルを開いたとき)
         private void LoadVolumes()
         {
-            SoundConfig sound = ConfigManager.Sound;
+            SoundConfig sound = ActiveSound;
             volumeMaster = sound.MasterVolume;
             volumeSe = sound.SeVolume;
             volumeMusic = sound.MusicVolume;
@@ -406,7 +544,7 @@ namespace TaikoSim.Overlays
         //   効果音と声は、鳴らすたびに設定を読むので、次に鳴る音から変わる
         private void ApplyVolumes()
         {
-            SoundConfig sound = ConfigManager.Sound;
+            SoundConfig sound = ActiveSound;
             sound.MasterVolume = volumeMaster;
             sound.SeVolume = volumeSe;
             sound.MusicVolume = volumeMusic;
@@ -487,18 +625,18 @@ namespace TaikoSim.Overlays
                 || (sound.OutputType == AudioOutputType.Asio && sound.AsioDevice != AudioManager.CurrentAsioDevice);
 
             string label = pending ? "適用（まだ反映されていません）" : "適用";
-            if (Gui.Button(new Rectangle(LabelX, ToScreenY(cursorY), RightEdge - LabelX, 40), label))
+            if (!fullScreen && Gui.Button(new Rectangle(LabelX, ToScreenY(cursorY), RightEdge - LabelX, 40), label))
             {
                 ApplyAudioOutput();
             }
-            cursorY += 52;
+            if (!fullScreen) cursorY += 52;
         }
 
         // ［適用］：今の設定で音を準備し直す
         // ※ 設定パネルは演奏中には開けないので、曲や効果音を読み込んだまま作り直すことはない
         private void ApplyAudioOutput()
         {
-            SoundConfig sound = ConfigManager.Sound;
+            SoundConfig sound = ActiveSound;
             AudioManager.Restart();
 
             bool ok = AudioManager.IsAvailable && AudioManager.CurrentType == sound.OutputType;
@@ -510,7 +648,7 @@ namespace TaikoSim.Overlays
         {
             Section(Category.Play, "プレイ設定");
 
-            GameConfig game = ConfigManager.Game;
+            GameConfig game = ActiveGame;
 
             // 音オフセット(判定ごとずらす)
             game.AudioOffsetMs = SliderRow("audioOffset", "音オフセット[ms]", game.AudioOffsetMs, GameConfig.OffsetMin, GameConfig.OffsetMax);
@@ -527,7 +665,7 @@ namespace TaikoSim.Overlays
         {
             Section(Category.Key, "キー設定");
 
-            KeyConfig key = ConfigManager.Key;
+            KeyConfig key = ActiveKey;
 
             // ----- 叩くキー -----
             SubHeader("叩くキー");
@@ -569,7 +707,7 @@ namespace TaikoSim.Overlays
         {
             Section(Category.Skin, "スキン設定");
 
-            SkinConfig skin = ConfigManager.Skin;
+            SkinConfig skin = ActiveSkin;
 
             // ----- スキンフォルダ -----
             Gui.Label("スキンフォルダ", LabelX, ToScreenY(cursorY) + 4, 26);
@@ -604,7 +742,7 @@ namespace TaikoSim.Overlays
             NoteRow("※ フォルダをこのウィンドウにドラッグ＆ドロップでも変更できます");
 
             // ----- 使うスキン -----
-            List<string> names = SkinManager.SkinNames;
+            List<string> names = fullScreen ? skin.GetSkinList() : SkinManager.SkinNames;
             if (names.Count == 0)
             {
                 Gui.Label("使うスキン", LabelX, ToScreenY(cursorY) + 4, 26);
@@ -614,14 +752,18 @@ namespace TaikoSim.Overlays
                 return;
             }
 
-            int index = names.IndexOf(SkinManager.CurrentName);
+            int index = names.IndexOf(fullScreen ? skin.SkinName : SkinManager.CurrentName);
+            if (index < 0) index = 0;
             int newIndex = DropdownRow("skinName", "使うスキン", names.ToArray(), index);
             if (newIndex != index && newIndex >= 0)
             {
                 skin.SkinName = names[newIndex];
-                ConfigManager.SaveSkin(); // すぐ保存(パネルを閉じる前にゲームが止まっても、選んだスキンが残るように)
-                SkinManager.Reload(); // その場で切り替え
-                ShowMessage($"スキンを {SkinManager.CurrentName} にしました", SuccessColor);
+                if (!fullScreen)
+                {
+                    ConfigManager.SaveSkin(); // F1 は今までどおり、その場で保存して切り替え
+                    SkinManager.Reload();
+                }
+                ShowMessage(fullScreen ? "スキンは［適用］で切り替わります" : $"スキンを {SkinManager.CurrentName} にしました", SuccessColor);
             }
 
             // スキンの情報
@@ -655,9 +797,11 @@ namespace TaikoSim.Overlays
         // 見出し
         private void Section(Category category, string title)
         {
-            if (category != Category.General) cursorY += 30; // カテゴリの間を空ける
+            if (category != Category.General && !fullScreen) cursorY += 30;
             sectionPos[category] = cursorY;
             Gui.Header(title, SectionX, ToScreenY(cursorY));
+            Raylib.DrawLine((int)SectionX, (int)(ToScreenY(cursorY) + 53), (int)RightEdge,
+                (int)(ToScreenY(cursorY) + 53), Gui.BorderColor);
             cursorY += 64;
         }
 
@@ -666,6 +810,7 @@ namespace TaikoSim.Overlays
         {
             float y = ToScreenY(cursorY);
             bool result = Gui.Checkbox(new Rectangle(LabelX, y, RightEdge - LabelX, 40), label, value);
+            Raylib.DrawLine((int)LabelX, (int)(y + RowHeight - 6), (int)RightEdge, (int)(y + RowHeight - 6), Gui.BorderColor);
             cursorY += RowHeight;
             return result;
         }
@@ -680,6 +825,7 @@ namespace TaikoSim.Overlays
             Rectangle box = new Rectangle(BoxX, y + 3, RightEdge - BoxX, 36);
             int result = Gui.Slider(id, bar, box, value, min, max);
 
+            Raylib.DrawLine((int)LabelX, (int)(y + RowHeight - 6), (int)RightEdge, (int)(y + RowHeight - 6), Gui.BorderColor);
             cursorY += RowHeight;
             return result;
         }
@@ -692,6 +838,7 @@ namespace TaikoSim.Overlays
 
             int result = Gui.Dropdown(id, new Rectangle(ControlX, y + 3, RightEdge - ControlX, 36), options, selected);
 
+            Raylib.DrawLine((int)LabelX, (int)(y + RowHeight - 6), (int)RightEdge, (int)(y + RowHeight - 6), Gui.BorderColor);
             cursorY += RowHeight;
             return result;
         }
@@ -727,7 +874,7 @@ namespace TaikoSim.Overlays
             float y = ToScreenY(cursorY);
             Rectangle header = new Rectangle(LabelX - 10, y, RightEdge - LabelX + 10, 42);
             bool hover = !Gui.IsPopupOpen && Gui.IsMouseOver(header);
-            Raylib.DrawRectangleRec(header, hover ? Gui.BoxHoverColor : new Color(30, 36, 56, 255));
+            Raylib.DrawRectangleRounded(header, 0.16f, 8, hover ? Gui.BoxHoverColor : Gui.BoxColor);
 
             FontManager.Draw(open ? "▼" : "▶", LabelX, y + 11, 20, Gui.SubTextColor);
             FontManager.Draw(KeyConfig.GetDrumPartName(part), LabelX + 34, y + 6, 26, Color.White);
@@ -809,7 +956,7 @@ namespace TaikoSim.Overlays
             Gui.Label(label, LabelX, y + 4, 26);
 
             Rectangle box = new Rectangle(ControlX, y + 3, RightEdge - ControlX, 36);
-            Raylib.DrawRectangleRec(box, new Color(30, 32, 40, 255));
+            Raylib.DrawRectangleRounded(box, 0.18f, 8, Gui.BoxColor);
             Gui.DrawCentered(keyText, box, 24, Gui.SubTextColor);
 
             cursorY += RowHeight;
@@ -818,7 +965,7 @@ namespace TaikoSim.Overlays
         // キー入力待ちの箱(点滅)
         private void DrawWaitingBox(Rectangle area, string text)
         {
-            Raylib.DrawRectangleRec(area, new Color(18, 22, 36, 255));
+            Raylib.DrawRectangleRounded(area, 0.18f, 8, Gui.BoxColor);
             Raylib.DrawRectangleLinesEx(area, 2, Gui.AccentColor);
 
             if ((blinkTimer % 1f) < 0.7f)
@@ -841,9 +988,9 @@ namespace TaikoSim.Overlays
             if (messageTimer <= 0f) return;
 
             // 操作説明の1段上に出す
-            Rectangle bar = new Rectangle(SidebarWidth, Screen.Height - HintHeight - 64, PanelWidth - SidebarWidth, 64);
-            Raylib.DrawRectangleRec(bar, new Color(8, 9, 12, 240));
-            FontManager.Draw(FitText(message, PanelWidth - LabelX - 20, 26), LabelX, bar.Y + 18, 26, messageColor);
+            Rectangle bar = new Rectangle(SidebarWidth, Screen.Height - HintHeight - 64, CurrentWidth - SidebarWidth, 64);
+            Raylib.DrawRectangleRec(bar, Gui.PanelColor);
+            FontManager.Draw(FitText(message, CurrentWidth - LabelX - 20, 26), LabelX, bar.Y + 18, 26, messageColor);
         }
 
         // 一番下の操作説明(今の状況に合わせて変える)
@@ -851,14 +998,55 @@ namespace TaikoSim.Overlays
         {
             string hint;
             if (confirmOpen) hint = "Esc：設定に戻る";
+            else if (unsavedOpen) hint = "Esc：確認を閉じる";
             else if (waitingTarget != null) hint = "キーを押すと登録　Esc：キャンセル";
             else if (Gui.IsEditing) hint = "数字を入力　Enter：決定　Esc：キャンセル";
             else if (Gui.IsSliderFocused) hint = "←→：±1　Shift＋←→：±10　数字クリック：直接入力";
-            else hint = "Esc：閉じる　スライダーは←→でも調整できます";
+            else hint = fullScreen ? "Esc：戻る　スライダーは←→でも調整できます" : "Esc：閉じる　スライダーは←→でも調整できます";
 
-            Rectangle bar = new Rectangle(SidebarWidth, Screen.Height - HintHeight, PanelWidth - SidebarWidth, HintHeight);
-            Raylib.DrawRectangleRec(bar, new Color(12, 13, 17, 255));
-            FontManager.Draw(hint, SidebarWidth + 20, bar.Y + 11, 20, Gui.SubTextColor);
+            Rectangle bar = new Rectangle(0, Screen.Height - HintHeight, CurrentWidth, HintHeight);
+            Raylib.DrawRectangleRec(bar, Gui.BackgroundColor);
+            Raylib.DrawLine(0, (int)bar.Y, (int)CurrentWidth, (int)bar.Y, Gui.BorderColor);
+            FontManager.Draw(hint, fullScreen ? 40 : 24, bar.Y + 30, 20, Gui.SubTextColor);
+            if (fullScreen)
+            {
+                if (HasPendingChanges)
+                    FontManager.Draw("未適用の変更があります", 1170, bar.Y + 32, 22, Gui.AccentColor);
+                Rectangle apply = new Rectangle(1540, bar.Y + 18, 225, 60);
+                if (HasPendingChanges)
+                {
+                    if (Gui.PrimaryButton(apply, "適用")) ApplyFullSettings();
+                }
+                else
+                {
+                    Raylib.DrawRectangleRounded(apply, 0.18f, 8, Gui.BoxColor);
+                    Gui.DrawCentered("適用", apply, 26, Gui.SubTextColor);
+                }
+            }
+        }
+
+        // ［戻る］を押したとき、1項目でも未適用なら二択を出す
+        private void DrawUnsavedDialog()
+        {
+            Raylib.DrawRectangle(0, 0, Screen.Width, Screen.Height, new Color(0, 0, 0, 175));
+            Rectangle box = new Rectangle(530, 360, 860, 330);
+            Raylib.DrawRectangleRounded(box, 0.025f, 8, Gui.PanelColor);
+            Raylib.DrawRectangleLinesEx(box, 1, Gui.BorderColor);
+
+            Rectangle close = new Rectangle(box.X + 20, box.Y + 18, 50, 48);
+            if (Gui.Button(close, "×")) unsavedOpen = false;
+            FontManager.Draw("保存していない設定があります", box.X + 115, box.Y + 48, 38, Color.White);
+            FontManager.Draw("変更を保存してから戻りますか？", box.X + 115, box.Y + 118, 26, Gui.SubTextColor);
+
+            Rectangle discard = new Rectangle(box.X + 42, box.Y + 230, 365, 65);
+            Rectangle save = new Rectangle(box.X + 453, box.Y + 230, 365, 65);
+            if (Gui.Button(discard, "保存しないで戻る")) DiscardAndClose();
+            else if (Gui.PrimaryButton(save, "保存して戻る"))
+            {
+                unsavedOpen = false;
+                ApplyFullSettings();
+                RequestClose();
+            }
         }
 
         // 閉じるときの確認ダイアログ
@@ -868,8 +1056,8 @@ namespace TaikoSim.Overlays
             Raylib.DrawRectangle(0, 0, Screen.Width, Screen.Height, new Color(0, 0, 0, 160));
 
             Rectangle box = new Rectangle(560, 340, 800, 400);
-            Raylib.DrawRectangleRec(box, new Color(28, 32, 46, 255));
-            Raylib.DrawRectangleLinesEx(box, 2, ErrorColor);
+            Raylib.DrawRectangleRounded(box, 0.025f, 8, Gui.PanelColor);
+            Raylib.DrawRectangleLinesEx(box, 1, Gui.BorderColor);
 
             string names = string.Join("・", confirmEmptyParts.Select(KeyConfig.GetDrumPartName));
             FontManager.Draw("！ キーが設定されていない場所があります", box.X + 40, box.Y + 40, 34, ErrorColor);
@@ -904,7 +1092,7 @@ namespace TaikoSim.Overlays
         // Windowsの「フォルダの選択」画面を出す
         private void PickSkinsFolder()
         {
-            string current = ConfigManager.Skin.GetSkinsFolderPath();
+            string current = ActiveSkin.GetSkinsFolderPath();
 
             using var dialog = new System.Windows.Forms.FolderBrowserDialog
             {
@@ -937,13 +1125,19 @@ namespace TaikoSim.Overlays
         // スキンフォルダを設定して、スキンを読み直す
         private void SetSkinsFolder(string folder, string? skinName)
         {
-            SkinConfig skin = ConfigManager.Skin;
+            SkinConfig skin = ActiveSkin;
             skin.SkinsFolder = folder;
             if (skinName != null) skin.SkinName = skinName;
+            if (fullScreen)
+            {
+                int count = skin.GetSkinList().Count;
+                ShowMessage(count == 0 ? "このフォルダにスキンが見つかりませんでした"
+                    : $"スキンフォルダを選びました（{count}個、［適用］で反映）", count == 0 ? ErrorColor : SuccessColor);
+                return;
+            }
             skin.Fix();
-            ConfigManager.SaveSkin(); // すぐ保存
-
-            SkinManager.Reload(); // その場で切り替え
+            ConfigManager.SaveSkin(); // F1 はすぐ保存
+            SkinManager.Reload();
 
             if (SkinManager.SkinNames.Count == 0)
             {
@@ -958,6 +1152,11 @@ namespace TaikoSim.Overlays
         // スキン一覧を読み直す
         private void RefreshSkins()
         {
+            if (fullScreen)
+            {
+                ShowMessage($"スキンが {ActiveSkin.GetSkinList().Count}個見つかりました（［適用］で切り替え）", SuccessColor);
+                return;
+            }
             SkinManager.Reload();
             if (SkinManager.SkinNames.Count == 0)
             {
@@ -972,7 +1171,7 @@ namespace TaikoSim.Overlays
         // スキンフォルダをエクスプローラーで開く
         private void OpenSkinsFolder()
         {
-            string folder = ConfigManager.Skin.GetSkinsFolderPath();
+            string folder = ActiveSkin.GetSkinsFolderPath();
             try
             {
                 Directory.CreateDirectory(folder);
@@ -1028,6 +1227,7 @@ namespace TaikoSim.Overlays
         // 今見ているカテゴリ(左のアイコンを光らせる用)
         private Category GetCurrentCategory()
         {
+            if (fullScreen) return selectedCategory;
             if (clickedCategory != null) return clickedCategory.Value;
 
             Category current = Category.General;
@@ -1047,57 +1247,68 @@ namespace TaikoSim.Overlays
 
         private void DrawHeader()
         {
-            Raylib.DrawRectangle(0, 0, PanelWidth, HeaderHeight, new Color(10, 11, 14, 255));
-
-            // ロゴ(仮)
-            Rectangle logo = new Rectangle(15, 15, 70, 70);
-            Raylib.DrawRectangleRounded(logo, 0.25f, 8, new Color(240, 110, 40, 255));
-            Gui.DrawCentered("TS", logo, 34, Color.White);
-
-            // タイトルと日時
-            FontManager.Draw("TaikoSim System Menu", 120, 14, 40, Color.White);
-            FontManager.Draw(DateTime.Now.ToString("yyyy/MM/dd HH:mm:ss"), 120, 62, 24, Color.LightGray);
+            Raylib.DrawRectangle(0, 0, (int)CurrentWidth, (int)HeaderHeight, Gui.BackgroundColor);
+            Raylib.DrawLine(0, (int)HeaderHeight, (int)CurrentWidth, (int)HeaderHeight, Gui.BorderColor);
+            if (fullScreen)
+            {
+                if (Gui.PrimaryButton(new Rectangle(32, 22, 188, 62), "← 戻る")) RequestClose();
+                FontManager.Draw("設定", 720, 29, 45, Color.White);
+                FontManager.Draw("モード選択 / 設定", 900, 43, 28, Gui.SubTextColor);
+            }
+            else
+            {
+                FontManager.Draw("設定", 30, 24, 42, Color.White);
+                FontManager.Draw("F1", 150, 39, 24, Gui.SubTextColor);
+                if (Gui.Button(new Rectangle(745, 20, 55, 55), "×")) RequestClose();
+            }
         }
 
         private void DrawSidebar()
         {
-            Color background = new Color(14, 15, 19, 255);
-            Raylib.DrawRectangle(0, HeaderHeight, SidebarWidth, Screen.Height - HeaderHeight, background);
-
-            // カテゴリのアイコン
+            Color background = Gui.PanelColor;
+            Raylib.DrawRectangle(0, (int)HeaderHeight, (int)SidebarWidth, Screen.Height - (int)HeaderHeight - (int)HintHeight, background);
             Category current = GetCurrentCategory();
             Category[] categories = Enum.GetValues<Category>();
 
             for (int i = 0; i < categories.Length; i++)
             {
                 Category category = categories[i];
-                Rectangle area = new Rectangle(0, 120 + i * 90, SidebarWidth, 80);
+                Rectangle area = fullScreen
+                    ? new Rectangle(25, 150 + i * 88, SidebarWidth - 50, 74)
+                    : new Rectangle(12, 132 + i * 93, SidebarWidth - 24, 74);
                 bool hover = !Gui.IsPopupOpen && Gui.IsMouseOver(area);
 
                 Color back = background;
-                if (category == current) back = new Color(40, 60, 110, 255);
-                else if (hover) back = new Color(30, 34, 48, 255);
-                Raylib.DrawRectangleRec(area, back);
+                if (category == current) back = new Color(24, 48, 83, 255);
+                else if (hover) back = Gui.BoxHoverColor;
+                Raylib.DrawRectangleRounded(area, 0.15f, 8, back);
+                if (category == current) Raylib.DrawRectangle((int)area.X, (int)area.Y, 6, (int)area.Height, Gui.AccentColor);
 
-                DrawCategoryIcon(category, SidebarWidth / 2f, area.Y + area.Height / 2f, back);
+                float iconX = fullScreen ? area.X + 44 : area.X + 35;
+                DrawCategoryIcon(category, iconX, area.Y + area.Height / 2f, back);
+                FontManager.Draw(CategoryNames[i], iconX + (fullScreen ? 47 : 31), area.Y + 21, fullScreen ? 28 : 24,
+                    category == current ? new Color(126, 177, 255, 255) : Color.White);
 
-                // クリックでそのカテゴリまでジャンプ
-                if (Gui.Clicked(area) && sectionPos.TryGetValue(category, out float pos))
+                if (Gui.Clicked(area) && fullScreen)
+                {
+                    selectedCategory = category;
+                    scroll = scrollTarget = contentHeight = 0f;
+                    Gui.Reset();
+                }
+                else if (Gui.Clicked(area) && sectionPos.TryGetValue(category, out float pos))
                 {
                     scrollTarget = pos;
                     clickedCategory = category;
                 }
             }
 
-            // 左下の終了ボタン
-            Rectangle power = new Rectangle(0, Screen.Height - 100, SidebarWidth, 90);
-            bool powerHover = !Gui.IsPopupOpen && Gui.IsMouseOver(power);
-            if (powerHover) Raylib.DrawRectangleRec(power, new Color(70, 25, 25, 255));
-            Icons.Power(SidebarWidth / 2f, power.Y + power.Height / 2f, new Color(230, 70, 60, 255));
-
-            if (Gui.Clicked(power))
+            // F1 にあった終了ボタンは残す
+            if (!fullScreen)
             {
-                Game.ShouldExit = true; // 終了(設定は Game 側で保存される)
+                Rectangle power = new Rectangle(12, Screen.Height - HintHeight - 90, SidebarWidth - 24, 70);
+                if (Gui.IsMouseOver(power)) Raylib.DrawRectangleRounded(power, 0.15f, 8, new Color(70, 25, 25, 255));
+                Icons.Power(SidebarWidth / 2f, power.Y + power.Height / 2f, new Color(230, 70, 60, 255));
+                if (Gui.Clicked(power)) Game.ShouldExit = true;
             }
         }
 
