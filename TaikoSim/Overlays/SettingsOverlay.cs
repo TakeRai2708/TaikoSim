@@ -40,6 +40,7 @@ namespace TaikoSim.Overlays
         private SoundConfig? draftSound, savedSound;
         private KeyConfig? draftKey, savedKey;
         private SkinConfig? draftSkin, savedSkin;
+        private List<string> visibleSkinNames = new();
         private bool unsavedOpen;
         private GameConfig ActiveGame => fullScreen ? draftGame! : ConfigManager.Game;
         private SoundConfig ActiveSound => fullScreen ? draftSound! : ConfigManager.Sound;
@@ -127,12 +128,13 @@ namespace TaikoSim.Overlays
             selectedCategory = Category.General;
             scroll = scrollTarget = contentHeight = 0f;
             unsavedOpen = false;
+            savedSkin = ConfigManager.Copy(ConfigManager.Skin);
+            visibleSkinNames = ConfigManager.Skin.GetSkinList();
             if (fullScreen)
             {
                 savedGame = ConfigManager.Copy(ConfigManager.Game);
                 savedSound = ConfigManager.Copy(ConfigManager.Sound);
                 savedKey = ConfigManager.Copy(ConfigManager.Key);
-                savedSkin = ConfigManager.Copy(ConfigManager.Skin);
                 draftGame = ConfigManager.Copy(savedGame);
                 draftSound = ConfigManager.Copy(savedSound);
                 draftKey = ConfigManager.Copy(savedKey);
@@ -146,6 +148,8 @@ namespace TaikoSim.Overlays
         public void Close()
         {
             bool wasFullScreen = fullScreen;
+            bool reloadSkin = !wasFullScreen && savedSkin != null
+                && !ConfigManager.Same(savedSkin, ConfigManager.Skin);
             IsOpen = false;
             Gui.Reset();
             waitingTarget = null;
@@ -157,7 +161,11 @@ namespace TaikoSim.Overlays
             draftSound = savedSound = null;
             draftKey = savedKey = null;
             draftSkin = savedSkin = null;
-            if (!wasFullScreen) ConfigManager.SaveAll(); // F1 は今までどおり閉じたときに保存
+            if (!wasFullScreen)
+            {
+                ConfigManager.SaveAll(); // スキンを含め、次回起動しても選んだ設定を使う
+                if (reloadSkin) SkinManager.Reload();
+            }
         }
 
         // 閉じたいとき(キーが無い場所があれば確認ダイアログを出す)
@@ -741,7 +749,7 @@ namespace TaikoSim.Overlays
             NoteRow("※ フォルダをこのウィンドウにドラッグ＆ドロップでも変更できます");
 
             // ----- 使うスキン -----
-            List<string> names = fullScreen ? skin.GetSkinList() : SkinManager.SkinNames;
+            List<string> names = visibleSkinNames;
             if (names.Count == 0)
             {
                 Gui.Label("使うスキン", LabelX, ToScreenY(cursorY) + 4, 26);
@@ -751,7 +759,7 @@ namespace TaikoSim.Overlays
                 return;
             }
 
-            int index = names.IndexOf(fullScreen ? skin.SkinName : SkinManager.CurrentName);
+            int index = names.IndexOf(skin.SkinName);
             if (index < 0) index = 0;
             int newIndex = DropdownRow("skinName", "使うスキン", names.ToArray(), index);
             if (newIndex != index && newIndex >= 0)
@@ -759,10 +767,10 @@ namespace TaikoSim.Overlays
                 skin.SkinName = names[newIndex];
                 if (!fullScreen)
                 {
-                    ConfigManager.SaveSkin(); // F1 は今までどおり、その場で保存して切り替え
-                    SkinManager.Reload();
+                    ConfigManager.SaveSkin(); // F1 はすぐ保存し、閉じたときに画像を読み直す
                 }
-                ShowMessage(fullScreen ? "スキンは［適用］で切り替わります" : $"スキンを {SkinManager.CurrentName} にしました", SuccessColor);
+                ShowMessage(fullScreen ? "スキンは［適用］で切り替わります"
+                    : $"{skin.SkinName} を保存しました（設定を閉じると切り替わります）", SuccessColor);
             }
 
             // スキンの情報
@@ -770,6 +778,8 @@ namespace TaikoSim.Overlays
             if (SkinManager.Version.Length > 0) info += $"　ver.{SkinManager.Version}";
             NoteRow(FitText(info, RightEdge - LabelX, 22));
             if (SkinManager.Description.Length > 0) NoteRow(FitText(SkinManager.Description, RightEdge - LabelX, 22));
+            if (!fullScreen && savedSkin != null && !ConfigManager.Same(savedSkin, skin))
+                NoteRow("下のプレビューは現在のスキンです。変更は設定を閉じると反映されます");
 
             // ----- プレビュー(画像がちゃんと読めているかの確認) -----
             float previewY = ToScreenY(cursorY);
@@ -1121,42 +1131,45 @@ namespace TaikoSim.Overlays
             }
         }
 
-        // スキンフォルダを設定して、スキンを読み直す
+        // スキンフォルダを保存し、全画面の適用・F1 の終了時に画像を読み直す
         private void SetSkinsFolder(string folder, string? skinName)
         {
             SkinConfig skin = ActiveSkin;
+            string beforeFolder = skin.SkinsFolder;
+            string beforeName = skin.SkinName;
             skin.SkinsFolder = folder;
-            if (skinName != null) skin.SkinName = skinName;
+            visibleSkinNames = skin.GetSkinList();
+            if (skinName != null && visibleSkinNames.Contains(skinName)) skin.SkinName = skinName;
+            else if (!visibleSkinNames.Contains(skin.SkinName)) skin.SkinName = visibleSkinNames.FirstOrDefault() ?? "";
             if (fullScreen)
             {
-                int count = skin.GetSkinList().Count;
+                int count = visibleSkinNames.Count;
                 ShowMessage(count == 0 ? "このフォルダにスキンが見つかりませんでした"
                     : $"スキンフォルダを選びました（{count}個、［適用］で反映）", count == 0 ? ErrorColor : SuccessColor);
                 return;
             }
+            if (beforeFolder == skin.SkinsFolder && beforeName == skin.SkinName) return;
             skin.Fix();
-            ConfigManager.SaveSkin(); // F1 はすぐ保存
-            SkinManager.Reload();
+            ConfigManager.SaveSkin(); // 次回起動に備えて選んだ名前も保存
 
-            if (SkinManager.SkinNames.Count == 0)
-            {
+            if (visibleSkinNames.Count == 0)
                 ShowMessage("このフォルダにスキンが見つかりませんでした", ErrorColor);
-            }
             else
-            {
-                ShowMessage($"スキンフォルダを変更しました（{SkinManager.SkinNames.Count}個、使用中：{SkinManager.CurrentName}）", SuccessColor);
-            }
+                ShowMessage($"スキンフォルダを保存しました（{visibleSkinNames.Count}個、設定を閉じると {skin.SkinName} に切り替わります）", SuccessColor);
         }
 
         // スキン一覧を読み直す
         private void RefreshSkins()
         {
+            visibleSkinNames = ActiveSkin.GetSkinList();
             if (fullScreen)
             {
-                ShowMessage($"スキンが {ActiveSkin.GetSkinList().Count}個見つかりました（［適用］で切り替え）", SuccessColor);
+                ShowMessage($"スキンが {visibleSkinNames.Count}個見つかりました（［適用］で切り替え）", SuccessColor);
                 return;
             }
             SkinManager.Reload();
+            savedSkin = ConfigManager.Copy(ConfigManager.Skin);
+            visibleSkinNames = SkinManager.SkinNames.ToList();
             if (SkinManager.SkinNames.Count == 0)
             {
                 ShowMessage("スキンが見つかりませんでした", ErrorColor);
