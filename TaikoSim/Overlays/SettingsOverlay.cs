@@ -140,8 +140,7 @@ namespace TaikoSim.Overlays
             }
             LoadVolumes(); // 音量のバーは、今の設定の値から始める
 
-            // スキンを入れたあとに開いたときのために、スキン一覧を読み直す
-            SkinManager.Reload();
+            // スキンは適用・変更したときだけ読み直す。開くたびの全画像再読み込みは重い。
         }
 
         public void Close()

@@ -23,6 +23,10 @@ namespace TaikoSim.UI
         private static Vector2 mouse;
         private static bool mousePressed;
         private static bool mouseDown;
+        // 背後のシーンを描く間は、設定画面へ向けたクリックを渡さない
+        private static bool mouseInputEnabled = true;
+
+        public static void SetMouseInputEnabled(bool enabled) => mouseInputEnabled = enabled;
 
         // はみ出して見えない部分をクリックできないようにする範囲
         private static Rectangle clip = FullScreen();
@@ -65,8 +69,8 @@ namespace TaikoSim.UI
         public static void BeginFrame()
         {
             mouse = Screen.GetMousePosition();
-            mousePressed = Raylib.IsMouseButtonPressed(MouseButton.Left);
-            mouseDown = Raylib.IsMouseButtonDown(MouseButton.Left);
+            mousePressed = mouseInputEnabled && Raylib.IsMouseButtonPressed(MouseButton.Left);
+            mouseDown = mouseInputEnabled && Raylib.IsMouseButtonDown(MouseButton.Left);
             blocked = popupId != null;
             popupJustOpened = false;
             caretTimer += Raylib.GetFrameTime();
