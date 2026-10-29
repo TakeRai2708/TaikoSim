@@ -1,0 +1,29 @@
+<Project Sdk="Microsoft.NET.Sdk">
+  <!--
+    TaikoSim のビルド確認用(Linux・NuGet が使えない環境で、コンパイルが通るかだけ確かめる)
+    実行はできない(Raylib と BASS の dll が Windows 用なので)。使い方は README.md
+    DepsDir：Raylib-cs と ManagedBass のソースを置いた場所(setup.sh が作る)
+  -->
+  <PropertyGroup>
+    <OutputType>Exe</OutputType>
+    <TargetFramework>net10.0</TargetFramework>
+    <ImplicitUsings>enable</ImplicitUsings>
+    <Nullable>enable</Nullable>
+    <AllowUnsafeBlocks>true</AllowUnsafeBlocks>
+    <LangVersion>latest</LangVersion>
+    <EnableDefaultCompileItems>false</EnableDefaultCompileItems>
+    <NoWarn>$(NoWarn);CS1591;CS1573;CS1572;CS0618;CS8632</NoWarn>
+    <GenerateAssemblyInfo>false</GenerateAssemblyInfo>
+    <SrcDir>$(MSBuildThisFileDirectory)../../TaikoSim/</SrcDir>
+    <DepsDir Condition="'$(DepsDir)' == ''">$(MSBuildThisFileDirectory).deps/</DepsDir>
+    <BaseIntermediateOutputPath>$(MSBuildThisFileDirectory).obj/</BaseIntermediateOutputPath>
+    <OutputPath>$(MSBuildThisFileDirectory).bin/</OutputPath>
+  </PropertyGroup>
+  <ItemGroup>
+    <Compile Include="stub.cs" />
+    <Compile Include="$(SrcDir)**/*.cs" Exclude="$(SrcDir)obj/**;$(SrcDir)bin/**" />
+    <Compile Include="$(DepsDir)raylib/Raylib-cs/**/*.cs" Exclude="$(DepsDir)raylib/Raylib-cs/obj/**" />
+    <Compile Include="$(DepsDir)bass/src/Bass/Portable/**/*.cs" Exclude="$(DepsDir)bass/src/Bass/Portable/obj/**" />
+    <Compile Include="$(DepsDir)bass/src/AddOns/BassMix/**/*.cs;$(DepsDir)bass/src/AddOns/BassWasapi/**/*.cs;$(DepsDir)bass/src/AddOns/BassAsio/**/*.cs" />
+  </ItemGroup>
+</Project>

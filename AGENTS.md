@@ -49,21 +49,8 @@
 - リモートのブランチを消すのは、たけらいが VS（Visual Studio）でやる
 
 ### 今のブランチ（2026-10-29 時点）
-- **master**：今までの作業が全部入っている（`codex/settings-unified-apply` までマージ済み）。新しい作業は master から作る
-- `claude/` で始まるブランチ・`codex/mode-select-skin-background`・`codex/settings-unified-apply` は、全部マージ済み
-  （消してよい。消すのはたけらいが VS でやる）
-- `codex/settings-unified-apply` で入れたもの（まだたけらいが全部は試していない）：
-  - モード選択を A-Style 対応にした（下の「モード選択」を見て）
-  - モード選択から開く設定画面を **全画面**にした（`SettingsOverlay.Open(fullScreen: true)`）。
-    全画面のときは値をいったん下書きに持って、［適用］で反映する（未保存のまま閉じようとすると確認が出る）
-  - 設定の見た目を今風にした（チェックボックス → 丸いトグル、スライダーのつまみが丸、角丸のボタン、青 (59,130,246)）
-  - 初回セットアップ画面も全画面の幅に合わせた
-- `claude/settings-instant` で入れたもの（まだたけらいが試していない）：
-  - 設定パネルでスキン・スキンフォルダを変えたら、すぐ `SkinConfig.json` に保存する
-    （前はパネルを閉じたとき・普通に終了したときだけだった。VS の停止ボタンで止めると A-Style に戻っていた）
-  - 音量のバーは［音量を適用］を押したときに反映する（設定に入れて `SoundConfig.json` に保存し、鳴っている曲にかけ直す。
-    画面ごとの `Scene.ApplyVolume()`：選曲画面のプレビュー・リザルトの曲）
-  - （コンボのキラキラを銀・金にしたのは、`claude/small-fixes` で元に戻した。下の「演奏画面」を見て）
+- **master**：今までの作業が全部入っている（`claude/option-skip` までマージ済み）。新しい作業は master から作る
+- `claude/` で始まるブランチ・`codex/` で始まるブランチは、全部マージ済み（消してよい。消すのはたけらいが VS でやる）
 
 ---
 
@@ -76,8 +63,9 @@
   dotnet build TaikoSim/TaikoSim.csproj -p:EnableWindowsTargeting=true
   ```
   （NuGet から Raylib-cs と ManagedBass を取ってくる必要がある）
-- NuGet につながらないときは、GitHub から Raylib-cs（v8.1.0）と ManagedBass のソースを取ってきて、
-  TaikoSim のソースといっしょに1つのプロジェクトでコンパイルして確かめる（Windows フォームの FolderBrowserDialog だけ、代わりの空のクラスを置く）
+- NuGet につながらないときは `tools/build-check/`（README.md を見て）：`./setup.sh` で Raylib-cs 8.1.0 と ManagedBass のソースを取ってきて、
+  `dotnet build Check.csproj` で TaikoSim のソースといっしょにコンパイルする（Windows フォームの FolderBrowserDialog だけ、`stub.cs` の空のクラスで代わりにする）
+- 見た目は動かして確かめられないので、Python（Pillow）でスキンの画像を重ねた見本を作って、たけらいの動画のコマと並べて見比べる
 - `bass.dll` などはリポジトリに入っている
 
 ---
