@@ -262,7 +262,7 @@ python sounds.py      # 音（ffmpeg が必要）
   - 演奏画面は幕が開き始めたときから動く（それまでは `SceneManager.IsBlocking`）
   - 板は 0.9倍で真ん中 (960, 400)。曲名は 62px・白い字に黒い縁 6px・真ん中の y=390。サブタイトルは 34px・こい灰色・y=478
   - TaikøNauts のヒントの画像の名前は `Background_Light..png`（点が2つ）。`Background_Light.png` が無ければそっちを読む
-  - Simple は `tools/skin-gen/loading.py` で作った（落ち着いた虹色のしま・太鼓の絵・ヒントの文字）
+  - Simple は `tools/skin-gen/loading.py` で作った。**本家の再現はしない・最低限だけ**（たけらいの希望）：上が黒→下がこい灰色の背景と幕（すき間のふちに細い灰色の線）・白い細いふちの赤丸と青丸・曲名の板。キラキラとヒントは無し
 
 - ドンダフルコンボの紙ふぶき（`PlayEnd.DrawConfetti`）
   - `Confetti.png`（520×368 が横10・縦5）のコマは **縦に読む**（0〜4 が1列目の上から下）。A-Style の画像で、上下のコマは形がつながっていて、左右はつながっていなかった
