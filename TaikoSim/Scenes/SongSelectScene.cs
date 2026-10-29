@@ -164,7 +164,7 @@ namespace TaikoSim.Scenes
         public override void Exit()
         {
             preview.Dispose();
-            options.Close();
+            options.CloseNow();
         }
 
         // 設定パネルで音量が変わったとき：流れているプレビューの曲に、すぐ新しい音量をかける
@@ -361,7 +361,7 @@ namespace TaikoSim.Scenes
             }
             if (options.IsOpen)
             {
-                // オプションの板が開いている間は、F2 で閉じるだけ
+                // オプションの板が開いている間は、板の方でキーを受け取る(カッ・ドン・↑↓←→・数字)。F2 で閉じる
                 if (InputManager.IsSystemPressed(SystemAction.QuickOption) && !options.IsTyping) options.Close();
                 return;
             }
@@ -424,30 +424,49 @@ namespace TaikoSim.Scenes
                 ToggleFavorite(fav.Song!);
 
             // 動かす：カッ(左縁)・↑・ホイール上 で上、カッ(右縁)・↓・ホイール下 で下
+            //   カーソルが動いている途中(前の 0.15秒の動きが終わる前)に、カッか ↑↓ をもう一度押すと、7曲まとめて飛ぶ
+            //   (OpenTaiko の CStageSongSelect と同じ：スクロール中の LeftChange/RightChange で tカーソルスキップ を7回、Skip.ogg)
+            //   ↑↓ は押しっぱなしのくり返しでは飛ばない(押し直したときだけ)。ホイールも飛ばない
             int move = 0;
-            if (InputManager.IsDrumPressed(DrumPart.LeftKa) || KeyPressed(KeyboardKey.Up)) move--;
-            if (InputManager.IsDrumPressed(DrumPart.RightKa) || KeyPressed(KeyboardKey.Down)) move++;
+            bool fresh = false; // 押し直した(飛べる)入力
+            if (InputManager.IsDrumPressed(DrumPart.LeftKa) || Raylib.IsKeyPressed(KeyboardKey.Up)) { move--; fresh = true; }
+            else if (KeyPressed(KeyboardKey.Up)) move--;
+            if (InputManager.IsDrumPressed(DrumPart.RightKa) || Raylib.IsKeyPressed(KeyboardKey.Down)) { move++; fresh = true; }
+            else if (KeyPressed(KeyboardKey.Down)) move++;
             float wheel = Raylib.GetMouseWheelMove();
             if (wheel > 0) move--;
             else if (wheel < 0) move++;
-            if (move != 0) Move(move);
+            if (move != 0)
+            {
+                bool scrolling = list.Shown != CurrentPos;
+                if (fresh && scrolling) Move(Math.Sign(move), SkipCount);
+                else Move(move);
+            }
 
             if (InputManager.IsDonPressed() || Raylib.IsKeyPressed(KeyboardKey.Enter) || Raylib.IsKeyPressed(KeyboardKey.KpEnter))
                 Decide();
         }
 
-        private void Move(int direction)
+        // まとめて飛ぶ曲の数(OpenTaiko と同じ)
+        private const int SkipCount = 7;
+
+        // steps 回ぶん動かす(見出しの板は飛ばす)。2回以上ならスキップの音
+        private void Move(int direction, int steps = 1)
         {
             List<Item> list = CurrentList;
             if (list.Count == 0) return;
             int pos = CurrentPos;
-            for (int guard = 0; guard < list.Count; guard++)
+            for (int step = 0; step < steps; step++)
             {
-                pos += Math.Sign(direction);
-                if (list[Mod(pos, list.Count)].Kind != Kind.Label) break;
+                for (int guard = 0; guard < list.Count; guard++)
+                {
+                    pos += Math.Sign(direction);
+                    if (list[Mod(pos, list.Count)].Kind != Kind.Label) break;
+                }
             }
             SetPos(pos);
-            MenuSounds.Ka();
+            if (steps > 1) MenuSounds.Skip();
+            else MenuSounds.Ka();
         }
 
         // カーソルを pos へ(板はすぐ閉じる)
@@ -627,7 +646,7 @@ namespace TaikoSim.Scenes
         private void CloseDifficulty()
         {
             MenuSounds.Ka();
-            options.Close();
+            options.CloseNow();
             diffOpen = false;
             diffSong = null;
             list.EndDecide();
@@ -639,8 +658,7 @@ namespace TaikoSim.Scenes
             // F2：オプション
             if (InputManager.IsSystemPressed(SystemAction.QuickOption))
             {
-                MenuSounds.Don();
-                options.Open();
+                options.Open(); // 開く音は板の方で鳴らす(スキンの Option.ogg。無ければドン)
                 return;
             }
 
@@ -685,8 +703,7 @@ namespace TaikoSim.Scenes
             if (diffCursor == 0) { CloseDifficulty(); return; }
             if (diffCursor == 1)
             {
-                MenuSounds.Don();
-                options.Open();
+                options.Open(); // 開く音は板の方で鳴らす(スキンの Option.ogg。無ければドン)
                 return;
             }
 
@@ -738,7 +755,7 @@ namespace TaikoSim.Scenes
                     return;
                 }
                 searchFocused = false;
-                options.Close();
+                options.CloseNow();
                 diffOpen = false;
                 MenuSounds.Don();
                 OpenGenre(Special.Search, -1);
@@ -1514,7 +1531,8 @@ namespace TaikoSim.Scenes
             string hint;
             if (SongList.IsScanning) hint = "曲を読み込み中…　Esc：モード選択へ（読み込みは続きます）";
             else if (searchFocused) hint = "文字を入れて検索　Enter：結果を開く　Esc：検索をやめる";
-            else if (options.IsOpen) hint = "クリックで変える　Esc・F2：オプションを閉じる";
+            else if (options.IsOpen) hint = options.IsTyping ? "数字を入力　Enter：決定"
+                : "カッ・←→：値を変える　ドン：次へ（最後で閉じる）　↑↓：項目　数字キー：直接入力　Esc・F2：閉じる";
             else if (diffOpen) hint = "";
             else if (inSongs)
             {

@@ -10,8 +10,10 @@ namespace TaikoSim.Audio
     {
         private const string DonFile = "Sound/Taiko/0.Taiko/don.ogg";
         private const string KaFile = "Sound/Taiko/0.Taiko/ka.ogg";
+        private const string SkipFile = "Sound/SongSelect/Skip.ogg";     // 選曲画面で7曲まとめて飛ぶとき(TaikøNauts の A-Style と同じ場所)
+        private const string OptionFile = "Sound/SongSelect/Option.ogg"; // 演奏オプションの板を開いたとき
 
-        private static SoundEffect? don, ka;
+        private static SoundEffect? don, ka, skip, option;
         private static int loadedSkin = -1;
         private static int loadedAudio = -1;
 
@@ -27,6 +29,20 @@ namespace TaikoSim.Audio
             ka?.Play(Volume);
         }
 
+        // 7曲まとめて飛ぶ音(スキンに無ければカッ)
+        public static void Skip()
+        {
+            Ensure();
+            (skip ?? ka)?.Play(Volume);
+        }
+
+        // オプションの板を開く音(スキンに無ければドン)
+        public static void Option()
+        {
+            Ensure();
+            (option ?? don)?.Play(Volume);
+        }
+
         private static float Volume => (float)ConfigManager.Sound.GetFinalVolume(ConfigManager.Sound.SeVolume);
 
         private static void Ensure()
@@ -38,8 +54,10 @@ namespace TaikoSim.Audio
             {
                 don?.Dispose();
                 ka?.Dispose();
+                skip?.Dispose();
+                option?.Dispose();
             }
-            don = ka = null;
+            don = ka = skip = option = null;
             loadedSkin = SkinManager.Generation;
             loadedAudio = AudioManager.Generation;
 
@@ -47,6 +65,8 @@ namespace TaikoSim.Audio
             if (skin == null || !AudioManager.IsAvailable) return;
             don = SoundEffect.Load(Path.Combine(skin, DonFile), out _);
             ka = SoundEffect.Load(Path.Combine(skin, KaFile), out _);
+            skip = SoundEffect.Load(Path.Combine(skin, SkipFile), out _);
+            option = SoundEffect.Load(Path.Combine(skin, OptionFile), out _);
         }
     }
 }

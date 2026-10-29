@@ -123,6 +123,17 @@ def kyoton():
     hm *= np.minimum(1, x2 / 0.02) * np.exp(-np.maximum(0, x2 - 0.25) / 0.06) * 0.55
     return mix(1.0, [(0, pon), (0.32, hm)])
 
+def skip():
+    """選曲画面で、カッを速くたたいて7曲まとめて飛ぶときの音(シュッ。0.2秒)"""
+    x = t(0.2)
+    n = np.random.default_rng(29).normal(0, 1, len(x))   # ほかの音の乱数の順番を変えないように、別の乱数を使う
+    # 高い音がだんだん上がっていく「シュッ」(雑音を、上がっていく音で揺らす)
+    f = 900 + 2600 * (x / 0.2) ** 1.5
+    tone = np.sin(2 * np.pi * np.cumsum(f) / SR)
+    y = n * tone * np.minimum(1, x / 0.03) * np.exp(-x / 0.07)
+    y += np.sin(2 * np.pi * 1900 * x) * np.exp(-x / 0.025) * 0.5   # 頭にカッっぽい音
+    return y
+
 def run():
     save('Sound/Taiko/0.Taiko/don.ogg', don())
     save('Sound/Taiko/0.Taiko/ka.ogg', ka())
@@ -136,6 +147,7 @@ def run():
     save('Sound/Result/Crown_Clear.ogg', mix(1.5, [(i * 0.07, bell(mtof(m), 1.2, 0.2)) for i, m in enumerate([72, 76, 79])]))
     save('Sound/Result/Crown_FullCombo.ogg', mix(1.8, [(i * 0.07, bell(mtof(m), 1.4, 0.2)) for i, m in enumerate([72, 76, 79, 84])]))
     save('Sound/Result/Crown_DondaFullCombo.ogg', mix(2.2, [(i * 0.06, bell(mtof(m), 1.6, 0.2)) for i, m in enumerate([72, 76, 79, 84, 88, 91])]))
+    save('Sound/SongSelect/Skip.ogg', skip())
     # 吹き出しの音とリザルトの BGM は無し
 
 if __name__ == '__main__':

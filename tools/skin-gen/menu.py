@@ -250,10 +250,35 @@ def balloon():
     c.poly([(420, 86), (450, 86), (435, 103)], fill=(244, 244, 244, 255))
     c.save(S + 'Maker_Balloon.png')
 
+def option_images():
+    """演奏オプションの板(02.SongSelect/Option/)。A-Style と同じ名前・同じ大きさ。Simple なので最低限の形だけ
+    Background.png 432×614(暗い板と細い青のふち)・Option_Base.png 364×52(白い帯。選んでいる項目はプログラムが黄色をかける)・
+    Option_Value_Base.png 180×40(白い丸い箱。プログラムが暗い色をかける)・Option_Value_Arrow.png 28×32(◀)・PlayerSide.png 64×64 が横に3つ"""
+    O = S + 'Option/'
+    c = Canvas(432, 614)
+    c.rect(6, 6, 426, 608, fill=(30, 33, 44, 245), outline=(59, 130, 246, 255), width=3, radius=22)
+    c.save(O + 'Background.png')
+    c = Canvas(364, 52)
+    c.rect(0, 0, 364, 52, fill=(255, 255, 255, 255), radius=14)
+    c.save(O + 'Option_Base.png')
+    c = Canvas(180, 40)
+    c.rect(0, 0, 180, 40, fill=(255, 255, 255, 255), radius=20)
+    c.save(O + 'Option_Value_Base.png')
+    c = Canvas(28, 32)
+    c.poly([(3, 16), (25, 3), (25, 29)], fill=KA + (255,))
+    c.save(O + 'Option_Value_Arrow.png')
+    c = Canvas(192, 64)
+    for i, (col, txt) in enumerate(((DON, '1P'), (KA, '1P'), (KA, '2P'))):
+        cx = 32 + i * 64
+        c.circle(cx, 32, 29, fill=(255, 255, 255, 255))
+        c.circle(cx, 32, 26, fill=col + (255,))
+        c.text(cx, 33, txt, 24, (255, 255, 255, 255), bold=True)
+    c.save(O + 'PlayerSide.png')
+
 def run():
     bars(M); bars(S); label_bar()
     panel(); marker(); hint()
-    tn_chips(); tn_cards(); balloon()
+    tn_chips(); tn_cards(); balloon(); option_images()
     number_sheet(S + 'Difficulty_Level_Number.png', 31, 37, 40, 3)
     number_sheet(S + 'Difficulty_Select/Difficulty_Level_Number.png', 23, 28, 30, 2)
 
