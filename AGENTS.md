@@ -48,16 +48,22 @@
 - コミットメッセージは **日本語**。何をしたかが分かるように、箇条書きでまとめる
 - リモートのブランチを消すのは、たけらいが VS（Visual Studio）でやる
 
-### 今のブランチ（2026-10-27 時点）
-- **master**：今までの作業が全部入っている（`claude/song-select-v6` と `claude/settings-instant` までマージ済み）。新しい作業は master から作る
-- `claude/visual-no-lag`（効果音の遅れの補正を判定だけに入れる）と `claude/hit-sound-mono`（ドン・カッを1つずつ鳴らす）もマージ済み
+### 今のブランチ（2026-10-29 時点）
+- **master**：今までの作業が全部入っている（`codex/settings-unified-apply` までマージ済み）。新しい作業は master から作る
+- `claude/` で始まるブランチ・`codex/mode-select-skin-background`・`codex/settings-unified-apply` は、全部マージ済み
+  （消してよい。消すのはたけらいが VS でやる）
+- `codex/settings-unified-apply` で入れたもの（まだたけらいが全部は試していない）：
+  - モード選択を A-Style 対応にした（下の「モード選択」を見て）
+  - モード選択から開く設定画面を **全画面**にした（`SettingsOverlay.Open(fullScreen: true)`）。
+    全画面のときは値をいったん下書きに持って、［適用］で反映する（未保存のまま閉じようとすると確認が出る）
+  - 設定の見た目を今風にした（チェックボックス → 丸いトグル、スライダーのつまみが丸、角丸のボタン、青 (59,130,246)）
+  - 初回セットアップ画面も全画面の幅に合わせた
 - `claude/settings-instant` で入れたもの（まだたけらいが試していない）：
   - 設定パネルでスキン・スキンフォルダを変えたら、すぐ `SkinConfig.json` に保存する
     （前はパネルを閉じたとき・普通に終了したときだけだった。VS の停止ボタンで止めると A-Style に戻っていた）
   - 音量のバーは［音量を適用］を押したときに反映する（設定に入れて `SoundConfig.json` に保存し、鳴っている曲にかけ直す。
     画面ごとの `Scene.ApplyVolume()`：選曲画面のプレビュー・リザルトの曲）
   - コンボのキラキラ：50〜99コンボは銀、100コンボからは金。少し透かして（70%）描く
-- `claude/` で始まるブランチは、全部マージ済み（消してよい。消すのはたけらいが VS でやる）
 
 ---
 
@@ -110,7 +116,10 @@ tools/skin-gen/                … Simple スキンの画像・音を作る Pyth
 - スキンは `Skins/スキン名/` に入れる。フォルダの作りは **TaikøNauts と同じ**
   - `Image/02.SongSelect/`（選曲）・`Image/03.SongLoading/`（曲が始まるとき。まだ画面が無い）
   - `Image/04.EnsoGame/`（演奏）・`Image/05.Result/`（リザルト）
-  - `Image/01.ModeSelect/`（モード選択。**TaikøNauts での本当の名前はまだ分からない**ので仮）
+  - `Image/01.Entry/`（モード選択。TaikøNauts での本当の名前はこれ。Simple は今も `Image/01.ModeSelect/` を使っている）
+    - 中は `Bar/Bar/番号.png`（板）・`Bar/Title/番号.png`（題字）・`Bar/Overlay.png`・`Bar/Selected.png`・`Bar/Pop/番号.png`・
+      `Bar/1POnly.png`・`Background.png`・`Header.png`・`Background_Fireworks.png`。
+      **`Bar/` が2段あるのは間違いではない**（たけらいが実物で確かめた）
   - `Font/default.otf`（曲名・メニューの文字に使うフォント）
 - 画像が無いときは、プログラムが自分で描く（スキンが無くても動くようにする）
 - テスト用の `SkinManager.SystemSkin = true` のときは、画像を全部「無い」ことにする
@@ -177,6 +186,15 @@ python sounds.py      # 音（ffmpeg が必要）
   カード x = 647 / 862 / 1077 / 1292（215px ずつ）・y = 406・196×354（つぶすと★と数字がずれる）
 - 難易度のカード（画像 196×354 の中）：★ の真ん中 (77.5, 263.5)、数字の真ん中 (108, 264)、★の列の点 x = 30, 45, …, 165・y = 293
 - 開いた曲の板の札（176×86 の中）：数字の真ん中 (146, 43)
+
+### モード選択（`Scenes/ModeSelectScene.cs`。A-Style の `Image/01.Entry/`）
+- 一覧は **ぐるっと回らない**（先頭と末尾で止まる）
+- 板は選曲より上下に **50px** 広く離れる。開くときは上下に **23px** ずつ広がる
+- 板の画像は 980×160。開いたときは土台だけ伸ばして、題字（`Title/番号.png`）は原寸で上に置く
+- 使う番号は「演奏ゲーム」→0、「段位道場」→1 だけ。
+  A-Style の 2・3 は「プレイヤー設定」「AIバトル演奏」で、TaikoSim の項目と中身が違うので使わない
+- 花火（`Background_Fireworks.png`、300×300 の2コマ）は 3.2秒で1周。1.4秒かけてふくらみながら出て消える
+- 「段位道場」には `1POnly.png`、「演奏ゲーム」には選曲と同じキャラ（`Bar/Pop/0.png` を (288, 271) に原寸）
 
 ### 演奏画面
 - 判定枠の中心：(620, 389)
