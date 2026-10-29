@@ -53,8 +53,9 @@ def bars(folder):
         if inner:
             c.rect(70, 20, W - 70, H - 20, fill=(255, 255, 255, 153), radius=8)
         c.save(folder + name)
-    # 開いた板のまわりの枠(黄色・決定したあとの白)
-    for name, col in (('Bar_Cursor.png', (253, 253, 144)), ('Bar_Cursor_Decide.png', (255, 255, 255))):
+    # 開いた板のまわりの枠(こい黄色・決定したあとの白)。TaikøNauts の動画の色 (253,253,0)
+    #   決定の点滅の明るいときは、プログラムが白を 56.5% 重ねる
+    for name, col in (('Bar_Cursor.png', (253, 253, 0)), ('Bar_Cursor_Decide.png', (255, 255, 255))):
         c = Canvas(W + 40, H + 40); c.rect(0, 0, W + 40, H + 40, fill=col + (255,), radius=30); c.save(folder + name)
 
 def label_bar():

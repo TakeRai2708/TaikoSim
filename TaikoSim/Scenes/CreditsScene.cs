@@ -71,7 +71,7 @@ namespace TaikoSim.Scenes
                 OnBack();
         }
 
-        public override void OnBack() => SceneManager.ChangeScene(new ModeSelectScene());
+        public override void OnBack() => SceneManager.Simple(new ModeSelectScene());
 
         public override void Draw()
         {

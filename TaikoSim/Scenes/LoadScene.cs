@@ -89,11 +89,11 @@ namespace TaikoSim.Scenes
 
             if (ConfigManager.Key.NeedsSetup())
             {
-                SceneManager.ChangeScene(new SetupScene());
+                SceneManager.AfterBoot(new SetupScene());
             }
             else
             {
-                SceneManager.ChangeScene(new ModeSelectScene());
+                SceneManager.AfterBoot(new ModeSelectScene()); // パッと切り替えないで、暗くしてから明るくする
             }
         }
 

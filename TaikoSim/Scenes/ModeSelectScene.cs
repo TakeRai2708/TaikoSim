@@ -1,4 +1,4 @@
-using Raylib_cs;
+﻿using Raylib_cs;
 using TaikoSim.Audio;
 using TaikoSim.Configs;
 using TaikoSim.Graphics;
@@ -137,9 +137,9 @@ namespace TaikoSim.Scenes
         {
             switch (item.Title)
             {
-                case "演奏ゲーム": SceneManager.ChangeScene(new SongSelectScene()); break;
+                case "演奏ゲーム": SceneManager.ToSongSelectFromMode(new SongSelectScene()); break;
                 case "設定": Game.OpenSettings(); break;
-                case "クレジット": SceneManager.ChangeScene(new CreditsScene()); break;
+                case "クレジット": SceneManager.Simple(new CreditsScene()); break;
             }
         }
 

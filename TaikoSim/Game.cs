@@ -73,6 +73,7 @@ namespace TaikoSim
                 MeasureFrame(dt);
 
                 Screen.ApplyIfRequested(); // 設定でウィンドウの大きさなどが変わっていたら反映
+                SceneManager.Update(dt);   // 画面の切り替えの、暗くする・明るくする
                 SceneManager.ApplyChange();
                 Update(dt);
                 WindowsIme.EndFrame(); // このフレームで文字の入力を頼まれていなければ IME を切る
@@ -157,6 +158,9 @@ namespace TaikoSim
             Scene? scene = SceneManager.Current;
             if (scene == null) return;
 
+            // 画面を切り替えるために暗くしている間は、今の画面を止める(押しても反応しない)
+            if (SceneManager.IsBlocking) return;
+
             // 設定キーで設定パネルを開く(演奏中など、開けない画面では無視)
             if (scene.CanOpenSettings && InputManager.IsSystemPressed(SystemAction.Settings))
             {
@@ -186,7 +190,11 @@ namespace TaikoSim
             // モード選択からの全画面設定では、後ろのモード画面を描かない
             Gui.SetMouseInputEnabled(!IsSettingsOpen);
             long t = DebugLog.Begin();
-            if (!settings.IsFullScreen) SceneManager.Current?.Draw();
+            if (!settings.IsFullScreen)
+            {
+                SceneManager.Current?.Draw();
+                SceneManager.DrawFade(); // 画面の切り替えの黒い幕
+            }
             DebugLog.End(PerfSection.SceneDraw, t);
             Gui.SetMouseInputEnabled(true);
 

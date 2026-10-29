@@ -1,4 +1,4 @@
-using System.Numerics;
+﻿using System.Numerics;
 using Raylib_cs;
 
 namespace TaikoSim.UI
@@ -33,8 +33,8 @@ namespace TaikoSim.UI
         private const float BlinkCycle = 0.15f, BlinkOn = 0.11f;
 
         public static readonly Color InkColor = new Color(24, 24, 32, 255);       // 板の縁
-        public static readonly Color CursorColor = new Color(253, 253, 144, 255); // 黄色い枠(TaikøNauts の動画の色。淡い黄色)
-        private const float WhiteOnYellow = 0.565f;                                // 真っ黄色の上に白をこれだけ重ねると、上の淡い黄色になる
+        public static readonly Color CursorColor = new Color(253, 253, 0, 255);   // 黄色い枠(TaikøNauts の動画の色。こい黄色)
+        private const float WhiteOnYellow = 0.565f;                                // 黄色の上に白をこれだけ重ねると、淡い黄色 (253,253,144) になる(決定の点滅の明るいとき)
 
         public float Shown { get; private set; }        // 表示上のカーソルの位置
         public float Expand { get; private set; }       // 選んでいる板の開き具合(0→1)
@@ -118,35 +118,37 @@ namespace TaikoSim.UI
             return new Rectangle(area.X, top, area.Width, bottom - top);
         }
 
-        // 開いた板のまわりの黄色い枠(決定したあとは点滅 → 白)
+        // 開いた板のまわりの黄色い枠
+        //   TaikøNauts の動画(10/29 の2本を1/60秒ずつ)：
+        //   ・止まっている間は、こい黄色 (253,253,0)
+        //   ・決定すると 0.53秒、明るい色(淡い黄色〜白)と黄色を行ったり来たりする → そのあと白
+        //   (10/27 に「淡い黄色」にしたのは、「全○曲」の吹き出しの色をまちがえて測っていた)
         public void DrawFrame(Rectangle area, float alpha, string? selectedImage = null)
         {
             if (!FrameShown) return;
-            Color color = CursorColor;
-            if (Deciding)
-            {
-                if (DecideTime < BlinkEnd)
-                {
-                    if (DecideTime % BlinkCycle >= BlinkOn) return;
-                }
-                else color = Color.White;
-            }
+            bool decided = Deciding && DecideTime >= BlinkEnd;                       // 点滅が終わった → 白
+            bool light = Deciding && !decided && DecideTime % BlinkCycle < BlinkOn;  // 点滅の明るいとき
+            Color color = decided ? Color.White : light ? MenuDraw.Tint(CursorColor, WhiteOnYellow) : CursorColor;
+
             Rectangle frame = new Rectangle(area.X - FrameWidth, area.Y - FrameWidth, area.Width + FrameWidth * 2, area.Height + FrameWidth * 2);
             float a = alpha; // 枠は、出るときにいきなり出る(動画では1コマで出ていた)
             // TaikøNauts のスキン(Bar/Selected.png：縦に 黄色・黄色の光・白 の3段。1段 1008×210、塗った形は 18,22 から 972×166・角の丸み 約48px)
             //   形ぴったりで切り取る(前は 7 から切っていて、左右に 11px の透明が入り、横だけ枠が細くなっていた)
-            //   TaikøNauts の動画では、枠は淡い黄色(253,253,144)だった → 黄色の上に白を 56% 重ねると同じ色になる
-            bool decided = Deciding && DecideTime >= BlinkEnd;
+            //   点滅の明るいときは、黄色の上に白を 56.5% 重ねる(淡い黄色 (253,253,144) になる)
             Rectangle Row(int row) => new Rectangle(18, 22 + 210 * row, 972, 166);
             const int corner = 50; // 角の丸み(48px)より大きく切る(丸みが伸ばす場所に入って、ゆがまないように)
             string path = selectedImage ?? Folder + "Bar/Selected.png";
             if (MenuSkin.NPatchPart(path, Row(decided ? 2 : 0), frame, corner, MenuSkin.White(a)))
             {
-                if (!decided) MenuSkin.NPatchPart(path, Row(2), frame, corner, MenuSkin.White(a * WhiteOnYellow));
+                if (light) MenuSkin.NPatchPart(path, Row(2), frame, corner, MenuSkin.White(a * WhiteOnYellow));
                 return;
             }
-            string image = Deciding && DecideTime >= BlinkEnd ? "Bar_Cursor_Decide.png" : "Bar_Cursor.png";
-            if (MenuSkin.NPatch(Folder + image, frame, 40, MenuSkin.White(a))) return;
+            // Simple スキン：Bar_Cursor.png(黄色)と Bar_Cursor_Decide.png(白)
+            if (MenuSkin.NPatch(Folder + (decided ? "Bar_Cursor_Decide.png" : "Bar_Cursor.png"), frame, 40, MenuSkin.White(a)))
+            {
+                if (light) MenuSkin.NPatch(Folder + "Bar_Cursor_Decide.png", frame, 40, MenuSkin.White(a * WhiteOnYellow));
+                return;
+            }
             Raylib.DrawRectangleRounded(frame, MenuDraw.Roundness(frame, 30), 12, MenuDraw.Fade(color, a));
         }
 

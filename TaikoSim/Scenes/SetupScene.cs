@@ -214,7 +214,7 @@ namespace TaikoSim.Scenes
         private void Finish()
         {
             ConfigManager.SaveAll();
-            SceneManager.ChangeScene(new ModeSelectScene());
+            SceneManager.Simple(new ModeSelectScene());
         }
 
         // ===== 描画 =====

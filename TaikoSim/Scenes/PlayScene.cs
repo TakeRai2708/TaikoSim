@@ -1322,8 +1322,8 @@ namespace TaikoSim.Scenes
         public override void OnBack()
         {
             StopSong(); // 念のため、すぐ止める
-            if (returnToSelect) SceneManager.ChangeScene(new SongSelectScene());
-            else SceneManager.ChangeScene(new ModeSelectScene());
+            if (returnToSelect) SceneManager.Simple(new SongSelectScene());
+            else SceneManager.Simple(new ModeSelectScene());
         }
 
         // 別の .tja がドロップされたら、そっちに切り替える

@@ -78,13 +78,9 @@ namespace TaikoSim.Scenes
         private const int ComboSparkleFrom = 50;
         private const float ComboSparkleStep = 0.016f;
         private const int ComboSparkleSteps = 36;
-        // 色：50〜99コンボは銀、100コンボからは金(たけらいが TaikøNauts で見た色)
-        //   画像を白くしたもの(GetWhiteTexture)に色をかけるので、スキンの画像が黄色でも白でも同じ色になる
-        //   明るすぎたので、少し透かして描く
-        private const int ComboSparkleGoldFrom = 100;
-        private static readonly Color ComboSparkleSilver = new Color(214, 222, 236, 255);
-        private static readonly Color ComboSparkleGold = new Color(255, 206, 64, 255);
-        private const float ComboSparkleAlpha = 0.7f;
+        //   星の画像はそのままの色で描く(OpenTaiko と同じ。A-Style の Effect.png は「真ん中が白・十字の腕が黄色」の 30×30)
+        //   銀・金に分かれて見えるのは数字の方(Combo_Number.png の2段目・3段目)。星は銀でも金でも同じ
+        //   (10/27 に白くして色をかけたら、まわりのうすい光まで白くなってボヤけたので、やめた)
 
         // ゴーゴー開始の火花の位置(下の真ん中)と傾き。OpenTaiko の Game_Effect_GoGoSplash_X/Y
         private static readonly float[] SplashX = { 180, 450, 780, 1140, 1470, 1740 };
@@ -691,7 +687,7 @@ namespace TaikoSim.Scenes
                     Rectangle dest = new Rectangle(centerX - drawW / 2f, bottomY - drawH, drawW, drawH);
                     Raylib.DrawTexturePro(numbers, source, dest, Vector2.Zero, 0f, Color.White);
                 }
-                if (combo >= ComboSparkleFrom) DrawComboSparkles(combo, rightX, padding, count, w * scale, h * verticalScale, bottomY);
+                if (combo >= ComboSparkleFrom) DrawComboSparkles(rightX, padding, count, w * scale, h * verticalScale, bottomY);
             }
             else
             {
@@ -708,11 +704,10 @@ namespace TaikoSim.Scenes
 
         // コンボの数字のキラキラ(けたごとに、まんなか・右・左の3つ)
         //   OpenTaiko：b = 数字の幅 / 4、c = 数字の高さ / 4、d = 数字の下端。星は「下の真ん中」を合わせて描く
-        private void DrawComboSparkles(int combo, float rightX, float padding, int count, float digitWidth, float digitHeight, float bottomY)
+        private void DrawComboSparkles(float rightX, float padding, int count, float digitWidth, float digitHeight, float bottomY)
         {
-            if (SkinManager.GetWhiteTexture(ComboSparkleImage) is not Texture2D star) return;
-            Color tint = combo >= ComboSparkleGoldFrom ? ComboSparkleGold : ComboSparkleSilver;
-            tint = new Color(tint.R, tint.G, tint.B, (byte)(255 * ComboSparkleAlpha));
+            if (SkinManager.GetTexture(ComboSparkleImage) is not Texture2D star) return;
+            Color tint = Color.White;
             int v = (int)(comboSparkleTime / ComboSparkleStep) % ComboSparkleSteps;
             float b = digitWidth / 4f, c = digitHeight / 4f, d = bottomY;
             for (int i = 0; i < count; i++)

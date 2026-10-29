@@ -510,7 +510,7 @@ namespace TaikoSim.Scenes
                 return;
             }
             if (inSongs) { MenuSounds.Ka(); CloseGenre(); return; }
-            SceneManager.ChangeScene(new ModeSelectScene());
+            SceneManager.ToModeFromSongSelect(new ModeSelectScene());
         }
 
         // .tja がドロップされたら、テスト用に譜面を流す

@@ -66,7 +66,8 @@ namespace TaikoSim.Scenes
         private const float BackgroundSwitchSeconds = 0.2f;
         private const float AcceptAfterBalloon = 0.3f;   // 吹き出しが出てから、これだけ経ったら戻れる
         private const float AutoReturnSeconds = 20f;     // 何もしなければ戻る
-        private const float ExitFadeSeconds = 0.5f, ExitBlackSeconds = 0.3f;
+        // 暗くする 0.5秒 → 真っ黒 1.05秒(TaikøNauts の動画：0.45秒で暗く・1.05秒真っ黒・0.5秒で明るく)。明るくするのは次の画面(SceneManager)
+        private const float ExitFadeSeconds = 0.5f, ExitBlackSeconds = 1.05f;
 
         private readonly PlayResultData data;
         private readonly bool returnToSelect;
@@ -224,8 +225,8 @@ namespace TaikoSim.Scenes
         private void GoBack()
         {
             bgm?.Stop();
-            if (returnToSelect) SceneManager.ChangeScene(new SongSelectScene());
-            else SceneManager.ChangeScene(new ModeSelectScene());
+            if (returnToSelect) SceneManager.AfterResult(new SongSelectScene());
+            else SceneManager.AfterResult(new ModeSelectScene());
         }
 
         private void PlayAt(ref bool played, float time, SoundEffect? sound, bool voice)
