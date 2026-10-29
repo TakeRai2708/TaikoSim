@@ -23,12 +23,12 @@ namespace TaikoSim.Scenes
         private static readonly DrumPart[] Parts = Enum.GetValues<DrumPart>();
 
         // 枠と並び(1920×1080の座標)
-        private static readonly Rectangle Panel = new Rectangle(360, 160, 1200, 760);
-        private const float Left = 440;      // 中身の左端
-        private const float ControlX = 860;  // プルダウン・スライダーの左端
-        private const float BoxX = 1360;     // スライダーの数字の箱の左端
-        private const float Right = 1480;    // 中身の右端
-        private const float FooterY = 840;   // 下のボタンの位置
+        private static readonly Rectangle Panel = new Rectangle(100, 160, 1720, 760);
+        private const float Left = 160;
+        private const float ControlX = 760;
+        private const float BoxX = 1550;
+        private const float Right = 1760;
+        private const float FooterY = 850;
 
         // 説明文の大きさ
         private const float DescSize = 22;
@@ -224,16 +224,17 @@ namespace TaikoSim.Scenes
             Gui.BeginFrame();
 
             // 背景
-            Raylib.DrawRectangleGradientV(0, 0, Screen.Width, Screen.Height, new Color(18, 22, 40, 255), new Color(6, 7, 12, 255));
-            Raylib.DrawRectangleRounded(Panel, 0.04f, 8, new Color(24, 28, 40, 250));
+            Raylib.DrawRectangle(0, 0, Screen.Width, Screen.Height, Gui.BackgroundColor);
+            Raylib.DrawRectangleRounded(Panel, 0.009f, 8, Gui.PanelColor);
 
-            // 上：タイトルとページ番号(ページ番号は初回だけ)
-            FontManager.Draw(isFirstRun ? "初期設定" : "キーの設定", Left, Panel.Y + 30, 30, Gui.SubTextColor);
+            // 文字と細い進行線だけで、どこまで設定したか分かるようにする
+            FontManager.Draw(isFirstRun ? "初期設定" : "キーの設定", Left, 32, 38, Color.White);
             if (isFirstRun)
             {
                 string pageText = $"{(int)step + 1} / {StepCount}";
                 float pageWidth = FontManager.Measure(pageText, 30).X;
-                FontManager.Draw(pageText, Right - pageWidth, Panel.Y + 30, 30, Gui.SubTextColor);
+                FontManager.Draw(pageText, Right - pageWidth, 42, 28, Gui.SubTextColor);
+                DrawProgress();
             }
 
             switch (step)
@@ -252,6 +253,19 @@ namespace TaikoSim.Scenes
             Gui.DrawPopups();
         }
 
+        private void DrawProgress()
+        {
+            string[] names = { "ようこそ", "画面", "音量", "キー", "完了" };
+            for (int i = 0; i < names.Length; i++)
+            {
+                int x = 160 + i * 325;
+                Color color = i <= (int)step ? Gui.AccentColor : Gui.BorderColor;
+                FontManager.Draw($"{i + 1:00}  {names[i]}", x, 98, 21,
+                    i == (int)step ? Color.White : Gui.SubTextColor);
+                Raylib.DrawRectangle(x, 139, 300, 4, color);
+            }
+        }
+
         // 1ページ目：ようこそ
         private void DrawWelcome()
         {
@@ -263,9 +277,7 @@ namespace TaikoSim.Scenes
         // 2ページ目：画面
         private void DrawDisplay()
         {
-            Title("画面の設定");
-            float titleWidth = FontManager.Measure("画面の設定", 52).X;
-            FontManager.Draw("変更するとすぐに反映されます", Left + titleWidth + 30, 274, 24, Gui.SubTextColor);
+            Title("画面");
 
             GameConfig game = ConfigManager.Game;
             bool windowChanged = false;
@@ -349,7 +361,7 @@ namespace TaikoSim.Scenes
         // 3ページ目：音量
         private void DrawSound()
         {
-            Title("音量の設定");
+            Title("音量");
             FontManager.Draw("それぞれの音の大きさを決めてください（0〜100）。", Left, 330, 28, Color.White);
 
             SoundConfig sound = ConfigManager.Sound;
@@ -384,7 +396,7 @@ namespace TaikoSim.Scenes
         // 4ページ目：叩くキー
         private void DrawKeys()
         {
-            Title("叩くキーの設定");
+            Title("叩くキー");
             string lead = isFirstRun
                 ? "太鼓のそれぞれの場所に使うキーを押してください。"
                 : "キーが設定されていない場所があります。キーを押してください。";
@@ -400,29 +412,31 @@ namespace TaikoSim.Scenes
                 int askIndex = Array.IndexOf(partsToAsk, part);
                 bool done = askIndex < 0 || askIndex < keyIndex;
                 bool current = askIndex >= 0 && askIndex == keyIndex;
+                Raylib.DrawRectangleRounded(row, 0.1f, 8, Gui.BoxColor);
+                FontManager.Draw(name, Left + 24, y + 14, 30, Color.White);
 
                 if (done)
                 {
                     // 決まった場所
-                    Raylib.DrawRectangleRec(row, new Color(30, 50, 40, 255));
                     string keys = string.Join(", ", ConfigManager.Key.DrumKeys.GetValueOrDefault(part, new List<KeyboardKey>()));
-                    FontManager.Draw($"●  {name}：{keys}", Left + 24, y + 14, 32, SuccessColor);
+                    Raylib.DrawRectangle((int)Left, (int)y + 10, 3, 44, SuccessColor);
+                    FontManager.Draw(keys, Left + 350, y + 17, 27, Gui.SubTextColor);
+                    FontManager.Draw("登録済み", Right - 130, y + 19, 22, SuccessColor);
                 }
                 else if (current)
                 {
                     // 今聞いている場所(点滅)
-                    Raylib.DrawRectangleRec(row, new Color(18, 22, 36, 255));
-                    Raylib.DrawRectangleLinesEx(row, 3, Gui.AccentColor);
+                    Raylib.DrawRectangle((int)Left, (int)y + 10, 3, 44, Gui.AccentColor);
                     if ((blinkTimer % 1f) < 0.7f)
                     {
-                        FontManager.Draw($"→  {name}のキーを押してください", Left + 24, y + 14, 32, Gui.AccentColor);
+                        FontManager.Draw("キーを押してください", Left + 350, y + 17, 27, Gui.AccentColor);
                     }
+                    FontManager.Draw("入力中", Right - 110, y + 19, 22, Gui.AccentColor);
                 }
                 else
                 {
                     // まだの場所
-                    Raylib.DrawRectangleRec(row, new Color(28, 31, 42, 255));
-                    FontManager.Draw($"○  {name}", Left + 24, y + 14, 32, PendingColor);
+                    FontManager.Draw("未登録", Right - 110, y + 19, 22, PendingColor);
                 }
                 y += 76;
             }
@@ -533,7 +547,7 @@ namespace TaikoSim.Scenes
 
             if (canNext)
             {
-                if (Gui.Button(nextRect, nextText))
+                if (Gui.PrimaryButton(nextRect, nextText))
                 {
                     GoNext();
                 }
@@ -561,3 +575,4 @@ namespace TaikoSim.Scenes
         }
     }
 }
+

@@ -6,6 +6,7 @@ using TaikoSim.Graphics;
 using TaikoSim.Input;
 using TaikoSim.Overlays;
 using TaikoSim.Scenes;
+using TaikoSim.UI;
 
 namespace TaikoSim
 {
@@ -14,12 +15,13 @@ namespace TaikoSim
     {
         // 設定パネル(オーバーレイ)
         private static readonly SettingsOverlay settings = new();
+        private static bool settingsClosedThisFrame;
 
         // 設定パネルが開いているか(後ろの画面がクリックに反応しないようにするのに使う)
-        public static bool IsSettingsOpen => settings.IsOpen;
+        public static bool IsSettingsOpen => settings.IsOpen || settingsClosedThisFrame;
 
         // 設定パネルを開く(モード選択の「設定」から)
-        public static void OpenSettings() => settings.Open();
+        public static void OpenSettings() => settings.Open(fullScreen: true);
 
         // 右上に少しだけ出すお知らせ(スクショ保存したよ、とか)
         private string toastText = "";
@@ -104,6 +106,7 @@ namespace TaikoSim
         // 更新(入力の処理など)
         private void Update(float dt)
         {
+            settingsClosedThisFrame = false;
             // 裏で曲を読み終わっていたら、新しい曲の一覧に入れ替える(画面の処理より先にやる)
             SongList.Update();
 
@@ -131,6 +134,7 @@ namespace TaikoSim
             if (settings.IsOpen)
             {
                 settings.Update(dt);
+                settingsClosedThisFrame = !settings.IsOpen;
                 return;
             }
 
@@ -148,6 +152,7 @@ namespace TaikoSim
             if (InputManager.IsBackPressed())
             {
                 scene.OnBack();
+                return; // Esc を同じフレームの選曲・モード操作に使わせない
             }
 
             scene.Update(dt);
@@ -160,7 +165,10 @@ namespace TaikoSim
             Screen.BeginCanvas();
             Raylib.ClearBackground(Color.Black);
 
-            SceneManager.Current?.Draw();
+            // モード選択からの全画面設定では、後ろのモード画面を描かない
+            Gui.SetMouseInputEnabled(!IsSettingsOpen);
+            if (!settings.IsFullScreen) SceneManager.Current?.Draw();
+            Gui.SetMouseInputEnabled(true);
 
             if (settings.IsOpen)
             {
@@ -168,7 +176,7 @@ namespace TaikoSim
             }
 
             // FPS表示(左上)
-            if (ConfigManager.Game.ShowFps)
+            if (ConfigManager.Game.ShowFps && !settings.IsFullScreen)
             {
                 // 設定パネルが開いているときはパネルの右隣に出す(ロゴとかぶらないように)
                 float fpsX = settings.IsOpen ? SettingsOverlay.PanelWidth + 10 : 10;

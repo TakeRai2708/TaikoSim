@@ -119,7 +119,7 @@ namespace TaikoSim.UI
         }
 
         // 開いた板のまわりの黄色い枠(決定したあとは点滅 → 白)
-        public void DrawFrame(Rectangle area, float alpha)
+        public void DrawFrame(Rectangle area, float alpha, string? selectedImage = null)
         {
             if (!FrameShown) return;
             Color color = CursorColor;
@@ -139,9 +139,10 @@ namespace TaikoSim.UI
             bool decided = Deciding && DecideTime >= BlinkEnd;
             Rectangle Row(int row) => new Rectangle(18, 22 + 210 * row, 972, 166);
             const int corner = 50; // 角の丸み(48px)より大きく切る(丸みが伸ばす場所に入って、ゆがまないように)
-            if (MenuSkin.NPatchPart(Folder + "Bar/Selected.png", Row(decided ? 2 : 0), frame, corner, MenuSkin.White(a)))
+            string path = selectedImage ?? Folder + "Bar/Selected.png";
+            if (MenuSkin.NPatchPart(path, Row(decided ? 2 : 0), frame, corner, MenuSkin.White(a)))
             {
-                if (!decided) MenuSkin.NPatchPart(Folder + "Bar/Selected.png", Row(2), frame, corner, MenuSkin.White(a * WhiteOnYellow));
+                if (!decided) MenuSkin.NPatchPart(path, Row(2), frame, corner, MenuSkin.White(a * WhiteOnYellow));
                 return;
             }
             string image = Deciding && DecideTime >= BlinkEnd ? "Bar_Cursor_Decide.png" : "Bar_Cursor.png";

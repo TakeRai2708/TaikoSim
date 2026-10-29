@@ -17,6 +17,25 @@ namespace TaikoSim.Configs
         public static KeyConfig Key { get; private set; } = new();
         public static SkinConfig Skin { get; private set; } = new();
 
+        // 全画面の設定画面で、適用前の値を本番の設定から分けて持つ
+        public static T Copy<T>(T value) where T : class
+        {
+            string json = JsonSerializer.Serialize(value, Options);
+            return JsonSerializer.Deserialize<T>(json, Options)!;
+        }
+
+        public static bool Same<T>(T left, T right) where T : class =>
+            JsonSerializer.Serialize(left, Options) == JsonSerializer.Serialize(right, Options);
+
+        public static void Replace(GameConfig game, SoundConfig sound, KeyConfig key, SkinConfig skin)
+        {
+            Game = game;
+            Sound = sound;
+            Key = key;
+            Skin = skin;
+            SaveAll();
+        }
+
         // JSONの書き方の設定
         private static readonly JsonSerializerOptions Options = new()
         {

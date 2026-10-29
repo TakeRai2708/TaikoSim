@@ -9,17 +9,24 @@ namespace TaikoSim.UI
     public static class Gui
     {
         // ===== 色 =====
-        public static readonly Color TextColor = Color.White;
-        public static readonly Color SubTextColor = new Color(160, 166, 182, 255);
-        public static readonly Color BoxColor = new Color(38, 48, 78, 255);
-        public static readonly Color BoxHoverColor = new Color(54, 68, 108, 255);
-        public static readonly Color FillColor = new Color(52, 90, 170, 255);
-        public static readonly Color AccentColor = new Color(80, 150, 255, 255);
+        public static readonly Color TextColor = new Color(244, 247, 252, 255);
+        public static readonly Color SubTextColor = new Color(170, 181, 200, 255);
+        public static readonly Color BoxColor = new Color(23, 34, 53, 255);
+        public static readonly Color BoxHoverColor = new Color(34, 52, 79, 255);
+        public static readonly Color FillColor = new Color(59, 130, 246, 255);
+        public static readonly Color AccentColor = new Color(59, 130, 246, 255);
+        public static readonly Color BackgroundColor = new Color(11, 15, 20, 255);
+        public static readonly Color PanelColor = new Color(17, 24, 39, 255);
+        public static readonly Color BorderColor = new Color(37, 50, 71, 255);
 
         // ===== 今のフレームのマウスの状態 =====
         private static Vector2 mouse;
         private static bool mousePressed;
         private static bool mouseDown;
+        // 背後のシーンを描く間は、設定画面へ向けたクリックを渡さない
+        private static bool mouseInputEnabled = true;
+
+        public static void SetMouseInputEnabled(bool enabled) => mouseInputEnabled = enabled;
 
         // はみ出して見えない部分をクリックできないようにする範囲
         private static Rectangle clip = FullScreen();
@@ -62,8 +69,8 @@ namespace TaikoSim.UI
         public static void BeginFrame()
         {
             mouse = Screen.GetMousePosition();
-            mousePressed = Raylib.IsMouseButtonPressed(MouseButton.Left);
-            mouseDown = Raylib.IsMouseButtonDown(MouseButton.Left);
+            mousePressed = mouseInputEnabled && Raylib.IsMouseButtonPressed(MouseButton.Left);
+            mouseDown = mouseInputEnabled && Raylib.IsMouseButtonDown(MouseButton.Left);
             blocked = popupId != null;
             popupJustOpened = false;
             caretTimer += Raylib.GetFrameTime();
@@ -131,8 +138,17 @@ namespace TaikoSim.UI
         public static bool Button(Rectangle area, string text)
         {
             bool hover = !blocked && IsMouseOver(area);
-            Raylib.DrawRectangleRec(area, hover ? BoxHoverColor : BoxColor);
+            Raylib.DrawRectangleRounded(area, 0.18f, 8, hover ? BoxHoverColor : BoxColor);
             DrawCentered(text, area, 26, TextColor);
+            return Clicked(area);
+        }
+
+        // 決定・適用など、主な操作の青いボタン
+        public static bool PrimaryButton(Rectangle area, string text)
+        {
+            bool hover = !blocked && IsMouseOver(area);
+            Raylib.DrawRectangleRounded(area, 0.18f, 8, hover ? new Color(84, 153, 255, 255) : AccentColor);
+            DrawCentered(text, area, 26, Color.White);
             return Clicked(area);
         }
 
@@ -140,20 +156,12 @@ namespace TaikoSim.UI
         public static bool Checkbox(Rectangle area, string text, bool value)
         {
             bool hover = !blocked && IsMouseOver(area);
+            Label(text, area.X, area.Y + 4, 26);
 
-            // 四角
-            Rectangle box = new Rectangle(area.X, area.Y + (area.Height - 30) / 2f, 30, 30);
-            Raylib.DrawRectangleRec(box, hover ? BoxHoverColor : BoxColor);
-
-            // チェックマーク
-            if (value)
-            {
-                Raylib.DrawLineEx(new Vector2(box.X + 6, box.Y + 15), new Vector2(box.X + 12, box.Y + 22), 4, AccentColor);
-                Raylib.DrawLineEx(new Vector2(box.X + 12, box.Y + 22), new Vector2(box.X + 24, box.Y + 8), 4, AccentColor);
-            }
-
-            // 文字
-            Label(text, box.X + 48, area.Y + 4, 26);
+            // ON/OFF は共通の丸いノブにする
+            Rectangle track = new Rectangle(area.X + area.Width - 70, area.Y + (area.Height - 34) / 2f, 66, 34);
+            Raylib.DrawRectangleRounded(track, 1f, 16, value ? AccentColor : (hover ? BoxHoverColor : BoxColor));
+            Raylib.DrawCircleV(new Vector2(track.X + (value ? 48 : 18), track.Y + 17), 13, Color.White);
 
             return Clicked(area) ? !value : value;
         }
@@ -204,9 +212,9 @@ namespace TaikoSim.UI
             float fillTo = Math.Max(zeroRatio, ratio);
 
             bool barHover = !blocked && IsMouseOver(bar);
-            Raylib.DrawRectangleRec(bar, barHover || draggingId == id ? BoxHoverColor : BoxColor);
-            Raylib.DrawRectangleRec(new Rectangle(bar.X + bar.Width * fillFrom, bar.Y, bar.Width * (fillTo - fillFrom), bar.Height), FillColor);
-            Raylib.DrawRectangleRec(new Rectangle(bar.X + bar.Width * ratio - 4, bar.Y, 8, bar.Height), AccentColor);
+            Raylib.DrawRectangleRounded(bar, 0.7f, 8, barHover || draggingId == id ? BoxHoverColor : BoxColor);
+            Raylib.DrawRectangleRounded(new Rectangle(bar.X + bar.Width * fillFrom, bar.Y, Math.Max(1, bar.Width * (fillTo - fillFrom)), bar.Height), 0.7f, 8, FillColor);
+            Raylib.DrawCircleV(new Vector2(bar.X + bar.Width * ratio, bar.Y + bar.Height / 2f), 12, Color.White);
 
             // 選択中は枠を光らせる
             if (focused)
@@ -324,10 +332,11 @@ namespace TaikoSim.UI
 
             bool open = popupId == id;
             bool hover = !blocked && IsMouseOver(area);
-            Raylib.DrawRectangleRec(area, hover || open ? BoxHoverColor : BoxColor);
+            Raylib.DrawRectangleRounded(area, 0.18f, 8, hover || open ? BoxHoverColor : BoxColor);
 
             string text = (selected >= 0 && selected < options.Length) ? options[selected] : "-";
-            DrawCentered(text, area, 26, TextColor);
+            FontManager.Draw(FitDropdownText(text, area.Width - 58), area.X + 16,
+                area.Y + (area.Height - FontManager.Measure(text, 26).Y) / 2f, 26, TextColor);
             FontManager.Draw("▼", area.X + area.Width - 32, area.Y + (area.Height - 20) / 2f, 20, SubTextColor);
 
             if (Clicked(area))
@@ -367,7 +376,8 @@ namespace TaikoSim.UI
                 if (i == popupSelected) Raylib.DrawRectangleRec(item, new Color(40, 70, 140, 255));
                 else if (hover) Raylib.DrawRectangleRec(item, BoxHoverColor);
 
-                DrawCentered(popupOptions[i], item, 26, TextColor);
+                FontManager.Draw(FitDropdownText(popupOptions[i], item.Width - 32), item.X + 16,
+                    item.Y + (item.Height - FontManager.Measure(popupOptions[i], 26).Y) / 2f, 26, TextColor);
 
                 if (hover && mousePressed && !popupJustOpened)
                 {
@@ -382,6 +392,16 @@ namespace TaikoSim.UI
             {
                 popupId = null;
             }
+        }
+
+        // 長いスキン名なども矢印やパネルの外に重ならないようにする
+        private static string FitDropdownText(string text, float maxWidth)
+        {
+            if (FontManager.Measure(text, 26).X <= maxWidth) return text;
+            string cut = text;
+            while (cut.Length > 1 && FontManager.Measure(cut + "…", 26).X > maxWidth)
+                cut = cut[..^1];
+            return cut + "…";
         }
 
         private static Rectangle FullScreen() => new Rectangle(0, 0, Screen.Width, Screen.Height);
