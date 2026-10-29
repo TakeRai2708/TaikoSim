@@ -1549,8 +1549,8 @@ namespace TaikoSim.Scenes
             string hint;
             if (SongList.IsScanning) hint = "曲を読み込み中…　Esc：モード選択へ（読み込みは続きます）";
             else if (searchFocused) hint = "文字を入れて検索　Enter：結果を開く　Esc：検索をやめる";
-            else if (options.IsOpen) hint = options.IsTyping ? "数字を入力　Enter：決定"
-                : "カッ・←→：値を変える　ドン：次へ（最後で閉じる）　↑↓：項目　数字キー：直接入力　Esc・F2：閉じる";
+            else if (options.IsOpen) hint = options.ErrorMessage ?? (options.IsTyping ? "数字を入力　Enter：決定"
+                : "カッ・←→：値を変える　ドン：次へ（最後で閉じる）　↑↓：項目　数字キー：直接入力　Esc・F2：閉じる");
             else if (diffOpen) hint = "";
             else if (inSongs)
             {

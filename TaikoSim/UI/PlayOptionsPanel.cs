@@ -1,4 +1,4 @@
-﻿﻿using System.Globalization;
+﻿using System.Globalization;
 using System.Numerics;
 using Raylib_cs;
 using TaikoSim.Audio;
@@ -11,9 +11,13 @@ namespace TaikoSim.UI
     // 演奏オプションの板(難易度選択の「オプション」・F2 で開く)
     //
     // 見た目：A-Style の 02.SongSelect/Option/ の画像で描く(無ければプログラムで同じ形を描く)
-    //   Background.png(432×614 の板)・Option_Base.png(364×52 の項目の帯)・Option_Value_Base.png(値の箱)・
-    //   Option_Value_Arrow.png(◀。右は左右反転)・PlayerSide.png(64×64 が横に3つ。左の 1P を選んでいる項目の横に出す)
-    //   TaikøNauts の動画にこの板が映っていないので、置き場所は TaikoSim で決めた(左下。開いた形で x=20, y=450)
+    //   TaikøNauts の動画(10/18 の 2026-10-18_00-27-01.mp4 の 50〜58秒)を 1/60秒ずつ測った：
+    //   ・板(Background.png 432×614)は原寸で (0, 465)。8項目ぶんの大きさなので、TaikoSim は9項目ぶん縦に 61px 伸ばして、上に 61px ずらす
+    //   ・左上に 1P の印(PlayerSide.png の左の 64×64 を 54px で (36, 28))、その右に「演奏オプション」(白い字に黒い縁)
+    //   ・項目の帯(Option_Base.png 364×52)は板の (32, 94) から 61px ずつ。ふだんは白を半分だけ重ねる(うすい黄緑に見える)、選んでいる帯はこい黄色 (254,255,0)
+    //   ・項目の名前は白い字に黒い縁(帯の左から 11px)。値は白い箱(Option_Value_Base.png 180×40 を帯の (178, 6))に、黒っぽい字に白い縁
+    //   ・選んでいる帯は値の箱を出さずに、◀ 値 ▶(矢印は帯の (186, 10) と (326, 10))
+    //   ・ON/OFF は「する」「しない」
     //
     // 操作(OpenTaiko の CActPlayOption と同じ)：
     //   カッ・←→ … 選んでいる項目の値を変える
@@ -23,31 +27,46 @@ namespace TaikoSim.UI
     //   Esc・F2 … 閉じる(SongSelectScene から呼ぶ)
     //   マウス … 項目をクリックで選ぶ、◀▶で値を変える、値の箱をクリックで ON/OFF・直接入力、板の外をクリックで閉じる
     //
-    // 動き(OpenTaiko の CActPlayOption と同じ式。1段 6ms × 50段 = 0.3秒)：
-    //   開く：下から上がってきて、少し行きすぎてから戻る。閉じる：少し上がってから、下へ落ちていく
+    // 動き(TaikøNauts の動画を測った。OpenTaiko の式とは少しちがった)：
+    //   開く：画面の下から 1秒に 3000px で上がってきて、60px 行きすぎたところ(0.22秒くらい)から 0.07秒で戻る
+    //   閉じる：0.04秒で 54px 上がって、0.04秒で戻り、そこから 1秒に 3100px で下へ落ちていく
     public sealed class PlayOptionsPanel
     {
         // ===== 置き場所(1920×1080) =====
         private const string Folder = "Image/02.SongSelect/Option/";
-        private const float PanelX = 20f, PanelY = 450f, PanelWidth = 432f, PanelHeight = 614f;
-        private const float RowX = 34f, RowTop = 84f, RowStep = 56f, RowWidth = 364f, RowHeight = 52f; // 板の左上から
-        private static readonly Rectangle ValueBox = new Rectangle(196, 6, 134, 40);   // 項目の帯の左上から
-        private static readonly Rectangle LeftArrow = new Rectangle(166, 10, 28, 32);
-        private static readonly Rectangle RightArrow = new Rectangle(332, 10, 28, 32);
+        private const float PanelX = 0f, PanelWidth = 432f;
+        private const float BaseTop = 465f, BaseHeight = 614f, BaseRows = 8f;   // TaikøNauts の板(8項目)
+        private const float RowX = 32f, RowTop = 94f, RowStep = 61f, RowWidth = 364f, RowHeight = 52f; // 板の左上から
+        private static readonly Rectangle ValueBox = new Rectangle(178, 6, 180, 40);   // 項目の帯の左上から
+        private static readonly Rectangle LeftArrow = new Rectangle(186, 10, 28, 32);
+        private static readonly Rectangle RightArrow = new Rectangle(326, 10, 28, 32);
+        private static readonly Rectangle SideMark = new Rectangle(36, 28, 54, 54);     // 板の左上から
+        private const float TitleX = 105f, TitleCenterY = 55f, TitleSize = 32f;
+        private const float LabelSize = 26f, ValueSize = 26f;
 
-        private static readonly Color LabelColor = new Color(48, 48, 58, 255);
-        private static readonly Color SelectedRowTint = new Color(255, 236, 110, 255);  // 選んでいる項目の帯(黄色)
-        private static readonly Color ValueBoxTint = new Color(64, 72, 92, 255);
-        private static readonly Color ErrorColor = new Color(255, 110, 100, 255);
-        private static readonly Color DescColor = new Color(255, 255, 255, 235);
+        // 項目の数に合わせて、板を縦に伸ばす(下の端はそのまま、上へ伸ばす)
+        private float PanelHeight => BaseHeight + (items.Length - BaseRows) * RowStep;
+        private float PanelTop => BaseTop - (items.Length - BaseRows) * RowStep;
 
-        // ===== 開く・閉じる動き =====
-        private const float StepSeconds = 0.006f, Steps = 50f;
+        private static readonly Color Ink = new Color(20, 20, 24, 255);
+        private static readonly Color ValueInk = new Color(40, 40, 40, 255);
+        private static readonly Color SelectedRowTint = new Color(254, 255, 0, 255);  // 選んでいる項目の帯(こい黄色)
+        private static readonly Color RowTint = new Color(255, 255, 255, 128);        // ふだんの帯(白を半分)
+        private static readonly Color ErrorColor = new Color(255, 70, 60, 255);
+
+        // ===== 開く・閉じる動き(秒・px) =====
+        private const float RiseSpeed = 3000f, Overshoot = 60f, SettleSeconds = 0.07f;
+        private const float CloseUp = 54f, CloseUpSeconds = 0.04f, FallSpeed = 3100f;
         private float openTime = -1f, closeTime = -1f;   // -1 なら動いていない
 
         public bool IsOpen { get; private set; }
         private bool Closing => closeTime >= 0f;
-        private bool Opened => openTime >= StepSeconds * Steps;   // 開ききった(ドンを受け付ける)
+        private float RiseSeconds => (Screen.Height - PanelTop + Overshoot) / RiseSpeed;     // 画面の下から、行きすぎるところまで
+        private bool Opened => openTime >= RiseSeconds + SettleSeconds;                      // 開ききった(ドンを受け付ける)
+        private bool CloseDone => closeTime >= CloseUpSeconds * 2f + (Screen.Height - PanelTop) / FallSpeed;
+
+        // 入力した数字がだめなときの説明(選曲画面の一番下のヒントに出す)。だめでなければ null
+        public string? ErrorMessage => editRow >= 0 && editInvalid ? ErrorText(items[editRow]) : null;
 
         // 数字を入力中か(入力中は、ドン・カッ・Enter を入力の方に使う)
         public bool IsTyping => editRow >= 0;
@@ -56,7 +75,7 @@ namespace TaikoSim.UI
         private enum Kind { Toggle, HiSpeed, AutoRoll, Percent }
         private sealed class Item
         {
-            public string Label = "", Desc = "";
+            public string Label = "";
             public Kind Kind;
             public Func<bool> GetBool = () => false;
             public Action<bool> SetBool = _ => { };
@@ -68,22 +87,22 @@ namespace TaikoSim.UI
 
         private readonly Item[] items =
         {
-            new Item { Label = "オート演奏", Desc = "オートで叩いてくれる", Kind = Kind.Toggle,
+            new Item { Label = "オート演奏", Kind = Kind.Toggle,
                 GetBool = () => Cfg.AutoPlay, SetBool = v => Cfg.AutoPlay = v },
-            new Item { Label = "HS倍率", Desc = "SCROLL に掛ける倍率。数字キーでも入力", Kind = Kind.HiSpeed },
-            new Item { Label = "オート連打", Desc = "1秒に叩く数（0＝叩かない）", Kind = Kind.AutoRoll,
+            new Item { Label = "はやさ", Kind = Kind.HiSpeed },  // TJA の SCROLL に掛ける倍率(本家の「はやさ」)
+            new Item { Label = "オート連打", Kind = Kind.AutoRoll,
                 GetInt = () => Cfg.AutoRollPerSecond, SetInt = v => Cfg.AutoRollPerSecond = v },
-            new Item { Label = "精度：良", Desc = "オートの判定の割合（%）", Kind = Kind.Percent,
+            new Item { Label = "精度：良", Kind = Kind.Percent,
                 GetInt = () => Cfg.AutoGoodPercent, SetInt = v => Cfg.AutoGoodPercent = v },
-            new Item { Label = "精度：可", Desc = "オートの判定の割合（%）", Kind = Kind.Percent,
+            new Item { Label = "精度：可", Kind = Kind.Percent,
                 GetInt = () => Cfg.AutoOkPercent, SetInt = v => Cfg.AutoOkPercent = v },
-            new Item { Label = "精度：不可", Desc = "オートの判定の割合（%）", Kind = Kind.Percent,
+            new Item { Label = "精度：不可", Kind = Kind.Percent,
                 GetInt = () => Cfg.AutoBadPercent, SetInt = v => Cfg.AutoBadPercent = v },
-            new Item { Label = "毎回同じ出方", Desc = "オートのずれ方を毎回同じに", Kind = Kind.Toggle,
+            new Item { Label = "毎回同じ出方", Kind = Kind.Toggle,
                 GetBool = () => Cfg.AutoFixedPattern, SetBool = v => Cfg.AutoFixedPattern = v },
-            new Item { Label = "判定の板", Desc = "演奏中に良・可・不可の数を出す", Kind = Kind.Toggle,
+            new Item { Label = "判定の板", Kind = Kind.Toggle,
                 GetBool = () => Cfg.ShowScoreboard, SetBool = v => Cfg.ShowScoreboard = v },
-            new Item { Label = "デバッグ記録", Desc = "重さ・入力を Logs に CSV で記録", Kind = Kind.Toggle,
+            new Item { Label = "デバッグ記録", Kind = Kind.Toggle,
                 GetBool = () => Cfg.DebugLog, SetBool = v => Cfg.DebugLog = v },
         };
 
@@ -142,7 +161,7 @@ namespace TaikoSim.UI
             if (Closing)
             {
                 closeTime += step;
-                if (closeTime >= StepSeconds * Steps) { IsOpen = false; openTime = closeTime = -1f; }
+                if (CloseDone) { IsOpen = false; openTime = closeTime = -1f; }
                 return;
             }
             openTime += step;
@@ -225,7 +244,7 @@ namespace TaikoSim.UI
         private void BeginEdit(int row, bool selectAll)
         {
             editRow = row;
-            editText = ValueText(items[row]).TrimStart('×').Replace("%", "");
+            editText = ValueText(items[row]).Replace("%", "");
             editSelectAll = selectAll;
             editInvalid = false;
             caretTimer = 0f;
@@ -289,8 +308,8 @@ namespace TaikoSim.UI
 
         private static string ValueText(Item item) => item.Kind switch
         {
-            Kind.Toggle => item.GetBool() ? "ON" : "OFF",
-            Kind.HiSpeed => "×" + (Cfg.HiSpeed > 0f ? Cfg.HiSpeed : 1f).ToString("0.0##", CultureInfo.InvariantCulture),
+            Kind.Toggle => item.GetBool() ? "する" : "しない",
+            Kind.HiSpeed => (Cfg.HiSpeed > 0f ? Cfg.HiSpeed : 1f).ToString("0.0##", CultureInfo.InvariantCulture),
             Kind.Percent => item.GetInt().ToString(CultureInfo.InvariantCulture) + "%",
             _ => item.GetInt().ToString(CultureInfo.InvariantCulture),
         };
@@ -304,19 +323,26 @@ namespace TaikoSim.UI
 
         // ===== 描く(マウスの操作もここで受け取る) =====
 
-        // OpenTaiko の開く・閉じる動き(板の y のずれ)
+        // 開く・閉じる動き(板の y のずれ。TaikøNauts の動画を測った)
         private float SlideY()
         {
             float y = 0f;
             if (openTime >= 0f)
             {
-                float ct = Math.Min(openTime / StepSeconds, Steps);
-                y += ct < 30f ? 410f - ct * 18f : -80f + (ct - 30f) * 4f; // 下から上がって、少し行きすぎて戻る
+                float start = Screen.Height - PanelTop; // 画面の下にちょうど隠れる場所から
+                if (openTime < RiseSeconds) y = start - RiseSpeed * openTime;   // 一定の速さで上がる
+                else
+                {
+                    float u = Math.Clamp((openTime - RiseSeconds) / SettleSeconds, 0f, 1f);
+                    y = -Overshoot * (1f - u) * (1f - u);                       // 行きすぎた分を、ゆっくり戻す
+                }
             }
             if (closeTime >= 0f)
             {
-                float ct = Math.Min(closeTime / StepSeconds, Steps);
-                y += ct < 20f ? -ct * 3f : 20f + (ct - 20f) * 16f;          // 少し上がってから、下へ落ちる
+                float t = closeTime;
+                if (t < CloseUpSeconds) { float u = t / CloseUpSeconds; y = -CloseUp * (1f - (1f - u) * (1f - u)); }      // すっと上がる
+                else if (t < CloseUpSeconds * 2f) { float u = (t - CloseUpSeconds) / CloseUpSeconds; y = -CloseUp * (1f - u * u); } // 戻る
+                else y = FallSpeed * (t - CloseUpSeconds * 2f);                                                        // 下へ落ちる
             }
             return y;
         }
@@ -324,80 +350,75 @@ namespace TaikoSim.UI
         public void Draw(bool active)
         {
             if (!IsOpen) return;
-            float px = PanelX, py = PanelY + SlideY();
+            float px = PanelX, py = PanelTop + SlideY();
             bool input = active && !Closing;
             Vector2 mouse = Screen.GetMousePosition();
             bool pressed = input && Raylib.IsMouseButtonPressed(MouseButton.Left);
 
-            // ----- 板 -----
+            // ----- 板(9項目ぶん縦に伸ばす。角や縁がゆがまないように9つに切って伸ばす) -----
             Rectangle panel = new Rectangle(px, py, PanelWidth, PanelHeight);
-            if (!MenuSkin.Whole(Folder + "Background.png", panel, Color.White))
+            if (!MenuSkin.NPatch(Folder + "Background.png", panel, 60, Color.White))
             {
                 Raylib.DrawRectangleRounded(panel, 0.06f, 8, new Color(20, 24, 34, 245));
                 Raylib.DrawRectangleRoundedLinesEx(panel, 0.06f, 8, 3f, Gui.AccentColor);
             }
 
-            // 題と、選んでいる項目の説明(入力がだめなときは赤で)
-            FontManager.DrawOutlined("演奏オプション", px + (PanelWidth - FontManager.Measure("演奏オプション", 30).X) / 2f, py + 20,
-                30, Color.White, new Color(30, 30, 40, 255), 4f);
-            bool error = editRow >= 0 && editInvalid;
-            string desc = error ? ErrorText(items[editRow]) : items[cursor].Desc;
-            float descSize = 17f;
-            FontManager.DrawOutlined(desc, px + (PanelWidth - FontManager.Measure(desc, descSize).X) / 2f, py + 58,
-                descSize, error ? ErrorColor : DescColor, new Color(30, 30, 40, 200), 3f);
+            // ----- 左上の 1P の印と「演奏オプション」 -----
+            Rectangle mark = Offset(SideMark, panel);
+            if (!MenuSkin.Part(Folder + "PlayerSide.png", new Rectangle(0, 0, 64, 64), mark, Color.White))
+            {
+                Raylib.DrawCircleV(new Vector2(mark.X + mark.Width / 2f, mark.Y + mark.Height / 2f), mark.Width / 2f - 2f, new Color(232, 72, 58, 255));
+                Gui.DrawCentered("1P", mark, 22, Color.White);
+            }
+            Outlined("演奏オプション", px + TitleX, py + TitleCenterY, TitleSize, Color.White, Ink, centerX: false);
 
             // ----- 項目 -----
             for (int i = 0; i < items.Length; i++)
             {
                 Item item = items[i];
-                Rectangle row = new Rectangle(px + RowX, py + RowTop + i * RowStep, RowWidth, RowHeight);
+                Rectangle row = RowArea(i, px, py);
                 bool selected = i == cursor;
-                Color rowTint = selected ? SelectedRowTint : Color.White;
+                bool editing = editRow == i;
+                Color rowTint = selected ? SelectedRowTint : RowTint;
                 if (!MenuSkin.Whole(Folder + "Option_Base.png", row, rowTint))
                     Raylib.DrawRectangleRounded(row, 0.3f, 8, rowTint);
 
-                Vector2 label = FontManager.Measure(item.Label, 22);
-                FontManager.Draw(item.Label, row.X + 18, row.Y + (RowHeight - label.Y) / 2f, 22, LabelColor);
+                // 項目の名前(白い字に黒い縁)
+                Outlined(item.Label, row.X + 11, row.Y + RowHeight / 2f, LabelSize, Color.White, Ink, centerX: false);
 
+                // 値：選んでいる帯は ◀ 値 ▶、ほかは白い箱の中(入力中は選んでいても箱を出す)
                 Rectangle box = Offset(ValueBox, row);
-                if (!MenuSkin.NPatch(Folder + "Option_Value_Base.png", box, 20, ValueBoxTint))
-                    Raylib.DrawRectangleRounded(box, 1f, 12, ValueBoxTint);
-
-                bool editing = editRow == i;
+                string value = editing ? editText : ValueText(item);
+                if (!selected || editing)
+                {
+                    if (!MenuSkin.NPatch(Folder + "Option_Value_Base.png", box, 20, Color.White))
+                        Raylib.DrawRectangleRounded(box, 1f, 12, Color.White);
+                }
                 if (editing)
                 {
-                    Raylib.DrawRectangleRoundedLinesEx(box, 1f, 12, 2f, editInvalid ? ErrorColor : Gui.AccentColor);
-                    Vector2 size = FontManager.Measure(editText, 24);
-                    float tx = box.X + (box.Width - size.X) / 2f, ty = box.Y + (box.Height - size.Y) / 2f;
-                    if (editSelectAll && editText.Length > 0)
-                        Raylib.DrawRectangleRec(new Rectangle(tx - 3, ty, size.X + 6, size.Y), new Color(45, 82, 130, 255));
-                    FontManager.Draw(editText, tx, ty, 24, Color.White);
-                    if (!editSelectAll && caretTimer % 1f < 0.5f) FontManager.Draw("|", tx + size.X + 1, ty, 24, Color.White);
+                    Raylib.DrawRectangleRoundedLinesEx(box, 1f, 12, 3f, editInvalid ? ErrorColor : Gui.AccentColor);
+                    Vector2 size = MeasureSkin(value, ValueSize);
+                    float cx = box.X + box.Width / 2f, cy = box.Y + box.Height / 2f;
+                    if (editSelectAll && value.Length > 0)
+                        Raylib.DrawRectangleRec(new Rectangle(cx - size.X / 2f - 3, cy - size.Y / 2f, size.X + 6, size.Y), new Color(120, 170, 255, 255));
+                    Outlined(value, cx, cy, ValueSize, ValueInk, Color.White, centerX: true);
+                    if (!editSelectAll && caretTimer % 1f < 0.5f) Outlined("|", cx + size.X / 2f + 4, cy, ValueSize, ValueInk, Color.White, centerX: false);
                 }
                 else
                 {
-                    string value = ValueText(item);
-                    Color color = item.Kind == Kind.Toggle && !item.GetBool() ? Gui.SubTextColor : Color.White;
-                    Gui.DrawCentered(value, box, 24, color);
+                    float cx = selected ? row.X + (LeftArrow.X + LeftArrow.Width + RightArrow.X) / 2f : box.X + box.Width / 2f;
+                    Outlined(value, cx, row.Y + RowHeight / 2f, ValueSize, ValueInk, Color.White, centerX: true);
                 }
-
-                // 選んでいる項目：左に 1P の印、値の両わきに◀▶
-                if (selected)
+                if (selected && !editing)
                 {
-                    Rectangle mark = new Rectangle(row.X - 44, row.Y + 2, 48, 48);
-                    if (!MenuSkin.Part(Folder + "PlayerSide.png", new Rectangle(0, 0, 64, 64), mark, Color.White))
-                    {
-                        Raylib.DrawCircleV(new Vector2(mark.X + 24, mark.Y + 24), 22, new Color(232, 72, 58, 255));
-                        Gui.DrawCentered("1P", mark, 20, Color.White);
-                    }
                     DrawArrow(Offset(LeftArrow, row), flip: false);
                     DrawArrow(Offset(RightArrow, row), flip: true);
                 }
 
                 // ----- マウス -----
                 if (!pressed || editRow >= 0 && editRow != i) continue;
-                if (selected && Raylib.CheckCollisionPointRec(mouse, Offset(LeftArrow, row))) Change(i, -1);
-                else if (selected && Raylib.CheckCollisionPointRec(mouse, Offset(RightArrow, row))) Change(i, +1);
+                if (selected && !editing && Raylib.CheckCollisionPointRec(mouse, Offset(LeftArrow, row))) Change(i, -1);
+                else if (selected && !editing && Raylib.CheckCollisionPointRec(mouse, Offset(RightArrow, row))) Change(i, +1);
                 else if (Raylib.CheckCollisionPointRec(mouse, box))
                 {
                     cursor = i;
@@ -419,6 +440,16 @@ namespace TaikoSim.UI
             // 板の外をクリックしたら閉じる
             if (pressed && !Raylib.CheckCollisionPointRec(mouse, panel)) Close();
         }
+
+        // スキンのフォント(太鼓っぽい太字)で、縁取りした文字を描く。y は文字の上下の真ん中
+        private static void Outlined(string text, float x, float centerY, float size, Color fill, Color outline, bool centerX)
+        {
+            Vector2 m = MeasureSkin(text, size);
+            float thickness = Math.Min(Math.Max(2f, size * 0.13f), DynamicFont.MaxOutline(size));
+            FontManager.DrawSkinMainOutlined(text, centerX ? x - m.X / 2f : x, centerY - m.Y / 2f, size, fill, outline, thickness);
+        }
+
+        private static Vector2 MeasureSkin(string text, float size) => FontManager.MeasureSkinMain(text, size);
 
         private static Rectangle RowArea(int i, float px, float py) =>
             new Rectangle(px + RowX, py + RowTop + i * RowStep, RowWidth, RowHeight);
