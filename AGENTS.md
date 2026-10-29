@@ -287,6 +287,10 @@ python sounds.py      # 音（ffmpeg が必要）
   - 置き場所は TaikoSim で決めた（左下、開いた形で (20, 450)）。TaikøNauts の動画にこの板が映っていないので、動画をもらえたら合わせる
   - 開く音は `Sound/SongSelect/Option.ogg`（無ければドン）。Simple の画像は `menu.py` の `option_images()`
 
+- おに ⇔ 裏おに：おにの上で右（カッ・→ の押し直し）を **10回** で切り替え（本物の新筐体と同じ。たけらいの希望）。左へ動いたら数え直し、Tab はすぐ切り替え
+  - OpenTaiko は1回で切り替わる（`nスイッチカウント` はあるけど、マイナスにする場所が無くて使われていない。最初のコミットから同じ）
+  - 音は `Sound/SongSelect/UraFlip.ogg`（A-Style にある。Simple は `sounds.py` の `ura_flip()`。無ければドン）
+
 ### これからやること（たけらいと話していたもの）
 - A-Style の選曲画面の第2段：検索・オプションの板・鬼→裏の切り替えアニメ（`Oni_Transition.png`）・自己ベスト・王冠
 - モード選択の A-Style 対応（TaikøNauts のフォルダ名を教えてもらう）

@@ -134,6 +134,10 @@ def skip():
     y += np.sin(2 * np.pi * 1900 * x) * np.exp(-x / 0.025) * 0.5   # 頭にカッっぽい音
     return y
 
+def ura_flip():
+    """難易度選択で、おに ⇔ 裏おにを切り替えたときの音(キラッと上がる和音。0.7秒)"""
+    return mix(0.8, [(0, don() * 0.6)] + [(0.03 + i * 0.05, bell(mtof(m), 0.7, 0.22)) for i, m in enumerate([72, 79, 84, 91])])
+
 def run():
     save('Sound/Taiko/0.Taiko/don.ogg', don())
     save('Sound/Taiko/0.Taiko/ka.ogg', ka())
@@ -148,6 +152,7 @@ def run():
     save('Sound/Result/Crown_FullCombo.ogg', mix(1.8, [(i * 0.07, bell(mtof(m), 1.4, 0.2)) for i, m in enumerate([72, 76, 79, 84])]))
     save('Sound/Result/Crown_DondaFullCombo.ogg', mix(2.2, [(i * 0.06, bell(mtof(m), 1.6, 0.2)) for i, m in enumerate([72, 76, 79, 84, 88, 91])]))
     save('Sound/SongSelect/Skip.ogg', skip())
+    save('Sound/SongSelect/UraFlip.ogg', ura_flip())
     # 吹き出しの音とリザルトの BGM は無し
 
 if __name__ == '__main__':

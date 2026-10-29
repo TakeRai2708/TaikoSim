@@ -12,8 +12,9 @@ namespace TaikoSim.Audio
         private const string KaFile = "Sound/Taiko/0.Taiko/ka.ogg";
         private const string SkipFile = "Sound/SongSelect/Skip.ogg";     // 選曲画面で7曲まとめて飛ぶとき(TaikøNauts の A-Style と同じ場所)
         private const string OptionFile = "Sound/SongSelect/Option.ogg"; // 演奏オプションの板を開いたとき
+        private const string UraFlipFile = "Sound/SongSelect/UraFlip.ogg"; // おに ⇔ 裏おにを切り替えたとき
 
-        private static SoundEffect? don, ka, skip, option;
+        private static SoundEffect? don, ka, skip, option, uraFlip;
         private static int loadedSkin = -1;
         private static int loadedAudio = -1;
 
@@ -43,6 +44,13 @@ namespace TaikoSim.Audio
             (option ?? don)?.Play(Volume);
         }
 
+        // おに ⇔ 裏おにの切り替えの音(スキンに無ければドン)
+        public static void UraFlip()
+        {
+            Ensure();
+            (uraFlip ?? don)?.Play(Volume);
+        }
+
         private static float Volume => (float)ConfigManager.Sound.GetFinalVolume(ConfigManager.Sound.SeVolume);
 
         private static void Ensure()
@@ -56,8 +64,9 @@ namespace TaikoSim.Audio
                 ka?.Dispose();
                 skip?.Dispose();
                 option?.Dispose();
+                uraFlip?.Dispose();
             }
-            don = ka = skip = option = null;
+            don = ka = skip = option = uraFlip = null;
             loadedSkin = SkinManager.Generation;
             loadedAudio = AudioManager.Generation;
 
@@ -67,6 +76,7 @@ namespace TaikoSim.Audio
             ka = SoundEffect.Load(Path.Combine(skin, KaFile), out _);
             skip = SoundEffect.Load(Path.Combine(skin, SkipFile), out _);
             option = SoundEffect.Load(Path.Combine(skin, OptionFile), out _);
+            uraFlip = SoundEffect.Load(Path.Combine(skin, UraFlipFile), out _);
         }
     }
 }

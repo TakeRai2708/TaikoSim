@@ -16,7 +16,7 @@ namespace TaikoSim.Scenes
     //   2. 曲をえらぶ(7曲ごとに「とじる」、最後に「ランダム」。OpenTaiko と同じ並び)
     //      TaikøNauts と同じく、開いたジャンルの場所に曲が入る(上下にはほかのジャンルが見えたまま)
     //   3. 難易度をえらぶ(左から 戻る・オプション・かんたん・ふつう・むずかしい・おに)
-    //      おにを選んでいるときに、もう一度右(カッ・→)で裏おにに切り替え(OpenTaiko と同じ)。Tab でも切り替え(TaikøNauts と同じ)
+    //      おにを選んでいるときに、右(カッ・→)を10回たたくと裏おにに切り替え(本物の新筐体と同じ。OpenTaiko は1回)。Tab ならすぐ切り替え(TaikøNauts と同じ)
     // 見た目と動きは TaikøNauts の動画を測って合わせた
     //   ・板は斜めに並ぶ(1つ下がるごとに右へ40px、下へ135px)
     //   ・カーソルは0.15秒で1つ動く。動いている間は板は小さいまま
@@ -628,6 +628,7 @@ namespace TaikoSim.Scenes
             diffItem = item;
             diffOpen = true;
             diffTime = 0f;
+            uraCount = 0;
             list.StartDecide(); // 枠の点滅(まだ開いていなかったら、すぐ開く)
             bool hasOni = HasCourse(CourseType.Oni), hasUra = HasCourse(CourseType.Edit);
             // おにが無くて裏だけある曲は、最初から裏(OpenTaiko と同じ)
@@ -662,12 +663,15 @@ namespace TaikoSim.Scenes
                 return;
             }
 
-            bool right = InputManager.IsDrumPressed(DrumPart.RightKa) || KeyPressed(KeyboardKey.Right);
+            // おにの上で右を数えるのは、押し直したときだけ(→キーの押しっぱなしのくり返しは数えない)
+            bool freshRight = InputManager.IsDrumPressed(DrumPart.RightKa) || Raylib.IsKeyPressed(KeyboardKey.Right);
+            bool right = freshRight || KeyPressed(KeyboardKey.Right);
             bool left = InputManager.IsDrumPressed(DrumPart.LeftKa) || KeyPressed(KeyboardKey.Left);
-            if (right) DiffRight();
+            if (right && (diffCursor < 5 || freshRight)) DiffRight();
             else if (left && diffCursor > 0)
             {
                 diffCursor--;
+                uraCount = 0;
                 MenuSounds.Ka();
             }
 
@@ -678,24 +682,36 @@ namespace TaikoSim.Scenes
                 DecideDifficulty();
         }
 
-        // 右へ。おにの上でさらに右なら裏に切り替え(OpenTaiko の t次に移動 と同じ)
+        // おにの上で右を何回たたくと、裏おにに切り替わるか(本物の太鼓の達人の新筐体と同じ：右フチ10回)
+        //   OpenTaiko は1回で切り替わる(nスイッチカウント が 0 のままで、数える仕組みが使われていない)。たけらいの希望で本物に合わせた
+        //   裏からおにに戻るのも10回。左へ動いたら数え直し
+        private const int UraSwitchCount = 10;
+        private int uraCount;
+
+        // 右へ。おにの上でさらに右を10回たたくと、裏に切り替え
         private void DiffRight()
         {
             if (diffCursor < 5)
             {
                 diffCursor++;
+                uraCount = 0;
                 MenuSounds.Ka();
                 return;
             }
-            ToggleUra();
+            if (!HasCourse(CourseType.Oni) || !HasCourse(CourseType.Edit)) return; // 両方あるときだけ数える
+            uraCount++;
+            if (uraCount >= UraSwitchCount) ToggleUra();
+            else MenuSounds.Ka();
         }
 
+        // おに ⇔ 裏おに(Tab はすぐ切り替え。TaikøNauts と同じ)
         private void ToggleUra()
         {
             // おにと裏の両方があるときだけ切り替えられる
             if (!HasCourse(CourseType.Oni) || !HasCourse(CourseType.Edit)) return;
             ura = !ura;
-            MenuSounds.Don();
+            uraCount = 0;
+            MenuSounds.UraFlip();
         }
 
         private void DecideDifficulty()
@@ -1314,7 +1330,9 @@ namespace TaikoSim.Scenes
             // 裏おにの説明(裏がある曲だけ)
             if (HasCourse(CourseType.Oni) && HasCourse(CourseType.Edit))
             {
-                string uraHint = diffCursor == 5 ? (ura ? "もう一度 → ・カッ・Tab：おもてにもどす" : "もう一度 → ・カッ・Tab：裏おに") : "おにで もう一度 → ・カッ・Tab：裏おに";
+                string uraHint = diffCursor == 5
+                    ? (uraCount > 0 ? $"→ ・カッ あと {UraSwitchCount - uraCount} 回" : ura ? "→ ・カッ 10回・Tab：おもてにもどす" : "→ ・カッ 10回・Tab：裏おに")
+                    : "おにで → ・カッ 10回・Tab：裏おに";
                 Outlined(uraHint, S(new Rectangle(650, 765, 834, 34)), 24 * scale, Fade(Color.White, alpha), Fade(ink, alpha));
             }
 
