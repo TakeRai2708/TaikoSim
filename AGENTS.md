@@ -129,7 +129,7 @@ tools/skin-gen/                … Simple スキンの画像・音を作る Pyth
 ## 6. スキンの決まり
 
 - スキンは `Skins/スキン名/` に入れる。フォルダの作りは **TaikøNauts と同じ**
-  - `Image/02.SongSelect/`（選曲）・`Image/03.SongLoading/`（曲が始まるとき。まだ画面が無い）
+  - `Image/02.SongSelect/`（選曲）・`Image/03.SongLoading/`（曲の読み込み画面。`Scenes/SongLoading.cs`。下の「曲の読み込み画面」を見て）
   - `Image/04.EnsoGame/`（演奏）・`Image/05.Result/`（リザルト）
   - `Image/01.Entry/`（モード選択。TaikøNauts での本当の名前はこれ。Simple は今も `Image/01.ModeSelect/` を使っている）
     - 中は `Bar/Bar/番号.png`（板）・`Bar/Title/番号.png`（題字）・`Bar/Overlay.png`・`Bar/Selected.png`・`Bar/Pop/番号.png`・
@@ -158,6 +158,7 @@ tools/skin-gen/                … Simple スキンの画像・音を作る Pyth
 pip install pillow numpy
 cd tools/skin-gen
 python menu.py        # モード選択・選曲画面の画像
+python loading.py     # 曲の読み込み画面（03.SongLoading の5枚）
 python gogo_fire.py   # ゴーゴーの炎（Lane/GoGoSoul.png）
 python gogo.py        # コンボのキラキラ（MiniTaiko/Effect.png）
 python endres.py      # 演奏の終わりの演出・リザルト
@@ -252,9 +253,19 @@ python sounds.py      # 音（ffmpeg が必要）
 - 縁取りの太さを「文字の大きさ × 0.11」で自動にした
 - Simple の選曲画面の画像を、A-Style と同じ並び方に作り直した（数字の画像・★・カード）
 
+- 曲の読み込み画面（`Scenes/SongLoading.cs`。難易度を決めた → 演奏の間。`SceneManager.ToPlayWithLoading` で呼ぶ）
+  - TaikøNauts の動画（10/29 の A.mp4、82.4〜87.9秒）を 1/60秒ずつ測った：
+    決めてから 0.4秒待つ → 幕（`Background_Fade.png` の左右半分）が 0.48秒で閉じる（一定の速さ） →
+    ヒント 0.15秒・ドンとカツが外側の上から飛びこむ 0.3秒・板が 0.02秒後から 0.28秒で横に広がる → 広がりきったら曲名がパッと出る →
+    幕が閉じてから 3.83秒（読み込みが長いときは、読み終わってから 0.3秒）→ 消える 0.29秒（板は上下につぶれる・キャラは上へ飛ぶ）→ 幕が 0.48秒で開く
+  - 曲の読み込み（`PlayScene.Enter`）は、曲名まで出て止まった絵になってからやる（読み込みで画面が止まっても見た目が変わらない）
+  - 演奏画面は幕が開き始めたときから動く（それまでは `SceneManager.IsBlocking`）
+  - 板は 0.9倍で真ん中 (960, 400)。曲名は 62px・白い字に黒い縁 6px・真ん中の y=390。サブタイトルは 34px・こい灰色・y=478
+  - TaikøNauts のヒントの画像の名前は `Background_Light..png`（点が2つ）。`Background_Light.png` が無ければそっちを読む
+  - Simple は `tools/skin-gen/loading.py` で作った（落ち着いた虹色のしま・太鼓の絵・ヒントの文字）
+
 ### これからやること（たけらいと話していたもの）
 - A-Style の選曲画面の第2段：検索・オプションの板・鬼→裏の切り替えアニメ（`Oni_Transition.png`）・自己ベスト・王冠
-- 曲が始まるときの画面（幕が閉じる → 虹色の曲名。`03.SongLoading` の画像）
 - モード選択の A-Style 対応（TaikøNauts のフォルダ名を教えてもらう）
 - 前からの残り：フルスクリーン（排他）で落ちるときのログ、スキンの座標の確認
 

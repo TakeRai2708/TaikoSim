@@ -156,6 +156,7 @@ namespace TaikoSim.Scenes
             list.Reset(CurrentPos);
             afterBlink = null;
             MenuSkin.Preload(MenuSkin.SongFolder, MenuSkin.BarImages.Concat(MenuSkin.SongImages).Concat(MenuSkin.TnSongImages));
+            SongLoading.Preload(); // 曲の読み込み画面の画像(決めた瞬間に止まらないように)
         }
 
         public override void Exit()
@@ -699,7 +700,8 @@ namespace TaikoSim.Scenes
             lastSongKey = diffSong.Key;
             SongHistory.AddPlayed(diffSong.Key);
             preview.Dispose();
-            SceneManager.ChangeScene(new PlayScene(diffSong.TjaPath, type, returnToSelect: true));
+            // 曲の読み込み画面(虹色の幕)をはさんで演奏へ。読み込みは幕が閉じてから
+            SceneManager.ToPlayWithLoading(new PlayScene(diffSong.TjaPath, type, returnToSelect: true), diffSong.Title, diffSong.Subtitle);
         }
 
         // ===== 検索 =====

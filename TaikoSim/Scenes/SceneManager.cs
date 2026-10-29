@@ -35,9 +35,12 @@ namespace TaikoSim.Scenes
         public static void AfterBoot(Scene scene) => ChangeScene(scene, 0.3f, 0f, 0.5f);
         // そのほか(クレジット・セットアップ・演奏をやめたとき)：0.3秒で暗く → 0.3秒で明るく
         public static void Simple(Scene scene) => ChangeScene(scene, 0.3f, 0f, 0.3f);
+        // 選曲 → 演奏：黒くせずに、曲の読み込み画面(虹色の幕)をはさむ。動きは SongLoading にまとめた
+        public static void ToPlayWithLoading(Scene scene, string title, string subtitle) => SongLoading.Start(scene, title, subtitle);
 
         // 暗くしている途中・真っ黒の間(今の画面を操作させない)
-        public static bool IsBlocking => phase is Phase.FadeOut or Phase.Hold;
+        //   曲の読み込み画面の、幕が開き始めるまでも同じ
+        public static bool IsBlocking => phase is Phase.FadeOut or Phase.Hold || SongLoading.IsBlocking;
 
         // 画面を切り替える予約をする
         //   fadeOut：今の画面をだんだん暗くする秒数(0 ならいきなり)
@@ -65,6 +68,7 @@ namespace TaikoSim.Scenes
         // 毎フレーム(Game が ApplyChange の前に呼ぶ)。暗くし終わったら、次の画面を予約する
         public static void Update(float dt)
         {
+            SongLoading.Update(dt); // 曲の読み込み画面(読み込む時が来たら ChangeScene を呼ぶ)
             if (phase == Phase.None) return;
             // 画面の準備で1フレームが長くなっても、明るくするのが一瞬で終わらないように、1回に進める時間をおさえる
             timer += Math.Min(dt, 1f / 30f);
@@ -105,9 +109,10 @@ namespace TaikoSim.Scenes
             if (phase == Phase.Hold) timer = 0f; // 準備に時間がかかっても、真っ黒の時間はそのあと数える
         }
 
-        // 黒い幕(Game が画面を描いたあとに呼ぶ)
+        // 黒い幕と、曲の読み込み画面(Game が画面を描いたあとに呼ぶ)
         public static void DrawFade()
         {
+            SongLoading.Draw();
             float black = phase switch
             {
                 Phase.FadeOut => fadeOutSeconds > 0f ? Math.Clamp(timer / fadeOutSeconds, 0f, 1f) : 1f,
