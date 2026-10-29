@@ -6,6 +6,11 @@ namespace TaikoSim.UI
 {
     // 設定画面などで使うGUI部品
     // 「描画」と「クリック判定」を1つの関数でまとめてやる方式
+    //
+    // 動き(10/29)：shadcn/ui・reui.io・transitions.dev あたりの「今風の設定画面」をまねした
+    //   ・ボタン・プルダウンは、マウスを乗せると色がじわっと変わる(約0.1秒)
+    //   ・トグルの丸は、ON/OFF でスッとすべる
+    //   ・スライダーは細いバー(6px)＋白い丸つまみ。さわるとつまみが大きくなって、上に数字の吹き出しが出る
     public static class Gui
     {
         // ===== 色 =====
@@ -18,6 +23,49 @@ namespace TaikoSim.UI
         public static readonly Color BackgroundColor = new Color(11, 15, 20, 255);
         public static readonly Color PanelColor = new Color(17, 24, 39, 255);
         public static readonly Color BorderColor = new Color(37, 50, 71, 255);
+        private static readonly Color PrimaryHoverColor = new Color(84, 153, 255, 255);
+        private static readonly Color TrackHoverColor = new Color(52, 68, 96, 255);
+        private static readonly Color BubbleTextColor = new Color(17, 24, 39, 255);
+
+        // ===== 動き(じわっと変わる値) =====
+        // 部品ごとに「今の値」を覚えておいて、毎フレーム目標の値に近づける
+        //   名前(キー)で覚える。しばらく使われなかったものは捨てる(スクロールで場所が変わったボタンなど)
+        private static readonly Dictionary<string, (float Value, int Frame)> anims = new();
+        private static readonly List<string> staleAnims = new();
+        private static int frameNo;
+        private static float frameDt;
+
+        // このフレームの経過時間(重いフレームでアニメが飛ばないように 1/30 秒までにする)
+        public static float FrameDt => frameDt;
+
+        // key の値を target に近づけて返す。speed が大きいほど速い(10 で約0.1秒、20 で約0.05秒で 2/3 まで近づく)
+        //   はじめて使うキーは、いきなり target から始める(画面を開いた瞬間に全部が動かないように)
+        public static float Approach(string key, float target, float speed)
+        {
+            float value = anims.TryGetValue(key, out var a) ? a.Value : target;
+            value += (target - value) * (1f - MathF.Exp(-speed * frameDt));
+            if (Math.Abs(target - value) < 0.001f) value = target;
+            anims[key] = (value, frameNo);
+            return value;
+        }
+
+        // key の値をすぐに value にする(ドラッグ中のつまみなど)
+        public static float SetAnim(string key, float value)
+        {
+            anims[key] = (value, frameNo);
+            return value;
+        }
+
+        // 2つの色の間(t = 0 で a、1 で b)
+        public static Color Lerp(Color a, Color b, float t)
+        {
+            t = Math.Clamp(t, 0f, 1f);
+            return new Color((byte)(a.R + (b.R - a.R) * t), (byte)(a.G + (b.G - a.G) * t),
+                (byte)(a.B + (b.B - a.B) * t), (byte)(a.A + (b.A - a.A) * t));
+        }
+
+        public static Color WithAlpha(Color c, float alpha) =>
+            new Color(c.R, c.G, c.B, (byte)Math.Clamp(c.A * alpha, 0f, 255f));
 
         // ===== 今のフレームのマウスの状態 =====
         private static Vector2 mouse;
@@ -68,6 +116,15 @@ namespace TaikoSim.UI
         // 部品を描く前に、毎フレーム1回呼ぶ
         public static void BeginFrame()
         {
+            frameNo++;
+            frameDt = Math.Min(Raylib.GetFrameTime(), 1f / 30f);
+            // 1秒(60フレーム)使われなかった動きは捨てる
+            if (frameNo % 120 == 0)
+            {
+                staleAnims.Clear();
+                foreach (var pair in anims) if (frameNo - pair.Value.Frame > 60) staleAnims.Add(pair.Key);
+                foreach (string key in staleAnims) anims.Remove(key);
+            }
             mouse = Screen.GetMousePosition();
             mousePressed = mouseInputEnabled && Raylib.IsMouseButtonPressed(MouseButton.Left);
             mouseDown = mouseInputEnabled && Raylib.IsMouseButtonDown(MouseButton.Left);
@@ -101,10 +158,10 @@ namespace TaikoSim.UI
 
         // ===== 判定 =====
 
-        // マウスが乗っているか(見えない部分は無視)
+        // マウスが乗っているか(見えない部分は無視。マウスを受け付けないときは乗っていないことにする)
         public static bool IsMouseOver(Rectangle area)
         {
-            return Raylib.CheckCollisionPointRec(mouse, area) && Raylib.CheckCollisionPointRec(mouse, clip);
+            return mouseInputEnabled && Raylib.CheckCollisionPointRec(mouse, area) && Raylib.CheckCollisionPointRec(mouse, clip);
         }
 
         // クリックされたか(プルダウンが開いている間は反応しない)
@@ -134,11 +191,16 @@ namespace TaikoSim.UI
             FontManager.Draw(text, area.X + (area.Width - measured.X) / 2f, area.Y + (area.Height - measured.Y) / 2f, size, color);
         }
 
+        // マウスを乗せたときの色の変わり具合(0→1。約0.1秒でじわっと)
+        private static float HoverAnim(string kind, Rectangle area, string text, bool hover) =>
+            Approach($"{kind}:{text}:{(int)area.X}:{(int)area.Y}:{(int)area.Width}", hover ? 1f : 0f, 18f);
+
         // ボタン。クリックされたら true
         public static bool Button(Rectangle area, string text)
         {
             bool hover = !blocked && IsMouseOver(area);
-            Raylib.DrawRectangleRounded(area, 0.18f, 8, hover ? BoxHoverColor : BoxColor);
+            float h = HoverAnim("btn", area, text, hover);
+            Raylib.DrawRectangleRounded(area, 0.18f, 8, Lerp(BoxColor, BoxHoverColor, h));
             DrawCentered(text, area, 26, TextColor);
             return Clicked(area);
         }
@@ -147,7 +209,8 @@ namespace TaikoSim.UI
         public static bool PrimaryButton(Rectangle area, string text)
         {
             bool hover = !blocked && IsMouseOver(area);
-            Raylib.DrawRectangleRounded(area, 0.18f, 8, hover ? new Color(84, 153, 255, 255) : AccentColor);
+            float h = HoverAnim("pbtn", area, text, hover);
+            Raylib.DrawRectangleRounded(area, 0.18f, 8, Lerp(AccentColor, PrimaryHoverColor, h));
             DrawCentered(text, area, 26, Color.White);
             return Clicked(area);
         }
@@ -158,10 +221,15 @@ namespace TaikoSim.UI
             bool hover = !blocked && IsMouseOver(area);
             Label(text, area.X, area.Y + 4, 26);
 
-            // ON/OFF は共通の丸いノブにする
+            // ON/OFF は共通の丸いノブにする。丸は 0.1秒くらいでスッとすべって、色もじわっと変わる
             Rectangle track = new Rectangle(area.X + area.Width - 70, area.Y + (area.Height - 34) / 2f, 66, 34);
-            Raylib.DrawRectangleRounded(track, 1f, 16, value ? AccentColor : (hover ? BoxHoverColor : BoxColor));
-            Raylib.DrawCircleV(new Vector2(track.X + (value ? 48 : 18), track.Y + 17), 13, Color.White);
+            float on = Approach($"chk:{text}", value ? 1f : 0f, 22f);
+            float h = HoverAnim("chk", area, text, hover);
+            Color off = Lerp(BoxColor, BoxHoverColor, h);
+            Raylib.DrawRectangleRounded(track, 1f, 16, Lerp(off, AccentColor, on));
+            Vector2 knob = new Vector2(track.X + 18 + 30 * on, track.Y + 17);
+            Raylib.DrawCircleV(knob + new Vector2(0, 1.5f), 13.5f, new Color(0, 0, 0, 70)); // うすい影
+            Raylib.DrawCircleV(knob, 13, Color.White);
 
             return Clicked(area) ? !value : value;
         }
@@ -205,21 +273,49 @@ namespace TaikoSim.UI
             }
 
             float ratio = max == min ? 0f : Math.Clamp((value - min) / (float)(max - min), 0f, 1f);
+            bool dragging = draggingId == id;
+            bool barHover = !blocked && IsMouseOver(bar);
+
+            // つまみの場所：ドラッグ中はマウスにぴったり、キーや数字入力で変えたときはスッと動く
+            float shown = dragging ? SetAnim($"sl:v:{id}", ratio) : Approach($"sl:v:{id}", ratio, 22f);
 
             // マイナスがあるスライダー(オフセットとか)は0の位置から塗る
             float zeroRatio = (min < 0 && max > 0) ? -min / (float)(max - min) : 0f;
-            float fillFrom = Math.Min(zeroRatio, ratio);
-            float fillTo = Math.Max(zeroRatio, ratio);
+            float fillFrom = Math.Min(zeroRatio, shown);
+            float fillTo = Math.Max(zeroRatio, shown);
 
-            bool barHover = !blocked && IsMouseOver(bar);
-            Raylib.DrawRectangleRounded(bar, 0.7f, 8, barHover || draggingId == id ? BoxHoverColor : BoxColor);
-            Raylib.DrawRectangleRounded(new Rectangle(bar.X + bar.Width * fillFrom, bar.Y, Math.Max(1, bar.Width * (fillTo - fillFrom)), bar.Height), 0.7f, 8, FillColor);
-            Raylib.DrawCircleV(new Vector2(bar.X + bar.Width * ratio, bar.Y + bar.Height / 2f), 12, Color.White);
+            // ----- 細いバー(6px) -----
+            float cy = bar.Y + bar.Height / 2f;
+            float h = Approach($"sl:h:{id}", barHover || dragging ? 1f : 0f, 18f);
+            Raylib.DrawRectangleRounded(new Rectangle(bar.X, cy - 3, bar.Width, 6), 1f, 8, Lerp(BorderColor, TrackHoverColor, h));
+            if (zeroRatio > 0f) // 0 の場所に小さい目印
+                Raylib.DrawRectangleRounded(new Rectangle(bar.X + bar.Width * zeroRatio - 1, cy - 8, 2, 16), 1f, 4, WithAlpha(SubTextColor, 0.6f));
+            float fillWidth = bar.Width * (fillTo - fillFrom);
+            if (fillWidth > 0.5f)
+                Raylib.DrawRectangleRounded(new Rectangle(bar.X + bar.Width * fillFrom, cy - 3, fillWidth, 6), 1f, 8, FillColor);
 
-            // 選択中は枠を光らせる
-            if (focused)
+            // ----- つまみ(白い丸)。さわると大きく、選択中・ドラッグ中はまわりに青い光 -----
+            Vector2 knob = new Vector2(bar.X + bar.Width * shown, cy);
+            float radius = Approach($"sl:r:{id}", dragging ? 13f : barHover ? 12f : 10f, 20f);
+            float glow = Approach($"sl:g:{id}", dragging || focused ? 1f : 0f, 16f);
+            if (glow > 0.01f) Raylib.DrawCircleV(knob, radius + 9f * glow, WithAlpha(AccentColor, 0.25f * glow));
+            Raylib.DrawCircleV(knob + new Vector2(0, 2f), radius + 1.5f, new Color(0, 0, 0, 90)); // うすい影
+            Raylib.DrawCircleV(knob, radius, Color.White);
+
+            // ----- 数字の吹き出し(さわっている間だけ、少し下からふわっと出る) -----
+            float bubble = Approach($"sl:b:{id}", dragging || barHover ? 1f : 0f, 18f);
+            if (bubble > 0.02f)
             {
-                Raylib.DrawRectangleLinesEx(new Rectangle(bar.X - 3, bar.Y - 3, bar.Width + 6, bar.Height + 6), 2, AccentColor);
+                string text = value.ToString();
+                Vector2 size = FontManager.Measure(text, 20);
+                float w = Math.Max(44f, size.X + 20f), bh = 30f;
+                float by = cy - radius - 14f - bh + 6f * (1f - bubble);
+                Rectangle tip = new Rectangle(knob.X - w / 2f, by, w, bh);
+                Color white = WithAlpha(Color.White, bubble);
+                Raylib.DrawRectangleRounded(tip, 0.5f, 8, white);
+                // 下向きの小さい三角(左回りの順に点を並べる)
+                Raylib.DrawTriangle(new Vector2(knob.X - 6, by + bh - 1), new Vector2(knob.X, by + bh + 6), new Vector2(knob.X + 6, by + bh - 1), white);
+                FontManager.Draw(text, knob.X - size.X / 2f, by + (bh - size.Y) / 2f, 20, WithAlpha(BubbleTextColor, bubble));
             }
 
             // ----- 数値ボックス -----
@@ -292,12 +388,14 @@ namespace TaikoSim.UI
                 }
             }
 
+            // 数字の箱は角を丸くして、細いふち
             bool boxHover = !blocked && IsMouseOver(box);
-            Raylib.DrawRectangleRec(box, editing ? new Color(18, 22, 36, 255) : (boxHover ? BoxHoverColor : BoxColor));
+            float bhov = HoverAnim("slbox", box, id, boxHover);
+            Raylib.DrawRectangleRounded(box, 0.35f, 8, editing ? new Color(18, 22, 36, 255) : Lerp(BoxColor, BoxHoverColor, bhov));
+            Raylib.DrawRectangleRoundedLinesEx(box, 0.35f, 8, editing ? 2f : 1f, editing ? AccentColor : BorderColor);
 
             if (editing)
             {
-                Raylib.DrawRectangleLinesEx(box, 2, AccentColor);
 
                 if (editSelectAll)
                 {
@@ -332,7 +430,8 @@ namespace TaikoSim.UI
 
             bool open = popupId == id;
             bool hover = !blocked && IsMouseOver(area);
-            Raylib.DrawRectangleRounded(area, 0.18f, 8, hover || open ? BoxHoverColor : BoxColor);
+            float h = HoverAnim("dd", area, id, hover || open);
+            Raylib.DrawRectangleRounded(area, 0.18f, 8, Lerp(BoxColor, BoxHoverColor, h));
 
             string text = (selected >= 0 && selected < options.Length) ? options[selected] : "-";
             FontManager.Draw(FitDropdownText(text, area.Width - 58), area.X + 16,

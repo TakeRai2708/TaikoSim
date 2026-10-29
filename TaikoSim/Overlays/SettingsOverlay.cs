@@ -12,12 +12,41 @@ using TaikoSim.UI;
 namespace TaikoSim.Overlays
 {
     // モード選択からは全画面、F1 からは左側のパネルとして開く
+    //
+    // 動き(10/29。transitions.dev・reui.io の「横からすべりこむ画面」をまねした)
+    //   ・開く：全画面は右から、F1 のパネルは左から、0.3秒でスッとすべりこむ(はじめ速く、最後はゆっくり止まる)。後ろはだんだん暗くなる
+    //   ・閉じる：同じ向きへ 0.22秒で戻っていく(はじめゆっくり、だんだん速く)
+    //   ・動いている間は、ボタンやキーに反応しない
+    //   ・カテゴリを変えると、左の青い帯が次の場所までスッと動き、右の中身は 18px ずれながら 0.22秒でじわっと出る
     public class SettingsOverlay
     {
         // ===== 大きさ(1920×1080の座標) =====
         public const int PanelWidth = 900; // F1 でも説明と操作欄が並ぶ幅
         private bool fullScreen;
-        public bool IsFullScreen => IsOpen && fullScreen;
+        // 画面全体をおおっているか(すべっている間は、後ろの画面も見えるので false)
+        public bool IsFullScreen => IsOpen && fullScreen && !IsAnimating;
+
+        // ===== 開く・閉じる動き =====
+        private const float OpenSeconds = 0.30f, CloseSeconds = 0.22f;
+        private const float SwitchSeconds = 0.22f, SwitchShift = 18f;
+        private float animTime;          // 開き始め・閉じ始めてからの時間
+        private bool closing;            // 閉じる動きの途中
+        private float switchTime = 99f;  // カテゴリを変えてからの時間
+        private float switchDir = 1f;    // 下のカテゴリへ行くとき 1(中身は下から)、上へ行くとき -1
+        private float indicatorY = -1f;  // 左の青い帯の今の y(-1 なら次に描くときに目標へいきなり置く)
+        private bool IsAnimating => closing || animTime < OpenSeconds;
+
+        // 開き具合(0 で画面の外、1 で開ききった)
+        private float OpenAmount()
+        {
+            if (closing)
+            {
+                float t = Math.Clamp(animTime / CloseSeconds, 0f, 1f);
+                return 1f - t * t * t;                       // ease-in(だんだん速く出ていく)
+            }
+            float u = 1f - Math.Clamp(animTime / OpenSeconds, 0f, 1f);
+            return 1f - u * u * u * u * u;                   // ease-out quint(スッと入って、ゆっくり止まる)
+        }
         private float HeaderHeight => fullScreen ? 104 : 90;
         private float SidebarWidth => fullScreen ? 280 : 176;
         private float HintHeight => fullScreen ? 88 : 80;
@@ -127,6 +156,10 @@ namespace TaikoSim.Overlays
         {
             this.fullScreen = fullScreen;
             IsOpen = true;
+            animTime = 0f;
+            closing = false;
+            switchTime = 99f;
+            indicatorY = -1f;
             Gui.Reset();
             selectedCategory = Category.General;
             scroll = scrollTarget = contentHeight = 0f;
@@ -149,8 +182,18 @@ namespace TaikoSim.Overlays
             // スキンは適用・変更したときだけ読み直す。開くたびの全画像再読み込みは重い。
         }
 
+        // 閉じる(すべって出ていく動きを始める。動き終わったら FinishClose で片付ける)
         public void Close()
         {
+            if (closing) return;
+            closing = true;
+            animTime = 0f;
+            Gui.Reset();
+        }
+
+        private void FinishClose()
+        {
+            closing = false;
             bool wasFullScreen = fullScreen;
             bool reloadSkin = !wasFullScreen && savedSkin != null
                 && !ConfigManager.Same(savedSkin, ConfigManager.Skin);
@@ -249,6 +292,16 @@ namespace TaikoSim.Overlays
 
         public void Update(float dt)
         {
+            float step = Math.Min(dt, 1f / 30f); // 重いフレームで動きが飛ばないように
+            animTime += step;
+            switchTime += step;
+            if (closing)
+            {
+                if (animTime >= CloseSeconds) FinishClose();
+                return;
+            }
+            if (IsAnimating) return; // すべりこんでいる間は、何も受け付けない
+
             blinkTimer += dt;
             if (messageTimer > 0f) messageTimer -= dt;
 
@@ -322,23 +375,39 @@ namespace TaikoSim.Overlays
 
         public void Draw()
         {
+            bool animating = IsAnimating;
+            if (animating) Gui.SetMouseInputEnabled(false); // すべっている間はマウスにも反応しない
             Gui.BeginFrame();
 
             Rectangle content = new Rectangle(SidebarWidth + 18, HeaderHeight + 16,
                 CurrentWidth - SidebarWidth - 42, Screen.Height - HeaderHeight - HintHeight - 32);
-            if (!confirmOpen && !unsavedOpen) UpdateScroll(content);
+            if (!confirmOpen && !unsavedOpen && !animating) UpdateScroll(content);
+
+            // 後ろを暗くする(開き具合に合わせて)。全画面は開ききったら後ろが見えないので、動いている間だけ
+            float open = OpenAmount();
+            if (!fullScreen) Raylib.DrawRectangle(0, 0, Screen.Width, Screen.Height, new Color(0, 0, 0, (int)(205 * open)));
+            else if (animating) Raylib.DrawRectangle(0, 0, Screen.Width, Screen.Height, new Color(0, 0, 0, (int)(150 * open)));
+
+            // 全画面は右から、パネルは左からすべりこむ(全部をまとめて横にずらして描く)
+            float slideX = fullScreen ? Screen.Width * (1f - open) : -CurrentWidth * (1f - open);
+            Rlgl.PushMatrix();
+            Rlgl.Translatef(slideX, 0f, 0f);
 
             if (fullScreen) Raylib.DrawRectangle(0, 0, Screen.Width, Screen.Height, Gui.BackgroundColor);
-            else Raylib.DrawRectangle(0, 0, Screen.Width, Screen.Height, new Color(0, 0, 0, 205));
-
             Raylib.DrawRectangle(0, 0, (int)CurrentWidth, Screen.Height, Gui.BackgroundColor);
             Raylib.DrawRectangleRec(new Rectangle(SidebarWidth, HeaderHeight,
                 CurrentWidth - SidebarWidth, Screen.Height - HeaderHeight - HintHeight), Gui.PanelColor);
             Raylib.DrawLine((int)SidebarWidth, (int)HeaderHeight, (int)SidebarWidth,
                 Screen.Height - (int)HintHeight, Gui.BorderColor);
 
-            Raylib.BeginScissorMode((int)content.X, (int)content.Y, (int)content.Width, (int)content.Height);
+            // はみ出しを切る範囲は、横にずらした分も足す(切る範囲は Translatef の影響を受けないので)
+            Raylib.BeginScissorMode((int)(content.X + slideX), (int)content.Y, (int)content.Width, (int)content.Height);
             Gui.SetClip(confirmOpen || unsavedOpen ? NoClickArea : content);
+
+            // カテゴリを変えた直後：中身を 18px ずらしたところから戻す(ToScreenY が switchShift を足す)
+            float sw = Math.Clamp(switchTime / SwitchSeconds, 0f, 1f);
+            float swEase = 1f - (1f - sw) * (1f - sw) * (1f - sw);
+            switchShift = SwitchShift * switchDir * (1f - swEase);
 
             cursorY = 18;
             if (fullScreen)
@@ -363,6 +432,11 @@ namespace TaikoSim.Overlays
                 DrawSkinSection();
             }
             contentHeight = cursorY + 40;
+            switchShift = 0f;
+
+            // カテゴリを変えた直後：上に背景と同じ色をうすくしながら重ねて、中身がじわっと出てくるように見せる
+            if (swEase < 1f)
+                Raylib.DrawRectangleRec(content, Gui.WithAlpha(Gui.PanelColor, 1f - swEase));
 
             Gui.ResetClip();
             Raylib.EndScissorMode();
@@ -379,6 +453,9 @@ namespace TaikoSim.Overlays
             if (confirmOpen) DrawConfirmDialog();
             else if (unsavedOpen) DrawUnsavedDialog();
             else Gui.DrawPopups();
+
+            Rlgl.PopMatrix();
+            if (animating) Gui.SetMouseInputEnabled(true);
         }
 
         private void DrawScrollbar(Rectangle content)
@@ -1227,9 +1304,10 @@ namespace TaikoSim.Overlays
         }
 
         // 中身の座標 → 画面の座標(スクロール分ずらす)
+        private float switchShift; // カテゴリを変えた直後の、中身のずれ(px)
         private float ToScreenY(float contentY)
         {
-            return HeaderHeight + contentY - scroll;
+            return HeaderHeight + contentY - scroll + switchShift;
         }
 
         // ===== スクロール =====
@@ -1325,33 +1403,46 @@ namespace TaikoSim.Overlays
             Category current = GetCurrentCategory();
             Category[] categories = Enum.GetValues<Category>();
 
+            // 選んでいるカテゴリの帯：次の場所までスッと動く(約0.1秒)
+            Rectangle CategoryArea(int i) => fullScreen
+                ? new Rectangle(18, HeaderHeight + 62 + i * 68, SidebarWidth - 36, 58)
+                : new Rectangle(12, HeaderHeight + 58 + i * 62, SidebarWidth - 24, 54);
+            Rectangle target = CategoryArea((int)current);
+            if (indicatorY < 0f) indicatorY = target.Y;
+            indicatorY += (target.Y - indicatorY) * (1f - MathF.Exp(-20f * Gui.FrameDt));
+            if (Math.Abs(target.Y - indicatorY) < 0.3f) indicatorY = target.Y;
+
+            for (int i = 0; i < categories.Length; i++)
+            {
+                Rectangle area = CategoryArea(i);
+                bool hover = !Gui.IsPopupOpen && Gui.IsMouseOver(area) && categories[i] != current;
+                float h = Gui.Approach($"side:{i}", hover ? 1f : 0f, 18f);
+                if (h > 0.01f) Raylib.DrawRectangleRounded(area, 0.12f, 8, Gui.WithAlpha(Gui.BoxColor, h));
+            }
+            Rectangle band = new Rectangle(target.X, indicatorY, target.Width, target.Height);
+            Raylib.DrawRectangleRounded(band, 0.12f, 8, new Color(24, 42, 67, 255));
+            Raylib.DrawRectangle((int)band.X, (int)(band.Y + 10), 3, (int)band.Height - 20, Gui.AccentColor);
+
             for (int i = 0; i < categories.Length; i++)
             {
                 Category category = categories[i];
-                Rectangle area = fullScreen
-                    ? new Rectangle(18, HeaderHeight + 62 + i * 68, SidebarWidth - 36, 58)
-                    : new Rectangle(12, HeaderHeight + 58 + i * 62, SidebarWidth - 24, 54);
-                bool hover = !Gui.IsPopupOpen && Gui.IsMouseOver(area);
-
-                if (category == current || hover)
-                    Raylib.DrawRectangleRounded(area, 0.12f, 8,
-                        category == current ? new Color(24, 42, 67, 255) : Gui.BoxColor);
-                if (category == current)
-                    Raylib.DrawRectangle((int)area.X, (int)(area.Y + 10), 3, (int)area.Height - 20, Gui.AccentColor);
+                Rectangle area = CategoryArea(i);
 
                 FontManager.Draw($"{i + 1:00}", area.X + 16, area.Y + (fullScreen ? 17 : 16), 19,
                     category == current ? Gui.AccentColor : Gui.SubTextColor);
                 FontManager.Draw(CategoryNames[i], area.X + (fullScreen ? 66 : 53), area.Y + (fullScreen ? 13 : 13),
                     fullScreen ? 27 : 23, category == current ? Color.White : Gui.SubTextColor);
 
-                if (Gui.Clicked(area) && fullScreen)
+                if (Gui.Clicked(area) && fullScreen && category != selectedCategory)
                 {
+                    switchDir = (int)category > (int)selectedCategory ? 1f : -1f;
+                    switchTime = 0f;
                     selectedCategory = category;
                     scroll = scrollTarget = contentHeight = 0f;
                     scrollDragging = false;
                     Gui.Reset();
                 }
-                else if (Gui.Clicked(area) && sectionPos.TryGetValue(category, out float pos))
+                else if (!fullScreen && Gui.Clicked(area) && sectionPos.TryGetValue(category, out float pos))
                 {
                     scrollTarget = pos;
                     clickedCategory = category;
