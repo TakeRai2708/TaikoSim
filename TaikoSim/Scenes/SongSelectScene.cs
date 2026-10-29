@@ -70,20 +70,24 @@ namespace TaikoSim.Scenes
         private readonly BarList list = new(MenuSkin.SongFolder);         // 斜めの板の動き
         private Action? afterBlink;                    // 決定の点滅が終わったらすること(ジャンルを開く・とじる)
 
-        // ===== ジャンルを決めたあとの「ポンッ → めくれる」(TaikøNauts の動画 10/29 を1/60秒ずつ測った値) =====
+        // ===== ジャンルを決めたあとの「ポンッ → めくれる」 =====
         //   決めた瞬間を 0 として：0〜0.53秒 枠が点滅 → 0.63秒まで白 → ここから下の時間(FlipStart からの秒)
-        //   0〜0.067  板がポンッと大きくなる(横 1.21倍・縦 1.14倍)。枠は消える
-        //   0〜0.12   ジャンル名・キャラ・吹き出し・上下の板が消えていく(中身の無い板だけが残る)
-        //   0.23〜0.37 板が横につぶれていく(幅 855 → 546 → 308 → 146 → 95 → 28px)
-        //   0.37〜0.50 28px の細い棒のまま
-        //   0.50〜0.70 少し広がる(28 → 158px)
-        //   0.70      パッと元の幅に戻って、中身は最初の曲の板(開いた形)になる
-        //   0.70〜0.87 曲の板の中身と、上下の板がじわっと出る。黄色い枠は 0.70 から 0.33秒あとに出る
+        //   10/30 の TaikøNauts の動画(ボーカロイドを決めたところ)を 1/60秒ずつ測り直した
+        //   (10/29 の A.mp4 は、広がる途中で 0.13秒止まってからパッと戻っていた。曲の一覧を作る重さで止まっていたみたい)
+        //   0〜0.067   板がポンッと大きくなる(横 1.21倍・縦 1.14倍)。枠は消える
+        //   0〜0.12    ジャンル名・キャラ・吹き出しが消えていく(中身の無い板だけが残る)
+        //   0.11〜0.22 上の板は上へ、下の板は下へ 150px すべりながら消える
+        //   0.26〜0.41 板が横につぶれていく(幅 933 → 794 → 556 → 355 → 204 → 0px。はじめが速い)
+        //   0.41〜0.60 細い線のまま
+        //   0.60〜0.77 元の幅まで広がる(161 → 363 → 654 → 933px。ほぼ一定の速さ。中身は空っぽ)
+        //   0.77      中身が最初の曲の板(開いた形)になる
+        //   0.77〜0.90 曲の板の中身と、上下の板がじわっと出る。黄色い枠は 0.77 から 0.33秒あとに出る
         private const float FlipStart = 0.63f;
         private const float FlipPopEnd = 0.067f, FlipPopScaleX = 1.21f, FlipPopScaleY = 1.14f;
         private const float FlipFadeEnd = 0.12f;
-        private const float FlipSquashStart = 0.23f, FlipSquashEnd = 0.37f, FlipThinEnd = 0.50f, FlipSwitch = 0.70f, FlipEnd = 0.87f;
-        private const float FlipThinScale = 28f / 855f, FlipGrowScale = 158f / 855f;
+        private const float FlipOthersStart = 0.11f, FlipOthersEnd = 0.22f, FlipOthersShift = 150f;
+        private const float FlipSquashStart = 0.26f, FlipSquashEnd = 0.41f, FlipThinEnd = 0.60f, FlipSwitch = 0.77f, FlipEnd = 0.90f;
+        private const float FlipThinScale = 5f / 933f;
         private float flipTime = -1f;      // めくれ始めてからの時間(-1 ならめくっていない)
         private Action? flipOpen;          // 0.70秒で開くジャンル
         private bool flipOpened;
@@ -319,6 +323,7 @@ namespace TaikoSim.Scenes
         {
             caretTimer += dt;
             if (toastTimer > 0f) toastTimer -= dt;
+            if (skipLock > 0f) skipLock -= dt;
             PreloadListText();
             preview.Update(dt);
             options.Update(dt);
@@ -439,7 +444,8 @@ namespace TaikoSim.Scenes
             if (move != 0)
             {
                 bool scrolling = list.Shown != CurrentPos;
-                if (fresh && scrolling) Move(Math.Sign(move), SkipCount);
+                if (fresh && skipLock > 0f) { }                       // スキップしてから 0.5秒は、カッ・↑↓を受け付けない
+                else if (fresh && scrolling) { Move(Math.Sign(move), SkipCount); skipLock = SkipInterval; }
                 else Move(move);
             }
 
@@ -449,6 +455,10 @@ namespace TaikoSim.Scenes
 
         // まとめて飛ぶ曲の数(OpenTaiko と同じ)
         private const int SkipCount = 7;
+        // スキップしてから次にスキップできるまで(TaikøNauts の動画 10/30：カッを連打し続けると、スキップの音がちょうど 0.5秒ごとに鳴って、
+        //   その間はカッの音もカーソルの動きも無かった)。この間のカッ・↑↓は無視する
+        private const float SkipInterval = 0.5f;
+        private float skipLock;
 
         // steps 回ぶん動かす(見出しの板は飛ばす)。2回以上ならスキップの音
         private void Move(int direction, int steps = 1)
@@ -1015,7 +1025,12 @@ namespace TaikoSim.Scenes
                     selectedArea = list.OpenArea(area); // 開いた板(上下に広がる)
                     selectedItem = item;
                 }
-                else DrawBar(item, area, 0f, alpha * flip.Others);
+                else
+                {
+                    // めくれる前半：上の板は上へ、下の板は下へすべって消える
+                    float shift = flip.Shift * Math.Sign(pos - selectedPos);
+                    DrawBar(item, new Rectangle(area.X, area.Y + shift, area.Width, area.Height), 0f, alpha * flip.Others);
+                }
 
                 // クリック：選んでいる項目なら決定、ほかなら選ぶ
                 if (clickable && item.Kind != Kind.Label && Gui.Clicked(selected && selectedArea is Rectangle open ? open : area))
@@ -1037,7 +1052,7 @@ namespace TaikoSim.Scenes
                     Rectangle box = new Rectangle(sel.X + sel.Width * (1f - flip.ScaleX) / 2f, sel.Y + sel.Height * (1f - flip.ScaleY) / 2f,
                         sel.Width * flip.ScaleX, sel.Height * flip.ScaleY);
                     DrawBar(selectedItem, box, list.Expand, alpha, framed: !flipOpened || list.FrameShown, contentAlpha: flip.Content);
-                    if (selectedItem.Kind == Kind.Genre && !flipOpened) DrawGenrePop(selectedItem, sel, alpha * flip.Others, force: true);
+                    if (selectedItem.Kind == Kind.Genre && !flipOpened) DrawGenrePop(selectedItem, sel, alpha * flip.Content, force: true);
                     return;
                 }
                 if (!(diffOpen && diffTime >= FrameHideAt)) list.DrawFrame(sel, alpha); // 曲を決めたときは、白くなった枠が 0.65秒で消える
@@ -1048,31 +1063,35 @@ namespace TaikoSim.Scenes
 
         // めくれている間の見た目(Active が false なら、ふつうに描く)
         //   Others：選んでいない板・キャラ・吹き出しの濃さ、Content：選んでいる板の中身(文字・札)の濃さ
-        private (bool Active, float ScaleX, float ScaleY, float Others, float Content) FlipLook()
+        //   Shift：上下の板をずらす量(px。上の板は上へ、下の板は下へ)
+        private (bool Active, float ScaleX, float ScaleY, float Others, float Content, float Shift) FlipLook()
         {
-            if (flipTime < 0f) return (false, 1f, 1f, 1f, 1f);
+            if (flipTime < 0f) return (false, 1f, 1f, 1f, 1f, 0f);
             float t = flipTime;
             if (t < FlipSwitch)
             {
                 float fade = 1f - Math.Clamp(t / FlipFadeEnd, 0f, 1f);
+                float o = Math.Clamp((t - FlipOthersStart) / (FlipOthersEnd - FlipOthersStart), 0f, 1f);
+                float others = 1f - o, shift = FlipOthersShift * o * o; // だんだん速くすべっていく
                 float sx = 1f, sy = 1f;
                 if (t < FlipPopEnd) { sx = FlipPopScaleX; sy = FlipPopScaleY; }
                 else if (t >= FlipSquashStart && t < FlipSquashEnd)
                 {
-                    // だんだん速さが落ちながら細くなる(測った幅：64% → 36% → 17% → 11% → 3%)
+                    // はじめが速く、だんだんゆっくり細くなる(測った幅：85% → 60% → 38% → 22% → 0%)
                     float p = (t - FlipSquashStart) / (FlipSquashEnd - FlipSquashStart);
-                    sx = Math.Max(FlipThinScale, MathF.Pow(1f - p, 1.5f));
+                    sx = Math.Max(FlipThinScale, MathF.Pow(1f - p, 1.3f));
                 }
                 else if (t >= FlipSquashEnd && t < FlipThinEnd) sx = FlipThinScale;
                 else if (t >= FlipThinEnd)
                 {
+                    // ほぼ一定の速さで元の幅まで広がる(17% → 39% → 70% → 100%)
                     float p = (t - FlipThinEnd) / (FlipSwitch - FlipThinEnd);
-                    sx = FlipThinScale + (FlipGrowScale - FlipThinScale) * p * p;
+                    sx = FlipThinScale + (1f - FlipThinScale) * p;
                 }
-                return (true, sx, sy, fade, fade);
+                return (true, sx, sy, others, fade, shift);
             }
             float appear = Math.Clamp((t - FlipSwitch) / (FlipEnd - FlipSwitch), 0f, 1f);
-            return (true, 1f, 1f, appear, appear);
+            return (true, 1f, 1f, appear, appear, 0f);
         }
 
         // ===== 開いたジャンルの板のまわり(TaikøNauts の動画を測った値) =====

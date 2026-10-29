@@ -138,6 +138,59 @@ def ura_flip():
     """難易度選択で、おに ⇔ 裏おにを切り替えたときの音(キラッと上がる和音。0.7秒)"""
     return mix(0.8, [(0, don() * 0.6)] + [(0.03 + i * 0.05, bell(mtof(m), 0.7, 0.22)) for i, m in enumerate([72, 79, 84, 91])])
 
+# ===== 音色(exe の横の HitSounds/。スキンとは別。TaikoSim/HitSounds/ に作る) =====
+HITSOUNDS = os.path.normpath(os.path.join(os.path.dirname(os.path.abspath(__file__)), '..', '..', 'TaikoSim', 'HitSounds'))
+
+def save_hitsound(folder, name, don_sig, ka_sig):
+    """音色1つ(dong.ogg・ka.ogg・HitSounds.json)。OpenTaiko の Global/HitSounds と同じ並び"""
+    import json
+    d = os.path.join(HITSOUNDS, folder)
+    os.makedirs(d, exist_ok=True)
+    global OUT
+    old = OUT
+    try:
+        OUT = d
+        save('dong.ogg', don_sig)
+        save('ka.ogg', ka_sig)
+    finally:
+        OUT = old
+    with open(os.path.join(d, 'HitSounds.json'), 'w', encoding='utf-8') as f:
+        json.dump({'name': name}, f, ensure_ascii=False, indent=2)
+
+def electro_don():
+    """電子音のドン(低いサイン波がすっと下がる)"""
+    x = t(0.3)
+    f = 60 + 160 * np.exp(-x / 0.02)
+    return np.sin(2 * np.pi * np.cumsum(f) / SR) * np.exp(-x / 0.09) + np.sign(np.sin(2 * np.pi * 110 * x)) * np.exp(-x / 0.01) * 0.2
+
+def electro_ka():
+    """電子音のカッ(高い四角い波の短い音)"""
+    x = t(0.12)
+    return np.sign(np.sin(2 * np.pi * 1760 * x)) * np.exp(-x / 0.025) * 0.5 + np.sin(2 * np.pi * 2640 * x) * np.exp(-x / 0.015) * 0.4
+
+def clap(bright):
+    """手拍子(雑音を何回か重ねる)。bright が大きいほど高い音"""
+    r = np.random.default_rng(int(bright * 10))
+    x = t(0.25)
+    n = r.normal(0, 1, len(x))
+    n = np.convolve(n, [1, -bright], 'same')
+    e = np.zeros(len(x))
+    for k, delay in enumerate((0, 0.009, 0.018)):
+        i = int(delay * SR)
+        e[i:] += np.exp(-(x[: len(x) - i]) / (0.008 if k < 2 else 0.06))
+    return n * e
+
+def woodblock(freq):
+    """ウッドブロック(木をたたいたような、こもった短い音)"""
+    x = t(0.18)
+    return (np.sin(2 * np.pi * freq * x) + 0.4 * np.sin(2 * np.pi * freq * 2.7 * x)) * np.exp(-x / 0.035) + \
+        np.random.default_rng(int(freq)).normal(0, 1, len(x)) * np.exp(-x / 0.003) * 0.3
+
+def hitsounds():
+    save_hitsound('Electro', '電子音', electro_don(), electro_ka())
+    save_hitsound('Clap', '手拍子', clap(0.2), clap(0.9))
+    save_hitsound('WoodBlock', 'ウッドブロック', woodblock(520), woodblock(1150))
+
 def run():
     save('Sound/Taiko/0.Taiko/don.ogg', don())
     save('Sound/Taiko/0.Taiko/ka.ogg', ka())
@@ -153,6 +206,7 @@ def run():
     save('Sound/Result/Crown_DondaFullCombo.ogg', mix(2.2, [(i * 0.06, bell(mtof(m), 1.6, 0.2)) for i, m in enumerate([72, 76, 79, 84, 88, 91])]))
     save('Sound/SongSelect/Skip.ogg', skip())
     save('Sound/SongSelect/UraFlip.ogg', ura_flip())
+    hitsounds()
     # 吹き出しの音とリザルトの BGM は無し
 
 if __name__ == '__main__':

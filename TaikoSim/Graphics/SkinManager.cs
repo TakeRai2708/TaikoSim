@@ -445,6 +445,9 @@ namespace TaikoSim.Graphics
         }
 
         // ファイルを自分で読んでからRaylibに渡す(パスに日本語があっても読めるように)
+        // 画像ファイルを1枚読む(スキンの外の画像も読める。設定のスキンのプレビューで使う。片付けは呼んだ側で)
+        public static Texture2D? LoadTextureFile(string fullPath) => LoadTexture(fullPath);
+
         private static Texture2D? LoadTexture(string fullPath)
         {
             if (!File.Exists(fullPath)) return null;

@@ -12,7 +12,7 @@ namespace TaikoSim.UI
     //
     // 見た目：A-Style の 02.SongSelect/Option/ の画像で描く(無ければプログラムで同じ形を描く)
     //   TaikøNauts の動画(10/18 の 2026-10-18_00-27-01.mp4 の 50〜58秒)を 1/60秒ずつ測った：
-    //   ・板(Background.png 432×614)は原寸で (0, 465)。8項目ぶんの大きさなので、TaikoSim は9項目ぶん縦に 61px 伸ばして、上に 61px ずらす
+    //   ・板(Background.png 432×614)は原寸で (0, 465)。8項目ぶんの大きさ。TaikoSim の項目の数に合わせて、1項目 61px ずつ縦に伸ばす・縮める(下の端はそのまま)
     //   ・左上に 1P の印(PlayerSide.png の左の 64×64 を 54px で (36, 28))、その右に「演奏オプション」(白い字に黒い縁)
     //   ・項目の帯(Option_Base.png 364×52)は板の (32, 94) から 61px ずつ。ふだんは白を半分だけ重ねる(うすい黄緑に見える)、選んでいる帯はこい黄色 (254,255,0)
     //   ・項目の名前は白い字に黒い縁(帯の左から 11px)。値は白い箱(Option_Value_Base.png 180×40 を帯の (178, 6))に、黒っぽい字に白い縁
@@ -49,7 +49,7 @@ namespace TaikoSim.UI
         private float PanelTop => BaseTop - (items.Length - BaseRows) * RowStep;
 
         private static readonly Color Ink = new Color(20, 20, 24, 255);
-        private static readonly Color ValueInk = new Color(40, 40, 40, 255);
+        private static readonly Color ValueInk = new Color(16, 16, 16, 255);   // 値の字(ほぼ黒。薄く見えないように)
         private static readonly Color SelectedRowTint = new Color(254, 255, 0, 255);  // 選んでいる項目の帯(こい黄色)
         private static readonly Color RowTint = new Color(255, 255, 255, 128);        // ふだんの帯(白を半分)
         private static readonly Color ErrorColor = new Color(255, 70, 60, 255);
@@ -72,7 +72,7 @@ namespace TaikoSim.UI
         public bool IsTyping => editRow >= 0;
 
         // ===== 項目 =====
-        private enum Kind { Toggle, HiSpeed, AutoRoll, Percent }
+        private enum Kind { Toggle, HiSpeed, AutoRoll, Percent, HitSound }
         private sealed class Item
         {
             public string Label = "";
@@ -92,18 +92,11 @@ namespace TaikoSim.UI
             new Item { Label = "はやさ", Kind = Kind.HiSpeed },  // TJA の SCROLL に掛ける倍率(本家の「はやさ」)
             new Item { Label = "オート連打", Kind = Kind.AutoRoll,
                 GetInt = () => Cfg.AutoRollPerSecond, SetInt = v => Cfg.AutoRollPerSecond = v },
-            new Item { Label = "精度：良", Kind = Kind.Percent,
-                GetInt = () => Cfg.AutoGoodPercent, SetInt = v => Cfg.AutoGoodPercent = v },
-            new Item { Label = "精度：可", Kind = Kind.Percent,
-                GetInt = () => Cfg.AutoOkPercent, SetInt = v => Cfg.AutoOkPercent = v },
-            new Item { Label = "精度：不可", Kind = Kind.Percent,
-                GetInt = () => Cfg.AutoBadPercent, SetInt = v => Cfg.AutoBadPercent = v },
+            new Item { Label = "音色", Kind = Kind.HitSound },  // ドン・カッの音(Audio/HitSounds.cs。本家の「音色」)
             new Item { Label = "毎回同じ出方", Kind = Kind.Toggle,
                 GetBool = () => Cfg.AutoFixedPattern, SetBool = v => Cfg.AutoFixedPattern = v },
             new Item { Label = "判定の板", Kind = Kind.Toggle,
                 GetBool = () => Cfg.ShowScoreboard, SetBool = v => Cfg.ShowScoreboard = v },
-            new Item { Label = "デバッグ記録", Kind = Kind.Toggle,
-                GetBool = () => Cfg.DebugLog, SetBool = v => Cfg.DebugLog = v },
         };
 
         // カッで変えるときの段階
@@ -158,6 +151,7 @@ namespace TaikoSim.UI
             if (!IsOpen) return;
             float step = Math.Min(dt, 1f / 30f);
             caretTimer += dt;
+            HitSounds.Update(dt); // 音色の試し聞きのカッ
             if (Closing)
             {
                 closeTime += step;
@@ -173,7 +167,7 @@ namespace TaikoSim.UI
             int c = Raylib.GetCharPressed();
             while (c > 0)
             {
-                if (items[cursor].Kind != Kind.Toggle && (char.IsAsciiDigit((char)c) || (c == '.' && items[cursor].Kind == Kind.HiSpeed)))
+                if (items[cursor].Kind is not (Kind.Toggle or Kind.HitSound) && (char.IsAsciiDigit((char)c) || (c == '.' && items[cursor].Kind == Kind.HiSpeed)))
                 {
                     BeginEdit(cursor, selectAll: false);
                     editText = ((char)c).ToString();
@@ -208,6 +202,16 @@ namespace TaikoSim.UI
                 case Kind.Toggle:
                     item.SetBool(!item.GetBool());
                     break;
+                case Kind.HitSound:
+                {
+                    // 一覧をぐるっと回る。変えたら「ドン → カッ」を1回ずつ鳴らす(カッの音は鳴らさない)
+                    var list = HitSounds.List;
+                    int next = ((HitSounds.SelectedIndex + dir) % list.Count + list.Count) % list.Count;
+                    Cfg.HitSound = list[next].Key;
+                    ConfigManager.SaveAll();
+                    HitSounds.PlayPreview();
+                    return;
+                }
                 case Kind.HiSpeed:
                 {
                     float now = Cfg.HiSpeed > 0f ? Cfg.HiSpeed : 1f; // 0 は「譜面どおり」＝1.0倍
@@ -309,6 +313,7 @@ namespace TaikoSim.UI
         private static string ValueText(Item item) => item.Kind switch
         {
             Kind.Toggle => item.GetBool() ? "する" : "しない",
+            Kind.HitSound => HitSounds.Selected.Name,
             Kind.HiSpeed => (Cfg.HiSpeed > 0f ? Cfg.HiSpeed : 1f).ToString("0.0##", CultureInfo.InvariantCulture),
             Kind.Percent => item.GetInt().ToString(CultureInfo.InvariantCulture) + "%",
             _ => item.GetInt().ToString(CultureInfo.InvariantCulture),
@@ -355,7 +360,7 @@ namespace TaikoSim.UI
             Vector2 mouse = Screen.GetMousePosition();
             bool pressed = input && Raylib.IsMouseButtonPressed(MouseButton.Left);
 
-            // ----- 板(9項目ぶん縦に伸ばす。角や縁がゆがまないように9つに切って伸ばす) -----
+            // ----- 板(項目の数に合わせて縦に伸ばす。角や縁がゆがまないように9つに切って伸ばす) -----
             Rectangle panel = new Rectangle(px, py, PanelWidth, PanelHeight);
             if (!MenuSkin.NPatch(Folder + "Background.png", panel, 60, Color.White))
             {
@@ -422,7 +427,7 @@ namespace TaikoSim.UI
                 else if (Raylib.CheckCollisionPointRec(mouse, box))
                 {
                     cursor = i;
-                    if (item.Kind == Kind.Toggle) Change(i, +1);
+                    if (item.Kind is Kind.Toggle or Kind.HitSound) Change(i, +1);
                     else if (!editing) BeginEdit(i, selectAll: true);
                 }
                 else if (Raylib.CheckCollisionPointRec(mouse, row) && !selected)
@@ -445,7 +450,7 @@ namespace TaikoSim.UI
         private static void Outlined(string text, float x, float centerY, float size, Color fill, Color outline, bool centerX)
         {
             Vector2 m = MeasureSkin(text, size);
-            float thickness = Math.Min(Math.Max(2f, size * 0.13f), DynamicFont.MaxOutline(size));
+            float thickness = Math.Min(Math.Max(2.5f, size * MenuDraw.OutlineRatio), DynamicFont.MaxOutline(size));
             FontManager.DrawSkinMainOutlined(text, centerX ? x - m.X / 2f : x, centerY - m.Y / 2f, size, fill, outline, thickness);
         }
 

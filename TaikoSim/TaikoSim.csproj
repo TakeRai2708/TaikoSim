@@ -34,6 +34,10 @@
 		<None Update="Skins\TaikoSim-Simple\**\*">
 			<CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory>
 		</None>
+		<!-- 音色(ドン・カッの音)。ビルドすると exe の横の HitSounds フォルダにコピーされる(OpenTaiko の Global/HitSounds と同じ並び) -->
+		<None Update="HitSounds\**\*">
+			<CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory>
+		</None>
 		<None Update="Assets\Fonts\NotoSansJP-Regular.ttf">
 			<CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory>
 		</None>

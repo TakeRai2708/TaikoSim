@@ -87,6 +87,9 @@
         // オートの良・可・不可の出方を、同じ曲・同じ難易度・同じ割合なら毎回同じにするか(false なら毎回ランダム)
         public bool AutoFixedPattern { get; set; } = false;
 
+        // 音色(ドン・カッの音)。HitSounds フォルダの中のフォルダ名。空ならスキンの音(Audio/HitSounds.cs)
+        public string HitSound { get; set; } = "";
+
         // 演奏画面の左下に、良・可・不可・連打数の板を出すか
         public bool ShowScoreboard { get; set; } = true;
 

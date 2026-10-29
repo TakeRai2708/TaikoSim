@@ -133,7 +133,9 @@ namespace TaikoSim.UI
             caretTimer += Raylib.GetFrameTime();
 
             // マウスを離したらドラッグ終了
-            if (!mouseDown) draggingId = null;
+            //   本当にボタンを離したときだけ見る(mouseDown は「マウスを受け付けない」間 false になる。
+            //   F1 の設定の後ろで選曲画面なども BeginFrame を呼ぶので、mouseDown で見るとドラッグが毎フレーム切れていた)
+            if (!Raylib.IsMouseButtonDown(MouseButton.Left)) draggingId = null;
         }
 
         // クリックできる範囲を決める(スクロールする場所で使う)

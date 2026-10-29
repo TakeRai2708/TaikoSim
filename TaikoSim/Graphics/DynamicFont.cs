@@ -22,9 +22,10 @@ namespace TaikoSim.Graphics
         public const int BaseSize = 48;
         // この倍の大きさで描いてから距離を計算する(細かいところまで正しい距離にするため)
         private const int RasterScale = 2;
-        // 文字のまわりに持っておく距離(ページの px)。縁取りはこれより細くないといけない(基準の大きさの 1/6)
-        private const int Spread = 8;
-        // ページ1枚の大きさ(1文字 64px 四方くらいなので、1枚に約 1000 文字)
+        // 文字のまわりに持っておく距離(ページの px)。縁取りはこれより細くないといけない(基準の大きさの 1/4)
+        //   10/30 に 8 → 12：TaikøNauts のサブタイトルは縁が文字の大きさの約 0.16 倍あって、8 だと上限(約 0.16 倍)ぎりぎりで足りなかった
+        private const int Spread = 12;
+        // ページ1枚の大きさ(1文字 72px 四方くらいなので、1枚に約 800 文字)
         private const int PageSize = 2048;
         // ページの中で、文字と文字の間に空けるすき間
         private const int CellGap = 1;

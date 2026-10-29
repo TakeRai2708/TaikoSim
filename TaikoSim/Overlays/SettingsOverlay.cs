@@ -140,15 +140,8 @@ namespace TaikoSim.Overlays
         // 「フォルダを選択」が押された(描画中に画面を出すと危ないので、次の Update で出す)
         private bool pickFolderRequested = false;
 
-        // プレビューに出す画像(判定枠・ドン・カッ・大ドン・大カッ)
-        private static readonly string[] PreviewImages =
-        {
-            "Image/04.EnsoGame/Notes/JudgementFrame.png",
-            "Image/04.EnsoGame/Notes/Normal/0/0.png",
-            "Image/04.EnsoGame/Notes/Normal/0/1.png",
-            "Image/04.EnsoGame/Notes/Normal/0/2.png",
-            "Image/04.EnsoGame/Notes/Normal/0/3.png",
-        };
+        // 選んでいるスキンのプレビュー(UI/SkinPreview.cs)
+        private readonly SkinPreview skinPreview = new();
 
         // ===== 開閉 =====
 
@@ -205,6 +198,7 @@ namespace TaikoSim.Overlays
             confirmOpen = false;
             unsavedOpen = false;
             fullScreen = false;
+            skinPreview.Unload(); // プレビューの画像を片付ける
             draftGame = savedGame = null;
             draftSound = savedSound = null;
             draftKey = savedKey = null;
@@ -757,6 +751,14 @@ namespace TaikoSim.Overlays
             NoteRow("音符の見た目だけずらします（判定は変わりません）");
 
             NoteRow("どちらもマイナスで早く、プラスで遅くなります");
+
+            // ----- オート演奏の精度(前は選曲画面の演奏オプションにあった) -----
+            cursorY += 10;
+            SubHeader("オート演奏の精度");
+            game.AutoGoodPercent = SliderRow("autoGood", "良[%]", game.AutoGoodPercent, GameConfig.AutoPercentMin, GameConfig.AutoPercentMax);
+            game.AutoOkPercent = SliderRow("autoOk", "可[%]", game.AutoOkPercent, GameConfig.AutoPercentMin, GameConfig.AutoPercentMax);
+            game.AutoBadPercent = SliderRow("autoBad", "不可[%]", game.AutoBadPercent, GameConfig.AutoPercentMin, GameConfig.AutoPercentMax);
+            NoteRow("オートで叩くときの、良・可・不可の割合です。合計が100でなくても割合で使います（全部0なら全部良）");
         }
 
         private void DrawKeySection()
@@ -864,31 +866,18 @@ namespace TaikoSim.Overlays
                     : $"{skin.SkinName} を保存しました（設定を閉じると切り替わります）", SuccessColor);
             }
 
-            // スキンの情報
-            string info = SkinManager.DisplayName;
-            if (SkinManager.Version.Length > 0) info += $"　ver.{SkinManager.Version}";
+            // ----- プレビュー(選んでいるスキンの音符。まだ切り替えていないスキンも、そのスキンの画像で見せる) -----
+            skinPreview.Load(skin.GetCurrentSkinPath());
+            string info = skinPreview.DisplayName;
+            if (skinPreview.Version.Length > 0) info += $"　ver.{skinPreview.Version}";
             NoteRow(FitText(info, RightEdge - LabelX, 22));
-            if (SkinManager.Description.Length > 0) NoteRow(FitText(SkinManager.Description, RightEdge - LabelX, 22));
-            if (!fullScreen && savedSkin != null && !ConfigManager.Same(savedSkin, skin))
-                NoteRow("下のプレビューは現在のスキンです。変更は設定を閉じると反映されます");
+            if (skinPreview.Description.Length > 0) NoteRow(FitText(skinPreview.Description, RightEdge - LabelX, 22));
 
-            // ----- プレビュー(画像がちゃんと読めているかの確認) -----
             float previewY = ToScreenY(cursorY);
             Rectangle previewBox = new Rectangle(LabelX, previewY, RightEdge - LabelX, 110);
-            Raylib.DrawRectangleRec(previewBox, new Color(12, 13, 17, 255));
-
-            bool anyDrawn = false;
-            float px = previewBox.X + 10;
-            foreach (string image in PreviewImages)
-            {
-                // 195×195の画像を半分の大きさで並べる
-                if (SkinManager.Draw(image, px, previewY + 7, 0.5f)) anyDrawn = true;
-                px += 104;
-            }
-            if (!anyDrawn)
-            {
+            Raylib.DrawRectangleRounded(previewBox, 0.12f, 8, new Color(12, 13, 17, 255));
+            if (!skinPreview.Draw(previewBox))
                 Gui.DrawCentered("画像を読み込めませんでした", previewBox, 22, ErrorColor);
-            }
             cursorY += 122;
         }
 

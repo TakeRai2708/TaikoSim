@@ -38,11 +38,13 @@ namespace TaikoSim.UI
             Text(text, area.X + (area.Width - measured.X) / 2f, area.Y + (area.Height - measured.Y) / 2f, size, color);
         }
 
-        // 縁の太さ = 文字の大きさ × この割合(どの大きさでも同じ見た目の太さになるように。46px なら約5px、60px なら約6.6px)
-        public const float OutlineRatio = 0.11f;
+        // 縁の太さ = 文字の大きさ × この割合(どの大きさでも同じ見た目の太さになるように。28px なら約4.5px、60px なら約9.6px)
+        //   10/30 に 0.11 → 0.16：TaikøNauts の動画(10/29 A.mp4 の難易度の板)で、サブタイトル「かめりあ」の縁が TaikoSim の約1.5倍あった
+        //   (縁が細いと、白い字がうすく・灰色っぽく見える)
+        public const float OutlineRatio = 0.16f;
 
-        // 縁の太さ(文字の大きさから決める。小さい字でも 1.5px はつける。フォントに持っている距離より太くはしない)
-        public static float OutlineWidth(float size) => Math.Min(Math.Max(1.5f, size * OutlineRatio), DynamicFont.MaxOutline(size));
+        // 縁の太さ(文字の大きさから決める。小さい字でも 2px はつける。フォントに持っている距離より太くはしない)
+        public static float OutlineWidth(float size) => Math.Min(Math.Max(2f, size * OutlineRatio), DynamicFont.MaxOutline(size));
 
         // 縁取りした文字を、四角の真ん中にはみ出さない大きさで書く
         //   縁は、まわりにぐるっと(円の上に)ずらした文字を描いて作る。8方向だとななめだけ飛び出してトゲトゲになるので、細かく回す
