@@ -106,40 +106,36 @@ def fans():
     c.save(E + 'Fan.png')
 
 def confetti():
-    # A-Style と同じ動き方：セルの左上(x 90〜420, y 40〜330)にかたまって、その場でひらひら揺れる
-    #   ・揺れは10コマで1周(A-Style のセルも10コマごとにほぼ同じ形)
-    #   ・50コマかけて、少しずつ下へずれる(50コマ目で頭に戻る)
-    #   ・何枚かは、かたまりから離れて下の方へ落ちていく
+    # 紙ふぶき(520×368 のコマが 横10・縦5 で 50コマ)
+    #   コマの順番は「縦に読む」：0〜4 コマ目が1列目の上から下、5〜9 コマ目が2列目…(TaikøNauts の Confetti.png と同じ並び)
+    #   (10/29 に A-Style の画像を調べて分かった。横に読むと、となりのコマと形がまったくつながらない)
+    #   動き：コマの (190, 90) あたりから、上と横へはじけて、ひらひら回りながら落ちる。50コマ(30fpsで1.67秒)でつながってくり返す
+    #   プログラムは扇と文字の「後ろ」に描くので、扇より上に飛んだ紙だけが見える(TaikøNauts と同じ)
     rnd = random.Random(21)
     W, H = 520, 368
     cols = [(230, 190, 90), (240, 240, 245), (200, 170, 230), (130, 200, 235), (240, 150, 180)]
     pieces = []
-    for i in range(34):
-        stray = i >= 28  # 離れて落ちる紙
-        bx = rnd.uniform(120, 330) if not stray else rnd.uniform(150, 380)
-        by = rnd.gauss(150, 45) if not stray else rnd.uniform(90, 200)
-        by = min(max(by, 55), 260)
-        pieces.append(dict(x=bx, y=by, ph=rnd.uniform(0, 2 * math.pi), spin=rnd.uniform(0, 2 * math.pi),
-                           sw=rnd.uniform(4, 9), size=rnd.uniform(7, 11), col=rnd.choice(cols), stray=stray,
-                           fall=rnd.uniform(1.6, 2.6)))
+    for i in range(30):
+        pieces.append(dict(birth=i * 50 / 30 + rnd.uniform(0, 1.5), vx=rnd.uniform(-2.6, 3.4), vy=rnd.uniform(-7.5, -3.5),
+                           ph=rnd.uniform(0, 2 * math.pi), spin=rnd.uniform(0.25, 0.5), sw=rnd.uniform(3, 7),
+                           size=rnd.uniform(7, 11), col=rnd.choice(cols)))
+    G = 0.36       # 1コマごとに下へ速くなる量(px)
+    DRAG = 0.965   # 横の速さは少しずつ落ちる
     c = Canvas(W * 10, H * 5)
     for f in range(50):
-        ox, oy = (f % 10) * W, (f // 10) * H
-        t = f / 10 * 2 * math.pi            # 10コマで1周
-        drift = f * 0.3                     # 50コマで15px下へ
+        ox, oy = (f // 5) * W, (f % 5) * H   # 縦に読む
         for p in pieces:
-            xx = p['x'] + math.sin(t + p['ph']) * p['sw']
-            yy = p['y'] + math.cos(t * 1 + p['ph'] * 1.3) * p['sw'] * 0.6 + drift
-            if p['stray']:
-                yy = p['y'] + (f * p['fall']) % 110
-                xx = p['x'] + math.sin(t + p['ph']) * 10
-            if yy > 330:
+            age = (f - p['birth']) % 50
+            vx = p['vx'] * (1 - DRAG ** age) / (1 - DRAG)
+            xx = 190 + vx + math.sin(age * 0.35 + p['ph']) * p['sw']
+            yy = 90 + p['vy'] * age + 0.5 * G * age * age
+            if yy > H - 20 or not (10 < xx < W - 10):
                 continue
-            ang = p['spin'] + t * 2           # くるくる回る(横幅が変わって見える)
+            ang = p['ph'] + age * p['spin']   # くるくる回る(横幅が変わって見える)
             sz = p['size']
             w2 = sz * abs(math.cos(ang)) + 1.2
             h2 = sz * 0.6
-            tilt = p['ph']
+            tilt = p['ph'] + age * 0.08
             pts = []
             for dx, dy in ((-w2, -h2), (w2, -h2), (w2, h2), (-w2, h2)):
                 rx = dx * math.cos(tilt) - dy * math.sin(tilt)

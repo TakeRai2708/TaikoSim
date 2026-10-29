@@ -24,7 +24,7 @@ namespace TaikoSim.Scenes
         private const string FullComboImage = Dir + "FullCombo_Text.png";          // 800×200 が縦2段(上:色 下:真っ白)
         private const string DondaImage = Dir + "DondaFullCombo_Text.png";         // 1000×200 が縦2段(上:色 下:真っ白)
         private const string DondaBackImage = Dir + "DondaFullCombo_Background.png"; // 1422×240
-        private const string ConfettiImage = Dir + "Confetti.png";                 // 520×368 が横10・縦5(50コマ)
+        private const string ConfettiImage = Dir + "Confetti.png";                 // 520×368 が横10・縦5(50コマ。縦に読む)
         private const string StarImage = Dir + "Star.png";                         // 64×64
 
         // 演出が始まってから暗くなり始めるまでの時間(TaikøNauts の動画で 6.9秒。クリア失敗・クリア成功とも同じ)
@@ -47,7 +47,8 @@ namespace TaikoSim.Scenes
         private const float BackX = 498f, BackY = 288f;   // ドンダフルコンボの背景(レーンの中を覆う)
         private const float FanLeftX = 556f, FanRightX = 1503f, FanY = 297f;
         private const float FanWidth = 350f, FanHeight = 220f;
-        private const float ConfettiLeftX = 525f, ConfettiRightX = 1367f, ConfettiY = 162f; // 仮(紙ふぶきが扇の上の方に出るように)
+        // 紙ふぶきのコマの左上(TaikøNauts の動画 10/29 A.mp4 を A-Style の画像と重ねて測った。右はレーンの真ん中 x=1206 で左右対称)
+        private const float ConfettiLeftX = 560f, ConfettiRightX = 1332f, ConfettiY = 200f;
         private const float ConfettiWidth = 520f, ConfettiHeight = 368f;
 
         // ===== 動き(動画のコマ) =====
@@ -103,7 +104,7 @@ namespace TaikoSim.Scenes
         private const float FanFrame = 42f;         // 扇が(閉じた形で)出て、44コマ目から1コマずつ開く
         private const float FanOpenFrame = 44f;
         private const float StarFrame = 45f;        // きらきら
-        private const float ConfettiFrame = 58f;    // 紙ふぶき
+        private const float ConfettiFrame = 67f;    // 紙ふぶき(大きい文字が出てから 0.85秒)
         private const float CharaLeaveFrame = 59f;  // ドンダ：飛んでいったキャラが着物のキャラに変わる
 
         public bool Started { get; private set; }
@@ -140,6 +141,8 @@ namespace TaikoSim.Scenes
             bool donda = Result == PlayResult.DondaFullCombo;
 
             if (donda) DrawImage(DondaBackImage, BackX, BackY, Fade(f, BackFrame, BackFadeFrames));
+            // 紙ふぶきは、扇と文字の後ろ(TaikøNauts：扇より上に飛んだ紙だけが見える)
+            if (donda && f >= ConfettiFrame) DrawConfetti(f);
             if (big) DrawFans(f);
 
             // 「クリア成功」「クリア失敗」(フルコンボ・ドンダのときは、大きい文字が出るときに消える)
@@ -153,7 +156,6 @@ namespace TaikoSim.Scenes
 
             if (big) DrawBigText(donda ? DondaImage : FullComboImage, donda ? DondaX : FullComboX,
                 donda ? DondaY : FullComboY, donda ? 1000f : 800f, f);
-            if (donda && f >= ConfettiFrame) DrawConfetti(f);
             if (Result != PlayResult.Failed && f >= StarFrame) DrawStars(f, big);
 
             DrawCharacters(f);
@@ -236,11 +238,14 @@ namespace TaikoSim.Scenes
         }
 
         // 紙ふぶき(50コマを30fpsでくり返す)。右は左右反転
+        //   コマは「縦に読む」(0〜4 コマ目が1列目の上から下、5 コマ目から2列目)
+        //   A-Style の画像で、上下のコマは形がつながっていて、左右のコマはつながっていなかった
+        //   (前は横に読んでいたので、紙がバラバラに飛び回って、速く・多く見えていた)
         private static void DrawConfetti(float f)
         {
             if (SkinManager.GetTexture(ConfettiImage) is not Texture2D tex) return;
             int frame = (int)(f - ConfettiFrame) % 50;
-            float sx = frame % 10 * ConfettiWidth, sy = frame / 10 * ConfettiHeight;
+            float sx = frame / 5 * ConfettiWidth, sy = frame % 5 * ConfettiHeight;
             float alpha = Fade(f, ConfettiFrame, 3f);
             DrawCell(tex, sx, sy, ConfettiWidth, ConfettiHeight, ConfettiLeftX, ConfettiY, alpha);
             DrawCell(tex, sx, sy, ConfettiWidth, ConfettiHeight, ConfettiRightX, ConfettiY, alpha, flipX: true);

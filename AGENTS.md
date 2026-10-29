@@ -264,6 +264,12 @@ python sounds.py      # 音（ffmpeg が必要）
   - TaikøNauts のヒントの画像の名前は `Background_Light..png`（点が2つ）。`Background_Light.png` が無ければそっちを読む
   - Simple は `tools/skin-gen/loading.py` で作った（落ち着いた虹色のしま・太鼓の絵・ヒントの文字）
 
+- ドンダフルコンボの紙ふぶき（`PlayEnd.DrawConfetti`）
+  - `Confetti.png`（520×368 が横10・縦5）のコマは **縦に読む**（0〜4 が1列目の上から下）。A-Style の画像で、上下のコマは形がつながっていて、左右はつながっていなかった
+  - 扇と文字の **後ろ** に描く（TaikøNauts：扇より上に飛んだ紙だけが見える）。コマの左上は左 (560, 200)・右 (1332, 200)（右は左右反転）、大きい文字から 0.85秒後（67コマ目）から
+  - Simple の `Confetti.png` も縦に読む並びで作り直した（`tools/skin-gen/endres.py` の `confetti()`。はじけて落ちる動き）
+- 曲を決めたとき：枠は 0.53秒で白 → **0.65秒で消える** → 0.70〜0.93秒で一覧が消える（A.mp4 の 69.15秒〜を 1/60秒ずつ）
+
 ### これからやること（たけらいと話していたもの）
 - A-Style の選曲画面の第2段：検索・オプションの板・鬼→裏の切り替えアニメ（`Oni_Transition.png`）・自己ベスト・王冠
 - モード選択の A-Style 対応（TaikøNauts のフォルダ名を教えてもらう）

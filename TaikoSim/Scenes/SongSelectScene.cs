@@ -121,7 +121,9 @@ namespace TaikoSim.Scenes
         private readonly Random random = new();
 
         // ===== 決定 → 難易度の板(決定した時を0秒として。TaikøNauts を測った値) =====
-        private const float ListFadeStart = 0.75f, ListFadeEnd = 0.92f;   // 一覧が消える
+        //   (10/29 の A.mp4 を 1/60秒ずつ：69.15秒に決定 → 枠の点滅 → 0.53秒から白 → 0.65秒で枠が消える → 0.70〜0.93秒で一覧が消える)
+        private const float FrameHideAt = 0.65f;                          // 白くなった枠が消える
+        private const float ListFadeStart = 0.70f, ListFadeEnd = 0.93f;   // 一覧が消える
         private const float PanelInStart = 1.25f, PanelInEnd = 1.58f;     // 難易度の板が出る
         private const float MarkerAt = 1.7f;                   // 1P の印が出る
 
@@ -1005,7 +1007,7 @@ namespace TaikoSim.Scenes
                     if (selectedItem.Kind == Kind.Genre && !flipOpened) DrawGenrePop(selectedItem, sel, alpha * flip.Others, force: true);
                     return;
                 }
-                list.DrawFrame(sel, alpha);
+                if (!(diffOpen && diffTime >= FrameHideAt)) list.DrawFrame(sel, alpha); // 曲を決めたときは、白くなった枠が 0.65秒で消える
                 DrawBar(selectedItem, sel, list.Expand, alpha, list.FrameShown);
                 if (selectedItem.Kind == Kind.Genre) DrawGenrePop(selectedItem, sel, alpha);
             }
