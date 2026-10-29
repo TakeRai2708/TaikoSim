@@ -702,25 +702,41 @@ namespace TaikoSim.Scenes
             }
         }
 
-        // コンボの数字のキラキラ(けたごとに、まんなか・右・左の3つ)
-        //   OpenTaiko：b = 数字の幅 / 4、c = 数字の高さ / 4、d = 数字の下端。星は「下の真ん中」を合わせて描く
+        // コンボの数字のキラキラ(けたごとに、まんなか → 右 → 左 の順に1つずつ)
+        //   TaikøNauts の動画(10/29。金の 133 コンボを1/60秒ずつ)を測った値：
+        //   ・どのけたにも同時に1つずつ出る。1つが出ている間は約8コマ(0.13秒)で、ふくらんでしぼむ
+        //   ・横：まんなかは数字の中心、右は +17px、左は −11px(数字の幅 66px のとき)
+        //   ・高さ：3つとも数字の下から 53px 上(数字の高さ 78px のとき)。そこから1コマに 1px ずつ上がる
+        //   ・色は真っ白(画像の黄色い腕も白く光って見える → 加算合成で描く)
+        //   (前は OpenTaiko の式で、右と左が 12〜15px 下に出ていた。大きさも変わらなかった)
+        private static readonly (int Start, float OffsetX)[] SparkleSlots = { (2, 0f), (10, 17f / 66f), (18, -11f / 66f) };
+        private const int SparkleLife = 8;                  // 1つが出ている段の数(1段 16ms)
+        private const float SparkleHeight = 53f / 78f;      // 数字の下からの高さ(数字の高さに対する割合)
+        private const float SparkleRise = 1.05f;            // 1段で上がる px(OpenTaiko と同じ)
+
         private void DrawComboSparkles(float rightX, float padding, int count, float digitWidth, float digitHeight, float bottomY)
         {
             if (SkinManager.GetTexture(ComboSparkleImage) is not Texture2D star) return;
-            Color tint = Color.White;
             int v = (int)(comboSparkleTime / ComboSparkleStep) % ComboSparkleSteps;
-            float b = digitWidth / 4f, c = digitHeight / 4f, d = bottomY;
-            for (int i = 0; i < count; i++)
+            float within = comboSparkleTime / ComboSparkleStep % 1f; // 段の中の進み具合(ふくらみをなめらかにする)
+            Raylib.BeginBlendMode(BlendMode.Additive);
+            foreach (var (start, offsetX) in SparkleSlots)
             {
-                float a = rightX - padding * i;
-                if (v < 13) DrawSparkle(star, a, d - c - (int)(1.05f * v) - 13, tint);                  // まんなか
-                if (v >= 8 && v < 23) DrawSparkle(star, a + b, d - c - (int)(1.05f * (v - 10)) - 3, tint); // 右
-                if (v >= 17 && v < 32) DrawSparkle(star, a - b, d - c - (int)(1.05f * v - 20) - 8, tint);  // 左
+                int age = v - start;
+                if (age < 0 || age >= SparkleLife) continue;
+                float t = (age + within) / SparkleLife;           // 0 → 1
+                float scale = MathF.Sin(MathF.PI * t);             // ふくらんでしぼむ
+                float centerY = bottomY - digitHeight * SparkleHeight - SparkleRise * age;
+                for (int i = 0; i < count; i++)
+                {
+                    float centerX = rightX - padding * i + digitWidth * offsetX;
+                    float size = star.Width * scale;
+                    Raylib.DrawTexturePro(star, new Rectangle(0, 0, star.Width, star.Height),
+                        new Rectangle(centerX - size / 2f, centerY - size / 2f, size, size), Vector2.Zero, 0f, Color.White);
+                }
             }
+            Raylib.EndBlendMode();
         }
-
-        private static void DrawSparkle(Texture2D star, float x, float bottom, Color tint) =>
-            Raylib.DrawTexture(star, (int)(x - star.Width / 2f), (int)(bottom - star.Height), tint);
 
         // ----- ゴーゴー -----
 
