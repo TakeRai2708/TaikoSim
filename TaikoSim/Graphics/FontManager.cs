@@ -56,6 +56,28 @@ namespace TaikoSim.Graphics
             Raylib.DrawTextEx(Raylib.GetFontDefault(), text, new Vector2(x, y), size, size / 10f, color);
         }
 
+        // 縁取りした文字(システム用のフォント)。thickness は縁の太さ(画面の px)
+        public static void DrawOutlined(string text, float x, float y, float size, Color fill, Color outline, float thickness)
+        {
+            if (systemFont != null) systemFont.DrawOutlined(text, new Vector2(x, y), size, fill, outline, thickness);
+            else DrawOutlinedFallback(text, x, y, size, fill, outline, thickness, Draw);
+        }
+
+        // フォントが読めなかったとき(Raylib の標準フォント)は、まわりにずらして描いて縁にする
+        private static void DrawOutlinedFallback(string text, float x, float y, float size, Color fill, Color outline,
+            float thickness, Action<string, float, float, float, Color> draw)
+        {
+            if (outline.A > 0 && thickness > 0f)
+            {
+                for (int i = 0; i < 16; i++)
+                {
+                    float angle = i * MathF.Tau / 16;
+                    draw(text, x + MathF.Cos(angle) * thickness, y + MathF.Sin(angle) * thickness, size, outline);
+                }
+            }
+            draw(text, x, y, size, fill);
+        }
+
         // たくさんの文字列の文字を、まとめて先に読み込む(選曲画面の曲名など。描くときに止まらないように)
         public static void Preload(IEnumerable<string> texts) => systemFont?.Preload(texts);
 
@@ -96,6 +118,13 @@ namespace TaikoSim.Graphics
             if (skinMainFont != null)
                 skinMainFont.Draw(text, new Vector2(x, y), size, color);
             else Draw(text, x, y, size, color);
+        }
+
+        // 縁取りした文字(スキンの太字フォント。無ければシステム用のフォント)
+        public static void DrawSkinMainOutlined(string text, float x, float y, float size, Color fill, Color outline, float thickness)
+        {
+            if (skinMainFont != null) skinMainFont.DrawOutlined(text, new Vector2(x, y), size, fill, outline, thickness);
+            else DrawOutlined(text, x, y, size, fill, outline, thickness);
         }
 
         public static Vector2 MeasureSkinMain(string text, float size) =>

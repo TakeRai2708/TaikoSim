@@ -1,39 +1,55 @@
 ﻿using System.Numerics;
+using System.Runtime.InteropServices;
 using System.Text;
 using Raylib_cs;
 using TaikoSim.Diagnostics;
 
 namespace TaikoSim.Graphics
 {
-    // フォント1つ分(.ttf / .otf)。足りない文字はあとから「ページ」を足して読み込む
+    // フォント1つ分(.ttf / .otf)。足りない文字はあとから足す
     //
-    // しくみ：
-    //   ・フォントのファイルは最初に1回だけ読んで、メモリに置いておく
-    //   ・最初によく使う文字(英数字・ひらがな・カタカナなど)を1ページ目として読む
-    //   ・知らない文字(漢字など)が出てきたら、その文字だけの小さいページを1枚足す
-    //     (前は全部の文字を読み直していたので、文字が増えるほど重くなっていた)
-    //   ・描くときは1文字ずつ「どのページにあるか」を見て描く
+    // しくみ(SDF フォント)：
+    //   ・文字の絵ではなく「文字のふちまでの距離」を画像にしておく(SDF = Signed Distance Field)
+    //     描くときにシェーダーが「ふちの内側か外側か」を1ピクセルずつ決めるので、どの大きさで描いてもくっきりする
+    //     (前は 96px の絵を縮めて描いていて、小さい文字がにじんでいた)
+    //   ・縁取りは、同じ距離の画像を「太らせて」描くだけ。縁 → 文字 の2回で描ける(前は 25回ずらして描いていた)
+    //     太らせた形は、角が自然に丸くなる
+    //   ・作り方：96px で文字を描く → 距離を計算 → 半分(48px)にして 2048×2048 の画像(ページ)に詰める
+    //   ・知らない文字(漢字など)が出てきたら、その文字だけ計算して、ページの空いているところに足す
     public sealed class DynamicFont : IDisposable
     {
-        // この大きさで読み込んで、表示するときに拡大・縮小する
-        //   大きい文字(開いた板の曲名など 60〜72px)を引き伸ばしてボケないように、96px で読む
-        //   小さく描くときにガタガタしないように、縮小用の画像(ミップマップ)も作っておく
-        public const int BaseSize = 96;
+        // 文字の大きさの基準(ページに入っている文字の大きさ)。幅・位置はこの大きさで覚える
+        public const int BaseSize = 48;
+        // この倍の大きさで描いてから距離を計算する(細かいところまで正しい距離にするため)
+        private const int RasterScale = 2;
+        // 文字のまわりに持っておく距離(ページの px)。縁取りはこれより細くないといけない(基準の大きさの 1/6)
+        private const int Spread = 8;
+        // ページ1枚の大きさ(1文字 64px 四方くらいなので、1枚に約 1000 文字)
+        private const int PageSize = 2048;
+        // ページの中で、文字と文字の間に空けるすき間
+        private const int CellGap = 1;
 
         // 改行したときの行の間(文字の大きさに足す分)
         private const float LineGap = 2f;
 
-        // フォントのファイルの場所と中身
         public string FilePath { get; }
         private readonly byte[] fileData;
-        private readonly string fileType; // ".ttf" など
 
-        // 読み込んだページ
-        private readonly List<Font> pages = new();
+        // ページ(画像)と、まだ GPU に送っていない中身
+        private sealed class Page
+        {
+            public readonly byte[] Pixels = new byte[PageSize * PageSize];
+            public Texture2D Texture;
+            public bool HasTexture;
+            public int CursorX = CellGap, CursorY = CellGap, RowHeight;
+            public int DirtyTop = int.MaxValue, DirtyBottom = -1; // GPU に送り直す行の範囲
+        }
+        private readonly List<Page> pages = new();
 
-        // 文字ごとの「どのページにあるか」と「次の文字までの幅(BaseSize のとき)」
-        // ページが -1 の文字は、読み込めなかった文字(表示しない)
-        private readonly Dictionary<int, (int Page, float Advance)> glyphs = new();
+        // 文字1つ分(大きさ・位置は BaseSize のときの px)
+        //   Page が -1 の文字は読み込めなかった文字、-2 は絵の無い文字(空白など。幅だけある)
+        private readonly record struct Glyph(int Page, Rectangle Source, float OffsetX, float OffsetY, float Advance);
+        private readonly Dictionary<int, Glyph> glyphs = new();
 
         // ページの数(重さの確認用)
         public int PageCount => pages.Count;
@@ -42,7 +58,6 @@ namespace TaikoSim.Graphics
         {
             FilePath = path;
             fileData = data;
-            fileType = Path.GetExtension(path).ToLowerInvariant();
         }
 
         // フォントを読み込む(最初に読んでおく文字を渡す)。失敗したら null
@@ -51,7 +66,7 @@ namespace TaikoSim.Graphics
             try
             {
                 DynamicFont font = new DynamicFont(path, File.ReadAllBytes(path));
-                if (!font.AddPage(initialCodepoints.Distinct().ToArray()))
+                if (!font.AddGlyphs(initialCodepoints.Distinct().ToArray()))
                 {
                     font.Dispose();
                     return null;
@@ -65,9 +80,26 @@ namespace TaikoSim.Graphics
             }
         }
 
+        // ===== 描く =====
+
         // 文字を描く
-        public void Draw(string text, Vector2 position, float size, Color color)
+        public void Draw(string text, Vector2 position, float size, Color color) => DrawPass(text, position, size, color, 0f);
+
+        // 縁取りした文字を描く(縁 → 文字 の2回)。thickness は縁の太さ(画面の px)
+        //   先に文字列全部の縁を描いてから文字を描くので、となりの文字の縁が文字の上にかぶらない
+        public void DrawOutlined(string text, Vector2 position, float size, Color fill, Color outline, float thickness)
         {
+            if (outline.A > 0 && thickness > 0f) DrawPass(text, position, size, outline, thickness);
+            DrawPass(text, position, size, fill, 0f);
+        }
+
+        // 縁の太さの上限(画面の px)。ページに持っている距離より太くはできない
+        public static float MaxOutline(float size) => Spread * (size / BaseSize) * 0.95f;
+
+        // 1回分。dilate は文字を太らせる量(画面の px。0 ならふつうの文字)
+        private void DrawPass(string text, Vector2 position, float size, Color color, float dilate)
+        {
+            if (text.Length == 0 || size <= 0f) return;
             long started = DebugLog.Begin(); // デバッグ記録：文字を描いた時間と数
             int drawn = 0;
             EnsureGlyphs(text);
@@ -76,6 +108,8 @@ namespace TaikoSim.Graphics
             float x = position.X;
             float y = position.Y;
 
+            // 距離の 1.0(画像の 0〜255 全部)が画面の何 px か。シェーダーが、ふちの前後 0.5px だけをなめらかにするのに使う
+            SdfShader.Begin(2f * Spread * scale, Math.Min(dilate, MaxOutline(size)));
             foreach (Rune rune in text.EnumerateRunes())
             {
                 int codepoint = rune.Value;
@@ -88,19 +122,22 @@ namespace TaikoSim.Graphics
                 }
                 if (codepoint < 0x20) continue; // ほかの制御文字は無視
 
-                if (!glyphs.TryGetValue(codepoint, out var glyph) || glyph.Page < 0)
+                if (!glyphs.TryGetValue(codepoint, out Glyph glyph) || glyph.Page == -1)
                 {
                     x += size * 0.5f; // 読み込めなかった文字は、半分の幅だけ空ける
                     continue;
                 }
 
-                if (codepoint != ' ' && codepoint != '\t')
+                if (glyph.Page >= 0)
                 {
-                    Raylib.DrawTextCodepoint(pages[glyph.Page], codepoint, new Vector2(x, y), size, color);
+                    Rectangle dest = new Rectangle(x + glyph.OffsetX * scale, y + glyph.OffsetY * scale,
+                        glyph.Source.Width * scale, glyph.Source.Height * scale);
+                    Raylib.DrawTexturePro(pages[glyph.Page].Texture, glyph.Source, dest, Vector2.Zero, 0f, color);
                     drawn++;
                 }
                 x += glyph.Advance * scale;
             }
+            SdfShader.End();
             DebugLog.CountText(drawn, started);
         }
 
@@ -127,7 +164,7 @@ namespace TaikoSim.Graphics
                 }
                 if (codepoint < 0x20) continue;
 
-                if (glyphs.TryGetValue(codepoint, out var glyph) && glyph.Page >= 0) lineWidth += glyph.Advance * scale;
+                if (glyphs.TryGetValue(codepoint, out Glyph glyph) && glyph.Page != -1) lineWidth += glyph.Advance * scale;
                 else lineWidth += size * 0.5f;
             }
 
@@ -135,10 +172,11 @@ namespace TaikoSim.Graphics
             return new Vector2(maxWidth, lines * size + (lines - 1) * LineGap);
         }
 
+        // ===== 文字を足す =====
+
         // たくさんの文字列の文字を、まとめて先に読み込んでおく(選曲画面の曲名など)
-        //   描くときに1つずつページを足すと、新しい文字が一度にたくさん出たときに止まってしまうため
-        //   1ページが大きくなりすぎないように、PreloadChunk 文字ずつに分けて読む
-        //   (96px なので、1ページの大きさが 4096px 四方くらいに収まるように 400 文字ずつ)
+        //   描くときに1つずつ足すと、新しい文字が一度にたくさん出たときに止まってしまうため
+        //   1回に読む文字が多すぎないように、PreloadChunk 文字ずつに分けて読む
         private const int PreloadChunk = 400;
 
         public void Preload(IEnumerable<string> texts)
@@ -157,17 +195,11 @@ namespace TaikoSim.Graphics
             var watch = System.Diagnostics.Stopwatch.StartNew();
             int[] all = missing.OrderBy(c => c).ToArray();
             for (int i = 0; i < all.Length; i += PreloadChunk)
-            {
-                int[] chunk = all[i..Math.Min(all.Length, i + PreloadChunk)];
-                if (!AddPage(chunk))
-                {
-                    foreach (int codepoint in chunk) glyphs[codepoint] = (-1, 0f);
-                }
-            }
+                AddGlyphs(all[i..Math.Min(all.Length, i + PreloadChunk)]);
             Console.WriteLine($"[Font] {all.Length}文字をまとめて読み込みました（{watch.ElapsedMilliseconds} ms、ページ {pages.Count}）");
         }
 
-        // まだ読み込んでいない文字があったら、その文字だけのページを足す
+        // まだ読み込んでいない文字があったら、その文字だけ足す
         private void EnsureGlyphs(string text)
         {
             List<int>? missing = null;
@@ -181,60 +213,323 @@ namespace TaikoSim.Graphics
                 if (!missing.Contains(codepoint)) missing.Add(codepoint);
             }
 
-            if (missing == null) return;
-
-            if (!AddPage(missing.ToArray()))
-            {
-                // 読み込めなかった文字は、何度も読みに行かないように覚えておく
-                foreach (int codepoint in missing) glyphs[codepoint] = (-1, 0f);
-            }
+            if (missing != null) AddGlyphs(missing.ToArray());
         }
 
-        // 渡した文字だけのページを1枚読み込む
-        private bool AddPage(int[] codepoints)
+        // 1文字分の、距離の画像(ページに詰める前)
+        private sealed class Prepared
+        {
+            public int Codepoint;
+            public int Width, Height;        // ページの px(BaseSize のとき)
+            public float OffsetX, OffsetY;   // 描く位置から、この画像の左上まで
+            public float Advance;
+            public byte[]? Pixels;           // null なら絵の無い文字(空白など)
+        }
+
+        // 渡した文字を読み込んで、距離の画像にして、ページに詰める
+        //   フォントに無い文字は「読めない」と覚えておく(何度も読みに行かないように)
+        private unsafe bool AddGlyphs(int[] codepoints)
         {
             if (codepoints.Length == 0) return true;
-
             var watch = System.Diagnostics.Stopwatch.StartNew();
-            Font page = Raylib.LoadFontFromMemory(fileType, fileData, BaseSize, codepoints, codepoints.Length);
-            DebugLog.Event("文字ページ", $"{Path.GetFileName(FilePath)} に {codepoints.Length}文字のページを足した（ページ {pages.Count + 1}）",
-                watch.Elapsed.TotalMilliseconds, codepoints.Length);
-            // 重かったときは記録しておく(止まる原因を調べるため)
-            if (watch.ElapsedMilliseconds >= 30)
-                Console.WriteLine($"[Font] ページを1枚足すのに {watch.ElapsedMilliseconds} ms（{codepoints.Length}文字、ページ {pages.Count + 1}）");
 
-            // 読み込みに失敗すると、Raylib は標準フォントを返すので、それで判定する
-            if (page.Texture.Id == 0 || page.Texture.Id == Raylib.GetFontDefault().Texture.Id)
+            // ① 96px で文字の絵を作る(Raylib の中の stb_truetype)
+            GlyphInfo* infos;
+            int count = 0;
+            fixed (byte* data = fileData)
+            fixed (int* cps = codepoints)
+            {
+                infos = Raylib.LoadFontData(data, fileData.Length, BaseSize * RasterScale, cps, codepoints.Length,
+                    FontType.Default, &count);
+            }
+            if (infos == null)
             {
                 Console.WriteLine($"[Font] {Path.GetFileName(FilePath)} の文字を読み込めませんでした");
+                foreach (int codepoint in codepoints) glyphs.TryAdd(codepoint, new Glyph(-1, default, 0, 0, 0));
                 return false;
             }
 
-            // 拡大・縮小してもガタガタにならないようにする(小さく描くときは縮小用の画像を使う)
-            Texture2D texture = page.Texture;
-            Raylib.GenTextureMipmaps(ref texture);
-            page.Texture = texture;
-            Raylib.SetTextureFilter(page.Texture, TextureFilter.Trilinear);
-
-            int pageIndex = pages.Count;
-            pages.Add(page);
-
-            // 文字ごとに「このページにある」と「幅」を覚えておく(毎回調べなくていいように)
-            foreach (int codepoint in codepoints)
+            // ② 絵を取り出す(Raylib のメモリは、ここで写してすぐ返す)
+            var sources = new (int Codepoint, int W, int H, int OffX, int OffY, int Advance, byte[] Gray)[count];
+            for (int i = 0; i < count; i++)
             {
-                GlyphInfo info = Raylib.GetGlyphInfo(page, codepoint);
-                float advance = info.AdvanceX != 0 ? info.AdvanceX : Raylib.GetGlyphAtlasRec(page, codepoint).Width;
-                glyphs[codepoint] = (pageIndex, advance);
+                GlyphInfo info = infos[i];
+                sources[i] = (info.Value, info.Image.Width, info.Image.Height, info.OffsetX, info.OffsetY, info.AdvanceX,
+                    CopyGray(info.Image));
             }
+            Raylib.UnloadFontData(infos, count);
+
+            // ③ 距離を計算して半分にする(文字ごとに別々なので、CPU のコアを全部使う)
+            var prepared = new Prepared[count];
+            Parallel.For(0, count, i =>
+            {
+                var s = sources[i];
+                prepared[i] = MakeDistanceGlyph(s.Codepoint, s.W, s.H, s.OffX, s.OffY, s.Advance, s.Gray);
+            });
+
+            // ④ ページに詰めて、変わったところだけ GPU に送る
+            foreach (Prepared p in prepared) Pack(p);
+            foreach (Page page in pages) Upload(page);
+
+            // フォントに無かった文字は「読めない」
+            foreach (int codepoint in codepoints) glyphs.TryAdd(codepoint, new Glyph(-1, default, 0, 0, 0));
+
+            DebugLog.Event("文字の追加", $"{Path.GetFileName(FilePath)} に {count}文字を足した（ページ {pages.Count}）",
+                watch.Elapsed.TotalMilliseconds, count);
+            if (watch.ElapsedMilliseconds >= 30)
+                Console.WriteLine($"[Font] 文字を足すのに {watch.ElapsedMilliseconds} ms（{count}文字、ページ {pages.Count}）");
             return true;
+        }
+
+        // Raylib の画像から、1ピクセル1バイトの濃さだけを写す
+        private static unsafe byte[] CopyGray(Image image)
+        {
+            int w = image.Width, h = image.Height;
+            if (w <= 0 || h <= 0 || image.Data == null) return Array.Empty<byte>();
+            byte* src = (byte*)image.Data;
+            var gray = new byte[w * h];
+            switch (image.Format)
+            {
+                case PixelFormat.UncompressedGrayscale:
+                    Marshal.Copy((IntPtr)src, gray, 0, w * h);
+                    break;
+                case PixelFormat.UncompressedGrayAlpha:
+                    for (int i = 0; i < w * h; i++) gray[i] = src[i * 2 + 1];
+                    break;
+                case PixelFormat.UncompressedR8G8B8A8:
+                    for (int i = 0; i < w * h; i++) gray[i] = src[i * 4 + 3];
+                    break;
+                default:
+                    return Array.Empty<byte>();
+            }
+            return gray;
+        }
+
+        // 1文字分：96px の絵 → 距離 → 半分(48px)
+        private static Prepared MakeDistanceGlyph(int codepoint, int w, int h, int offX, int offY, int advance, byte[] gray)
+        {
+            var result = new Prepared { Codepoint = codepoint, Advance = advance / (float)RasterScale };
+            bool any = false;
+            for (int i = 0; i < gray.Length && !any; i++) any = gray[i] >= 128;
+            if (!any) return result; // 空白など：絵は無くて、幅だけ
+
+            int pad = Spread * RasterScale;
+            int hw = w + pad * 2, hh = h + pad * 2;
+            if (hw % RasterScale != 0) hw += RasterScale - hw % RasterScale;
+            if (hh % RasterScale != 0) hh += RasterScale - hh % RasterScale;
+
+            // 文字の中か外か
+            var inside = new bool[hw * hh];
+            for (int y = 0; y < h; y++)
+                for (int x = 0; x < w; x++)
+                    inside[(y + pad) * hw + x + pad] = gray[y * w + x] >= 128;
+
+            // 中の点から一番近い「外」まで・外の点から一番近い「中」まで(2乗の距離)
+            float[] toOutside = DistanceSquared(inside, hw, hh, target: false);
+            float[] toInside = DistanceSquared(inside, hw, hh, target: true);
+
+            // 2×2 をまとめて半分にする。距離も半分(ページの px)にして、0〜255 にする(128 がふち)
+            int aw = hw / RasterScale, ah = hh / RasterScale;
+            var pixels = new byte[aw * ah];
+            float toByte = 255f / (2f * Spread);
+            for (int y = 0; y < ah; y++)
+            {
+                for (int x = 0; x < aw; x++)
+                {
+                    float sum = 0f;
+                    for (int dy = 0; dy < RasterScale; dy++)
+                    {
+                        for (int dx = 0; dx < RasterScale; dx++)
+                        {
+                            int i = (y * RasterScale + dy) * hw + x * RasterScale + dx;
+                            // 中なら +、外なら -(ふちはピクセルとピクセルの間なので 0.5 ずらす)
+                            sum += inside[i] ? MathF.Sqrt(toOutside[i]) - 0.5f : -(MathF.Sqrt(toInside[i]) - 0.5f);
+                        }
+                    }
+                    float distance = sum / (RasterScale * RasterScale) / RasterScale; // ページの px
+                    pixels[y * aw + x] = (byte)Math.Clamp(128f + distance * toByte, 0f, 255f);
+                }
+            }
+
+            result.Width = aw;
+            result.Height = ah;
+            result.OffsetX = (offX - pad) / (float)RasterScale;
+            result.OffsetY = (offY - pad) / (float)RasterScale;
+            result.Pixels = pixels;
+            return result;
+        }
+
+        // いちばん近い target の点までの距離の2乗(Felzenszwalb の方法。縦 → 横 の順に1列ずつ)
+        private static float[] DistanceSquared(bool[] inside, int w, int h, bool target)
+        {
+            const float Far = 1e20f;
+            var grid = new float[w * h];
+            for (int i = 0; i < grid.Length; i++) grid[i] = inside[i] == target ? 0f : Far;
+
+            int n = Math.Max(w, h);
+            var f = new float[n];
+            var d = new float[n];
+            var v = new int[n];
+            var z = new float[n + 1];
+
+            for (int x = 0; x < w; x++)
+            {
+                for (int y = 0; y < h; y++) f[y] = grid[y * w + x];
+                Transform1D(f, h, d, v, z);
+                for (int y = 0; y < h; y++) grid[y * w + x] = d[y];
+            }
+            for (int y = 0; y < h; y++)
+            {
+                Array.Copy(grid, y * w, f, 0, w);
+                Transform1D(f, w, d, v, z);
+                Array.Copy(d, 0, grid, y * w, w);
+            }
+            return grid;
+        }
+
+        private static void Transform1D(float[] f, int n, float[] d, int[] v, float[] z)
+        {
+            int k = 0;
+            v[0] = 0;
+            z[0] = float.NegativeInfinity;
+            z[1] = float.PositiveInfinity;
+            for (int q = 1; q < n; q++)
+            {
+                float s = ((f[q] + q * q) - (f[v[k]] + v[k] * v[k])) / (2f * q - 2f * v[k]);
+                while (s <= z[k])
+                {
+                    k--;
+                    s = ((f[q] + q * q) - (f[v[k]] + v[k] * v[k])) / (2f * q - 2f * v[k]);
+                }
+                k++;
+                v[k] = q;
+                z[k] = s;
+                z[k + 1] = float.PositiveInfinity;
+            }
+            k = 0;
+            for (int q = 0; q < n; q++)
+            {
+                while (z[k + 1] < q) k++;
+                float dq = q - v[k];
+                d[q] = dq * dq + f[v[k]];
+            }
+        }
+
+        // ページの空いているところに詰める(左から右へ、いっぱいになったら次の段へ)
+        private void Pack(Prepared p)
+        {
+            if (p.Pixels == null)
+            {
+                glyphs[p.Codepoint] = new Glyph(-2, default, 0, 0, p.Advance);
+                return;
+            }
+
+            int pageIndex = pages.Count > 0 ? pages.Count - 1 : AddPage();
+            Page page = pages[pageIndex];
+            if (page.CursorX + p.Width + CellGap > PageSize)
+            {
+                page.CursorX = CellGap;
+                page.CursorY += page.RowHeight + CellGap;
+                page.RowHeight = 0;
+            }
+            if (page.CursorY + p.Height + CellGap > PageSize)
+            {
+                pageIndex = AddPage();
+                page = pages[pageIndex];
+            }
+
+            int x0 = page.CursorX, y0 = page.CursorY;
+            for (int y = 0; y < p.Height; y++)
+                Array.Copy(p.Pixels, y * p.Width, page.Pixels, (y0 + y) * PageSize + x0, p.Width);
+            page.CursorX += p.Width + CellGap;
+            page.RowHeight = Math.Max(page.RowHeight, p.Height);
+            page.DirtyTop = Math.Min(page.DirtyTop, y0);
+            page.DirtyBottom = Math.Max(page.DirtyBottom, y0 + p.Height);
+
+            glyphs[p.Codepoint] = new Glyph(pageIndex, new Rectangle(x0, y0, p.Width, p.Height), p.OffsetX, p.OffsetY, p.Advance);
+        }
+
+        private int AddPage()
+        {
+            pages.Add(new Page());
+            return pages.Count - 1;
+        }
+
+        // 変わった行だけ GPU に送る(はじめてのページは、画像を作ってから)
+        private static void Upload(Page page)
+        {
+            if (page.DirtyBottom < 0) return;
+            if (!page.HasTexture)
+            {
+                Image image = Raylib.GenImageColor(PageSize, PageSize, Color.Black);
+                Raylib.ImageFormat(ref image, PixelFormat.UncompressedGrayscale);
+                page.Texture = Raylib.LoadTextureFromImage(image);
+                Raylib.UnloadImage(image);
+                // 距離の画像は、なめらかに広げて読む(ミップマップは使わない。SDF なので縮めてもにじまない)
+                Raylib.SetTextureFilter(page.Texture, TextureFilter.Bilinear);
+                page.HasTexture = true;
+                page.DirtyTop = 0;
+                page.DirtyBottom = PageSize;
+            }
+            int top = page.DirtyTop, rows = page.DirtyBottom - top;
+            Raylib.UpdateTextureRec(page.Texture, new Rectangle(0, top, PageSize, rows),
+                new ReadOnlySpan<byte>(page.Pixels, top * PageSize, rows * PageSize));
+            page.DirtyTop = int.MaxValue;
+            page.DirtyBottom = -1;
         }
 
         // 後片付け
         public void Dispose()
         {
-            foreach (Font page in pages) Raylib.UnloadFont(page);
+            foreach (Page page in pages)
+                if (page.HasTexture) Raylib.UnloadTexture(page.Texture);
             pages.Clear();
             glyphs.Clear();
+        }
+
+        // ===== 距離の画像から文字を描くシェーダー =====
+        //   pxPerUnit：距離の 1.0(画像の 0〜255 全部)が画面の何 px か
+        //   dilate    ：文字を太らせる量(画面の px)。縁取りのときに使う
+        //   ふちの前後 0.5px だけを半透明にするので、どの大きさでもくっきりする
+        private static class SdfShader
+        {
+            private const string Fragment = @"#version 330
+in vec2 fragTexCoord;
+in vec4 fragColor;
+uniform sampler2D texture0;
+uniform vec4 colDiffuse;
+uniform float pxPerUnit;
+uniform float dilate;
+out vec4 finalColor;
+void main()
+{
+    float d = (texture(texture0, fragTexCoord).r - 0.5) * pxPerUnit + dilate;
+    float a = clamp(d + 0.5, 0.0, 1.0);
+    vec4 c = fragColor * colDiffuse;
+    finalColor = vec4(c.rgb, c.a * a);
+}
+";
+            private static Shader shader;
+            private static bool loaded;
+            private static int pxPerUnitLocation, dilateLocation;
+
+            public static void Begin(float pxPerUnit, float dilate)
+            {
+                if (!loaded)
+                {
+                    shader = Raylib.LoadShaderFromMemory(null!, Fragment);
+                    pxPerUnitLocation = Raylib.GetShaderLocation(shader, "pxPerUnit");
+                    dilateLocation = Raylib.GetShaderLocation(shader, "dilate");
+                    loaded = true;
+                }
+                // 前に描いたもの(ちがう値で描く文字など)を先に描き終えてから、値を変える
+                Raylib.BeginShaderMode(shader);
+                Raylib.SetShaderValue(shader, pxPerUnitLocation, pxPerUnit, ShaderUniformDataType.Float);
+                Raylib.SetShaderValue(shader, dilateLocation, dilate, ShaderUniformDataType.Float);
+            }
+
+            // 描き終わる(ここで GPU に送るので、次の文字の値と混ざらない)
+            public static void End() => Raylib.EndShaderMode();
         }
     }
 }

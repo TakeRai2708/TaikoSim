@@ -316,11 +316,8 @@ namespace TaikoSim.Scenes
             float width = FontManager.MeasureSkinMain(data.Title, TitleSize).X;
             float size = width > 1100f ? TitleSize * 1100f / width : TitleSize;
             float x = TitleCenterX - FontManager.MeasureSkinMain(data.Title, size).X / 2f;
-            for (int dy = -1; dy <= 1; dy++)
-                for (int dx = -1; dx <= 1; dx++)
-                    if (dx != 0 || dy != 0)
-                        FontManager.DrawSkinMain(data.Title, x + dx * TitleOutline, TitleY + dy * TitleOutline, size, Color.Black);
-            FontManager.DrawSkinMain(data.Title, x, TitleY, size, Color.White);
+            // 黒い縁 → 白い文字(SDF フォントで2回)
+            FontManager.DrawSkinMainOutlined(data.Title, x, TitleY, size, Color.White, Color.Black, TitleOutline);
         }
 
         private void DrawCourse()

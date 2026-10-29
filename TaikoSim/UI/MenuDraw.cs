@@ -1,4 +1,4 @@
-using System.Numerics;
+﻿using System.Numerics;
 using Raylib_cs;
 using TaikoSim.Graphics;
 
@@ -41,8 +41,8 @@ namespace TaikoSim.UI
         // 縁の太さ = 文字の大きさ × この割合(どの大きさでも同じ見た目の太さになるように。46px なら約5px、60px なら約6.6px)
         public const float OutlineRatio = 0.11f;
 
-        // 縁の太さ(文字の大きさから決める。小さい字でも 1.5px はつける)
-        public static float OutlineWidth(float size) => Math.Max(1.5f, size * OutlineRatio);
+        // 縁の太さ(文字の大きさから決める。小さい字でも 1.5px はつける。フォントに持っている距離より太くはしない)
+        public static float OutlineWidth(float size) => Math.Min(Math.Max(1.5f, size * OutlineRatio), DynamicFont.MaxOutline(size));
 
         // 縁取りした文字を、四角の真ん中にはみ出さない大きさで書く
         //   縁は、まわりにぐるっと(円の上に)ずらした文字を描いて作る。8方向だとななめだけ飛び出してトゲトゲになるので、細かく回す
@@ -61,30 +61,12 @@ namespace TaikoSim.UI
         }
 
         // 縁取りした文字を (x, y) から書く
+        //   SDF フォント(DynamicFont)で、文字を太らせた縁 → 文字 の2回で描く(角は丸くなる)
+        //   前は、まわりにずらして 25回描いていた(重いうえに、にじんだ文字を重ねるのでボヤけた)
         public static void OutlinedAt(string text, float x, float y, float size, Color fill, Color outline)
         {
             if (text.Length == 0) return;
-            float thickness = OutlineWidth(size);
-            if (outline.A > 0)
-            {
-                int steps = thickness >= 3f ? 16 : 12;
-                for (int i = 0; i < steps; i++)
-                {
-                    float angle = i * MathF.Tau / steps;
-                    Text(text, x + MathF.Cos(angle) * thickness, y + MathF.Sin(angle) * thickness, size, outline);
-                }
-                // 太い縁は、内側にもう1周描いて、すき間を埋める
-                if (thickness >= 3f)
-                {
-                    float inner = thickness * 0.55f;
-                    for (int i = 0; i < 8; i++)
-                    {
-                        float angle = (i + 0.5f) * MathF.Tau / 8;
-                        Text(text, x + MathF.Cos(angle) * inner, y + MathF.Sin(angle) * inner, size, outline);
-                    }
-                }
-            }
-            Text(text, x, y, size, fill);
+            FontManager.DrawSkinMainOutlined(text, x, y, size, fill, outline, OutlineWidth(size));
         }
 
         // ===== 色・形 =====

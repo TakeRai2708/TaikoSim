@@ -6,6 +6,8 @@
 		<UseWindowsForms>true</UseWindowsForms>
 		<ImplicitUsings>enable</ImplicitUsings>
 		<Nullable>enable</Nullable>
+		<!-- SDF フォント(Graphics/DynamicFont.cs)で、Raylib の LoadFontData にフォントのデータを直接渡すため -->
+		<AllowUnsafeBlocks>true</AllowUnsafeBlocks>
 	</PropertyGroup>
 
 	<ItemGroup>

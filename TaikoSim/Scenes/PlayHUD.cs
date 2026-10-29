@@ -91,13 +91,8 @@ namespace TaikoSim.Scenes
             if (songTitle.Length == 0) return;
             // スキン適用時にフォントと必要な文字は準備済み。ここでは幅だけを再計算する。
             if (songTitleSkinGeneration != SkinManager.Generation) PrepareSongTitleLayout();
-            float outline = SongTitleOutline;
-            for (int y = -1; y <= 1; y++)
-                for (int x = -1; x <= 1; x++)
-                    if (x != 0 || y != 0)
-                        FontManager.DrawSkinMain(songTitle, songTitleX + x * outline, SongTitleY + y * outline,
-                            songTitleSize, Color.Black);
-            FontManager.DrawSkinMain(songTitle, songTitleX, SongTitleY, songTitleSize, Color.White);
+            // 黒い縁 → 白い文字(SDF フォントで2回。前は8方向にずらして9回描いていた)
+            FontManager.DrawSkinMainOutlined(songTitle, songTitleX, SongTitleY, songTitleSize, Color.White, Color.Black, SongTitleOutline);
         }
 
         public void Update(float dt, long score)
