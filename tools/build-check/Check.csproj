@@ -12,8 +12,11 @@
     <AllowUnsafeBlocks>true</AllowUnsafeBlocks>
     <LangVersion>latest</LangVersion>
     <EnableDefaultCompileItems>false</EnableDefaultCompileItems>
-    <NoWarn>$(NoWarn);CS1591;CS1573;CS1572;CS0618;CS8632</NoWarn>
+    <NoWarn>$(NoWarn);CS1591;CS1573;CS1572;CS0618;CS8632;CA1416</NoWarn>
     <GenerateAssemblyInfo>false</GenerateAssemblyInfo>
+    <!-- AOT/トリムの警告を出す（自作コードが AOT で問題ないか、Linux でも静的に確認するため） -->
+    <IsAotCompatible>true</IsAotCompatible>
+    <JsonSerializerIsReflectionEnabledByDefault>false</JsonSerializerIsReflectionEnabledByDefault>
     <SrcDir>$(MSBuildThisFileDirectory)../../TaikoSim/</SrcDir>
     <DepsDir Condition="'$(DepsDir)' == ''">$(MSBuildThisFileDirectory).deps/</DepsDir>
     <BaseIntermediateOutputPath>$(MSBuildThisFileDirectory).obj/</BaseIntermediateOutputPath>

@@ -3,18 +3,24 @@
 	<PropertyGroup>
 		<OutputType>Exe</OutputType>
 		<TargetFramework>net10.0-windows</TargetFramework>
-		<UseWindowsForms>true</UseWindowsForms>
 		<ImplicitUsings>enable</ImplicitUsings>
 		<Nullable>enable</Nullable>
 		<!-- SDF フォント(Graphics/DynamicFont.cs)で、Raylib の LoadFontData にフォントのデータを直接渡すため -->
 		<AllowUnsafeBlocks>true</AllowUnsafeBlocks>
-	</PropertyGroup>
 
-	<ItemGroup>
-		<!-- Windowsフォームの名前(Color・Rectangle・Screenなど)がRaylibや自作クラスとぶつかるので、自動usingから外す -->
-		<Using Remove="System.Windows.Forms" />
-		<Using Remove="System.Drawing" />
-	</ItemGroup>
+		<!-- ===== 逆コンパイル対策：Native AOT(exe を機械語にして、IL を exe に入れない) ===== -->
+		<!-- ・ふつうの dotnet build では効かない。exe を作るときに下のコマンドで効く：
+		         dotnet publish -r win-x64 -c Release
+		     ・作るには Visual Studio の「C++ によるデスクトップ開発」が要る
+		     ・JSON はリフレクションを使わないソース生成にした(Configs/AppJsonContext.cs)
+		     ・フォルダ選択は Windows フォームをやめて Win32 直呼びにした(Platform/FolderPicker.cs)
+		     ・Windows フォーム(UseWindowsForms)は AOT で使えないので外した -->
+		<PublishAot>true</PublishAot>
+		<!-- ビルドのときから AOT で問題になるコードを警告してくれる(早めに気づけるように) -->
+		<IsAotCompatible>true</IsAotCompatible>
+		<!-- JSON のソース生成を使う(Configs/AppJsonContext.cs)。AOT に必要 -->
+		<JsonSerializerIsReflectionEnabledByDefault>false</JsonSerializerIsReflectionEnabledByDefault>
+	</PropertyGroup>
 
 	<ItemGroup>
 		<PackageReference Include="Raylib-cs" Version="8.1.0" />

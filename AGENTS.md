@@ -48,9 +48,10 @@
 - コミットメッセージは **日本語**。何をしたかが分かるように、箇条書きでまとめる
 - リモートのブランチを消すのは、たけらいが VS（Visual Studio）でやる
 
-### 今のブランチ（2026-10-29 時点）
-- **master**：今までの作業が全部入っている（`claude/option-skip` までマージ済み）。新しい作業は master から作る
-- `claude/` で始まるブランチ・`codex/` で始まるブランチは、全部マージ済み（消してよい。消すのはたけらいが VS でやる）
+### 今のブランチ（2026-10-30 時点）
+- **master**：`claude/option-skip` までマージ済み
+- まだ master に入れていない（本人確認待ち）：`claude/hitsound-flip`（音色・スキップ間隔・めくれ・文字の縁・スライダー）→ その上に `claude/aot`（逆コンパイル対策）
+- 他の `claude/`・`codex/` ブランチは全部マージ済み（消してよい）
 
 ---
 
@@ -67,6 +68,24 @@
   `dotnet build Check.csproj` で TaikoSim のソースといっしょにコンパイルする（Windows フォームの FolderBrowserDialog だけ、`stub.cs` の空のクラスで代わりにする）
 - 見た目は動かして確かめられないので、Python（Pillow）でスキンの画像を重ねた見本を作って、たけらいの動画のコマと並べて見比べる
 - `bass.dll` などはリポジトリに入っている
+
+### 逆コンパイル対策：Native AOT（exe を機械語にして、中の C# コード(IL)を exe に入れない）
+- たけらいの希望で、友達に渡す exe を **Native AOT** で作る方針（ILSpy などで中身を読めなくする）
+- **ふつうの `dotnet build` では効かない。** exe を作るときに、Visual Studio か下のコマンドで：
+  ```
+  dotnet publish TaikoSim/TaikoSim.csproj -r win-x64 -c Release
+  ```
+  - Visual Studio に「**C++ によるデスクトップ開発**」を入れておく必要がある（AOT は C++ の道具を使う）
+- AOT で動くように直したところ（`claude/aot`）：
+  - **JSON**：リフレクション（実行時に型を調べるしくみ。AOT で使えない）をやめて、**ソース生成**にした（`Configs/AppJsonContext.cs`）。
+    設定・履歴・曲キャッシュの読み書きは、型ごとの `AppJsonContext.Default.XXX` を渡す。JSON で保存する型を増やしたら、ここに `[JsonSerializable(typeof(…))]` を足す
+  - **フォルダ選択**：Windows フォーム（AOT で使えない）をやめて、Win32 を直接呼ぶ（`Platform/FolderPicker.cs`、shell32 の SHBrowseForFolder）
+  - csproj：`UseWindowsForms` を外し、`PublishAot`・`IsAotCompatible`・`JsonSerializerIsReflectionEnabledByDefault=false` を足した
+  - `JsonDocument.Parse`（HitSounds・SkinPreview・SkinManager・PlayBackground）はリフレクションを使わないので、そのままでOK
+- **AI の側（Linux）では AOT の publish は試せない**（Windows のビルド環境が要る）。`tools/build-check` に `IsAotCompatible` を入れて、
+  自作コードに AOT の警告（IL・SYSLIB）が出ないかは Linux でも静的に確認できる（CA1420 は by-ref/配列の P/Invoke の注意で、既存の WindowsIME などでも出る。AOT は実行時マーシャリングに対応しているので問題ない）
+- **まだ確かめていない**：Raylib-cs 8.1.0 と ManagedBass の NuGet が AOT で問題なく動くか（たけらいの PC で publish して確認）。
+  もし publish で IL 警告や失敗が出たら、そのライブラリの型を `[DynamicDependency]` などで残す対応が要るかも
 
 ---
 

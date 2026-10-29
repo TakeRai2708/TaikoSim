@@ -1,11 +1,12 @@
-﻿using System.Text.Encodings.Web;
-using System.Text.Json;
-using System.Text.Json.Serialization;
-using System.Text.Unicode;
+﻿using System.Text.Json;
+using System.Text.Json.Serialization.Metadata;
 
 namespace TaikoSim.Configs
 {
     // 全部の設定をまとめて読み込み・保存するクラス
+    //
+    // JSON の読み書きは、Native AOT でも動くように AppJsonContext(ソース生成)を使う。
+    //   型ごとに AppJsonContext.Default.GameConfig のような「設計図」(JsonTypeInfo)を渡す。
     public static class ConfigManager
     {
         // 設定ファイルを置くフォルダ(exeと同じ場所の Config フォルダ)
@@ -17,15 +18,24 @@ namespace TaikoSim.Configs
         public static KeyConfig Key { get; private set; } = new();
         public static SkinConfig Skin { get; private set; } = new();
 
-        // 全画面の設定画面で、適用前の値を本番の設定から分けて持つ
-        public static T Copy<T>(T value) where T : class
-        {
-            string json = JsonSerializer.Serialize(value, Options);
-            return JsonSerializer.Deserialize<T>(json, Options)!;
-        }
+        // ===== 全画面の設定画面で、適用前の値を本番の設定から分けて持つ =====
+        //   JSON にして読み直すことで、まるごとコピーする(中の Dictionary なども別物になる)
+        //   型ごとに同じことをするので、オーバーロードで4種類ぶん用意する(呼ぶ側は今までどおり Copy(xxx) でOK)
+        public static GameConfig Copy(GameConfig value) => Clone(value, AppJsonContext.Default.GameConfig);
+        public static SoundConfig Copy(SoundConfig value) => Clone(value, AppJsonContext.Default.SoundConfig);
+        public static KeyConfig Copy(KeyConfig value) => Clone(value, AppJsonContext.Default.KeyConfig);
+        public static SkinConfig Copy(SkinConfig value) => Clone(value, AppJsonContext.Default.SkinConfig);
 
-        public static bool Same<T>(T left, T right) where T : class =>
-            JsonSerializer.Serialize(left, Options) == JsonSerializer.Serialize(right, Options);
+        public static bool Same(GameConfig a, GameConfig b) => SameJson(a, b, AppJsonContext.Default.GameConfig);
+        public static bool Same(SoundConfig a, SoundConfig b) => SameJson(a, b, AppJsonContext.Default.SoundConfig);
+        public static bool Same(KeyConfig a, KeyConfig b) => SameJson(a, b, AppJsonContext.Default.KeyConfig);
+        public static bool Same(SkinConfig a, SkinConfig b) => SameJson(a, b, AppJsonContext.Default.SkinConfig);
+
+        private static T Clone<T>(T value, JsonTypeInfo<T> info) =>
+            JsonSerializer.Deserialize(JsonSerializer.Serialize(value, info), info)!;
+
+        private static bool SameJson<T>(T left, T right, JsonTypeInfo<T> info) =>
+            JsonSerializer.Serialize(left, info) == JsonSerializer.Serialize(right, info);
 
         public static void Replace(GameConfig game, SoundConfig sound, KeyConfig key, SkinConfig skin)
         {
@@ -36,23 +46,13 @@ namespace TaikoSim.Configs
             SaveAll();
         }
 
-        // JSONの書き方の設定
-        private static readonly JsonSerializerOptions Options = new()
-        {
-            WriteIndented = true,                                   // 改行・インデントして読みやすく保存
-            Encoder = JavaScriptEncoder.Create(UnicodeRanges.All),  // 日本語を \u3042 みたいにせずそのまま保存
-            Converters = { new JsonStringEnumConverter() },         // キーを数字じゃなく "F" みたいな文字で保存
-            ReadCommentHandling = JsonCommentHandling.Skip,         // JSON内の // コメントを無視
-            AllowTrailingCommas = true,                             // 最後の余計なカンマを許す
-        };
-
         // 全部の設定を読み込む(起動時に1回呼ぶ)
         public static void LoadAll()
         {
-            Sound = Load<SoundConfig>(SoundConfig.FileName);
-            Game = Load<GameConfig>(GameConfig.FileName);
-            Key = Load<KeyConfig>(KeyConfig.FileName);
-            Skin = Load<SkinConfig>(SkinConfig.FileName);
+            Sound = Load(SoundConfig.FileName, AppJsonContext.Default.SoundConfig);
+            Game = Load(GameConfig.FileName, AppJsonContext.Default.GameConfig);
+            Key = Load(KeyConfig.FileName, AppJsonContext.Default.KeyConfig);
+            Skin = Load(SkinConfig.FileName, AppJsonContext.Default.SkinConfig);
 
             // おかしな値(音量が200とか)を直す
             Sound.Fix();
@@ -67,10 +67,10 @@ namespace TaikoSim.Configs
         // 全部の設定を保存する
         public static void SaveAll()
         {
-            Save(SoundConfig.FileName, Sound);
-            Save(GameConfig.FileName, Game);
-            Save(KeyConfig.FileName, Key);
-            Save(SkinConfig.FileName, Skin);
+            Save(SoundConfig.FileName, Sound, AppJsonContext.Default.SoundConfig);
+            Save(GameConfig.FileName, Game, AppJsonContext.Default.GameConfig);
+            Save(KeyConfig.FileName, Key, AppJsonContext.Default.KeyConfig);
+            Save(SkinConfig.FileName, Skin, AppJsonContext.Default.SkinConfig);
         }
 
         // スキンの設定だけ、すぐ保存する(設定パネルでスキンやスキンフォルダを変えたとき)
@@ -78,7 +78,7 @@ namespace TaikoSim.Configs
         {
             try
             {
-                Save(SkinConfig.FileName, Skin);
+                Save(SkinConfig.FileName, Skin, AppJsonContext.Default.SkinConfig);
             }
             catch (Exception ex) when (ex is IOException || ex is UnauthorizedAccessException)
             {
@@ -92,7 +92,7 @@ namespace TaikoSim.Configs
         {
             try
             {
-                Save(SoundConfig.FileName, Sound);
+                Save(SoundConfig.FileName, Sound, AppJsonContext.Default.SoundConfig);
             }
             catch (Exception ex) when (ex is IOException || ex is UnauthorizedAccessException)
             {
@@ -101,7 +101,7 @@ namespace TaikoSim.Configs
         }
 
         // 1つの設定ファイルを読み込む(共通処理)
-        private static T Load<T>(string fileName) where T : class, new()
+        private static T Load<T>(string fileName, JsonTypeInfo<T> info) where T : class, new()
         {
             Directory.CreateDirectory(ConfigFolder);
             string path = Path.Combine(ConfigFolder, fileName);
@@ -116,7 +116,7 @@ namespace TaikoSim.Configs
             try
             {
                 string json = File.ReadAllText(path);
-                T? loaded = JsonSerializer.Deserialize<T>(json, Options);
+                T? loaded = JsonSerializer.Deserialize(json, info);
 
                 if (loaded == null)
                 {
@@ -137,11 +137,11 @@ namespace TaikoSim.Configs
         }
 
         // 1つの設定ファイルを保存する(共通処理)
-        private static void Save<T>(string fileName, T config)
+        private static void Save<T>(string fileName, T config, JsonTypeInfo<T> info)
         {
             Directory.CreateDirectory(ConfigFolder);
             string path = Path.Combine(ConfigFolder, fileName);
-            string json = JsonSerializer.Serialize(config, Options);
+            string json = JsonSerializer.Serialize(config, info);
             File.WriteAllText(path, json);
         }
     }

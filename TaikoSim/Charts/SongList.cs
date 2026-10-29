@@ -3,6 +3,7 @@ using System.Globalization;
 using System.Text;
 using System.Text.Json;
 using Raylib_cs;
+using TaikoSim.Configs;
 
 namespace TaikoSim.Charts
 {
@@ -469,7 +470,7 @@ namespace TaikoSim.Charts
             {
                 if (!File.Exists(CacheFile)) return result;
 
-                SongCacheFile? file = JsonSerializer.Deserialize<SongCacheFile>(File.ReadAllText(CacheFile));
+                SongCacheFile? file = JsonSerializer.Deserialize(File.ReadAllText(CacheFile), AppJsonContext.Default.SongCacheFile);
                 if (file == null || file.Version != CacheVersion) return result;
 
                 foreach (SongCacheItem item in file.Songs)
@@ -499,7 +500,7 @@ namespace TaikoSim.Charts
 
                 // 書いている途中で落ちても壊れないように、別のファイルに書いてから入れ替える
                 string temp = CacheFile + ".tmp";
-                File.WriteAllText(temp, JsonSerializer.Serialize(file));
+                File.WriteAllText(temp, JsonSerializer.Serialize(file, AppJsonContext.Default.SongCacheFile));
                 File.Move(temp, CacheFile, overwrite: true);
             }
             catch (Exception ex) when (ex is IOException || ex is UnauthorizedAccessException)

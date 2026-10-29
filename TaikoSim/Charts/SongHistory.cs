@@ -53,7 +53,7 @@ namespace TaikoSim.Charts
             {
                 if (File.Exists(FilePath))
                 {
-                    SongHistoryFile? file = JsonSerializer.Deserialize<SongHistoryFile>(File.ReadAllText(FilePath));
+                    SongHistoryFile? file = JsonSerializer.Deserialize(File.ReadAllText(FilePath), AppJsonContext.Default.SongHistoryFile);
                     if (file != null) return file;
                 }
             }
@@ -70,7 +70,7 @@ namespace TaikoSim.Charts
             {
                 Directory.CreateDirectory(ConfigManager.ConfigFolder);
                 string temp = FilePath + ".tmp";
-                File.WriteAllText(temp, JsonSerializer.Serialize(Data, new JsonSerializerOptions { WriteIndented = true }));
+                File.WriteAllText(temp, JsonSerializer.Serialize(Data, AppJsonContext.Default.SongHistoryFile));
                 File.Move(temp, FilePath, overwrite: true);
             }
             catch (Exception ex) when (ex is IOException || ex is UnauthorizedAccessException)

@@ -1181,21 +1181,13 @@ namespace TaikoSim.Overlays
             ChangeSkinsFolder(folder);
         }
 
-        // Windowsの「フォルダの選択」画面を出す
+        // Windowsの「フォルダの選択」画面を出す(Native AOT でも動くように Win32 を直接呼ぶ。Platform/FolderPicker.cs)
         private void PickSkinsFolder()
         {
-            string current = ActiveSkin.GetSkinsFolderPath();
-
-            using var dialog = new System.Windows.Forms.FolderBrowserDialog
+            string? picked = Platform.FolderPicker.Pick("スキンフォルダ（スキンが入っているフォルダ）を選んでください");
+            if (picked != null)
             {
-                Description = "スキンフォルダ（スキンが入っているフォルダ）を選んでください",
-                UseDescriptionForTitle = true,
-                InitialDirectory = Directory.Exists(current) ? current : "",
-            };
-
-            if (dialog.ShowDialog() == System.Windows.Forms.DialogResult.OK)
-            {
-                ChangeSkinsFolder(dialog.SelectedPath);
+                ChangeSkinsFolder(picked);
             }
         }
 
