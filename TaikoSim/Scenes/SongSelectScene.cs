@@ -69,6 +69,24 @@ namespace TaikoSim.Scenes
         private int ownCount;                          // 開いたジャンルの項目の数(とじる・曲・ランダム)
         private readonly BarList list = new(MenuSkin.SongFolder);         // 斜めの板の動き
         private Action? afterBlink;                    // 決定の点滅が終わったらすること(ジャンルを開く・とじる)
+
+        // ===== ジャンルを決めたあとの「ポンッ → めくれる」(TaikøNauts の動画 10/29 を1/60秒ずつ測った値) =====
+        //   決めた瞬間を 0 として：0〜0.53秒 枠が点滅 → 0.63秒まで白 → ここから下の時間(FlipStart からの秒)
+        //   0〜0.067  板がポンッと大きくなる(横 1.21倍・縦 1.14倍)。枠は消える
+        //   0〜0.12   ジャンル名・キャラ・吹き出し・上下の板が消えていく(中身の無い板だけが残る)
+        //   0.23〜0.37 板が横につぶれていく(幅 855 → 546 → 308 → 146 → 95 → 28px)
+        //   0.37〜0.50 28px の細い棒のまま
+        //   0.50〜0.70 少し広がる(28 → 158px)
+        //   0.70      パッと元の幅に戻って、中身は最初の曲の板(開いた形)になる
+        //   0.70〜0.87 曲の板の中身と、上下の板がじわっと出る。黄色い枠は 0.70 から 0.33秒あとに出る
+        private const float FlipStart = 0.63f;
+        private const float FlipPopEnd = 0.067f, FlipPopScaleX = 1.21f, FlipPopScaleY = 1.14f;
+        private const float FlipFadeEnd = 0.12f;
+        private const float FlipSquashStart = 0.23f, FlipSquashEnd = 0.37f, FlipThinEnd = 0.50f, FlipSwitch = 0.70f, FlipEnd = 0.87f;
+        private const float FlipThinScale = 28f / 855f, FlipGrowScale = 158f / 855f;
+        private float flipTime = -1f;      // めくれ始めてからの時間(-1 ならめくっていない)
+        private Action? flipOpen;          // 0.70秒で開くジャンル
+        private bool flipOpened;
         private float uraClock;                        // 板が開いてからの時間(おにと裏おにの札を入れ替えるのに使う)
         private Color backColor = new Color(30, 40, 70, 255);
 
@@ -353,13 +371,38 @@ namespace TaikoSim.Scenes
             }
 
             // ジャンル・「とじる」を決定したあとの点滅中は、何もできない。点滅が終わったら切り替える
+            //   ジャンルは、点滅のあと白い枠で少し待ってから、めくれる動きに入る(FlipStart)
             if (list.Deciding)
             {
-                if (list.DecideTime < BarList.BlinkEnd) return;
+                if (list.DecideTime < (flipOpen != null ? FlipStart : BarList.BlinkEnd)) return;
                 list.EndDecide();
+                if (flipOpen != null)
+                {
+                    flipTime = 0f;
+                    flipOpened = false;
+                    return;
+                }
                 Action? action = afterBlink;
                 afterBlink = null;
                 action?.Invoke();
+                return;
+            }
+
+            // めくれている間も、何もできない。0.70秒で曲の一覧に入れ替える
+            if (flipTime >= 0f)
+            {
+                flipTime += dt;
+                if (!flipOpened && flipTime >= FlipSwitch)
+                {
+                    flipOpened = true;
+                    flipOpen?.Invoke();
+                    list.OpenNowFrameLater(); // 曲の板は開いた形で出て、黄色い枠は 0.33秒あとに出る
+                }
+                if (flipTime >= FlipEnd)
+                {
+                    flipTime = -1f;
+                    flipOpen = null;
+                }
                 return;
             }
 
@@ -428,7 +471,8 @@ namespace TaikoSim.Scenes
                     }
                     MenuSounds.Don();
                     list.StartDecide();
-                    afterBlink = () =>
+                    // 点滅 → 白 → ポンッ → めくれる → 曲の一覧(Update の flipTime で進める)
+                    flipOpen = () =>
                     {
                         // 曲をえらんでいるときに、ほかのジャンルを決定したら、そのジャンルに開き直す
                         if (inSongs) genrePos = Math.Max(0, genres.IndexOf(item));
@@ -494,6 +538,7 @@ namespace TaikoSim.Scenes
         // Esc：オプション → 難易度 → 曲の一覧 → ジャンルの一覧 → モード選択 の順に1つ戻る
         public override void OnBack()
         {
+            if (flipTime >= 0f) return; // ジャンルがめくれている途中は戻れない(途中で止めると一覧がおかしくなる)
             if (searchFocused)
             {
                 searchFocused = false;
@@ -912,7 +957,8 @@ namespace TaikoSim.Scenes
 
             int baseIndex = (int)MathF.Round(list.Shown);
             var (before, after) = BarList.VisibleRange(items.Count);
-            bool clickable = !diffOpen && !list.Deciding;
+            bool clickable = !diffOpen && !list.Deciding && flipTime < 0f;
+            var flip = FlipLook();
 
             // 選んでいる板は、ほかの板の上に描くので最後
             int selectedPos = CurrentPos;
@@ -932,7 +978,7 @@ namespace TaikoSim.Scenes
                     selectedArea = list.OpenArea(area); // 開いた板(上下に広がる)
                     selectedItem = item;
                 }
-                else DrawBar(item, area, 0f, alpha);
+                else DrawBar(item, area, 0f, alpha * flip.Others);
 
                 // クリック：選んでいる項目なら決定、ほかなら選ぶ
                 if (clickable && item.Kind != Kind.Label && Gui.Clicked(selected && selectedArea is Rectangle open ? open : area))
@@ -948,10 +994,48 @@ namespace TaikoSim.Scenes
 
             if (selectedArea is Rectangle sel && selectedItem != null)
             {
+                if (flip.Active)
+                {
+                    // めくれている間：枠は出さない。板は真ん中を中心に大きく・細くする。中身はだんだん消す・出す
+                    Rectangle box = new Rectangle(sel.X + sel.Width * (1f - flip.ScaleX) / 2f, sel.Y + sel.Height * (1f - flip.ScaleY) / 2f,
+                        sel.Width * flip.ScaleX, sel.Height * flip.ScaleY);
+                    DrawBar(selectedItem, box, list.Expand, alpha, framed: !flipOpened || list.FrameShown, contentAlpha: flip.Content);
+                    if (selectedItem.Kind == Kind.Genre && !flipOpened) DrawGenrePop(selectedItem, sel, alpha * flip.Others, force: true);
+                    return;
+                }
                 list.DrawFrame(sel, alpha);
                 DrawBar(selectedItem, sel, list.Expand, alpha, list.FrameShown);
                 if (selectedItem.Kind == Kind.Genre) DrawGenrePop(selectedItem, sel, alpha);
             }
+        }
+
+        // めくれている間の見た目(Active が false なら、ふつうに描く)
+        //   Others：選んでいない板・キャラ・吹き出しの濃さ、Content：選んでいる板の中身(文字・札)の濃さ
+        private (bool Active, float ScaleX, float ScaleY, float Others, float Content) FlipLook()
+        {
+            if (flipTime < 0f) return (false, 1f, 1f, 1f, 1f);
+            float t = flipTime;
+            if (t < FlipSwitch)
+            {
+                float fade = 1f - Math.Clamp(t / FlipFadeEnd, 0f, 1f);
+                float sx = 1f, sy = 1f;
+                if (t < FlipPopEnd) { sx = FlipPopScaleX; sy = FlipPopScaleY; }
+                else if (t >= FlipSquashStart && t < FlipSquashEnd)
+                {
+                    // だんだん速さが落ちながら細くなる(測った幅：64% → 36% → 17% → 11% → 3%)
+                    float p = (t - FlipSquashStart) / (FlipSquashEnd - FlipSquashStart);
+                    sx = Math.Max(FlipThinScale, MathF.Pow(1f - p, 1.5f));
+                }
+                else if (t >= FlipSquashEnd && t < FlipThinEnd) sx = FlipThinScale;
+                else if (t >= FlipThinEnd)
+                {
+                    float p = (t - FlipThinEnd) / (FlipSwitch - FlipThinEnd);
+                    sx = FlipThinScale + (FlipGrowScale - FlipThinScale) * p * p;
+                }
+                return (true, sx, sy, fade, fade);
+            }
+            float appear = Math.Clamp((t - FlipSwitch) / (FlipEnd - FlipSwitch), 0f, 1f);
+            return (true, 1f, 1f, appear, appear);
         }
 
         // ===== 開いたジャンルの板のまわり(TaikøNauts の動画を測った値) =====
@@ -962,9 +1046,11 @@ namespace TaikoSim.Scenes
         private const float BalloonX = 33, BalloonY = -94, BalloonWidth = 870, BalloonHeight = 122, BalloonFade = 0.07f;
         private static readonly Color BalloonTextColor = new Color(40, 40, 40, 255);
 
-        private void DrawGenrePop(Item item, Rectangle open, float alpha)
+        //   force：めくれている途中(枠が消えていても、消えていくまで描く)
+        private void DrawGenrePop(Item item, Rectangle open, float alpha, bool force = false)
         {
-            if (!list.FrameShown) return;
+            if (!list.FrameShown && !force) return;
+            if (alpha <= 0f) return;
             int type = BarType(item);
             // キャラは枠が出たときからじわっと出て、板が開ききるころ(0.13秒)にはっきり見える
             float pop = Math.Clamp(list.FrameSeconds / PopFade, 0f, 1f);
@@ -986,7 +1072,8 @@ namespace TaikoSim.Scenes
         }
 
         // 1本の板。open は開き具合(0→1)。framed は黄色い枠が出ている(選んで止まっている)板
-        private void DrawBar(Item item, Rectangle area, float open, float alpha, bool framed = false)
+        //   contentAlpha：中身(文字・札)だけの濃さ(ジャンルを決めたあとのめくれる動きで使う)
+        private void DrawBar(Item item, Rectangle area, float open, float alpha, bool framed = false, float contentAlpha = 1f)
         {
             if (item.Kind == Kind.Label)
             {
@@ -1006,6 +1093,8 @@ namespace TaikoSim.Scenes
             // 枠が出ているジャンルの板は、中の板をジャンル名の帯より下だけに描く(開くにつれて下へ広がる)
             Rectangle? plate = framed && item.Kind == Kind.Genre ? BarList.OpenPlateArea(area) : null;
             Rectangle inner = DrawBarBody(item, area, alpha, plain, plate);
+            alpha *= contentAlpha; // ここから下は中身
+            if (alpha <= 0f) return;
 
             switch (item.Kind)
             {

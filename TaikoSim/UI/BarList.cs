@@ -74,6 +74,13 @@ namespace TaikoSim.UI
             Expand = 1f;
         }
 
+        // 板は開いた形のまま、黄色い枠だけ 0.33秒(FrameDelay)あとに出す(ジャンルを決めて、曲の一覧に入れ替わったとき)
+        public void OpenNowFrameLater()
+        {
+            idle = 0f;
+            Expand = 1f;
+        }
+
         // 決定した(枠の点滅を始める。まだ開いていなかったら、すぐ開く)
         public void StartDecide()
         {
