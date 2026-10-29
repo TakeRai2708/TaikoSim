@@ -19,6 +19,9 @@ namespace TaikoSim.Graphics
         // スキンの太字フォントを読み直した回数(先読みし直すかどうかの目印)
         public static int SkinMainGeneration { get; private set; }
 
+        // 読み込んだ文字のページの数(システム用＋スキンの太字。デバッグ記録用)
+        public static int TotalPageCount => (systemFont?.PageCount ?? 0) + (skinMainFont?.PageCount ?? 0);
+
         // 使っているフォントの名前(表示用)
         public static string FontName => systemFont != null
             ? $"{Path.GetFileName(systemFont.FilePath)}（ページ {systemFont.PageCount}）"

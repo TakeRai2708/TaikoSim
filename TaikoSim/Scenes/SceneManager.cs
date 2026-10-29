@@ -1,4 +1,6 @@
-﻿namespace TaikoSim.Scenes
+﻿using TaikoSim.Diagnostics;
+
+namespace TaikoSim.Scenes
 {
     // 画面(シーン)の切り替え係
     public static class SceneManager
@@ -20,10 +22,15 @@
         {
             if (next == null) return;
 
+            string from = Current?.GetType().Name ?? "なし";
+            long started = System.Diagnostics.Stopwatch.GetTimestamp();
             Current?.Exit();
             Current = next;
             next = null;
+            DebugLog.SceneChanged(from, Current.GetType().Name);
             Current.Enter();
+            DebugLog.Event("画面の準備", $"{Current.GetType().Name} の準備(Exit + Enter)にかかった時間",
+                System.Diagnostics.Stopwatch.GetElapsedTime(started).TotalMilliseconds);
         }
     }
 }

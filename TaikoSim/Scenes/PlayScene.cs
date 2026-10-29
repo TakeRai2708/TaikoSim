@@ -4,6 +4,7 @@ using Raylib_cs;
 using TaikoSim.Audio;
 using TaikoSim.Charts;
 using TaikoSim.Configs;
+using TaikoSim.Diagnostics;
 using TaikoSim.Graphics;
 using TaikoSim.Input;
 
@@ -168,7 +169,7 @@ namespace TaikoSim.Scenes
         // 見た目(音符・小節線・ゴーゴー)に使う「音オフセット」。効果音の遅れの補正は入れない
         //   入れると、音符が曲より早く判定枠に来て、判定枠がずれたように見えるため
         private static double ViewAudioOffsetMs => ConfigManager.Game.AudioOffsetMs;
-        private bool showDiagnostics; // F8：入力診断を出すか(記録は「CSV自動保存」が ON のときも行う)
+        private bool showDiagnostics; // F8：入力診断を出すか(記録は「デバッグ記録」が ON のときも行う)
         private const int InputLogCount = 8;
 
         // ログ1行分
@@ -184,7 +185,7 @@ namespace TaikoSim.Scenes
         private readonly List<InputLogEntry> inputLog = new();
         private long frameCount = 0;
 
-        // ===== 入力診断（F8で表示切替。未割り当て時だけ。CSVは選曲画面のオプションで自動保存） =====
+        // ===== 入力診断（F8で表示切替。未割り当て時だけ。CSVはデバッグ記録の input.csv） =====
         // この段階では入力判定の時計やキー取得方式は一切変更しない。
         private readonly InputDiagnostics diagnostics = new();
         // Windowsの入力時刻も記録する。ゲームの判定・打音は今までどおりRaylib側で行う。
@@ -566,6 +567,10 @@ namespace TaikoSim.Scenes
             nowMs += dt * 1000.0;
             double beforeSync = nowMs;
             UpdateSongSync();
+            UpdateDiagnosticsRecording(); // デバッグ記録を途中で ON・OFF しても、すぐ合わせる
+            if (DebugLog.Active)
+                DebugLog.SetAudio(song is { IsPlaying: true } ? song.PositionMs - nowMs : null,
+                    AudioManager.Mixer != 0 ? AudioManager.OutputLatencyMs : null);
             if (diagnostics.Enabled && diagnostics.TrackFrame(dt * 1000.0, nowMs - beforeSync))
             {
                 double? syncError = song is { IsPlaying: true } ? song.PositionMs - nowMs : null;
@@ -648,7 +653,7 @@ namespace TaikoSim.Scenes
         private void FinishPlay()
         {
             StopSong();
-            if (ConfigManager.Game.AutoSaveInputCsv) SaveDiagnosticCsv();
+            DebugLog.Event("演奏", $"演奏が終わった：{chart?.Title}　{end.Result}　スコア {stats.Score}");
             PlayResultData data = new()
             {
                 Title = chart?.Title ?? "",
@@ -1015,44 +1020,10 @@ namespace TaikoSim.Scenes
             diagnosticMessageTimer = 4f;
         }
 
-        // 記録するのは「F8 で表示中」か「CSV自動保存が ON」のとき
+        // 記録するのは「F8 で表示中」か「デバッグ記録が ON」のとき
         private void UpdateDiagnosticsRecording()
         {
-            diagnostics.Enabled = showDiagnostics || ConfigManager.Game.AutoSaveInputCsv;
-        }
-
-        // ファイル名：曲名_日付時間.csv(ファイル名に使えない文字は _ にする)
-        private string DiagnosticCsvName()
-        {
-            string title = (chart?.Title ?? "").Trim();
-            if (title.Length == 0) title = "InputDiag";
-            char[] invalid = Path.GetInvalidFileNameChars();
-            title = new string(title.Select(c => invalid.Contains(c) ? '_' : c).ToArray()).TrimEnd('.', ' ');
-            if (title.Length > 80) title = title[..80];
-            return $"{title}_{DateTime.Now:yyyyMMdd_HHmmss}.csv";
-        }
-
-        private void SaveDiagnosticCsv()
-        {
-            if (diagnostics.RowCount == 0)
-            {
-                Console.WriteLine("[入力診断] 保存する記録がないので、CSV は作りませんでした");
-                return;
-            }
-            try
-            {
-                string folder = Path.Combine(AppContext.BaseDirectory, "Logs");
-                Directory.CreateDirectory(folder);
-                string name = DiagnosticCsvName();
-                string saved = diagnostics.SaveCsv(Path.Combine(folder, name));
-                SetDiagnosticMessage($"入力診断CSV保存：Logs/{Path.GetFileName(saved)}");
-                Console.WriteLine($"[入力診断] CSV保存：{saved}");
-            }
-            catch (Exception ex) when (ex is IOException or UnauthorizedAccessException)
-            {
-                SetDiagnosticMessage($"CSV保存失敗：{ex.Message}");
-                Console.WriteLine($"[入力診断] CSV保存失敗：{ex}");
-            }
+            diagnostics.Enabled = showDiagnostics || DebugLog.Active;
         }
 
         // キー → 叩く場所。叩くキーに登録されていなければ false
@@ -1383,15 +1354,35 @@ namespace TaikoSim.Scenes
             double gameMs = nowMs - AudioOffsetMs;
             double viewMs = nowMs - ViewAudioOffsetMs - ConfigManager.Game.ChartOffsetMs;
 
+            // デバッグ記録：どこに何 ms かかったかを測る(PerfSection.Play〜)
+            long t = DebugLog.Begin();
             // システムのスキンのときは背景を描かない(背景のアニメは画像を先に持っているので)
             if (!SkinManager.SystemSkin) background.Draw();
+            DebugLog.End(PerfSection.PlayBackground, t);
+
+            t = DebugLog.Begin();
             DrawLane();
             branchLane.Draw(LaneX, LaneY); // 分岐のレーンの色(普通譜面なら何も描かない)
             branchLane.DrawText();         // 「普通譜面・玄人譜面・達人譜面」(分岐のある譜面だけ)
+            DebugLog.End(PerfSection.PlayLane, t);
+
+            t = DebugLog.Begin();
             hud.DrawGauge(stats);
+            DebugLog.End(PerfSection.PlayGauge, t);
+
+            t = DebugLog.Begin();
             effects.DrawLaneLayer();   // ゴーゴーのレーン・レーンの光
+            DebugLog.End(PerfSection.PlayEffects, t);
+
+            t = DebugLog.Begin();
             DrawJudgeFrame();
+            DebugLog.End(PerfSection.PlayLane, t);
+
+            t = DebugLog.Begin();
             effects.DrawBehindNotes(); // 判定枠の顔
+            DebugLog.End(PerfSection.PlayEffects, t);
+
+            t = DebugLog.Begin();
             DrawBarLines(course, viewMs);
 
             // 後ろ(右)の音符から描いて、手前(左)の音符が上に重なるようにする
@@ -1409,7 +1400,9 @@ namespace TaikoSim.Scenes
 
             // 音合わせのガイド(音符より手前、左のパネルより後ろ)
             if (testView > 0) DrawGuides(chart, course, viewMs);
+            DebugLog.End(PerfSection.PlayNotes, t);
 
+            t = DebugLog.Begin();
             // 左のパネル(判定枠を通りすぎた音符はこの下に隠れる)
             if (!SkinManager.Draw(PanelImage, 0, LaneY))
             {
@@ -1417,21 +1410,34 @@ namespace TaikoSim.Scenes
             }
 
             hud.DrawPanel(course);
+            DebugLog.End(PerfSection.PlayHud, t);
 
+            t = DebugLog.Begin();
             // 花火全体を、音符・パネルより手前へ一度だけ描く。
             effects.DrawHitEffects();
             effects.DrawPanel(); // ミニ太鼓とコンボ数
             effects.DrawFlyingNotes();
+            DebugLog.End(PerfSection.PlayEffects, t);
 
+            t = DebugLog.Begin();
             DrawJudgeText();
             DrawRollPopup();
             DrawBalloonPopup(gameMs);
+            DebugLog.End(PerfSection.PlayHud, t);
+
+            t = DebugLog.Begin();
             effects.DrawFront(); // ゴーゴー開始の火花
+            DebugLog.End(PerfSection.PlayEffects, t);
+
+            t = DebugLog.Begin();
             hud.DrawSongTitle();
             branchLane.DrawPopup();  // 「レベルアップ／レベルダウン」
             scoreboard.Set(goodCount, okCount, badCount, totalRollHits);
             if (ConfigManager.Game.ShowScoreboard) scoreboard.Draw(); // 良・可・不可・連打数(左下。選曲画面のオプションで消せる)
             scoreRank.Draw();    // 粋・雅・極
+            DebugLog.End(PerfSection.PlayHud, t);
+
+            t = DebugLog.Begin();
             end.Draw();          // 演奏後の演出(クリア成功・フルコンボなど)
             if (autoPlay)
             {
@@ -1453,6 +1459,7 @@ namespace TaikoSim.Scenes
                 float alpha = Math.Clamp(endFadeElapsed / EndFadeSeconds, 0f, 1f);
                 Raylib.DrawRectangle(0, 0, Screen.Width, Screen.Height, Raylib.ColorAlpha(Color.Black, alpha));
             }
+            DebugLog.End(PerfSection.PlayEnd, t);
         }
 
         // 入力処理と音声同期の診断（判定や打音には影響しない）
@@ -1471,7 +1478,7 @@ namespace TaikoSim.Scenes
                 y += DiagLine;
             }
 
-            string autoSave = ConfigManager.Game.AutoSaveInputCsv ? "曲が終わったら CSV を自動保存" : "CSV 自動保存：OFF（選曲画面のオプション）";
+            string autoSave = DebugLog.Active ? "デバッグ記録中（Logs/Debug_…/input.csv）" : "デバッグ記録：OFF（設定・選曲画面のオプション）";
             Line($"入力診断（F8 で切替）　{autoSave}", Color.SkyBlue);
             Line($"記録：入力 {diagnostics.InputCount}回 / データ {diagnostics.RowCount}行", Color.White);
             Line($"直近0.25秒の最大フレーム時間：{diagnostics.RecentMaxFrameMs:0.###} ms", Color.White);

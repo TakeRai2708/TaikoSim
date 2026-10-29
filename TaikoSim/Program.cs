@@ -75,6 +75,7 @@ namespace TaikoSim
             {
                 first.WriteLine(value);
                 second.WriteLine(value);
+                Diagnostics.DebugLog.ConsoleLine(value); // デバッグ記録の events.csv にも「ログ」として残す
             }
 
             public override void Flush()

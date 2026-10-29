@@ -1,6 +1,7 @@
 ﻿using System.Numerics;
 using System.Text;
 using Raylib_cs;
+using TaikoSim.Diagnostics;
 
 namespace TaikoSim.Graphics
 {
@@ -67,6 +68,8 @@ namespace TaikoSim.Graphics
         // 文字を描く
         public void Draw(string text, Vector2 position, float size, Color color)
         {
+            long started = DebugLog.Begin(); // デバッグ記録：文字を描いた時間と数
+            int drawn = 0;
             EnsureGlyphs(text);
 
             float scale = size / BaseSize;
@@ -94,9 +97,11 @@ namespace TaikoSim.Graphics
                 if (codepoint != ' ' && codepoint != '\t')
                 {
                     Raylib.DrawTextCodepoint(pages[glyph.Page], codepoint, new Vector2(x, y), size, color);
+                    drawn++;
                 }
                 x += glyph.Advance * scale;
             }
+            DebugLog.CountText(drawn, started);
         }
 
         // 文字の幅と高さを測る
@@ -192,6 +197,8 @@ namespace TaikoSim.Graphics
 
             var watch = System.Diagnostics.Stopwatch.StartNew();
             Font page = Raylib.LoadFontFromMemory(fileType, fileData, BaseSize, codepoints, codepoints.Length);
+            DebugLog.Event("文字ページ", $"{Path.GetFileName(FilePath)} に {codepoints.Length}文字のページを足した（ページ {pages.Count + 1}）",
+                watch.Elapsed.TotalMilliseconds, codepoints.Length);
             // 重かったときは記録しておく(止まる原因を調べるため)
             if (watch.ElapsedMilliseconds >= 30)
                 Console.WriteLine($"[Font] ページを1枚足すのに {watch.ElapsedMilliseconds} ms（{codepoints.Length}文字、ページ {pages.Count + 1}）");

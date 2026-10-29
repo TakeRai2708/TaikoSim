@@ -1,10 +1,12 @@
 ﻿using System.Diagnostics;
 using System.Globalization;
 using System.Text;
+using TaikoSim.Diagnostics;
 
 namespace TaikoSim.Input
 {
     // 演奏中の入力処理と音声同期を調べるための記録係。
+    // 記録した行は、デバッグ記録(DebugLog)が ON なら Logs/Debug_…/input.csv にそのまま書く。
     // キーを実際に押した瞬間の時刻は Raylib.GetKeyPressed からは取得できない。
     // 「入力取得時刻」は、キューから取り出した直後の Stopwatch 時刻を意味する。
     public sealed class InputDiagnostics
@@ -148,36 +150,33 @@ namespace TaikoSim.Input
                 eventGameMs, judgeGameMs, waitMs, timingMode, limiterEnabled));
         }
 
-        public string SaveCsv(string path)
+        // CSV の見出し(デバッグ記録の input.csv。前の「入力診断CSV」と同じ列)
+        public const string CsvHeader = "種類,フレーム番号,ゲーム時刻ms,入力取得または記録時刻ms,キー,叩く場所,音符番号,結果,判定ズレms,入力処理時間ms,最大フレーム時間ms,音声と画面のズレms,時計補正ms,出力遅延推定ms,Windows仮想キーVK,Windowsスキャンコード,Windowsイベント時刻推定ms,Windows処理時刻ms,WindowsからRaylib取得までms,Windowsメッセージ待ち推定ms,Windows照合結果,入力イベント譜面時刻ms,判定実行譜面時刻ms,判定待ちms,入力方式,60打制限";
+
+        // 1行を CSV の文字にする
+        private static string FormatRow(DiagnosticRow r)
         {
-            var sb = new StringBuilder();
-            sb.AppendLine("種類,フレーム番号,ゲーム時刻ms,入力取得または記録時刻ms,キー,叩く場所,音符番号,結果,判定ズレms,入力処理時間ms,最大フレーム時間ms,音声と画面のズレms,時計補正ms,出力遅延推定ms,Windows仮想キーVK,Windowsスキャンコード,Windowsイベント時刻推定ms,Windows処理時刻ms,WindowsからRaylib取得までms,Windowsメッセージ待ち推定ms,Windows照合結果,入力イベント譜面時刻ms,判定実行譜面時刻ms,判定待ちms,入力方式,60打制限");
-            foreach (DiagnosticRow r in rows)
-            {
-                sb.Append(Escape(r.Kind)).Append(',');
-                sb.Append(r.Frame).Append(',');
-                sb.Append(Format(r.GameMs)).Append(',');
-                sb.Append(Format(r.ObservedMs)).Append(',');
-                sb.Append(Escape(r.Key)).Append(',').Append(Escape(r.Part)).Append(',');
-                sb.Append(r.NoteNumber).Append(',').Append(Escape(r.Result)).Append(',');
-                sb.Append(Format(r.JudgeDeltaMs)).Append(',').Append(Format(r.HandlingMs)).Append(',');
-                sb.Append(Format(r.FrameMs)).Append(',').Append(Format(r.AudioSyncMs)).Append(',');
-                sb.Append(Format(r.ClockCorrectionMs)).Append(',').Append(Format(r.OutputEstimateMs)).Append(',');
-                sb.Append(r.NativeVk?.ToString(CultureInfo.InvariantCulture) ?? "").Append(',');
-                sb.Append(r.NativeScan?.ToString(CultureInfo.InvariantCulture) ?? "").Append(',');
-                sb.Append(Format(r.NativeOsMs)).Append(',').Append(Format(r.NativeCallbackMs)).Append(',');
-                sb.Append(Format(r.NativeToRaylibMs)).Append(',').Append(Format(r.MessageQueueAgeMs)).Append(',');
-                sb.Append(Escape(r.NativeMatch)).Append(',');
-                sb.Append(Format(r.EventGameMs)).Append(',');
-                sb.Append(Format(r.JudgeGameMs)).Append(',');
-                sb.Append(Format(r.WaitForJudgeMs)).Append(',');
-                sb.Append(Escape(r.TimingMode)).Append(',');
-                sb.Append(r.HitLimitEnabled.HasValue ? (r.HitLimitEnabled.Value ? "ON" : "OFF") : "");
-                sb.AppendLine();
-            }
-            // Excelで日本語が文字化けしにくいUTF-8 BOMつき。
-            File.WriteAllText(path, sb.ToString(), new UTF8Encoding(true));
-            return path;
+            var sb = new StringBuilder(256);
+            sb.Append(Escape(r.Kind)).Append(',');
+            sb.Append(r.Frame).Append(',');
+            sb.Append(Format(r.GameMs)).Append(',');
+            sb.Append(Format(r.ObservedMs)).Append(',');
+            sb.Append(Escape(r.Key)).Append(',').Append(Escape(r.Part)).Append(',');
+            sb.Append(r.NoteNumber).Append(',').Append(Escape(r.Result)).Append(',');
+            sb.Append(Format(r.JudgeDeltaMs)).Append(',').Append(Format(r.HandlingMs)).Append(',');
+            sb.Append(Format(r.FrameMs)).Append(',').Append(Format(r.AudioSyncMs)).Append(',');
+            sb.Append(Format(r.ClockCorrectionMs)).Append(',').Append(Format(r.OutputEstimateMs)).Append(',');
+            sb.Append(r.NativeVk?.ToString(CultureInfo.InvariantCulture) ?? "").Append(',');
+            sb.Append(r.NativeScan?.ToString(CultureInfo.InvariantCulture) ?? "").Append(',');
+            sb.Append(Format(r.NativeOsMs)).Append(',').Append(Format(r.NativeCallbackMs)).Append(',');
+            sb.Append(Format(r.NativeToRaylibMs)).Append(',').Append(Format(r.MessageQueueAgeMs)).Append(',');
+            sb.Append(Escape(r.NativeMatch)).Append(',');
+            sb.Append(Format(r.EventGameMs)).Append(',');
+            sb.Append(Format(r.JudgeGameMs)).Append(',');
+            sb.Append(Format(r.WaitForJudgeMs)).Append(',');
+            sb.Append(Escape(r.TimingMode)).Append(',');
+            sb.Append(r.HitLimitEnabled.HasValue ? (r.HitLimitEnabled.Value ? "ON" : "OFF") : "");
+            return sb.ToString();
         }
 
         public static string FormatMs(double? ms) => ms.HasValue ? $"{ms.Value:+0.###;-0.###;0} ms" : "未取得";
@@ -188,10 +187,12 @@ namespace TaikoSim.Input
         private double ObservedMs() => RelativeMs(Stopwatch.GetTimestamp());
         private double RelativeMs(long ticks) => (ticks - startTimestamp) * 1000.0 / Stopwatch.Frequency;
 
+        // 画面の表示用に覚えておいて、デバッグ記録が ON なら input.csv にもすぐ書く
         private void Add(DiagnosticRow row)
         {
             if (rows.Count >= MaxRows) rows.RemoveAt(0);
             rows.Add(row);
+            if (DebugLog.Active) DebugLog.Input(FormatRow(row));
         }
     }
 }

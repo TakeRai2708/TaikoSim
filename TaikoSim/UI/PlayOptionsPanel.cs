@@ -1,4 +1,4 @@
-using System.Globalization;
+﻿using System.Globalization;
 using System.Numerics;
 using Raylib_cs;
 using TaikoSim.Configs;
@@ -7,7 +7,7 @@ using TaikoSim.Graphics;
 namespace TaikoSim.UI
 {
     // 演奏オプションの板(難易度選択の「オプション」で開く)
-    // 中身は前の選曲画面の右上のメニューと同じ(オート演奏・HS倍率・オート連打・オート精度・毎回同じ出方・板・CSV)
+    // 中身は前の選曲画面の右上のメニューと同じ(オート演奏・HS倍率・オート連打・オート精度・毎回同じ出方・板・デバッグ記録)
     // マウスでクリック、数字の箱はキーボードで入力。Esc・板の外のクリックで閉じる
     public sealed class PlayOptionsPanel
     {
@@ -19,7 +19,7 @@ namespace TaikoSim.UI
         private static readonly Rectangle AutoFixedItem = new Rectangle(30, 900, 310, 44);
         private const float DisplaySectionY = 952;
         private static readonly Rectangle ScoreboardItem = new Rectangle(30, 958, 310, 44);
-        private static readonly Rectangle AutoSaveCsvItem = new Rectangle(30, 1006, 310, 44);
+        private static readonly Rectangle DebugLogItem = new Rectangle(30, 1006, 310, 44);
         private static readonly Color ErrorColor = new Color(255, 110, 100, 255);
 
         public bool IsOpen { get; private set; }
@@ -161,7 +161,7 @@ namespace TaikoSim.UI
             Raylib.DrawLineEx(new Vector2(Menu.X + 12, DisplaySectionY),
                 new Vector2(Menu.X + Menu.Width - 12, DisplaySectionY), 1, Gui.SubTextColor);
             ToggleItem(ScoreboardItem, "良・可・不可の板", game.ShowScoreboard, mouse, pressed, v => game.ShowScoreboard = v, 22);
-            ToggleItem(AutoSaveCsvItem, "入力診断CSV保存", game.AutoSaveInputCsv, mouse, pressed, v => game.AutoSaveInputCsv = v, 22);
+            ToggleItem(DebugLogItem, "デバッグ記録(CSV)", game.DebugLog, mouse, pressed, v => game.DebugLog = v, 22);
 
             // 板の外をクリックしたら閉じる
             if (pressed && !Raylib.CheckCollisionPointRec(mouse, Menu)) Close();

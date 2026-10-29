@@ -102,6 +102,7 @@ namespace TaikoSim.Graphics
         public static void ApplyWindowMode()
         {
             GameConfig game = ConfigManager.Game;
+            Diagnostics.DebugLog.Event("画面の設定", $"ウィンドウ {game.WindowWidth}×{game.WindowHeight}　フルスクリーン {game.Fullscreen}（{game.FullscreenType}）");
 
             // 1. いったん普通のウィンドウに戻す
             if (Raylib.IsWindowFullscreen()) Raylib.ToggleFullscreen();

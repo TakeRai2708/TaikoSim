@@ -3,6 +3,7 @@ using Raylib_cs;
 using TaikoSim.Charts;
 using TaikoSim.Audio;
 using TaikoSim.Configs;
+using TaikoSim.Diagnostics;
 using TaikoSim.Graphics;
 using TaikoSim.Input;
 using TaikoSim.Scenes;
@@ -400,6 +401,14 @@ namespace TaikoSim.Overlays
 
             GameConfig game = ActiveGame;
             game.ShowFps = CheckboxRow("FPS表示", game.ShowFps);
+
+            // ----- デバッグ(重さ・入力・音のズレを CSV に記録する) -----
+            SubHeader("デバッグ");
+            game.DebugLog = CheckboxRow("デバッグ記録（CSV）", game.DebugLog);
+            game.ShowPerfOverlay = CheckboxRow("重さの内訳を画面に出す", game.ShowPerfOverlay);
+            NoteRow(DebugLog.Active && DebugLog.SessionFolder != null
+                ? $"記録中：Logs/{Path.GetFileName(DebugLog.SessionFolder)}/（frames・events・input の3つの CSV）"
+                : "ON にすると Logs/Debug_日付_時間/ に、毎フレームの重さ・できごと・入力を記録します");
 
             // ----- 曲(前は選曲画面の上にあったボタン) -----
             SubHeader("曲");

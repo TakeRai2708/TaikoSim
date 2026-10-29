@@ -1,5 +1,6 @@
 ﻿using ManagedBass;
 using ManagedBass.Mix;
+using TaikoSim.Diagnostics;
 
 namespace TaikoSim.Audio
 {
@@ -32,7 +33,19 @@ namespace TaikoSim.Audio
         }
 
         // 曲を読み込む。失敗したら null を返して、理由を error に入れる
+        //   デバッグ記録が ON なら、かかった時間を events.csv に書く
         public static Song? Load(string path, out string error)
+        {
+            long started = System.Diagnostics.Stopwatch.GetTimestamp();
+            Song? song = LoadCore(path, out error);
+            double ms = System.Diagnostics.Stopwatch.GetElapsedTime(started).TotalMilliseconds;
+            DebugLog.Event("曲の読み込み", song != null
+                ? $"{Path.GetFileName(path)}（{song.LengthMs / 1000.0:F1}秒）"
+                : $"{Path.GetFileName(path)} を読めなかった：{error}", ms);
+            return song;
+        }
+
+        private static Song? LoadCore(string path, out string error)
         {
             if (!AudioManager.IsAvailable)
             {

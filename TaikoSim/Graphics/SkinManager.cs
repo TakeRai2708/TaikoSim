@@ -2,6 +2,7 @@
 using System.Numerics;
 using System.Text.Json;
 using Raylib_cs;
+using TaikoSim.Diagnostics;
 using TaikoSim.Configs;
 
 namespace TaikoSim.Graphics
@@ -179,6 +180,7 @@ namespace TaikoSim.Graphics
         // 設定に合わせてスキンを読み直す(スキンやフォルダを変えたときに呼ぶ)
         public static void Reload()
         {
+            long started = System.Diagnostics.Stopwatch.GetTimestamp();
             UnloadTextures();
 
             SkinNames = ConfigManager.Skin.GetSkinList();
@@ -197,6 +199,21 @@ namespace TaikoSim.Graphics
 
             Generation++;
             Console.WriteLine($"[Skin] {CurrentName} を使います");
+            DebugLog.Event("スキン", $"{CurrentName} を読み直した（画像 {TextureCount}枚）",
+                System.Diagnostics.Stopwatch.GetElapsedTime(started).TotalMilliseconds);
+        }
+
+        // 読み込んである画像の数(デバッグ記録用。無かった画像は数えない)
+        //   毎フレーム呼ばれるので、LINQ を使わずに数える(メモリを確保しないように)
+        public static int TextureCount
+        {
+            get
+            {
+                int count = 0;
+                foreach (Texture2D? texture in textures.Values) if (texture != null) count++;
+                foreach (Texture2D? texture in whiteTextures.Values) if (texture != null) count++;
+                return count;
+            }
         }
 
         // 画像を取り出す(初めてなら読み込む)。無ければ null
@@ -211,8 +228,12 @@ namespace TaikoSim.Graphics
             }
 
             string fullPath = Path.Combine(CurrentPath, relativePath.Replace('/', Path.DirectorySeparatorChar));
+            long started = System.Diagnostics.Stopwatch.GetTimestamp();
             Texture2D? texture = LoadTexture(fullPath);
             textures[relativePath] = texture;
+            if (texture is Texture2D loaded)
+                DebugLog.Event("画像", $"{relativePath}（{loaded.Width}×{loaded.Height}）を読んだ",
+                    System.Diagnostics.Stopwatch.GetElapsedTime(started).TotalMilliseconds, loaded.Width * loaded.Height * 4 / 1024.0);
             return texture;
         }
 
