@@ -14,6 +14,36 @@ def note_disc(c, cx, cy, r, color, dark):
     c.circle(cx, cy, r - 3, fill=RIM)
     c.circle(cx, cy, r - 7, fill=color)
 
+# 風船の形。A-Style の Notes/Normal/0/10.png を 1px ずつ測った「まんなかから上下の高さ」
+#   頭の丸(半径52) → 首の帯(平ら、高さ24) → くびれ(高さ20) → ふくらみ(最大42) → 先は丸い
+#   x=140 側は頭の丸のうしろに隠れる。顔(目・口)は描かない
+BALLOON_X = [140, 167, 171, 184, 190, 196, 202, 208, 214, 220, 226, 232, 238, 244,
+             256, 262, 268, 274, 280, 286, 292, 295, 297]
+BALLOON_H = [ 24,  24,  20,  20,  22,  24,  27,  29,  32,  35,  37,39.5,  41,  42,
+              42,  40,  39,  36,  32,  27,  19,  12,   0]
+BALLOON_BODY = (240, 96, 28)   # ふくらみ。頭(BALLOON)より少し濃いオレンジ
+BALLOON_NECK = (146, 164.5)    # 首の帯の左右。右はしに細い黒を入れてふくらみと分ける
+
+def balloon_body(c, cy, outline=4):
+    """頭の丸のうしろから右へ伸びる風船。顔(目・口)は描かない"""
+    xs = np.arange(BALLOON_X[0], BALLOON_X[-1] + 0.5, 0.5)
+    hs = np.interp(xs, BALLOON_X, BALLOON_H)
+
+    def shape(shrink, fill):
+        # 内側は上下に shrink 縮めつつ、先っぽも shrink 手前で閉じる(先だけ輪郭が細くならないように)
+        x0, x1 = BALLOON_X[0], BALLOON_X[-1]
+        scale = (x1 - shrink - x0) / (x1 - x0)
+        pts = [(x0 + (x - x0) * scale, max(0.0, h - shrink)) for x, h in zip(xs, hs)]
+        c.poly([(x, cy - h) for x, h in pts] + [(x, cy + h) for x, h in reversed(pts)], fill=fill)
+
+    shape(0, INK)
+    shape(outline, BALLOON_BODY)
+    # 首の帯は頭と同じ明るいオレンジ
+    n0, n1 = BALLOON_NECK
+    half = BALLOON_H[0] - outline
+    c.rect(n0, cy - half, n1 - 2, cy + half, fill=BALLOON)
+    c.rect(n1 - 2, cy - BALLOON_H[0], n1, cy + BALLOON_H[0], fill=INK)
+
 def notes():
     for folder in ('0', '1'):
         d = E + 'Notes/Normal/' + folder + '/'
@@ -33,10 +63,9 @@ def notes():
             c.d.pieslice([c.s(-r + 7), c.s(NC[1] - r + 7), c.s(r - 7), c.s(NC[1] + r - 7)], -90, 90, fill=ROLL)
             c.rect(-2, NC[1] - r + 7, 1, NC[1] + r - 7, fill=ROLL)
             c.save(d + f'{end}.png')
-        # 風船：頭の丸＋右に風船
+        # 風船：A-Style と同じ形(首でくびれて、ふくらんで、先は丸い)。顔は描かない
         c = Canvas(390, 195)
-        c.circle(225, NC[1], 62, fill=INK); c.circle(225, NC[1], 59, fill=RIM); c.circle(225, NC[1], 55, fill=BALLOON)
-        c.rect(140, NC[1] - 4, 168, NC[1] + 4, fill=RIM)
+        balloon_body(c, NC[1])
         note_disc(c, *NC, 51.5, BALLOON, (190, 80, 20))
         c.save(d + '10.png')
 

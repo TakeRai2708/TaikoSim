@@ -76,9 +76,12 @@ namespace TaikoSim.UI
         public bool Draw(Rectangle box)
         {
             if (textures.Count == 0) return false;
-            const float note = 195f, gap = 14f, rollBody = 160f;
-            float total = note * 5 + (note + rollBody) + note * 2 + gap * 7; // 判定枠・ドン・カッ・大ドン・大カッ・連打・風船
-            float s = Math.Min(0.5f, (box.Width - 20f) / total);
+            // 連打の胴は音符の大きさに合わせて伸ばす(固定の長さだと、小さく描いたときに頭と尻尾が重なってはみ出して見える)
+            const float note = 195f, gap = 14f;
+            const float rollBody = note * 1.2f;
+            // 並べるもの7つ：判定枠・ドン・カッ・大ドン・大カッ・連打(頭+胴)・風船(390幅=音符2つ分)。すき間は6か所
+            float total = note * 5 + (note + rollBody) + note * 2 + gap * 6;
+            float s = Math.Min(0.5f, (box.Width - 24f) / total);
             float size = note * s;
             float x = box.X + 10f, y = box.Y + (box.Height - size) / 2f;
 
