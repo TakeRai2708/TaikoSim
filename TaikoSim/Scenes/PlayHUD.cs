@@ -56,10 +56,10 @@ namespace TaikoSim.Scenes
         private static readonly string[] ScoreDigitText = { "0", "1", "2", "3", "4", "5", "6", "7", "8", "9" };
         private float soulFlashAge = 1f;
         private const float SongTitleRight = 1872f, SongTitleY = 40f;
-        // 演奏オプションのバッジ(AUTO・×1.5 など)は曲名の真下に、右はしをそろえて出す。
-        //   ※ TaikøNauts の実機を測った値ではない（オプションを付けた演奏のスクショ・動画が無いので、
-        //      曲名の下の空いているところに置いただけ）。ズレていたらこの2つを直す
-        private const float OptionBadgeY = 96f, OptionBadgeScale = 1f;
+        // 演奏オプションのバッジ(AUTO・×1.5 など)は、左のパネルの難易度マークの右に原寸で出す。
+        //   TaikøNauts の動画（10/31 の段位道場、AUTO を付けた演奏）で測った：AUTO の 40×40 の左上が (170, 353)。
+        //   前は推測で曲名の下に置いていた
+        private const float OptionBadgeX = 170f, OptionBadgeY = 353f, OptionBadgeScale = 1f;
         private const float SongTitleMaxWidth = 1000f, SongTitleFontSize = 48f, SongTitleOutline = 4f; // 輪郭は 4px(3px だと細いフォントで目立たなかった)
         private string songTitle = "";
         private float songTitleX, songTitleSize;
@@ -98,8 +98,6 @@ namespace TaikoSim.Scenes
             if (songTitleSkinGeneration != SkinManager.Generation) PrepareSongTitleLayout();
             // 黒い縁 → 白い文字(SDF フォントで2回。前は8方向にずらして9回描いていた)
             FontManager.DrawSkinMainOutlined(songTitle, songTitleX, SongTitleY, songTitleSize, Color.White, Color.Black, SongTitleOutline);
-            // つけているオプションのバッジ(何もつけていなければ何も描かない)
-            OptionBadges.DrawRightAligned(SongTitleRight, OptionBadgeY, OptionBadgeScale);
         }
 
         public void Update(float dt, long score)
@@ -151,6 +149,9 @@ namespace TaikoSim.Scenes
             }
             else FontManager.Draw(courseText, 30, 370, 22, Color.White);
             // 難易度の★の数は出さない(難易度のマークだけ)
+
+            // つけているオプションのバッジ(何もつけていなければ何も描かない)
+            OptionBadges.DrawLeftAligned(OptionBadgeX, OptionBadgeY, OptionBadgeScale);
         }
 
         private static bool DrawDigits(string text, float x, float y, float scale, float bounce, bool alignRight)

@@ -44,6 +44,23 @@ namespace TaikoSim.UI
             return nearest;
         }
 
+        /// <summary>今つけているオプションのバッジを、左はしをそろえて右へ並べる。描いた幅を返す</summary>
+        public static float DrawLeftAligned(float left, float y, float scale = 1f)
+        {
+            float width = Measure(scale);
+            return width <= 0f ? 0f : DrawRightAligned(left + width, y, scale);
+        }
+
+        // 並べたときの全体の幅（バッジが無ければ 0）
+        private static float Measure(float scale)
+        {
+            int count = 0;
+            float hiSpeed = Cfg.HiSpeed > 0f ? Cfg.HiSpeed : 1f;
+            if (SpeedCell(hiSpeed) > 0) count++;
+            if (Cfg.AutoPlay) count++;
+            return count == 0 ? 0f : count * Cell * scale + (count - 1) * Gap * scale;
+        }
+
         /// <summary>今つけているオプションのバッジを、右はしをそろえて描く。描いた幅を返す</summary>
         public static float DrawRightAligned(float right, float y, float scale = 1f)
         {

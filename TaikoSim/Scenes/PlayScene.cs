@@ -66,6 +66,7 @@ namespace TaikoSim.Scenes
 
         // 段位道場で遊んでいるときだけ入る(ふつうの演奏では null)。曲をまたいで持ち越す
         private readonly DanPlay? dan;
+        private readonly DanPanel? danPanel;   // 段位のときだけ：下半分の条件パネルと上の札
         public bool IsDan => dan != null;
 
         private Chart? chart;
@@ -340,6 +341,7 @@ namespace TaikoSim.Scenes
         private PlayScene(DanPlay dan)
         {
             this.dan = dan;
+            danPanel = new DanPanel(dan);
             DanSong song = dan.Course.Songs[Math.Clamp(dan.SongIndex, 0, dan.Course.Songs.Count - 1)];
             path = song.FullPath;
             courseType = song.Course;
@@ -397,6 +399,7 @@ namespace TaikoSim.Scenes
             // 演奏画面から離れたら必ずWindowsフックを解除する。
             windowsInput.Dispose();
             StopSong();
+            danPanel?.Unload();
             SkinManager.SystemSkin = false; // ほかの画面は、いつものスキンで
         }
 
@@ -584,6 +587,7 @@ namespace TaikoSim.Scenes
 
         public override void Update(float dt)
         {
+            danPanel?.Update(dt);
             // クイックリスタート(F5)で最初から
             if (InputManager.IsSystemPressed(SystemAction.QuickRestart))
             {
@@ -703,6 +707,20 @@ namespace TaikoSim.Scenes
                 MaxCombo = maxCombo,
             };
             SceneManager.ChangeScene(new ResultScene(data, returnToSelect));
+        }
+
+        // 段位道場：今の曲の成績を DanPlay に入れる(条件パネルが今の数を出せるように、毎フレーム)
+        private void SyncDanLive()
+        {
+            if (dan == null) return;
+            DanSongTally tally = dan.Current;
+            tally.Great = goodCount;
+            tally.Good = okCount;
+            tally.Miss = badCount;
+            tally.Roll = totalRollHits;
+            tally.MaxCombo = maxCombo;
+            tally.Score = stats.Score;
+            dan.Gauge = stats.Gauge;
         }
 
         // 段位道場：1曲ぶんの成績を記録して、次の課題曲か段位リザルトへ
@@ -1431,6 +1449,12 @@ namespace TaikoSim.Scenes
             long t = DebugLog.Begin();
             // システムのスキンのときは背景を描かない(背景のアニメは画像を先に持っているので)
             if (!SkinManager.SystemSkin) background.Draw();
+            // 段位のときは、下半分を条件パネルにする(下の背景・ダンサーの上に描く)
+            if (dan != null && danPanel != null)
+            {
+                SyncDanLive();
+                danPanel.DrawBottom();
+            }
             DebugLog.End(PerfSection.PlayBackground, t);
 
             t = DebugLog.Begin();
@@ -1506,7 +1530,8 @@ namespace TaikoSim.Scenes
             hud.DrawSongTitle();
             branchLane.DrawPopup();  // 「レベルアップ／レベルダウン」
             scoreboard.Set(goodCount, okCount, badCount, totalRollHits);
-            if (ConfigManager.Game.ShowScoreboard) scoreboard.Draw(); // 良・可・不可・連打数(左下。選曲画面のオプションで消せる)
+            if (danPanel != null) danPanel.DrawTop();   // 段位：「1曲目/3曲」・魂ゲージの札・左上のカウンター
+            else if (ConfigManager.Game.ShowScoreboard) scoreboard.Draw(); // 良・可・不可・連打数(左下。選曲画面のオプションで消せる)
             scoreRank.Draw();    // 粋・雅・極
             DebugLog.End(PerfSection.PlayHud, t);
 
