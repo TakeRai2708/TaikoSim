@@ -1440,11 +1440,8 @@ namespace TaikoSim.Scenes
 
             t = DebugLog.Begin();
             end.Draw();          // 演奏後の演出(クリア成功・フルコンボなど)
-            if (autoPlay)
-            {
-                Raylib.DrawRectangle(24, 211, 132, 46, new Color(20, 60, 45, 240));
-                FontManager.Draw("AUTO", 44, 217, 30, Color.Lime);
-            }
+            // オート演奏の印は、左上の黄緑の箱から A-Style のバッジ(UI/OptionBadges.cs)に移した。
+            // 曲名の下に「AUTO」のバッジが出る(スキンに画像が無ければ文字の札で代わりに出る)
             if (showDebugInfo)
             {
                 DrawInfo(chart, course);
