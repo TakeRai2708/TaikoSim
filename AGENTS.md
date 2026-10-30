@@ -239,6 +239,25 @@ python sounds.py      # 音（ffmpeg が必要）
   どのジャンルにいるかは一覧の板そのもので分かる。右上の「F3：検索」「○曲」は残す
 - 曲が1つも無いときのフォルダのパスは、薄い灰色（`Gui.SubTextColor`）だと読めないので、うすい黄色 (255, 236, 160)
 
+### どんちゃん・かつちゃん（`Image/99.Common/Chara/`。`Graphics/CharaConfig.cs`・`Graphics/CharaAtlas.cs`）
+A-Style の見た目は**横倒しの太鼓**（どんちゃん＝赤い顔・水色の胴、かつちゃん＝その逆）。
+- 素材：`01.DonChan` / `02.KatsuChan` に **23種類のアニメ、片方で4456コマ**。1コマ **820×599**、全体で435MB
+- `Config.json` に位置・倍率・ループ時間(ms)・モーションの拍数が**全部入っている**。キーは camelCase
+  - 演奏：`ensoGameX [-83,-83]` `ensoGameY [-111,690]` `ensoGameNormalScale 0.81`
+  - 選曲：`songSelectX [-185,1300]` `songSelectY [436,436]` `songSelectLoopTime 1000` `songSelectWaitLoopTime 560`
+  - 拍数：`normalMotionBeat 4` `combo10MotionBeat 2` `goGoMotionMotionBeat 4`（**Motion が2回入ったキー名**なので注意）
+  - 位置の配列は [1P, 2P]。TaikoSim は1人プレイだけなので [0] を使う
+- **そのまま読むと載らない**：1コマ 1.87MB → `normal`(471コマ) だけで 883MB、演奏画面ぶん全部で 4.7GB
+- なので初回だけ `Cache/Chara/<スキン名>/<キャラ>/` にアトラスを焼く（`CharaAtlas.BuildIfNeeded`）
+  - ① 余白カット（中身は 820×599 のうち 346×284 くらい。**全コマ調べて union を取る**。一部だけ見ると切れる）
+  - ② 画面の倍率で縮小（演奏 0.81）　③ コマ間引き 1/2（30fps 相当。マスコットなので分からない）
+  - → `normal` が 883MB → **71MB**。`gogo` 896MB → 102MB
+  - アトラス1枚は **4096×4096 まで**（GPU の上限は今どき16384 だが古いと4096 なので安全側）。あふれたら複数ページ
+  - `Image` 系（LoadImage/ImageCrop/ImageResize/ImageDraw）は CPU だけなので**別スレッドで焼ける**。
+    テクスチャ化（`LoadTextureFromImage`/`LoadTexture`）だけメインスレッド
+  - 検証済み：アトラスのコマ5 ＝ 元のコマ10（間引き2）で画素差 0.00
+- **シンプルスキンにはどんちゃんを入れない**（画像を再配布できない。画像が無ければ何も描かない）
+
 ### 演奏画面
 - 判定枠の中心：(620, 389)
 - 風船（`Notes/Normal/*/10.png`、390×195）：A-Style の 0/10.png を1pxずつ測った形。まんなかは y=95.5

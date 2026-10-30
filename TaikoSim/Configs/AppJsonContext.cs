@@ -27,6 +27,8 @@ namespace TaikoSim.Configs
     [JsonSerializable(typeof(SkinConfig))]
     [JsonSerializable(typeof(SongHistoryFile))]
     [JsonSerializable(typeof(SongCacheFile))]
+    // どんちゃんのアトラスキャッシュのメタ(Graphics/CharaAtlas.cs)
+    [JsonSerializable(typeof(TaikoSim.Graphics.CharaAtlasMeta))]
     internal partial class AppJsonContext : JsonSerializerContext
     {
     }
