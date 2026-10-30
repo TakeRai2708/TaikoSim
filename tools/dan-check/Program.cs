@@ -1,8 +1,12 @@
+using System.Text;
 using TaikoSim.Charts;
 
 // 段位ファイルのパーサを実データで動かして、読めた中身をそのまま出す道具。
 //   dotnet run --project tools/dan-check -- "<段位カテゴリのフォルダ>"
 // 読めているかを目で確かめるためのもの。ゲーム本体には入らない。
+
+// Windows のコンソールは既定だと日本語が化けるので、UTF-8 にしておく
+try { Console.OutputEncoding = Encoding.UTF8; } catch { /* 変えられない環境もある */ }
 
 string root = args.Length > 0 ? args[0] : ".";
 if (!Directory.Exists(root))
