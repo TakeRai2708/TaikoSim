@@ -280,11 +280,26 @@ A-Style の見た目は**横倒しの太鼓**（どんちゃん＝赤い顔・�
 - クリア記録は `SongHistory` に足した（`Records` ＝ 曲＋難易度ごと、`DanRecords` ＝ dan.json ごと）。
   `requirements.json` の `songClear` / `songScore` / `songRank` / `danClear` の判定に要る。
   キーは今までどおり「Songs フォルダからの相対パス」（`SongHistory.KeyFor()`）
+- 画面とつなぎ方：
+  - モード選択「段位道場」→ `DanSelectScene`（板は `UI/BarList` を使い回し。dan.def が複数なら ←→ でカテゴリ切り替え）
+  - 決定 → `PlayScene(DanCourse)`。2曲目以降は `PlayScene(DanPlay)` で**ゲージと成績を引き継ぐ**
+  - 曲の終わり（`FinishDanSong`）で成績を `DanPlay.Tallies` に入れ、`AlreadyFailed()` なら途中でも打ち切り
+  - 最後の曲か打ち切りで `DanResultScene` → 条件ごとの○×と合否、合格なら `shodanTextPaths` の画像を出す
+  - 合格したら `SongHistory.SaveDanRecord`（次の段位の解禁条件に効く）
+  - 段位中の Esc は段位選択画面へ戻る（`DanPlay.Quit = true` にして不合格扱い）
+  - 段位中はノルマを段位の合格ゲージにする（ゲージの目印がボーダーに出る。合否の判定は `DanPlay` 側）
 - `tools/dan-check` で、実際の段位フォルダに対してパーサを動かして中身を確認できる（README を見て）
+  - `--test` を付けると**合否の判定の境界値テスト**も走る（実データの初段・十段で28件。CIは無いので手で回す）
   - たけらいの「10 段位道場」で検証済み：カテゴリ名・danIndex 順・difficulty→CourseType・相対パス解決・
     十段の「可と連打＝曲ごと／不可＝全体」の判別・以上／未満の付き方
   - **まだ実データで試せていない**：`requirements.json` と `ChangeEffect`（たけらいのフォルダに入っていないため）
   - **`DanList` のフォルダ探索自体も未検証**（Raylib が要るので dan-check に入れられない）
+- **まだ作っていない**：
+  - `ChangeEffect`（曲間演出）は**パーサだけ**。今は曲と曲の間に、ふつうの曲読み込み画面（`SongLoading`）を出している。
+    本家は 8つのミリ秒パラメータ＋`Anime.aup2` で作り込む仕組み（`TAIKONAUTS-SPEC.md` 参照）
+  - 段位中の「条件パネル」（演奏しながら今の達成状況を見るやつ）
+  - 段位選択画面の A-Style 画像（`01.Entry/DanCategorySelect/` の Cursor・Popup、`danPanelSidePath` など）。
+    今はコードで描いている。`danPlatePath` の画像だけは段位のフォルダから直接読んで出している
 
 ### 演奏オプションのバッジ（`UI/OptionBadges.cs`。A-Style の `Image/99.Common/Option_Icon/`）
 - 画像は **1コマ 40×40 を横に並べたもの**。**コマ0 は空っぽ（＝オフ）**、コマ1 から中身が入っている

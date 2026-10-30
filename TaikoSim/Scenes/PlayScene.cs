@@ -64,6 +64,10 @@ namespace TaikoSim.Scenes
         // Esc で選曲画面に戻るか(false ならモード選択に戻る)
         private readonly bool returnToSelect;
 
+        // 段位道場で遊んでいるときだけ入る(ふつうの演奏では null)。曲をまたいで持ち越す
+        private readonly DanPlay? dan;
+        public bool IsDan => dan != null;
+
         private Chart? chart;
         private Course? course;
         private readonly PlayStats stats = new();
@@ -326,6 +330,25 @@ namespace TaikoSim.Scenes
             this.path = path;
             this.courseType = courseType;
             this.returnToSelect = returnToSelect;
+            Hook();
+        }
+
+        /// <summary>段位道場をはじめる（1曲目から）</summary>
+        public PlayScene(DanCourse danCourse) : this(new DanPlay(danCourse)) { }
+
+        /// <summary>段位道場の続き（2曲目以降。ゲージと成績を引き継ぐ）</summary>
+        private PlayScene(DanPlay dan)
+        {
+            this.dan = dan;
+            DanSong song = dan.Course.Songs[Math.Clamp(dan.SongIndex, 0, dan.Course.Songs.Count - 1)];
+            path = song.FullPath;
+            courseType = song.Course;
+            returnToSelect = false;
+            Hook();
+        }
+
+        private void Hook()
+        {
             stats.ScoreAdded += hud.OnScoreAdded;
             effects.SoulArrived += hud.OnSoulArrival;
             branches.Changed += branchLane.OnChanged;
@@ -506,6 +529,13 @@ namespace TaikoSim.Scenes
             if (course != null)
             {
                 stats.Reset(course);
+                // 段位道場：魂ゲージは曲をまたいで持ち越し、ノルマは段位の合格ゲージにする
+                //   （ゲージの目印が段位のボーダーに出る。合否は DanPlay 側で判定する）
+                if (dan != null)
+                {
+                    stats.SetGauge(dan.Gauge);
+                    if (dan.Course.Gauge.Red > 0) stats.SetNorma((int)dan.Course.Gauge.Red);
+                }
                 hud.Reset(course, chart?.Title ?? "");
             }
             branches.Reset(course, () => stats.Score);
@@ -650,10 +680,15 @@ namespace TaikoSim.Scenes
             endSounds[(int)result]?.Play((float)sound.GetFinalVolume(sound.SeVolume));
         }
 
-        // 演奏を終えてリザルト画面へ
+        // 演奏を終えてリザルト画面へ（段位道場のときは次の課題曲、または段位リザルトへ）
         private void FinishPlay()
         {
             StopSong();
+            if (dan != null)
+            {
+                FinishDanSong();
+                return;
+            }
             DebugLog.Event("演奏", $"演奏が終わった：{chart?.Title}　{end.Result}　スコア {stats.Score}");
             PlayResultData data = new()
             {
@@ -668,6 +703,38 @@ namespace TaikoSim.Scenes
                 MaxCombo = maxCombo,
             };
             SceneManager.ChangeScene(new ResultScene(data, returnToSelect));
+        }
+
+        // 段位道場：1曲ぶんの成績を記録して、次の課題曲か段位リザルトへ
+        private void FinishDanSong()
+        {
+            if (dan == null) return;
+
+            DanSongTally tally = dan.Tallies[Math.Clamp(dan.SongIndex, 0, dan.Tallies.Length - 1)];
+            tally.Great = goodCount;
+            tally.Good = okCount;
+            tally.Miss = badCount;
+            tally.Roll = totalRollHits;
+            tally.MaxCombo = maxCombo;
+            tally.Score = stats.Score;
+            dan.Gauge = stats.Gauge;   // 次の曲へ持ち越す
+
+            DebugLog.Event("段位", $"{dan.Course.Title} {dan.SongIndex + 1}曲目おわり：" +
+                                   $"良{tally.Great} 可{tally.Good} 不可{tally.Miss} 連打{tally.Roll} ゲージ{stats.Gauge:0.#}%");
+
+            // もう赤合格に届かないことが確定していたら、そこで終わり（本家も途中で終わる）
+            bool failed = dan.AlreadyFailed();
+            if (dan.IsLastSong || failed)
+            {
+                dan.SaveRecord();
+                SceneManager.ChangeScene(new DanResultScene(dan));
+                return;
+            }
+
+            dan.SongIndex++;
+            DanSong next = dan.Course.Songs[dan.SongIndex];
+            string title = next.Title.Length > 0 ? next.Title : Path.GetFileNameWithoutExtension(next.FullPath);
+            SceneManager.ToPlayWithLoading(new PlayScene(dan), title, dan.Course.Title);
         }
 
         // 曲の音量(rate：1 で設定どおり、0 で無音)
@@ -1319,11 +1386,16 @@ namespace TaikoSim.Scenes
             return gameMs < note.EndTimeMs;
         }
 
-        // Esc で選曲画面(ドロップで来たときはモード選択)に戻る
+        // Esc で選曲画面(ドロップで来たときはモード選択、段位道場のときは段位選択画面)に戻る
         public override void OnBack()
         {
             StopSong(); // 念のため、すぐ止める
-            if (returnToSelect) SceneManager.Simple(new SongSelectScene());
+            if (dan != null)
+            {
+                dan.Quit = true;
+                SceneManager.Simple(new DanSelectScene());
+            }
+            else if (returnToSelect) SceneManager.Simple(new SongSelectScene());
             else SceneManager.Simple(new ModeSelectScene());
         }
 

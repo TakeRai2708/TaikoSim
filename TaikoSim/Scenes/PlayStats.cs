@@ -38,6 +38,12 @@ namespace TaikoSim.Scenes
         //   OpenTaiko と同じく、分岐ごとの音符の数(共通 + その分岐)で計算する
         private readonly double[] goodGain = new double[3], okGain = new double[3], badGain = new double[3];
 
+        /// <summary>段位道場用：魂ゲージを引き継ぐ（曲をまたいで持ち越すため）</summary>
+        public void SetGauge(double value) => Gauge = Math.Clamp(value, 0, 100);
+
+        /// <summary>段位道場用：ノルマを段位の合格ゲージにする（ゲージの目印もそこに出る）</summary>
+        public void SetNorma(int value) => Norma = Math.Clamp(value, 0, 100);
+
         public void Reset(Course course)
         {
             Score = 0;
