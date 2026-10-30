@@ -47,6 +47,75 @@ namespace TaikoSim.Charts
             return removed == 0;
         }
 
+        // ===== クリア記録 =====
+        //   段位の解禁条件(requirements.json の songClear / songScore / songRank / danClear)を
+        //   判定するのに要る。曲は「ファイル＋難易度」ごと、段位は dan.json ごとに、一番良い記録だけ残す。
+
+        /// <summary>フルパスを記録のキー(Songs フォルダからの相対パス)にする。
+        /// Songs の外のファイルは、そのままのパスをキーにする</summary>
+        public static string KeyFor(string fullPath)
+        {
+            if (string.IsNullOrEmpty(fullPath)) return "";
+            try
+            {
+                string relative = Path.GetRelativePath(SongList.SongsFolder, fullPath);
+                return relative.StartsWith("..", StringComparison.Ordinal) ? fullPath : relative;
+            }
+            catch
+            {
+                return fullPath;
+            }
+        }
+
+        /// <summary>曲1つの記録。遊んだことがなければ全部 0</summary>
+        public static (SongClearType Clear, long Score, int Rank) GetRecord(string key, CourseType course)
+        {
+            SongRecordEntry? e = FindRecord(key, course);
+            return e == null ? (SongClearType.None, 0L, 0) : ((SongClearType)e.Clear, e.Score, e.Rank);
+        }
+
+        /// <summary>曲1つの記録を残す。前の記録より良いところだけ上書きする</summary>
+        public static void SaveRecord(string key, CourseType course, SongClearType clear, long score, int rank)
+        {
+            if (key.Length == 0) return;
+            SongRecordEntry? e = FindRecord(key, course);
+            if (e == null)
+            {
+                e = new SongRecordEntry { Key = key, Course = (int)course };
+                Data.Records.Add(e);
+            }
+            e.Clear = Math.Max(e.Clear, (int)clear);
+            e.Score = Math.Max(e.Score, score);
+            e.Rank = Math.Max(e.Rank, rank);
+            Save();
+        }
+
+        /// <summary>段位1つの記録。挑戦したことがなければ「不合格でも何でもない」が返る</summary>
+        public static DanClearRecord GetDanRecord(string key)
+        {
+            DanRecordEntry? e = Data.DanRecords.FirstOrDefault(r => string.Equals(r.Key, key, StringComparison.OrdinalIgnoreCase));
+            return e == null ? new DanClearRecord(false, SongClearType.None) : new DanClearRecord(e.Gold, (SongClearType)e.Combo);
+        }
+
+        /// <summary>段位1つの記録を残す。金かどうかとコンボの種別を、それぞれ良い方で上書きする</summary>
+        public static void SaveDanRecord(string key, DanClearRecord record)
+        {
+            if (key.Length == 0) return;
+            DanRecordEntry? e = Data.DanRecords.FirstOrDefault(r => string.Equals(r.Key, key, StringComparison.OrdinalIgnoreCase));
+            if (e == null)
+            {
+                e = new DanRecordEntry { Key = key };
+                Data.DanRecords.Add(e);
+            }
+            e.Gold |= record.Gold;
+            e.Combo = Math.Max(e.Combo, (int)record.Combo);
+            Save();
+        }
+
+        private static SongRecordEntry? FindRecord(string key, CourseType course) =>
+            Data.Records.FirstOrDefault(r => r.Course == (int)course
+                                             && string.Equals(r.Key, key, StringComparison.OrdinalIgnoreCase));
+
         private static SongHistoryFile Load()
         {
             try
@@ -84,5 +153,26 @@ namespace TaikoSim.Charts
     {
         public List<string> Recent { get; set; } = new();
         public List<string> Favorites { get; set; } = new();
+        // クリア記録(段位の解禁条件の判定に使う)
+        public List<SongRecordEntry> Records { get; set; } = new();
+        public List<DanRecordEntry> DanRecords { get; set; } = new();
+    }
+
+    // 曲1つ＋難易度1つぶんの一番良い記録
+    internal sealed class SongRecordEntry
+    {
+        public string Key { get; set; } = "";   // Songs フォルダから見た .tja の場所
+        public int Course { get; set; }         // CourseType
+        public int Clear { get; set; }          // SongClearType
+        public long Score { get; set; }
+        public int Rank { get; set; }           // スコアランク(1〜7)
+    }
+
+    // 段位1つぶんの一番良い記録
+    internal sealed class DanRecordEntry
+    {
+        public string Key { get; set; } = "";   // Songs フォルダから見た dan.json の場所
+        public bool Gold { get; set; }          // 金合格したことがあるか
+        public int Combo { get; set; }          // SongClearType(クリア／フルコン／全良)
     }
 }

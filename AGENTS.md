@@ -264,6 +264,28 @@ A-Style の見た目は**横倒しの太鼓**（どんちゃん＝赤い顔・�
   - 検証済み：アトラスのコマ5 ＝ 元のコマ10（間引き2）で画素差 0.00
 - **シンプルスキンにはどんちゃんを入れない**（画像を再配布できない。画像が無ければ何も描かない）
 
+### 段位道場（`Charts/Dan.cs`・`DanJson.cs`・`DanList.cs`）
+**ファイル形式の正解は `TAIKONAUTS-SPEC.md` の「1. 段位道場」に全部書いてある。** ここには実装のメモだけ。
+- 形式は **TaikøNauts に合わせた**（`dan.def` ＋ `dan.json`）。たけらいが既に作ってある段位がそのまま動くため。
+  OpenTaiko の TJA ヘッダー方式（`#NEXTSONG` ＋ `EXAM`）は、読めたら読む程度のおまけ扱い（まだ未実装）
+- **合否の判定ロジックだけは OpenTaiko 準拠**（赤合格／金合格、以上／未満の扱い）
+- 踏みやすい罠：
+  - **「以上」か「未満」かは dan.json に書かれていない。条件の種類で決まる**（`DanExamTypes.IsLess()`）。
+    `Good`(可) と `Miss`(不可) だけが「未満」。間違えると合否が丸ごと逆になる
+  - `threshold` は**単一オブジェクトなら全体条件、曲数ぶんの配列なら曲ごと条件**
+  - **「未満」系で `gold` が 0 のときは「金の条件なし」とみなす**（0未満は達成不可能なため）。
+    `conditionGauge` の `gold:0` も同じ。たけらいの初段が `不可 red:36 / gold:0`、ゲージが `red:97 / gold:0` になっている
+  - `conditionGauge` はドキュメント内で食い違っている（表の見出しは「合格ゲージ条件」、本文は「初期値」）。
+    実ファイルから見て**合格ボーダー**として扱っている
+- クリア記録は `SongHistory` に足した（`Records` ＝ 曲＋難易度ごと、`DanRecords` ＝ dan.json ごと）。
+  `requirements.json` の `songClear` / `songScore` / `songRank` / `danClear` の判定に要る。
+  キーは今までどおり「Songs フォルダからの相対パス」（`SongHistory.KeyFor()`）
+- `tools/dan-check` で、実際の段位フォルダに対してパーサを動かして中身を確認できる（README を見て）
+  - たけらいの「10 段位道場」で検証済み：カテゴリ名・danIndex 順・difficulty→CourseType・相対パス解決・
+    十段の「可と連打＝曲ごと／不可＝全体」の判別・以上／未満の付き方
+  - **まだ実データで試せていない**：`requirements.json` と `ChangeEffect`（たけらいのフォルダに入っていないため）
+  - **`DanList` のフォルダ探索自体も未検証**（Raylib が要るので dan-check に入れられない）
+
 ### 演奏画面
 - 判定枠の中心：(620, 389)
 - 風船（`Notes/Normal/*/10.png`、390×195）：A-Style の 0/10.png を1pxずつ測った形。まんなかは y=95.5
