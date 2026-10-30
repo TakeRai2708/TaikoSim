@@ -40,20 +40,22 @@ namespace TaikoSim.Graphics
         public float EnsoGameBalloonScale { get; private set; } = 1f;
         public bool GoGoStartMotionFromBeginning { get; private set; } = true;
 
-        // アニメ1周ぶんの拍数
-        public int NormalMotionBeat { get; private set; } = 4;
-        public int Combo10MotionBeat { get; private set; } = 2;
-        public int Combo10MaxMotionBeat { get; private set; } = 2;
-        public int GoGoStartMotionBeat { get; private set; } = 2;
-        public int GoGoMotionBeat { get; private set; } = 4;
-        public int ClearInMotionBeat { get; private set; } = 2;
-        public int ClearMotionBeat { get; private set; } = 2;
-        public int SoulInMotionBeat { get; private set; } = 2;
-        public int ComboCutMotionBeat { get; private set; } = 2;
-        public int MissLoopMotionBeat { get; private set; } = 1;
-        public int FailedLoopMotionBeat { get; private set; } = 1;
-        public int BalloonBrokeMotionBeat { get; private set; } = 1;
-        public int BalloonMissMotionBeat { get; private set; } = 1;
+        // アニメ1周ぶんの拍数。公式ドキュメントいわく「1小節を4拍としたとき、各モーションにかかる時間(単位：拍)」。
+        //   曲のBPMに合わせて動くので、小さくすると速く、大きくするとゆっくりになる。
+        //   型は Integer ではなく Double(2.5 拍などが書ける)
+        public float NormalMotionBeat { get; private set; } = 4f;
+        public float Combo10MotionBeat { get; private set; } = 2f;
+        public float Combo10MaxMotionBeat { get; private set; } = 2f;
+        public float GoGoStartMotionBeat { get; private set; } = 2f;
+        public float GoGoMotionBeat { get; private set; } = 4f;
+        public float ClearInMotionBeat { get; private set; } = 2f;
+        public float ClearMotionBeat { get; private set; } = 2f;
+        public float SoulInMotionBeat { get; private set; } = 2f;
+        public float ComboCutMotionBeat { get; private set; } = 2f;
+        public float MissLoopMotionBeat { get; private set; } = 1f;
+        public float FailedLoopMotionBeat { get; private set; } = 1f;
+        public float BalloonBrokeMotionBeat { get; private set; } = 1f;
+        public float BalloonMissMotionBeat { get; private set; } = 1f;
 
         // リザルト画面
         public float[] ResultX { get; private set; } = { 0f, 0f };
@@ -100,20 +102,20 @@ namespace TaikoSim.Graphics
                     EnsoGameBalloonScale = Num(r, "ensoGameBalloonScale", 1f),
                     GoGoStartMotionFromBeginning = Flag(r, "goGoStartMotionFromBeginning", true),
 
-                    NormalMotionBeat = Beat(r, "normalMotionBeat", 4),
-                    Combo10MotionBeat = Beat(r, "combo10MotionBeat", 2),
-                    Combo10MaxMotionBeat = Beat(r, "combo10MaxMotionBeat", 2),
-                    GoGoStartMotionBeat = Beat(r, "goGoStartMotionBeat", 2),
+                    NormalMotionBeat = Beat(r, "normalMotionBeat", 4f),
+                    Combo10MotionBeat = Beat(r, "combo10MotionBeat", 2f),
+                    Combo10MaxMotionBeat = Beat(r, "combo10MaxMotionBeat", 2f),
+                    GoGoStartMotionBeat = Beat(r, "goGoStartMotionBeat", 2f),
                     // A-Style のキーは goGoMotionMotionBeat（Motion が2回入っている）
-                    GoGoMotionBeat = Beat(r, "goGoMotionMotionBeat", 4),
-                    ClearInMotionBeat = Beat(r, "clearInMotionBeat", 2),
-                    ClearMotionBeat = Beat(r, "clearMotionBeat", 2),
-                    SoulInMotionBeat = Beat(r, "soulInMotionBeat", 2),
-                    ComboCutMotionBeat = Beat(r, "comboCutMotionBeat", 2),
-                    MissLoopMotionBeat = Beat(r, "missLoopMotionBeat", 1),
-                    FailedLoopMotionBeat = Beat(r, "failedLoopMotionBeat", 1),
-                    BalloonBrokeMotionBeat = Beat(r, "balloonBrokeMotionBeat", 1),
-                    BalloonMissMotionBeat = Beat(r, "balloonMissMotionBeat", 1),
+                    GoGoMotionBeat = Beat(r, "goGoMotionMotionBeat", 4f),
+                    ClearInMotionBeat = Beat(r, "clearInMotionBeat", 2f),
+                    ClearMotionBeat = Beat(r, "clearMotionBeat", 2f),
+                    SoulInMotionBeat = Beat(r, "soulInMotionBeat", 2f),
+                    ComboCutMotionBeat = Beat(r, "comboCutMotionBeat", 2f),
+                    MissLoopMotionBeat = Beat(r, "missLoopMotionBeat", 1f),
+                    FailedLoopMotionBeat = Beat(r, "failedLoopMotionBeat", 1f),
+                    BalloonBrokeMotionBeat = Beat(r, "balloonBrokeMotionBeat", 1f),
+                    BalloonMissMotionBeat = Beat(r, "balloonMissMotionBeat", 1f),
 
                     ResultX = Pair(r, "resultX"),
                     ResultY = Pair(r, "resultY"),
@@ -146,8 +148,8 @@ namespace TaikoSim.Graphics
             return v is > int.MinValue and < int.MaxValue ? (int)MathF.Round(v) : fallback;
         }
 
-        // 拍数は 0 や マイナス だと計算が壊れるので 1 以上にする
-        private static int Beat(JsonElement r, string key, int fallback) => Math.Max(1, Int(r, key, fallback));
+        // 拍数は 0 や マイナス だと「割る」ときに壊れるので、下限をつける
+        private static float Beat(JsonElement r, string key, float fallback) => Math.Max(0.01f, Num(r, key, fallback));
 
         private static bool Flag(JsonElement r, string key, bool fallback) =>
             r.TryGetProperty(key, out JsonElement e) && e.ValueKind is JsonValueKind.True or JsonValueKind.False ? e.GetBoolean() : fallback;

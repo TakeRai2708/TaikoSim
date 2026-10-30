@@ -3,6 +3,12 @@
 このファイルは、TaikoSim の作業を引き継ぐ AI（ChatGPT / Codex など）向けの説明書です。
 作業を始める前に、全部読んでください。
 
+**あわせて `TAIKONAUTS-SPEC.md` も読んでください。**
+あちらは TaikøNauts の公式ドキュメント（全50ページ）から写した「本家がどう作られているか」のメモです。
+段位道場の `dan.json`、どんちゃんの `Config.json`、`category.def` / `order.def`、`SONGGENREID` などの
+**ファイル形式の正解**はあちらに書いてあります。
+このファイル（AGENTS.md）の方は、TaikoSim で**実際に動画や画像を測って決めた値**を書く場所です。
+
 ---
 
 ## 1. プロジェクトの説明
