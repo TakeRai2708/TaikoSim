@@ -158,6 +158,10 @@ namespace TaikoSim.Charts
             { "ナムコオリジナル", Hex(0x980E00) },
         };
 
+        /// <summary>ジャンルの色（知らないジャンルは灰色）</summary>
+        public static Color GenreColor(string genre) =>
+            GenreColors.TryGetValue(genre, out Color color) ? color : UncategorizedColor;
+
         // ===== 探す =====
 
         // 読み込みを始める(裏で読むので、画面は止まらない)

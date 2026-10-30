@@ -44,7 +44,16 @@ namespace TaikoSim.Scenes
         /// <summary>段位道場用：ノルマを段位の合格ゲージにする（ゲージの目印もそこに出る）</summary>
         public void SetNorma(int value) => Norma = Math.Clamp(value, 0, 100);
 
-        public void Reset(Course course)
+        /// <summary>段位道場用：スコアを引き継ぐ（本家は課題曲をまたいでスコアが続く）</summary>
+        public void SetScore(long value) => Score = Math.Max(0, value);
+
+        /// <summary>
+        /// 最初から。
+        /// danTotalNotes … 段位道場のとき、課題曲ぜんぶの音符の数（[普通, 玄人, 達人] の分岐ごと）。
+        ///   本家の段位は全曲を1つの譜面として魂ゲージを計算するので、1打の増え方は全曲の合計で割る。
+        ///   （10/31 の動画：3曲の段位で1曲目のあと45%・2曲目のあと91% → 合計で割った値と合う）
+        /// </summary>
+        public void Reset(Course course, int[]? danTotalNotes = null)
         {
             Score = 0;
             Gauge = 0;
@@ -74,7 +83,9 @@ namespace TaikoSim.Scenes
             for (int b = 0; b < 3; b++)
             {
                 BranchType branch = (BranchType)b;
-                int notes = course.Notes.Count(note => IsRegularNote(note) && IsOnPath(note, branch));
+                int notes = danTotalNotes != null && danTotalNotes.Length > b && danTotalNotes[b] > 0
+                    ? danTotalNotes[b]
+                    : CountRegularNotes(course, branch);
                 if (notes == 0) continue;
 
                 float gain = (10000f / (notes * (rate / 100f))) / 100f;
@@ -83,6 +94,10 @@ namespace TaikoSim.Scenes
                 badGain[b] = TruncateGain(-gain * damage);
             }
         }
+
+        /// <summary>branch の分岐をずっと通ったときの、ふつうの音符(ドン・カッ・大ドン・大カッ)の数</summary>
+        public static int CountRegularNotes(Course course, BranchType branch) =>
+            course.Notes.Count(note => IsRegularNote(note) && IsOnPath(note, branch));
 
         // その音符が、branch の分岐をずっと通ったときに出てくる音符か(共通の音符はどの分岐でも出てくる)
         private static bool IsOnPath(Note note, BranchType branch) => note.Branch == null || note.Branch == branch;

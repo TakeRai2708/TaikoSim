@@ -98,6 +98,12 @@ namespace TaikoSim.Charts
         public string Title { get; set; } = "";
         public string Subtitle { get; set; } = "";
         public int Level { get; set; }
+
+        /// <summary>
+        /// ふつうの音符(ドン・カッ・大ドン・大カッ)の数。[普通, 玄人, 達人] の分岐ごと（分岐の無い譜面は3つとも同じ）。
+        /// 段位の魂ゲージは全曲の合計で1打の増え方を決めるので、段位を読んだときに数えておく
+        /// </summary>
+        public int[] NoteCounts { get; set; } = new int[3];
     }
 
     // 曲1つのクリア種別。上ほど高い(高い記録は低い条件も満たす)

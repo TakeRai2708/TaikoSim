@@ -56,10 +56,10 @@ namespace TaikoSim.Scenes
         private static readonly Color KaColor = new Color(90, 190, 230, 255);
         private static readonly Color RollColor = new Color(240, 180, 40, 255);
 
-        private readonly string path;
+        private string path;   // 段位道場では、曲が変わると入れかわる
 
         // 遊ぶ難易度(null なら おに → 裏 → … の順で自動で選ぶ)
-        private readonly CourseType? courseType;
+        private CourseType? courseType;
 
         // Esc で選曲画面に戻るか(false ならモード選択に戻る)
         private readonly bool returnToSelect;
@@ -67,6 +67,10 @@ namespace TaikoSim.Scenes
         // 段位道場で遊んでいるときだけ入る(ふつうの演奏では null)。曲をまたいで持ち越す
         private readonly DanPlay? dan;
         private readonly DanPanel? danPanel;   // 段位のときだけ：下半分の条件パネルと上の札
+        private readonly DanShutter? danShutter;  // 段位のときだけ：曲と曲のあいだにレーンを閉じる扉
+        private readonly DanEndBanner danEnd = new();   // 段位の最後の曲の終わりに出す「不合格」など
+        private long danStartScore;              // 段位：今の曲を始めたときのスコア（前の曲までの合計）
+        private const float DanEndShowSeconds = 3f;   // 「不合格」などを出してから暗くし始めるまで
         public bool IsDan => dan != null;
 
         private Chart? chart;
@@ -342,6 +346,8 @@ namespace TaikoSim.Scenes
         {
             this.dan = dan;
             danPanel = new DanPanel(dan);
+            danShutter = new DanShutter();
+            danShutter.Swap += OnDanSwap;
             DanSong song = dan.Course.Songs[Math.Clamp(dan.SongIndex, 0, dan.Course.Songs.Count - 1)];
             path = song.FullPath;
             courseType = song.Course;
@@ -369,6 +375,41 @@ namespace TaikoSim.Scenes
             autoPlay = ConfigManager.Game.AutoPlay; // 演奏開始時の選択を固定する。
             autoRollPerSecond = ConfigManager.Game.AutoRollPerSecond;
             hiSpeed = ConfigManager.Game.HiSpeed > 0f ? ConfigManager.Game.HiSpeed : 1f;
+            if (dan != null)
+            {
+                // #DISABLEDCHEAT:true のカテゴリは、練習向けの機能（オート演奏・オート連打）を使えない
+                if (DanList.CategoryOf(dan.Course)?.DisabledCheat == true)
+                {
+                    autoPlay = false;
+                    autoRollPerSecond = 0;
+                }
+                if (autoPlay) dan.AutoPlayed = true;   // オートの結果は記録に残さない
+            }
+
+            LoadChart();
+            LoadSong();
+            LoadHitSounds();
+            PrepareJudge();
+            Restart();
+
+            // 段位：1曲目も、閉じた扉から始めて、開くと曲名を出す（本家・OpenTaiko と同じ）
+            if (dan != null && danShutter != null)
+            {
+                danShutter.LoadSounds();
+                (string title, string subtitle) = DanSongTitle(dan.SongIndex);
+                danShutter.StartFirst(title, subtitle);
+            }
+            // ウィンドウを作ったスレッドだけを監視する。開始できなくても従来の演奏は継続。
+            // F8がOFFでもWindows側の時刻を拾う。使えなければRaylib取得時刻で代用。
+            windowsInput.CaptureEnabled = windowsInput.Start();
+        }
+
+        // .tja を読んで、遊ぶ難易度を決める
+        private void LoadChart()
+        {
+            chart = null;
+            course = null;
+            error = "";
             try
             {
                 chart = TjaParser.Load(path);
@@ -383,14 +424,6 @@ namespace TaikoSim.Scenes
             {
                 error = $"読み込めませんでした：{ex.Message}";
             }
-
-            LoadSong();
-            LoadHitSounds();
-            PrepareJudge();
-            Restart();
-            // ウィンドウを作ったスレッドだけを監視する。開始できなくても従来の演奏は継続。
-            // F8がOFFでもWindows側の時刻を拾う。使えなければRaylib取得時刻で代用。
-            windowsInput.CaptureEnabled = windowsInput.Start();
         }
 
         // 画面から出るとき：曲と効果音を片付ける
@@ -400,6 +433,7 @@ namespace TaikoSim.Scenes
             windowsInput.Dispose();
             StopSong();
             danPanel?.Unload();
+            danShutter?.Unload();
             SkinManager.SystemSkin = false; // ほかの画面は、いつものスキンで
         }
 
@@ -531,13 +565,20 @@ namespace TaikoSim.Scenes
             goodCount = okCount = badCount = combo = maxCombo = 0;
             if (course != null)
             {
-                stats.Reset(course);
-                // 段位道場：魂ゲージは曲をまたいで持ち越し、ノルマは段位の合格ゲージにする
-                //   （ゲージの目印が段位のボーダーに出る。合否は DanPlay 側で判定する）
+                stats.Reset(course, dan?.TotalNotes());
+                // 段位道場：本家は課題曲をまたいで、魂ゲージ・スコア・コンボが続く（10/31 の動画で確かめた）
+                //   魂ゲージの増え方は全曲の音符の合計で決める（全曲を1つの譜面として見る）
+                //   ノルマは段位の合格ゲージにする（ゲージの目印が段位のボーダーに出る。合否は DanPlay 側で判定する）
                 if (dan != null)
                 {
                     stats.SetGauge(dan.Gauge);
                     if (dan.Course.Gauge.Red > 0) stats.SetNorma((int)dan.Course.Gauge.Red);
+                    long before = 0;
+                    for (int i = 0; i < dan.SongIndex && i < dan.Tallies.Length; i++) before += dan.Tallies[i].Score;
+                    stats.SetScore(before);
+                    danStartScore = before;
+                    combo = dan.Combo;
+                    maxCombo = dan.MaxCombo;
                 }
                 hud.Reset(course, chart?.Title ?? "");
             }
@@ -574,11 +615,13 @@ namespace TaikoSim.Scenes
             popTimer = 0f;
 
             effects.Reset();
+            if (combo > 0) effects.SetCombo(combo);   // 段位：前の曲から続くコンボ
             background.Reset();
             ResetAutoPlay();
 
             // 演奏の終わり・スコアランクも最初から
             end.Reset();
+            danEnd.Reset();
             endFadeElapsed = -1f;
             foreach (SoundEffect? sound in endSounds) sound?.Stop();
             scoreRank.Reset();
@@ -588,10 +631,12 @@ namespace TaikoSim.Scenes
         public override void Update(float dt)
         {
             danPanel?.Update(dt);
-            // クイックリスタート(F5)で最初から
+            danShutter?.Update(dt);
+            // クイックリスタート(F5)で最初から（段位道場のときは、段位の1曲目から）
             if (InputManager.IsSystemPressed(SystemAction.QuickRestart))
             {
-                Restart();
+                if (dan != null) RetryDan();
+                else Restart();
                 return;
             }
 
@@ -599,7 +644,8 @@ namespace TaikoSim.Scenes
             if (diagnosticMessageTimer > 0f) diagnosticMessageTimer -= dt;
 
             // 元の時計と補正はそのまま。診断中だけ補正量とフレーム時間を調べる。
-            nowMs += dt * 1000.0;
+            //   段位で扉が閉じている・開いている途中は、曲の時間を止めておく（開ききってから流れはじめる）
+            if (danShutter == null || !danShutter.HoldsTime) nowMs += dt * 1000.0;
             double beforeSync = nowMs;
             UpdateSongSync();
             UpdateDiagnosticsRecording(); // デバッグ記録を途中で ON・OFF しても、すぐ合わせる
@@ -624,8 +670,9 @@ namespace TaikoSim.Scenes
             if (course != null) effects.SetGoGo(course.IsGoGoAt(nowMs - ViewAudioOffsetMs - ConfigManager.Game.ChartOffsetMs,
                 branches.IsActive));
             background.Update(dt, stats.IsClear);
-            scoreRank.Update(dt, stats);
-            UpdateEnd(dt);
+            if (dan == null) scoreRank.Update(dt, stats);   // 段位は粋・雅・極を出さない（スコアが曲をまたいで続くため）
+            if (dan != null) UpdateDanEnd(dt);
+            else UpdateEnd(dt);
         }
 
         // ===== 演奏の終わり =====
@@ -719,40 +766,117 @@ namespace TaikoSim.Scenes
             tally.Miss = badCount;
             tally.Roll = totalRollHits;
             tally.MaxCombo = maxCombo;
-            tally.Score = stats.Score;
+            tally.Score = stats.Score - danStartScore;   // スコアは続いているので、この曲で増えたぶん
             dan.Gauge = stats.Gauge;
+            dan.Combo = combo;
+            dan.MaxCombo = maxCombo;
         }
 
-        // 段位道場：1曲ぶんの成績を記録して、次の課題曲か段位リザルトへ
-        private void FinishDanSong()
+        // 段位道場の曲の終わり
+        //   最後の曲・もう不合格が決まっていたら：レーンに「不合格」などを出して、暗くして段位リザルトへ
+        //   まだ次の曲があれば：扉を閉じて、閉じている間に次の曲を読む（演奏画面のまま。本家と同じ）
+        //   ※「未満」の条件を使い切っても、その曲は最後まで遊ぶ（たけらいと決めた。本家の動画もそうだった）
+        private void UpdateDanEnd(float dt)
         {
-            if (dan == null) return;
+            if (course == null || dan == null || danShutter == null) return;
+            if (danShutter.IsBusy) return;   // 扉が動いている間は待つ
+            double gameMs = nowMs - AudioOffsetMs;
 
-            DanSongTally tally = dan.Tallies[Math.Clamp(dan.SongIndex, 0, dan.Tallies.Length - 1)];
-            tally.Great = goodCount;
-            tally.Good = okCount;
-            tally.Miss = badCount;
-            tally.Roll = totalRollHits;
-            tally.MaxCombo = maxCombo;
-            tally.Score = stats.Score;
-            dan.Gauge = stats.Gauge;   // 次の曲へ持ち越す
-
-            DebugLog.Event("段位", $"{dan.Course.Title} {dan.SongIndex + 1}曲目おわり：" +
-                                   $"良{tally.Great} 可{tally.Good} 不可{tally.Miss} 連打{tally.Roll} ゲージ{stats.Gauge:0.#}%");
-
-            // もう赤合格に届かないことが確定していたら、そこで終わり（本家も途中で終わる）
-            bool failed = dan.AlreadyFailed();
-            if (dan.IsLastSong || failed)
+            if (!danEnd.Started)
             {
-                dan.SaveRecord();
-                SceneManager.ChangeScene(new DanResultScene(dan));
+                if (gameMs >= GetChartEndMs()) DanSongEnded();
                 return;
             }
 
-            dan.SongIndex++;
+            danEnd.Update(dt);
+            if (endFadeElapsed < 0f)
+            {
+                if (danEnd.Elapsed >= DanEndShowSeconds && gameMs >= course.EndTimeMs + EndAfterChartEndMs) endFadeElapsed = 0f;
+                return;
+            }
+
+            endFadeElapsed += dt;
+            ApplyMusicVolume(1f - Math.Clamp(endFadeElapsed / EndFadeSeconds, 0f, 1f));
+            if (endFadeElapsed >= EndFadeSeconds + EndBlackSeconds) FinishPlay();
+        }
+
+        private void DanSongEnded()
+        {
+            if (dan == null || danShutter == null) return;
+            SyncDanLive();
+            DanSongTally tally = dan.Current;
+            DebugLog.Event("段位", $"{dan.Course.Title} {dan.SongIndex + 1}曲目おわり：" +
+                                   $"良{tally.Great} 可{tally.Good} 不可{tally.Miss} 連打{tally.Roll} ゲージ{stats.Gauge:0.#}%");
+
+            if (dan.IsLastSong || dan.AlreadyFailed())
+            {
+                // 最後：合否を出す（ここで魂ゲージの条件も決まる）
+                DanResultType result = dan.Overall();
+                danEnd.Start(result);
+                SoundConfig sound = ConfigManager.Sound;
+                endSounds[(int)(result == DanResultType.Failed ? PlayResult.Failed : PlayResult.Clear)]?
+                    .Play((float)sound.GetFinalVolume(sound.SeVolume));
+                return;
+            }
+
+            // 次の曲へ：扉を閉じる（閉じたまま0.8秒で OnDanSwap が呼ばれる）
+            (string title, string subtitle) = DanSongTitle(dan.SongIndex + 1);
+            danShutter.StartNext(title, subtitle);
+        }
+
+        // 扉が閉じている間に、次の課題曲に入れかえる
+        private void OnDanSwap()
+        {
+            if (dan == null) return;
+            song?.Dispose();
+            song = null;
+            dan.SongIndex = Math.Min(dan.SongIndex + 1, dan.SongCount - 1);
             DanSong next = dan.Course.Songs[dan.SongIndex];
-            string title = next.Title.Length > 0 ? next.Title : Path.GetFileNameWithoutExtension(next.FullPath);
-            SceneManager.ToPlayWithLoading(new PlayScene(dan), title, dan.Course.Title);
+            path = next.FullPath;
+            courseType = next.Course;
+            LoadChart();
+            LoadSong();
+            PrepareJudge();
+            Restart();
+            DebugLog.Event("段位", $"{dan.Course.Title} {dan.SongIndex + 1}曲目：{chart?.Title}");
+        }
+
+        // 段位の課題曲の曲名とサブタイトル（扉が開いたときにレーンに出す）
+        private (string Title, string Subtitle) DanSongTitle(int index)
+        {
+            if (dan == null || dan.SongCount == 0) return ("", "");
+            DanSong song = dan.Course.Songs[Math.Clamp(index, 0, dan.SongCount - 1)];
+            string title = song.Title.Length > 0 ? song.Title : Path.GetFileNameWithoutExtension(song.FullPath);
+            return (title, song.Subtitle);
+        }
+
+        // 段位道場の最後：記録を残して、段位リザルトへ
+        private void FinishDanSong()
+        {
+            if (dan == null) return;
+            SyncDanLive();
+            dan.SaveRecord();   // オート・途中でやめたときは、中で記録しない
+            SceneManager.ChangeScene(new DanResultScene(dan));
+        }
+
+        // F2・クイックリスタート：段位を1曲目からやり直す
+        private void RetryDan()
+        {
+            if (dan == null) return;
+            StopSong();
+            DanSong first = dan.Course.Songs[0];
+            string title = first.Title.Length > 0 ? first.Title : Path.GetFileNameWithoutExtension(first.FullPath);
+            SceneManager.ToPlayWithLoading(new PlayScene(dan.Course), title, dan.Course.Title);
+        }
+
+        // F3：段位を強制終了（不合格で段位リザルトへ）
+        private void QuitDan()
+        {
+            if (dan == null) return;
+            SyncDanLive();
+            dan.Quit = true;
+            StopSong();
+            SceneManager.ChangeScene(new DanResultScene(dan));
         }
 
         // 曲の音量(rate：1 で設定どおり、0 で無音)
@@ -818,7 +942,18 @@ namespace TaikoSim.Scenes
             while (key != 0)
             {
                 KeyboardKey pressed = (KeyboardKey)key;
-                if (pressed == KeyboardKey.F3 && IsFreeInPlay(KeyboardKey.F3))
+                if (dan != null && pressed == KeyboardKey.F3 && IsFreeInPlay(KeyboardKey.F3))
+                {
+                    // 段位道場の F3 は「強制終了」（TaikøNauts と同じ）。デバッグ表示は段位のときは出せない
+                    QuitDan();
+                    return;
+                }
+                else if (dan != null && pressed == KeyboardKey.F2 && IsFreeInPlay(KeyboardKey.F2))
+                {
+                    RetryDan();   // 段位道場の F2 は「クイックリトライ」（1曲目から）
+                    return;
+                }
+                else if (pressed == KeyboardKey.F3 && IsFreeInPlay(KeyboardKey.F3))
                 {
                     showDebugInfo = !showDebugInfo;
                     SetDiagnosticMessage(showDebugInfo ? "デバッグ表示：ON（F3で切替）" : "デバッグ表示：OFF（F3で切替）");
@@ -1497,6 +1632,8 @@ namespace TaikoSim.Scenes
 
             // 音合わせのガイド(音符より手前、左のパネルより後ろ)
             if (testView > 0) DrawGuides(chart, course, viewMs);
+            // 段位：曲と曲のあいだの扉と、開いたときの曲名(音符の上・左のパネルの下)
+            danShutter?.Draw();
             DebugLog.End(PerfSection.PlayNotes, t);
 
             t = DebugLog.Begin();
@@ -1506,7 +1643,7 @@ namespace TaikoSim.Scenes
                 Raylib.DrawRectangle(0, (int)LaneY, (int)LaneX + 5, (int)LaneHeight, new Color(170, 50, 40, 255));
             }
 
-            hud.DrawPanel(course);
+            hud.DrawPanel(course, dan != null);   // 段位のときは難易度マークの代わりに「段位道場」
             DebugLog.End(PerfSection.PlayHud, t);
 
             t = DebugLog.Begin();
@@ -1532,11 +1669,12 @@ namespace TaikoSim.Scenes
             scoreboard.Set(goodCount, okCount, badCount, totalRollHits);
             if (danPanel != null) danPanel.DrawTop();   // 段位：「1曲目/3曲」・魂ゲージの札・左上のカウンター
             else if (ConfigManager.Game.ShowScoreboard) scoreboard.Draw(); // 良・可・不可・連打数(左下。選曲画面のオプションで消せる)
-            scoreRank.Draw();    // 粋・雅・極
+            if (dan == null) scoreRank.Draw();    // 粋・雅・極(段位では出さない)
             DebugLog.End(PerfSection.PlayHud, t);
 
             t = DebugLog.Begin();
-            end.Draw();          // 演奏後の演出(クリア成功・フルコンボなど)
+            end.Draw();          // 演奏後の演出(クリア成功・フルコンボなど)。段位では使わない
+            danEnd.Draw();       // 段位：最後の曲の終わりの「不合格」など
             // オート演奏の印は、左上の黄緑の箱から A-Style のバッジ(UI/OptionBadges.cs)に移した。
             // 曲名の下に「AUTO」のバッジが出る(スキンに画像が無ければ文字の札で代わりに出る)
             if (showDebugInfo)

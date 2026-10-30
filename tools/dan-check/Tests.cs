@@ -1,4 +1,4 @@
-using TaikoSim.Charts;
+﻿using TaikoSim.Charts;
 
 // 合否の判定（DanPlay）の境界値テスト。実データの段位を使って、
 // 「赤のボーダーちょうど」「1つ足りない」「金のボーダーちょうど」が意図どおりになるか確かめる。
@@ -22,6 +22,7 @@ internal static class Tests
 
         TestRangeRules();
         if (shodan != null) TestDisplayed(shodan);
+        TestReach();
 
         Console.WriteLine();
         Console.WriteLine($"→ 成功 {passed} / 失敗 {failed}");
@@ -108,6 +109,40 @@ internal static class Tests
             Check2("良100のとき そのまま100と出る", p.Displayed(great) == 100, true);
             Check2("バーは 100/814", Math.Abs(p.Progress(great) - 100f / great.For(0).Red) < 0.001f, true);
         }
+    }
+
+    // バーの色（DanPlay.Reach）。10/31 の九段の動画で見た並びを、同じ形の作りものの段位で確かめる
+    //   不可 10未満（金 5未満）・可 120未満（金なし）・連打 曲ごと 23/162/… 以上（金なし）
+    private static void TestReach()
+    {
+        Console.WriteLine("-- バーの色（OpenTaiko の ReachStatus） --");
+        DanCourse c = new() { Title = "九段もどき" };
+        for (int i = 0; i < 3; i++) c.Songs.Add(new DanSong { NoteCounts = new[] { 1000 + i, 1000 + i, 1000 + i } });
+        DanExam miss = new() { Type = DanExamType.Miss, Thresholds = new[] { new DanThreshold(10, 5) } };
+        DanExam good = new() { Type = DanExamType.Good, Thresholds = new[] { new DanThreshold(120, 0) } };
+        DanExam roll = new() { Type = DanExamType.Roll, Thresholds = new[] { new DanThreshold(23, 0), new DanThreshold(162, 0), new DanThreshold(100, 0) } };
+        DanExam great = new() { Type = DanExamType.Great, Thresholds = new[] { new DanThreshold(100, 200) } };
+        c.Exams.AddRange(new[] { miss, good, roll, great });
+        DanPlay p = new(c);
+
+        void Is(string name, DanExam e, int song, DanReach want) =>
+            Report(name, p.Reach(e, song) == want, $"{want} を期待したが {p.Reach(e, song)}");
+
+        p.Tallies[0].Miss = 3;  Is("不可 残り7（金もセーフ） → ピンク", miss, 0, DanReach.Success);
+        p.Tallies[0].Miss = 5;  Is("不可 残り5（金は割った） → 黄色", miss, 0, DanReach.High);
+        p.Tallies[0].Miss = 7;  Is("不可 残り3 → 赤く点滅", miss, 0, DanReach.Danger);
+        p.Tallies[0].Miss = 10; Is("不可 残り0 → 達成失敗", miss, 0, DanReach.Failure);
+        p.Tallies[0].Good = 65; Is("可 残り55 → ピンク", good, 0, DanReach.Success);
+        p.Tallies[0].Good = 88; Is("可 残り32（27%） → 赤", good, 0, DanReach.Low);
+        p.Tallies[0].Good = 104; Is("可 残り16（13%） → 赤く点滅", good, 0, DanReach.Danger);
+        p.Tallies[0].Roll = 24; Is("連打 1曲目 24/23 → 虹", roll, 0, DanReach.Better);
+        p.Tallies[1].Roll = 95; Is("連打 2曲目 95/162（58%） → 黄色", roll, 1, DanReach.High);
+        p.Tallies[1].Roll = 160; Is("連打 2曲目 160/162（98%） → 黄色が点滅", roll, 1, DanReach.NearSuccess);
+        p.Tallies[0].Great = 120; Is("良 120（赤100・金200） → ピンク", great, 0, DanReach.Success);
+        p.Tallies[0].Great = 200; Is("良 200 → 虹", great, 0, DanReach.Better);
+
+        int[] total = p.TotalNotes();
+        Check2("全曲の音符の合計 = 1000+1001+1002", total[0] == 3003 && total[2] == 3003, true);
     }
 
     // 以上／未満のルールそのもの

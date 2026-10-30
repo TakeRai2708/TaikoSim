@@ -36,6 +36,17 @@ namespace TaikoSim.Charts
         }
     }
 
+    /// <summary>
+    /// 条件のバーの状態。OpenTaiko の Exam.ReachStatus と同じ並び（下ほど良い）。
+    ///   Failure＝割った（バーは空・「達成失敗」）／Danger＝赤く点滅／Low＝「未満」は赤・「以上」は黄色／
+    ///   High＝黄色／NearSuccess・NearerSuccess＝黄色が白く点滅／Success＝ピンク／
+    ///   NearBetter・NearerBetter＝ピンクが白く点滅／Better＝虹色
+    /// </summary>
+    public enum DanReach
+    {
+        Failure, Danger, Low, High, NearSuccess, NearerSuccess, Success, NearBetter, NearerBetter, Better,
+    }
+
     // 段位1つぶんの挑戦
     public sealed class DanPlay
     {
@@ -52,6 +63,13 @@ namespace TaikoSim.Charts
 
         /// <summary>途中でやめたか（F3 の強制終了・Esc で戻った）</summary>
         public bool Quit { get; set; }
+
+        /// <summary>オート演奏で遊んだか（オートの結果はクリア記録に残さない）</summary>
+        public bool AutoPlayed { get; set; }
+
+        /// <summary>今のコンボと最大コンボ。本家は課題曲をまたいでコンボが続く</summary>
+        public int Combo { get; set; }
+        public int MaxCombo { get; set; }
 
         public DanPlay(DanCourse course)
         {
@@ -108,6 +126,63 @@ namespace TaikoSim.Charts
             long border = exam.For(songIndex).Red;
             if (border <= 0) return 1f;
             return Math.Clamp(Displayed(exam, songIndex) / (float)border, 0f, 1f);
+        }
+
+        /// <summary>
+        /// 条件のバーの今の状態（色と点滅を決める）。OpenTaiko の Dan_Cert.UpdateReachStatus と同じ考え方。
+        ///   「未満」系：割った → Failure（「達成失敗」）、残り4回以下 → Danger（赤く点滅）、
+        ///              残りが20%未満 → Danger、30%未満 → Low（赤）、
+        ///              それ以外は 金もセーフ → Success（ピンク）、金は割った → High（黄色）
+        ///   「以上」系：金を満たした → Better（虹色）、赤を満たした → Success（ピンク。金に近づくと点滅）、
+        ///              95%以上 → NearSuccess（黄色が点滅）、50%以上 → High（黄色）、それより下 → Low
+        /// 10/31 の九段の動画で、不可「残り7＝ピンク・5＝黄・3と2＝赤く点滅」、可「55＝ピンク・32＝赤」、
+        /// 連打「95/162＝黄・24/23＝虹」を確かめた
+        /// </summary>
+        public DanReach Reach(DanExam exam, int songIndex)
+        {
+            if (exam.Thresholds.Length == 0) return DanReach.Better;
+            int i = exam.PerSong ? Math.Clamp(songIndex, 0, Tallies.Length - 1) : 0;
+            long amount = exam.PerSong ? Tallies[i].Value(exam.Type) : Total(exam.Type);
+            DanThreshold t = exam.For(i);
+            bool gold = !exam.HasGold(i) || Satisfies(amount, t.Gold, exam.IsLess);
+
+            if (exam.IsLess)
+            {
+                if (!Satisfies(amount, t.Red, true)) return DanReach.Failure;
+                if (amount + 4 >= t.Red && amount > 0) return DanReach.Danger;
+                float percent = Percent(exam, i);
+                if (percent < 20f) return DanReach.Danger;
+                if (percent < 30f) return DanReach.Low;
+                return gold ? DanReach.Success : DanReach.High;
+            }
+
+            if (Satisfies(amount, t.Red, false))
+            {
+                if (gold) return DanReach.Better;
+                // 赤は満たした。金にどれだけ近いかで点滅を速くする
+                double better = t.Gold - t.Red <= 0 ? 100 : 100.0 * (amount - t.Red) / (t.Gold - t.Red);
+                return better < 100.0 / 3 ? DanReach.Success : better < 200.0 / 3 ? DanReach.NearBetter : DanReach.NearerBetter;
+            }
+            float p = Percent(exam, i);
+            return p < 50f ? DanReach.Low : p < 95f ? DanReach.High : DanReach.NearSuccess;
+        }
+
+        // バーの伸び具合を % で（OpenTaiko の GetAmountToPercent。0 以外は 1〜100）
+        private float Percent(DanExam exam, int songIndex)
+        {
+            long border = exam.For(songIndex).Red;
+            long shown = Displayed(exam, songIndex);
+            if (border <= 0 || shown <= 0) return 0f;
+            return Math.Clamp(100f * shown / border, 1f, 100f);
+        }
+
+        /// <summary>課題曲ぜんぶの音符の数（[普通, 玄人, 達人] の分岐ごと）。魂ゲージの増え方に使う</summary>
+        public int[] TotalNotes()
+        {
+            int[] sum = new int[3];
+            foreach (DanSong song in Course.Songs)
+                for (int b = 0; b < 3 && b < song.NoteCounts.Length; b++) sum[b] += song.NoteCounts[b];
+            return sum;
         }
 
         /// <summary>魂ゲージのバーの伸び具合（0〜1）。合格ボーダーを100%として見る</summary>
@@ -208,6 +283,7 @@ namespace TaikoSim.Charts
         /// <summary>結果をクリア記録に残す（次の段位の解禁条件に効く）</summary>
         public void SaveRecord()
         {
+            if (AutoPlayed || Quit) return;   // オート・途中でやめたときは記録しない
             DanResultType result = Overall();
             if (result is DanResultType.None or DanResultType.Failed) return;
 

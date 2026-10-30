@@ -152,7 +152,11 @@ namespace TaikoSim.Charts
                     Chart chart = TjaParser.Load(song.FullPath);
                     song.Title = chart.Title;
                     song.Subtitle = chart.Subtitle;
-                    song.Level = chart.Courses.FirstOrDefault(c => c.Type == song.Course)?.Level ?? 0;
+                    Course? chartCourse = chart.Courses.FirstOrDefault(c => c.Type == song.Course);
+                    song.Level = chartCourse?.Level ?? 0;
+                    if (chartCourse != null)
+                        for (int b = 0; b < 3; b++)
+                            song.NoteCounts[b] = Scenes.PlayStats.CountRegularNotes(chartCourse, (BranchType)b);
                 }
                 catch
                 {

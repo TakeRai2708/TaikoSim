@@ -1,3 +1,4 @@
+using System.Numerics;
 using Raylib_cs;
 using TaikoSim.Audio;
 using TaikoSim.Charts;
@@ -283,9 +284,31 @@ namespace TaikoSim.Scenes
         }
 
         // 上の段位の札（横一列）
+        //   本家は札の場所が danIndex で決まっている（x = 190 + danIndex × 68。五級＝0 … 外伝＝19 の20枠）。
+        //   無い段位の枠も、うすい札で場所だけ出る（10/31 の動画：七段＝danIndex 11 が x938 で一致）。
+        //   カーソルは、ある段位だけを動く（Courses は danIndex の順に並んでいる）
+        private const int SlotCount = 20;
         private void DrawTiles()
         {
-            // 札が多すぎて画面からはみ出すときは、選んでいる札が真ん中に来るようにずらす
+            bool fixedSlots = Courses.All(c => c.DanIndex is >= 0 and < SlotCount)
+                              && Courses.Select(c => c.DanIndex).Distinct().Count() == Courses.Count;
+            if (fixedSlots)
+            {
+                for (int slot = 0; slot < SlotCount; slot++)
+                {
+                    int index = Courses.FindIndex(c => c.DanIndex == slot);
+                    float x = TileX + slot * TilePitch;
+                    if (index < 0) DrawEmptyTile(slot, x);
+                    else if (index != courseCursor) DrawTile(Courses[index], x, false);
+                }
+                // 選んでいる札は大きくなってとなりに重なるので、最後に描く
+                if (courseCursor >= 0 && courseCursor < Courses.Count)
+                    DrawTile(Courses[courseCursor], TileX + Courses[courseCursor].DanIndex * TilePitch, true);
+                return;
+            }
+
+            // danIndex が重なっている・範囲の外のときは、今までどおり左から詰めて並べる
+            //   札が多すぎて画面からはみ出すときは、選んでいる札が真ん中に来るようにずらす
             float total = Courses.Count * TilePitch;
             float offset = 0f;
             float maxRight = Screen.Width - 250f;   // 右上のクレジット表示のぶんを空ける
@@ -297,10 +320,23 @@ namespace TaikoSim.Scenes
 
             for (int i = 0; i < Courses.Count; i++)
             {
+                if (i == courseCursor) continue;
                 float x = TileX + offset + i * TilePitch;
                 if (x + TilePitch < 0 || x > Screen.Width) continue;
-                DrawTile(Courses[i], x, i == courseCursor);
+                DrawTile(Courses[i], x, false);
             }
+            if (courseCursor >= 0 && courseCursor < Courses.Count)
+                DrawTile(Courses[courseCursor], TileX + offset + courseCursor * TilePitch, true);
+        }
+
+        // 段位が無い枠：その色をうすくした札（字なし）
+        private static void DrawEmptyTile(int slot, float x)
+        {
+            Rectangle area = new(x + 2f, TileY, TilePitch - 4f, TileHeight);
+            float round = Roundness(area, 10f);
+            Color fill = Fade(Raylib.ColorBrightness(TileColor(slot), -0.35f), 0.45f);
+            Raylib.DrawRectangleRounded(area, round, 8, fill);
+            Raylib.DrawRectangleRoundedLinesEx(area, round, 8, 2f, Fade(new Color(0, 0, 0, 255), 0.25f));
         }
 
         private void DrawTile(DanCourse course, float x, bool selected)
@@ -394,15 +430,49 @@ namespace TaikoSim.Scenes
                     BallSize / 2f, ball);
                 Outlined(Ordinal(i), ballBox, 28f, Color.White, Raylib.ColorBrightness(ball, -0.5f));
 
-                // 難易度と★
+                // 難易度のマーク（鬼の面）と★
                 Rectangle levelBox = new(LevelLeft, y + (SongHeight - LevelSize) / 2f, LevelSize, LevelSize);
-                Raylib.DrawRectangleRounded(levelBox, Roundness(levelBox, 10f), 8, CourseColor(song.Course));
-                Outlined($"★{song.Level}", levelBox, 26f, Color.White, new Color(24, 20, 28, 255));
+                DrawLevelIcon(levelBox, song);
 
-                // 曲名（伏せる指定なら「？？？」）
-                string name = song.IsHidden ? "？？？" : song.Title.Length > 0 ? song.Title : song.RelativePath;
-                TextFit(name, TitleLeft, y + 22f, SongRight - TitleLeft - 24f, 42f, Ink);
+                // 曲名（伏せる指定なら「???」）。本家は黒い字に白い縁
+                string name = song.IsHidden ? "???" : song.Title.Length > 0 ? song.Title : song.RelativePath;
+                OutlinedLeft(name, TitleLeft, y + 20f, SongRight - TitleLeft - 24f, 44f, Ink, Color.White);
             }
+        }
+
+        // 縁取りした文字を左から。はみ出すときは小さくする
+        private static void OutlinedLeft(string text, float x, float y, float maxWidth, float size, Color fill, Color outline)
+        {
+            if (text.Length == 0) return;
+            float width = Measure(text, size).X + OutlineWidth(size) * 2f;
+            if (width > maxWidth && width > 0) size *= maxWidth / width;
+            OutlinedAt(text, x + OutlineWidth(size), y, size, fill, outline);
+        }
+
+        // 難易度のマーク：クリーム色の札に、難易度の色の鬼の面（角2本＋顔）と「★レベル」
+        //   本家（10/31 の動画）は札の中にピンクの鬼の面と ★9。A-Style の画像は使わずに形だけまねる
+        private static void DrawLevelIcon(Rectangle box, DanSong song)
+        {
+            Raylib.DrawRectangleRounded(box, Roundness(box, 10f), 8, new Color(246, 238, 222, 255));
+            Raylib.DrawRectangleRoundedLinesEx(box, Roundness(box, 10f), 8, 2f, new Color(200, 184, 160, 255));
+            Color mask = CourseColor(song.Course), ink = new(30, 20, 30, 255);
+            float cx = box.X + box.Width / 2f, top = box.Y + box.Height * 0.12f;
+            float face = box.Width * 0.22f;
+            Vector2 c = new(cx, top + box.Height * 0.32f);
+            // 角（左右の三角。両回りで描いて消えないようにする）
+            for (int side = -1; side <= 1; side += 2)
+            {
+                Vector2 a = new(cx + side * face * 0.95f, c.Y - face * 0.2f);
+                Vector2 b = new(cx + side * face * 0.35f, c.Y - face * 0.5f);
+                Vector2 tip = new(cx + side * face * 1.05f, top);
+                Raylib.DrawTriangle(a, b, tip, mask);
+                Raylib.DrawTriangle(a, tip, b, mask);
+            }
+            Raylib.DrawCircleV(c, face, mask);
+            Raylib.DrawCircleV(new Vector2(c.X - face * 0.38f, c.Y - face * 0.05f), face * 0.2f, ink);
+            Raylib.DrawCircleV(new Vector2(c.X + face * 0.38f, c.Y - face * 0.05f), face * 0.2f, ink);
+            Outlined($"★{song.Level}", new Rectangle(box.X, box.Y + box.Height * 0.58f, box.Width, box.Height * 0.38f),
+                box.Height * 0.3f, ink, Color.White);
         }
 
         private void DrawConditions(DanCourse course)

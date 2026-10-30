@@ -179,16 +179,24 @@ namespace TaikoSim.Scenes
             {
                 DanSong song = dan.Course.Songs[i];
                 DanSongTally t = dan.Tallies[i];
+                // たどり着かなかった曲（途中で不合格が決まった・F3 でやめた）は灰色で「???」「未到達」
+                //   10/31 の九段の動画：2曲目で落ちたとき、3曲目は灰色の板に「???」と、右に「未到達」と出ていた
+                bool reached = i <= dan.SongIndex;
                 float y = top + i * (rowHeight + 22f);
                 Rectangle row = new(FrameX + 60f, y, FrameWidth - 120f, rowHeight);
-                Raylib.DrawRectangleRounded(row, Roundness(row, 10f), 8, Fade(Color.White, fade));
+                Raylib.DrawRectangleRounded(row, Roundness(row, 10f), 8, Fade(reached ? Color.White : new Color(214, 214, 220, 255), fade));
                 Raylib.DrawRectangleRoundedLinesEx(row, Roundness(row, 10f), 8, 3f, Fade(Gold, fade));
 
-                Color c = SongColors[Math.Min(i, SongColors.Length - 1)];
+                Color c = reached ? SongColors[Math.Min(i, SongColors.Length - 1)] : new Color(160, 160, 168, 255);
                 Raylib.DrawCircleV(new System.Numerics.Vector2(row.X + 60f, y + 70f), 36f, Fade(c, fade));
                 Centered(Ordinal(i), new Rectangle(row.X + 24f, y + 34f, 72f, 72f), 26f, Fade(Color.White, fade));
-                string name = song.IsHidden ? "？？？" : song.Title.Length > 0 ? song.Title : song.RelativePath;
+                string name = !reached || song.IsHidden ? "???" : song.Title.Length > 0 ? song.Title : song.RelativePath;
                 TextFit(name, row.X + 120f, y + 46f, row.Width - 160f, 44f, Fade(Ink, fade));
+                if (!reached)
+                {
+                    Outlined("未到達", new Rectangle(row.X + row.Width - 300f, y + 30f, 260f, 80f), 60f,
+                        Fade(new Color(196, 186, 255, 255), fade), Fade(new Color(60, 40, 120, 255), fade));
+                }
 
                 // 良・可・不可・連打数
                 (string L, Color C, long V)[] items =
@@ -201,6 +209,7 @@ namespace TaikoSim.Scenes
                 {
                     float x = row.X + 60f + k * cell;
                     Text(items[k].L, x, y + 150f, 30f, Fade(items[k].C, fade));
+                    if (!reached) continue;   // たどり着かなかった曲は数を出さない
                     string v = items[k].V.ToString(CultureInfo.InvariantCulture);
                     Text(v, x + cell - 40f - Measure(v, 44f).X, y + 142f, 44f, Fade(Ink, fade));
                 }

@@ -131,7 +131,7 @@ namespace TaikoSim.Scenes
 
         public void OnSoulArrival() => soulFlashAge = 0f;
 
-        public void DrawPanel(Course course)
+        public void DrawPanel(Course course, bool dan = false)
         {
             SkinManager.Draw(ScoreBackground, 0, 276);
             // 7桁まで元の大きさ。桁が増えても太鼓やパネルの外へはみ出さない。
@@ -142,7 +142,8 @@ namespace TaikoSim.Scenes
             DrawScoreAdditions();
 
             int row = (int)course.Type;
-            if (row is >= 0 and < 5 && SkinManager.GetTexture(CourseSymbol) is Texture2D symbol)
+            if (dan) DrawDanSymbol();
+            else if (row is >= 0 and < 5 && SkinManager.GetTexture(CourseSymbol) is Texture2D symbol)
             {
                 float height = symbol.Height / 5f;
                 DrawPart(symbol, new Rectangle(0, row * height, symbol.Width, height), 27, 351);
@@ -152,6 +153,46 @@ namespace TaikoSim.Scenes
 
             // つけているオプションのバッジ(何もつけていなければ何も描かない)
             OptionBadges.DrawLeftAligned(OptionBadgeX, OptionBadgeY, OptionBadgeScale);
+        }
+
+        // 段位道場のときの難易度マーク（赤い布の包み＋「段位道場」）
+        //   10/31 の九段の動画を測った：包みは x50〜135・y355〜410、字は「段位道場」で y418〜440・まんなか x93。
+        //   A-Style の画像は入れないので、形だけコードでまねる（スキンに CourseSymbol_Dan.png があればそれを使う）
+        private const string DanSymbol = Dir + "MiniTaiko/CourseSymbol_Dan.png";
+        private static void DrawDanSymbol()
+        {
+            if (SkinManager.Draw(DanSymbol, 27, 351)) return;
+
+            Vector2 c = new(93f, 382f);
+            Color cream = new(244, 230, 196, 255), ink = new(40, 26, 20, 255), red = new(206, 52, 28, 255);
+            // うしろの四すみ（ななめに置いたクリーム色の四角）
+            DrawDiamond(c, 48f, 34f, ink);
+            DrawDiamond(c, 43f, 30f, cream);
+            // 赤い布（両わきに白い帯と黒い点）
+            Rectangle cloth = new(c.X - 32f, c.Y - 22f, 64f, 44f);
+            Raylib.DrawRectangleRec(new Rectangle(cloth.X - 2f, cloth.Y - 2f, cloth.Width + 4f, cloth.Height + 4f), ink);
+            Raylib.DrawRectangleRec(cloth, red);
+            for (int side = 0; side < 2; side++)
+            {
+                float x = side == 0 ? cloth.X : cloth.X + cloth.Width - 9f;
+                Raylib.DrawRectangleRec(new Rectangle(x, cloth.Y, 9f, cloth.Height), Color.RayWhite);
+                for (int i = 0; i < 5; i++) Raylib.DrawCircleV(new Vector2(x + 4.5f, cloth.Y + 5f + i * 8.5f), 2f, ink);
+            }
+            // まんなかの金の紋
+            Raylib.DrawCircleV(c, 9f, ink);
+            Raylib.DrawCircleV(c, 7f, new Color(236, 182, 60, 255));
+            Raylib.DrawCircleV(c, 3f, ink);
+            MenuDraw.Outlined("段位道場", new Rectangle(c.X - 50f, 414f, 100f, 30f), 22f, Color.White, ink);
+        }
+
+        // ひし形（横の半分 w・縦の半分 h）。三角形は頂点の回る向きで消えることがあるので、両回りで描く
+        private static void DrawDiamond(Vector2 c, float w, float h, Color color)
+        {
+            Vector2 top = new(c.X, c.Y - h), right = new(c.X + w, c.Y), bottom = new(c.X, c.Y + h), left = new(c.X - w, c.Y);
+            Raylib.DrawTriangle(top, left, bottom, color);
+            Raylib.DrawTriangle(top, bottom, left, color);
+            Raylib.DrawTriangle(top, bottom, right, color);
+            Raylib.DrawTriangle(top, right, bottom, color);
         }
 
         private static bool DrawDigits(string text, float x, float y, float scale, float bounce, bool alignRight)
