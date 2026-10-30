@@ -13,9 +13,12 @@
   </PropertyGroup>
   <ItemGroup>
     <Compile Include="Program.cs" />
+    <Compile Include="Tests.cs" />
     <Compile Include="$(SrcDir)Charts/Dan.cs" />
     <Compile Include="$(SrcDir)Charts/DanJson.cs" />
     <Compile Include="$(SrcDir)Charts/ChartText.cs" />
+    <Compile Include="$(SrcDir)Charts/DanPlay.cs" />
+    <Compile Include="$(SrcDir)Charts/DanUnlock.cs" />
     <Compile Include="Shim.cs" />
   </ItemGroup>
 </Project>

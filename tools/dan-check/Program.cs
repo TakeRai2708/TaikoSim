@@ -98,6 +98,13 @@ foreach (DanCourse c in category.Courses)
 }
 
 Console.WriteLine($"合計 {category.Courses.Count} 段位、うち遊べる {category.Courses.Count(c => c.Playable)} 個");
+
+// --test を付けると、合否の判定の境界値テストも走らせる
+if (args.Contains("--test"))
+{
+    Console.WriteLine();
+    return Tests.Run(category.Courses);
+}
 return 0;
 
 static string Describe(DanRequirement r, int depth)
