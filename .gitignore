@@ -365,3 +365,6 @@ FodyWeavers.xsd
 # スキン：TaikoSim-Simple だけ Git に入れる(A-Style など、人が作ったスキンは入れない)
 TaikoSim/Skins/*
 !TaikoSim/Skins/TaikoSim-Simple/
+# dan-check の出力
+tools/dan-check/bin/
+tools/dan-check/obj/

@@ -648,27 +648,8 @@ namespace TaikoSim.Charts
         // ===== 小さい道具 =====
 
         // 文字コードを自動で見分けて読む(UTF-8 か Shift-JIS)
-        private static string ReadText(string path)
-        {
-            byte[] bytes = File.ReadAllBytes(path);
-
-            // BOM付きUTF-8
-            if (bytes.Length >= 3 && bytes[0] == 0xEF && bytes[1] == 0xBB && bytes[2] == 0xBF)
-            {
-                return Encoding.UTF8.GetString(bytes, 3, bytes.Length - 3);
-            }
-
-            // UTF-8 として正しく読めればUTF-8、変な文字が出たら Shift-JIS
-            try
-            {
-                return new UTF8Encoding(false, true).GetString(bytes);
-            }
-            catch (DecoderFallbackException)
-            {
-                Encoding.RegisterProvider(CodePagesEncodingProvider.Instance); // Shift-JIS を使えるようにする
-                return Encoding.GetEncoding(932).GetString(bytes);              // 932 = Shift-JIS
-            }
-        }
+        // 文字コードの見分けは Charts/ChartText.cs にまとめてある
+        private static string ReadText(string path) => ChartText.Read(path);
 
         // 「//」から後ろはコメントなので消す
         private static string StripComment(string line)
