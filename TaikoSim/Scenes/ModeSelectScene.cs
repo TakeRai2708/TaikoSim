@@ -39,16 +39,11 @@ namespace TaikoSim.Scenes
         private const string EntryBackground = EntryFolder + "Background.png";
         private float backgroundTime;
 
-        // 画面の下のプレイモード
-        //   A-Style には CreditBar.png(1172×380。上が「1人プレイ」、下が「2人プレイ」の2コマ)がある。
-        //   1コマ(1172×190)の中では、バーの本体が y21..178、焼き込みの文字「1人プレイ」が x148..380・y73..125。
-        //   画像の原寸で下まんなかに置き、「フリープレイ」はバーの右の空いているところに、焼き込み文字と同じ高さで書く。
-        //   ※ 置く高さ(CreditBarY)は TaikøNauts の実機を測った値ではなく、影まで画面に収まる位置にしたもの
-        private const float CreditBarW = 1172f, CreditBarH = 190f;
-        private const float CreditBarX = 374f;   // (1920 - 1172) / 2
-        private const float CreditBarY = 884f;   // 本体 y905..1062、影が y1073 で収まる
-        private const float CreditBarTextY = CreditBarY + 73f;   // 焼き込み文字「1人プレイ」の上
-        private const float FreePlaySize = 48f;  // 焼き込み文字と同じくらいの大きさ(前は 30px で小さすぎた)
+        // 画面の下の「フリープレイ」の文字。30px だと小さすぎたので 48px にした
+        //   A-Style の CreditBar.png(「1人プレイ」の黄色いバー)はここでは使わない。
+        //   あれは一番最初のエントリー画面(コインを入れる画面)のものなので、エントリー画面を作るときに使う
+        private static readonly Rectangle FreePlayArea = new(730f, 1012f, 460f, 56f);
+        private const float FreePlaySize = 48f;
 
         // 終了の確認・お知らせ
         private const float ExitConfirmSeconds = 3f;
@@ -65,7 +60,7 @@ namespace TaikoSim.Scenes
             deciding = null;
             backgroundTime = 0f;
             MenuSkin.Preload(MenuSkin.ModeFolder, MenuSkin.BarImages.Concat(new[] { "Background.png", "Background/0.png" }));
-            MenuSkin.Preload(EntryFolder, new[] { "Background.png", "Header.png", "Background_Fireworks.png", "CreditBar.png" });
+            MenuSkin.Preload(EntryFolder, new[] { "Background.png", "Header.png", "Background_Fireworks.png" });
             MenuSkin.Preload(EntryBarFolder, new[] { "Bar/0.png", "Bar/1.png", "Title/0.png", "Title/1.png",
                 "Overlay.png", "Selected.png", "Pop/0.png", "1POnly.png" });
         }
@@ -189,16 +184,7 @@ namespace TaikoSim.Scenes
             {
                 // 上のプレイ情報は板より手前に出す（板が上へ流れても隠さない）
                 MenuSkin.Whole(EntryFolder + "Header.png", new Rectangle(0, 0, Screen.Width, Screen.Height), Color.White);
-
-                // プレイ人数のバー。2人プレイはまだ無いので、いつも1コマ目(「1人プレイ」)
-                bool creditBar = MenuSkin.Part(EntryFolder + "CreditBar.png",
-                    new Rectangle(0, 0, CreditBarW, CreditBarH),
-                    new Rectangle(CreditBarX, CreditBarY, CreditBarW, CreditBarH), Color.White);
-                // バーがあれば、その右の空いているところに焼き込み文字と同じ高さで。無ければ下まんなかに
-                Rectangle freePlay = creditBar
-                    ? new Rectangle(CreditBarX + 406f, CreditBarTextY, 720f, 52f)
-                    : new Rectangle(730f, 1012f, 460f, 56f);
-                Outlined("フリープレイ", freePlay, FreePlaySize, Color.White, new Color(12, 12, 16, 255));
+                Outlined("フリープレイ", FreePlayArea, FreePlaySize, Color.White, new Color(12, 12, 16, 255));
             }
             else
             {
