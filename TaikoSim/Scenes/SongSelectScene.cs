@@ -970,11 +970,8 @@ namespace TaikoSim.Scenes
 
         private void DrawHeader()
         {
-            Text("演奏ゲーム", 40, 26, 40, Color.White);
-            string where = diffOpen ? "難易度をえらぶ"
-                : inSongs ? (openSpecial == Special.Search ? $"検索：{searchText}" : CurrentGenreTitle()) : "ジャンルをえらぶ";
-            TextFit(where, 44, 76, 300, 26, new Color(230, 230, 240, 255));
-
+            // 左上の「演奏ゲーム」「ジャンルをえらぶ」は出さない(スキンの画像とかぶって、じゃまになる)。
+            // どのジャンルにいるかは一覧の板そのもので分かるので、文字は要らない
             if (searchFocused || searchText.Length > 0 && openSpecial == Special.Search && !diffOpen) DrawSearchBox();
             else if (!diffOpen)
             {
@@ -983,17 +980,6 @@ namespace TaikoSim.Scenes
             }
             string count = $"{SongList.SongCount}曲";
             Text(count, 1860 - Measure(count, 24).X, 84, 24, Gui.SubTextColor);
-        }
-
-        private string CurrentGenreTitle()
-        {
-            return openSpecial switch
-            {
-                Special.Recent => "最近遊んだ曲",
-                Special.Added => "最近追加された曲",
-                Special.Favorites => "お気に入り",
-                _ => openCat >= 0 && openCat < SongList.Categories.Count ? SongList.Categories[openCat].Title : "",
-            };
         }
 
         // 一覧(斜めに並べる。上下はぐるっとつながっている)
@@ -1611,7 +1597,8 @@ namespace TaikoSim.Scenes
         {
             Text("曲がありません", 160, 360, 40, ErrorColor);
             Text("下のフォルダに、曲のフォルダ（.tja と .ogg が入ったもの）を入れてください。", 160, 430, 28, Color.White);
-            Text(SongList.SongsFolder, 160, 480, 24, Gui.SubTextColor);
+            // フォルダのパスは薄い灰色だと読めないので、うすい黄色にする
+            Text(SongList.SongsFolder, 160, 480, 24, new Color(255, 236, 160, 255));
             Text("カテゴリ分けしたいときは、box.def の入ったフォルダの中に入れてください。", 160, 530, 28, Color.White);
             Text("入れたら、設定（F1）の「一般設定」→［曲の一覧を更新］を押してください。", 160, 580, 28, Color.White);
         }
