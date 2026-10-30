@@ -21,6 +21,7 @@ internal static class Tests
         else Console.WriteLine("  （十段が見つからないので、曲ごと条件のテストは飛ばす）");
 
         TestRangeRules();
+        if (shodan != null) TestDisplayed(shodan);
 
         Console.WriteLine();
         Console.WriteLine($"→ 成功 {passed} / 失敗 {failed}");
@@ -78,6 +79,35 @@ internal static class Tests
         Check("全部金のボーダー → 金合格", PlayPerSong(c, 100, gold), DanResultType.Gold);
         var goldMiss1 = new[] { (12, 1, 8), (19, 1, 51), (1, 2, 93) };  // 不可 合計4（4未満なのでアウト）
         Check("不可が合計4（金は4未満） → 赤合格", PlayPerSong(c, 100, goldMiss1), DanResultType.Red);
+    }
+
+    // 画面に出す数：「未満」系は残り回数、「以上」系はそのまま
+    private static void TestDisplayed(DanCourse c)
+    {
+        Console.WriteLine("-- 画面に出す数（未満は残り） --");
+        DanExam? miss = c.Exams.FirstOrDefault(e => e.Type == DanExamType.Miss);   // 36 未満
+        DanExam? great = c.Exams.FirstOrDefault(e => e.Type == DanExamType.Great); // 814 以上
+
+        if (miss != null)
+        {
+            DanPlay p0 = Play(c, 100, (0, 0, 0));
+            Check2($"不可0のとき 残り{miss.For(0).Red}と出る", p0.Displayed(miss) == miss.For(0).Red, true);
+            Check2("そのときバーは満タン", Math.Abs(p0.Progress(miss) - 1f) < 0.001f, true);
+
+            DanPlay p10 = Play(c, 100, (0, 10, 0));
+            Check2($"不可10のとき 残り{miss.For(0).Red - 10}と出る", p10.Displayed(miss) == miss.For(0).Red - 10, true);
+
+            DanPlay pOver = Play(c, 100, (0, 999, 0));
+            Check2("使い切ってもマイナスにならない", pOver.Displayed(miss) == 0, true);
+            Check2("そのときバーは空", Math.Abs(pOver.Progress(miss)) < 0.001f, true);
+        }
+
+        if (great != null)
+        {
+            DanPlay p = Play(c, 100, (100, 0, 0));
+            Check2("良100のとき そのまま100と出る", p.Displayed(great) == 100, true);
+            Check2("バーは 100/814", Math.Abs(p.Progress(great) - 100f / great.For(0).Red) < 0.001f, true);
+        }
     }
 
     // 以上／未満のルールそのもの

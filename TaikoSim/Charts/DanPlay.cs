@@ -86,6 +86,38 @@ namespace TaikoSim.Charts
         public static bool Satisfies(long value, long border, bool isLess) =>
             isLess ? value < border : value >= border;
 
+        /// <summary>
+        /// 画面に出す数。
+        /// ★「未満」系（可・不可）は **残り回数** を出す。
+        ///   例：「可の数 285 未満」なら 285 から始まって、可を取るたびに減っていく。
+        ///   本家の動画（10/31）でそうなっているのを確認した。OpenTaiko の
+        ///   GetDisplayedAmount()（Range != Less ? Amount : Value[0] - Amount）と同じ。
+        /// 「以上」系（良・連打・叩けた数・スコア・最大コンボ）は、そのまま今の数。
+        /// </summary>
+        public long Displayed(DanExam exam, int songIndex = 0)
+        {
+            long amount = exam.PerSong ? Tallies[Math.Clamp(songIndex, 0, Tallies.Length - 1)].Value(exam.Type)
+                                       : Total(exam.Type);
+            if (!exam.IsLess) return amount;
+            return Math.Max(0, exam.For(songIndex).Red - amount);
+        }
+
+        /// <summary>バーの伸び具合（0〜1）。「未満」系は残りの割合なので、使うほど減る</summary>
+        public float Progress(DanExam exam, int songIndex = 0)
+        {
+            long border = exam.For(songIndex).Red;
+            if (border <= 0) return 1f;
+            return Math.Clamp(Displayed(exam, songIndex) / (float)border, 0f, 1f);
+        }
+
+        /// <summary>魂ゲージのバーの伸び具合（0〜1）。合格ボーダーを100%として見る</summary>
+        public float GaugeProgress()
+        {
+            long border = Course.Gauge.Red;
+            if (border <= 0) return (float)(Gauge / 100.0);
+            return Math.Clamp((float)(Gauge / border), 0f, 1f);
+        }
+
         /// <summary>条件1つの今の状態（不合格／赤／金）</summary>
         public DanResultType Status(DanExam exam)
         {
