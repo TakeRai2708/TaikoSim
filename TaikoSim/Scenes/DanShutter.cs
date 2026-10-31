@@ -40,6 +40,7 @@ namespace TaikoSim.Scenes
         private const float TitleCenterY = 388f, SubtitleCenterY = 447f;
         private const float TitleSize = 52f, SubtitleSize = 30f;
 
+        private const string ScreenImage = "Image/08.DanGame/Screen.png";
         private const string InSound = "Sound/DanGame/ScreenIn.ogg";
         private const string OutSound = "Sound/DanGame/ScreenOut.ogg";
 
@@ -171,7 +172,20 @@ namespace TaikoSim.Scenes
         public void Draw()
         {
             float closed = Closedness();
-            if (closed > 0f)
+            if (closed > 0f && SkinManager.GetTexture(ScreenImage) is Texture2D screen)
+            {
+                // A-Style の扉（08.DanGame/Screen.png 1422×195）。閉じきると (498, 288) にぴったり（九段の動画で誤差4.5）。
+                //   左半分は左から、右半分は右から出てくる（OpenTaiko の DanC_Screen と同じ描き方）
+                float halfWidth = screen.Width / 2f;
+                float shift = halfWidth * (1f - closed);
+                Raylib.BeginScissorMode((int)Left, (int)Top, (int)(Right - Left), screen.Height);
+                Raylib.DrawTexturePro(screen, new Rectangle(0, 0, halfWidth, screen.Height),
+                    new Rectangle(Left - shift, Top, halfWidth, screen.Height), Vector2.Zero, 0f, Color.White);
+                Raylib.DrawTexturePro(screen, new Rectangle(halfWidth, 0, halfWidth, screen.Height),
+                    new Rectangle(Left + halfWidth + shift, Top, halfWidth, screen.Height), Vector2.Zero, 0f, Color.White);
+                Raylib.EndScissorMode();
+            }
+            else if (closed > 0f)
             {
                 float half = (Right - Left) / 2f;
                 float doorWidth = half - Seam / 2f;
@@ -273,7 +287,8 @@ namespace TaikoSim.Scenes
     public sealed class DanEndBanner
     {
         private const float PopSeconds = 0.2f;
-        private const float CenterX = 1209f, CenterY = 381f;   // レーン(扉の場所)のまんなか
+        private const float CenterX = 1209f, CenterY = 381f;
+        private const string EndText = "Image/08.DanGame/End/Text.png";   // レーン(扉の場所)のまんなか
 
         private float elapsed = -1f;
         public Charts.DanResultType Result { get; private set; }
@@ -296,6 +311,20 @@ namespace TaikoSim.Scenes
         public void Draw()
         {
             if (elapsed < 0f) return;
+            float t = Math.Clamp(elapsed / PopSeconds, 0f, 1f);
+            float scale = 1.3f - 0.3f * EaseOut(t);
+
+            // A-Style の字（08.DanGame/End/Text.png 800×150 が3つ：金の合格・赤の合格・不合格）。
+            //   九段の動画で「不合格」は原寸で (809, 309)。推測なんだけど、1つめが金・2つめが赤
+            if (SkinManager.GetTexture(EndText) is Texture2D image)
+            {
+                int row = Result switch { Charts.DanResultType.Gold => 0, Charts.DanResultType.Red => 1, _ => 2 };
+                float w = 800f * scale, h = 150f * scale;
+                Raylib.DrawTexturePro(image, new Rectangle(0, row * 150f, 800f, 150f),
+                    new Rectangle(809f + 400f - w / 2f, 309f + 75f - h / 2f, w, h), Vector2.Zero, 0f, Fade(Color.White, t));
+                return;
+            }
+
             (string text, Color fill, Color edge) = Result switch
             {
                 Charts.DanResultType.Gold => ("金合格", new Color(255, 214, 60, 255), new Color(90, 50, 0, 255)),
@@ -303,8 +332,6 @@ namespace TaikoSim.Scenes
                 _ => ("不合格", new Color(110, 210, 255, 255), new Color(16, 40, 110, 255)),
             };
             // ポンッと出る（1.3倍 → 1倍）
-            float t = Math.Clamp(elapsed / PopSeconds, 0f, 1f);
-            float scale = 1.3f - 0.3f * EaseOut(t);
             float size = 92f * scale;
             Outlined(text, new Rectangle(CenterX - 400f, CenterY - size, 800f, size * 2f), size, Fade(fill, t), Fade(edge, t));
         }

@@ -400,6 +400,20 @@ A-Style の見た目は**横倒しの太鼓**（どんちゃん＝赤い顔・�
   ボタンは「スパナ（演奏オプション）・挑戦する・挑戦しない」の3つ、まんなか (613.5 / 858.5 / 1196.5, 581.5)。
   カーソル `Select_Effect.png`（350×150 が7つ：大＝黄枠・光・白枠・白塗り／小＝黄枠・光・白枠）。出方：0.2秒で暗く → 箱が0.75倍から0.13秒 → 0.2秒後にボタン
 
+#### 段位の演奏中を A-Style の画像で描く（11/1。`Scenes/DanPanelAStyle.cs` ほか）
+九段の動画（03-04-03 の20秒・250秒・164秒・311秒）のコマに画像を重ねて測った。行は 159px ずつ下へ
+- 下半分の背景 `ConditionPanel/Background.png` (0,540)、行の背景 `Base.png`（タブ入り）(123, 579)、ラベルの字のまんなか (305, 598)
+- `Context.png`（220×65：コイン／1st／2nd／3rd）(135, 633)、「120 未満」は右はし x478・まんなか y664
+- ゲージの枠 `Large_Gauge_Base.png`（1008×120 が2つ：枠・中の暗い帯。曲ごと条件は `Small_Gauge_Base.png` 684）(491, 591)。
+  中身は枠から (+18,+16)：白い `Large_Gauge.png` 972×86 に状態の色をかける／虹は `Large_Gauge_Rainbow.png`（16コマ、`Small_` は8コマ）
+- 数字 `Large_Gauge_Number.png`（80×100、上の段が白・下が虹）を枠から (+21, −8)、56px 間隔。割ったら灰色で、`Disqualify_Text.png` を枠から (+18,+17)
+- ほかの曲：小さい枠 `Mini_Gauge_Base.png`（254×50 が2つ）(1236, 枠の y+10、2つめは +47)、中身は (+11,+9) の 232×30、`Mini_Context.png` (−36,+5)、
+  数字 `Mini_Gauge_Number.png`（30×38）(+10,−1) 20px 間隔、まだの曲は `Mini_Gauge_Position.png` を (1200, 同じ y)
+- 魂ゲージの札 `Gauge/Condition_Plate.png`（タブと赤い矢印入り）(1192,163)、目印 `Gauge/Condition_Stopper.png` をボーダーの x−21・y230
+- 左のパネル `MiniTaiko/Background.png` (0,276)、「段位道場」マーク `MiniTaiko/CourseSymbol.png` (27,351)
+- 扉 `Screen.png`（1422×195）：閉じきると (498,288)。左半分・右半分がそれぞれ外から入る
+- 最後の字 `End/Text.png`（800×150 が3つ：金の合格・赤の合格・不合格。金と赤の順番は推測）を原寸で (809,309)
+
 - **まだ作っていない**：
   - `ChangeEffect`（曲間演出）は**パーサだけ**。今は上の扉（OpenTaiko と同じもの）を出している。
     本家は 8つのミリ秒パラメータ＋`Anime.aup2` で作り込む仕組み（`TAIKONAUTS-SPEC.md` 参照）

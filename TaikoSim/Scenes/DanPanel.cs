@@ -186,9 +186,19 @@ namespace TaikoSim.Scenes
         }
 
         // 魂ゲージの上の「魂ゲージ 99%以上」
+        private const string ConditionPlate = "Image/08.DanGame/Gauge/Condition_Plate.png";
+
         private void DrawGaugeLabel()
         {
             if (dan.Course.Gauge.Red <= 0) return;
+            // A-Style：札の画像（タブと赤い矢印入り）を (1192, 163)。九段の動画のコマに重ねて測った
+            if (MenuSkin.Whole(ConditionPlate, new Rectangle(1192f, 163f, 610f, 86f), Color.White))
+            {
+                Centered("魂ゲージ", new Rectangle(1208f, 175f, 284f, 38f), 26f, Ink);
+                string label = $"{dan.Course.Gauge.Red} %以上";
+                OutlinedAt(label, GaugeTextRight - Measure(label, 40f).X, GaugeLabelY + 6f, 40f, Color.White, new Color(20, 20, 24, 255));
+                return;
+            }
             Rectangle box = new(GaugeLabelX, GaugeLabelY, GaugeLabelWidth, GaugeLabelHeight);
             Raylib.DrawRectangleRounded(box, Roundness(box, 12f), 8, new Color(255, 255, 255, 235));
             Rectangle tab = new(GaugeLabelX, GaugeLabelY, GaugeTabWidth, GaugeTabHeight);
@@ -249,10 +259,15 @@ namespace TaikoSim.Scenes
 
         public void DrawBottom()
         {
-            // 背景（明るい灰に、上に金の線）
-            Raylib.DrawRectangle(0, (int)PanelTop, Screen.Width, Screen.Height - (int)PanelTop, PanelBack);
-            Raylib.DrawRectangle(0, (int)PanelTop, Screen.Width, 6, Ink);
-            Raylib.DrawRectangle(0, (int)PanelTop + 6, Screen.Width, 10, PanelGold);
+            bool aStyle = DanPanelAStyle.Available;
+            if (aStyle) DanPanelAStyle.DrawBackground();
+            else
+            {
+                // 背景（明るい灰に、上に金の線）
+                Raylib.DrawRectangle(0, (int)PanelTop, Screen.Width, Screen.Height - (int)PanelTop, PanelBack);
+                Raylib.DrawRectangle(0, (int)PanelTop, Screen.Width, 6, Ink);
+                Raylib.DrawRectangle(0, (int)PanelTop + 6, Screen.Width, 10, PanelGold);
+            }
 
             List<DanExam> exams = dan.Course.Exams;
             int pages = Math.Max(1, (exams.Count + RowsVisible - 1) / RowsVisible);
@@ -262,7 +277,8 @@ namespace TaikoSim.Scenes
             {
                 int index = page * RowsVisible + row;
                 if (index >= exams.Count) break;
-                DrawRow(exams[index], RowTop + row * RowStep);
+                if (aStyle) DanPanelAStyle.DrawRow(dan, exams[index], row, clock, FillColor, Blink, Flash);
+                else DrawRow(exams[index], RowTop + row * RowStep);
             }
 
             if (pages > 1)
@@ -345,6 +361,24 @@ namespace TaikoSim.Scenes
                 Outlined("達成失敗", new Rectangle(bar.X + bar.Width * 0.25f, bar.Y, bar.Width * 0.5f, bar.Height), 58f,
                     FailedText, new Color(40, 0, 0, 255));
         }
+
+        // 状態ごとのバーの色・点滅（A-Style の画像で描くときも同じものを使う）
+        private static Color FillColor(DanReach reach, bool isLess) => reach switch
+        {
+            DanReach.Success or DanReach.NearBetter or DanReach.NearerBetter => BarPink,
+            DanReach.High or DanReach.NearSuccess or DanReach.NearerSuccess => BarYellow,
+            DanReach.Low => isLess ? BarRed : BarYellow,
+            _ => BarRed,
+        };
+
+        private float Blink(DanReach reach) => reach == DanReach.Danger ? Wave(1f) : 1f;
+
+        private float Flash(DanReach reach) => reach switch
+        {
+            DanReach.NearSuccess or DanReach.NearBetter => Wave(1f) * 0.85f,
+            DanReach.NearerSuccess or DanReach.NearerBetter => Wave(2f) * 0.85f,
+            _ => 0f,
+        };
 
         // バーの中身を、状態に合わせた色で塗る（点滅も）
         //   OpenTaiko：Danger は灰色に点滅（不透明度が1秒で行き来）、Near〜 は白く点滅（Nearer は2倍の速さ）

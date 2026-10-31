@@ -131,9 +131,14 @@ namespace TaikoSim.Scenes
 
         public void OnSoulArrival() => soulFlashAge = 0f;
 
+        // 段位のときの左のパネルの背景（A-Style の 08.DanGame。九段の動画で (0, 276)）
+        private const string DanScoreBackground = "Image/08.DanGame/MiniTaiko/Background.png";
+        private const string DanCourseSymbol = "Image/08.DanGame/MiniTaiko/CourseSymbol.png";
+        private const string DanStopper = "Image/08.DanGame/Gauge/Condition_Stopper.png";
+
         public void DrawPanel(Course course, bool dan = false)
         {
-            SkinManager.Draw(ScoreBackground, 0, 276);
+            if (!dan || !SkinManager.Draw(DanScoreBackground, 0, 276)) SkinManager.Draw(ScoreBackground, 0, 276);
             // 7桁まで元の大きさ。桁が増えても太鼓やパネルの外へはみ出さない。
             float scale = Math.Min(1f, 7f / scoreText.Length);
             float bounce = 0.15f * MathF.Sin(MathF.PI * scoreBounceElapsed / ScoreBounceSeconds);
@@ -161,7 +166,8 @@ namespace TaikoSim.Scenes
         private const string DanSymbol = Dir + "MiniTaiko/CourseSymbol_Dan.png";
         private static void DrawDanSymbol()
         {
-            if (SkinManager.Draw(DanSymbol, 27, 351)) return;
+            // A-Style の 08.DanGame/MiniTaiko/CourseSymbol.png（136×136）を (27, 351)。九段の動画のコマに重ねて誤差12
+            if (SkinManager.Draw(DanCourseSymbol, 27, 351) || SkinManager.Draw(DanSymbol, 27, 351)) return;
 
             Vector2 c = new(93f, 382f);
             Color cream = new(244, 230, 196, 255), ink = new(40, 26, 20, 255), red = new(206, 52, 28, 255);
@@ -362,8 +368,12 @@ namespace TaikoSim.Scenes
             {
                 // 段位：「クリア」の字は出さず、合格ボーダーに白い縦の目印（本家・八段のスクショで x≈1750・y235〜290）
                 float mx = NormaBorderX(stats.Norma);
-                Raylib.DrawRectangleRounded(new Rectangle(mx - 7f, GaugeY + 29f, 14f, 59f), 0.5f, 6, new Color(20, 20, 24, 255));
-                Raylib.DrawRectangleRounded(new Rectangle(mx - 4f, GaugeY + 32f, 8f, 53f), 0.5f, 6, Color.White);
+                // A-Style の目印（Condition_Stopper.png 43×70。絵のまんなかは x21）。無ければ白い棒を描く
+                if (!SkinManager.Draw(DanStopper, mx - 21f, GaugeY + 26f))
+                {
+                    Raylib.DrawRectangleRounded(new Rectangle(mx - 7f, GaugeY + 29f, 14f, 59f), 0.5f, 6, new Color(20, 20, 24, 255));
+                    Raylib.DrawRectangleRounded(new Rectangle(mx - 4f, GaugeY + 32f, 8f, 53f), 0.5f, 6, Color.White);
+                }
             }
             else if (SkinManager.GetTexture(ClearText) is Texture2D clear)
             {
