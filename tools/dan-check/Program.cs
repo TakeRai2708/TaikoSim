@@ -8,6 +8,8 @@ using TaikoSim.Charts;
 // Windows のコンソールは既定だと日本語が化けるので、UTF-8 にしておく
 try { Console.OutputEncoding = Encoding.UTF8; } catch { /* 変えられない環境もある */ }
 
+if (args.Contains("--requirements-test")) return RequirementTests.Run();
+
 string root = args.Length > 0 ? args[0] : ".";
 if (!Directory.Exists(root))
 {

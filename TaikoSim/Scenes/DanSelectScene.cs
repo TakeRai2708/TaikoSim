@@ -272,7 +272,9 @@ namespace TaikoSim.Scenes
                 ShowToast(course.Error.Length > 0 ? course.Error : "この段位は遊べません");
                 return;
             }
-            if (!DanUnlock.IsUnlocked(course, out _))
+            bool unlocked = DanUnlock.IsUnlocked(course, out string unlockError);
+            if (unlockError.Length > 0) ShowToast(unlockError);
+            if (!unlocked)
             {
                 MenuSounds.Ka();
                 ShowToast("まだ解禁されていません");
