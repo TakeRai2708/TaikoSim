@@ -21,6 +21,13 @@ namespace TaikoSim.Scenes
     {
         // 前に開いていた場所を覚えておく（段位から戻ってきたとき同じところに居る）
         private static int categoryCursor;
+
+        /// <summary>選んでいるカテゴリ（モード選択の吹き出しで決める）</summary>
+        public static int CategoryIndex
+        {
+            get => categoryCursor;
+            set { if (value != categoryCursor) courseCursor = 0; categoryCursor = Math.Max(0, value); }
+        }
         private static int courseCursor;
 
         // ===== 測った値（1920×1080） =====
@@ -79,6 +86,37 @@ namespace TaikoSim.Scenes
         private string toast = "";
         private float toastTimer;
 
+        // ===== 入りの演出（モード選択から来たとき） =====
+        //   A-Style の 06.DanSelect/Background/Anime.aup2 をそのまま再生する（扉 → 「段」「位」「道」「場」→ 扉が開く → 道場）。
+        //   aup2 のあとの動きは 10/31 の動画（2026-10-31_01-44-20.mp4）を測った値（aup2 の始まり＝26.72秒として、コマ＝60コマ/秒）：
+        //     197コマ：上のヘッダー（Header.png）が出る／221〜263コマ：段位の札が左から右へ出てくる／
+        //     263〜275コマ：パネルとプレートが右からすべりこむ。ここから操作できる
+        private const string IntroAnime = "Image/06.DanSelect/Background/Anime.aup2";
+        private const string HeaderImage = "Image/06.DanSelect/Header.png";
+        private const string IntroSoundFile = "Sound/DanSelect/Intro.ogg";      // aup2 の中の Sound.ogg と同じ長さ（3.4秒）
+        private const string BgmFile = "Sound/BGM/DanSelect.ogg";
+        private const float HeaderFrame = 197f, TilesFrom = 221f, TilesTo = 263f, PanelFrom = 263f, PanelTo = 275f;
+        private readonly bool withIntro;
+        private Aup2? intro;
+        private float introTime;
+        private SoundEffect? introSound;
+        private Song? bgm;
+        private bool bgmStarted;
+
+        // 段位を切りかえたときのパネルの動き（前のパネルが横へ出ていって、次のパネルが反対から入る。動画：合わせて約0.2秒）
+        private const float SlideOut = 0.1f, SlideIn = 0.1f, SlideDistance = 1700f;
+        private DanCourse? slidingFrom;
+        private int slideDirection;
+        private float slideTime = 99f;
+
+        /// <param name="intro">モード選択から来たときは true（入りの演出を出す）。段位から戻ってきたときは false</param>
+        public DanSelectScene(bool intro = false) => withIntro = intro;
+
+        private float IntroFrame => intro == null ? float.MaxValue : introTime * Aup2.FramesPerSecond;
+
+        /// <summary>入りの演出が終わって、操作できるか</summary>
+        private bool IntroDone => IntroFrame >= PanelTo;
+
         // 段位プレートの画像（スキンではなく段位のフォルダから直接読む）
         private readonly Dictionary<string, Texture2D> plates = new(StringComparer.OrdinalIgnoreCase);
 
@@ -99,12 +137,35 @@ namespace TaikoSim.Scenes
             courseCursor = Math.Clamp(courseCursor, 0, Math.Max(0, Courses.Count - 1));
             deciding = null;
             confirming = null;
+
+            // 入りの演出と BGM（A-Style に無ければ何もしない）
+            string? skin = SkinManager.CurrentPath;
+            if (skin != null)
+            {
+                intro = Aup2.Load(Path.Combine(skin, IntroAnime));
+                intro?.Preload();
+                bgm = Song.Load(Path.Combine(skin, BgmFile), out _);
+                bgm?.SetLoop(true);
+                if (withIntro && intro != null)
+                {
+                    introSound = SoundEffect.Load(Path.Combine(skin, IntroSoundFile), out _, 1);
+                    introSound?.Play((float)ConfigManager.Sound.GetFinalVolume(ConfigManager.Sound.SeVolume));
+                }
+            }
+            // 戻ってきたとき（演出なし）は、最後の絵（道場）から始める
+            introTime = withIntro ? 0f : 9999f;
         }
 
         public override void Exit()
         {
             foreach (Texture2D t in plates.Values) if (t.Id != 0) Raylib.UnloadTexture(t);
             plates.Clear();
+            intro?.Unload();
+            intro = null;
+            introSound?.Dispose();
+            introSound = null;
+            bgm?.Dispose();
+            bgm = null;
         }
 
         public override void OnBack()
@@ -119,6 +180,15 @@ namespace TaikoSim.Scenes
         {
             DanList.Update();
             if (toastTimer > 0f) toastTimer -= dt;
+            introTime += dt;
+            slideTime += dt;
+            if (!IntroDone) return;   // 入りの演出の間は操作できない
+            if (!bgmStarted && bgm != null)
+            {
+                bgmStarted = true;
+                bgm.SetVolume((float)ConfigManager.Sound.GetFinalVolume(ConfigManager.Sound.BgmVolume));
+                bgm.Play(0);
+            }
             if (DanList.IsScanning || !DanList.IsScanned) return;
 
             courseCursor = Math.Clamp(courseCursor, 0, Math.Max(0, Courses.Count - 1));
@@ -180,6 +250,9 @@ namespace TaikoSim.Scenes
             // 先頭と末尾で止まる（ぐるっと回らない）
             int next = Math.Clamp(courseCursor + Math.Sign(direction), 0, Courses.Count - 1);
             if (next == courseCursor) return;
+            slidingFrom = Current;
+            slideDirection = Math.Sign(direction);
+            slideTime = 0f;
             courseCursor = next;
             MenuSounds.Ka();
         }
@@ -258,7 +331,13 @@ namespace TaikoSim.Scenes
         public override void Draw()
         {
             Gui.BeginFrame();
-            DrawBackground();
+            if (intro != null) intro.Draw(IntroFrame, holdLast: true);   // 入りの演出（終わったら道場の絵のまま）
+            else DrawBackground();
+
+            float frame = IntroFrame;
+            // 右上の「OK」とタイマーの飾り（パネルより下に描く）
+            if (frame >= HeaderFrame) MenuSkin.Whole(HeaderImage, new Rectangle(0, 0, Screen.Width, Screen.Height), Color.White);
+            if (frame < TilesFrom) return;   // 扉・道場の間は、ほかに何も出さない
 
             if (DanList.IsScanning || !DanList.IsScanned)
             {
@@ -267,13 +346,46 @@ namespace TaikoSim.Scenes
             }
             if (Courses.Count == 0) { DrawEmpty(); return; }
 
+            // 段位の札：左から右へ出てくる
+            float tiles = Math.Clamp((frame - TilesFrom) / (TilesTo - TilesFrom), 0f, 1f);
+            if (tiles < 1f) Raylib.BeginScissorMode(0, 0, (int)(Screen.Width * tiles), Screen.Height);
             DrawTiles();
-            DrawPlate();
-            DrawPanel();
+            if (tiles < 1f) Raylib.EndScissorMode();
+
+            // パネルとプレート：入りでは右からすべりこむ。段位を切りかえたら横へ入れかわる
+            if (frame >= PanelFrom)
+            {
+                float enter = Math.Clamp((frame - PanelFrom) / (PanelTo - PanelFrom), 0f, 1f);
+                float introOffset = (1f - EaseOut(enter)) * SlideDistance;
+                if (slidingFrom != null && slideTime < SlideOut)
+                {
+                    // 前のパネルが、動かした向きと反対へ出ていく（左へ動かしたら右へ）
+                    DrawCourseShifted(slidingFrom, introOffset - slideDirection * SlideDistance * EaseOut(slideTime / SlideOut));
+                }
+                else if (Current is DanCourse current)
+                {
+                    float into = slidingFrom == null ? 1f : Math.Clamp((slideTime - SlideOut) / SlideIn, 0f, 1f);
+                    DrawCourseShifted(current, introOffset + slideDirection * SlideDistance * (1f - EaseOut(into)));
+                }
+            }
             DrawFooter();
 
             if (confirming != null) DrawConfirm();
             if (toastTimer > 0f) DrawBanner(toast);
+        }
+
+        // パネルとプレートを、横に dx ずらして描く
+        private void DrawCourseShifted(DanCourse course, float dx)
+        {
+            bool shifted = Math.Abs(dx) > 0.5f;
+            if (shifted)
+            {
+                Rlgl.PushMatrix();
+                Rlgl.Translatef(dx, 0f, 0f);
+            }
+            DrawPlate(course);
+            DrawPanel(course);
+            if (shifted) Rlgl.PopMatrix();
         }
 
         private static void DrawBackground()
@@ -391,9 +503,8 @@ namespace TaikoSim.Scenes
         };
 
         // 左の段位プレート（縦看板）
-        private void DrawPlate()
+        private void DrawPlate(DanCourse course)
         {
-            if (Current is not DanCourse course) return;
             if (Plate(course) is not Texture2D plate || plate.Id == 0) return;
 
             Raylib.DrawTexturePro(plate, new Rectangle(0, 0, plate.Width, plate.Height),
@@ -401,9 +512,8 @@ namespace TaikoSim.Scenes
         }
 
         // 中央のクリーム色の大パネル
-        private void DrawPanel()
+        private void DrawPanel(DanCourse course)
         {
-            if (Current is not DanCourse course) return;
 
             Rectangle outer = new(PanelX, PanelY, PanelWidth, PanelHeight);
             Raylib.DrawRectangleRounded(outer, Roundness(outer, 14f), 10, PanelRed);

@@ -1,4 +1,5 @@
-﻿using Raylib_cs;
+﻿using TaikoSim.Charts;
+using Raylib_cs;
 using TaikoSim.Audio;
 using TaikoSim.Configs;
 using TaikoSim.Graphics;
@@ -52,6 +53,19 @@ namespace TaikoSim.Scenes
         private string toast = "";
         private float toastTimer = 0f;
 
+        // 段位道場のカテゴリ選び（dan.def ごと）。TaikøNauts と同じく、モード選択で段位道場を決めると
+        //   板の上に吹き出し「◀ 2026段位道場 ▶」が出て、←→で選んでドンで決める（10/31 の動画 01-44-20 の17〜23秒）。
+        //   吹き出しは A-Style の 01.Entry/DanCategorySelect/Popup.png（870×122）を原寸で (525, 258)。
+        //   動画では吹き出しの外は暗くなる。矢印は Cursor.png（50×50、右は左右反転）
+        private const string CategoryPopup = EntryFolder + "DanCategorySelect/Popup.png";
+        private const string CategoryCursor = EntryFolder + "DanCategorySelect/Cursor.png";
+        private static readonly Rectangle PopupArea = new(525f, 258f, 870f, 122f);
+        private const string DanEntrySound = "Sound/Entry/DaniDojo.ogg";
+        private bool choosingCategory;
+        private int categoryChoice;
+        private float popupAge;
+        private SoundEffect? danEntrySound;
+
         private static Item Current => Items[cursor];
 
         public override void Enter()
@@ -64,11 +78,26 @@ namespace TaikoSim.Scenes
             MenuSkin.Preload(EntryFolder, new[] { "Background.png", "Header.png", "Background_Fireworks.png" });
             MenuSkin.Preload(EntryBarFolder, new[] { "Bar/0.png", "Bar/1.png", "Title/0.png", "Title/1.png",
                 "Overlay.png", "Selected.png", "Pop/0.png", "1POnly.png" });
+            choosingCategory = false;
+            // 段位のカテゴリを、決める前に読んでおく（裏で読むので止まらない）
+            if (!DanList.IsScanned && !DanList.IsScanning) DanList.StartScan();
+        }
+
+        public override void Exit()
+        {
+            danEntrySound?.Dispose();
+            danEntrySound = null;
         }
 
         // Esc：1回目は確認を出す、確認中(3秒以内)にもう1回押したら終了。点滅中なら決定をやめる
         public override void OnBack()
         {
+            if (choosingCategory)
+            {
+                choosingCategory = false;
+                MenuSounds.Ka();
+                return;
+            }
             if (deciding != null)
             {
                 deciding = null;
@@ -89,6 +118,12 @@ namespace TaikoSim.Scenes
             if (exitTimer > 0f) exitTimer -= dt;
             if (toastTimer > 0f) toastTimer -= dt;
             list.Update(dt, cursor);
+            DanList.Update();
+            if (choosingCategory)
+            {
+                UpdateCategory(dt);
+                return;
+            }
 
             // 決定したあとの点滅中は、何もできない。点滅が終わったら次の画面へ
             if (deciding != null)
@@ -135,8 +170,54 @@ namespace TaikoSim.Scenes
             }
             MenuSounds.Don();
             exitTimer = 0f;
+
+            // 段位道場：段位のカテゴリが読めていれば、先にカテゴリを選ぶ
+            if (item.Title == "段位道場" && DanList.IsScanned && DanList.Categories.Count > 0)
+            {
+                choosingCategory = true;
+                categoryChoice = Math.Clamp(DanSelectScene.CategoryIndex, 0, DanList.Categories.Count - 1);
+                popupAge = 0f;
+                return;
+            }
+            StartDecide(item);
+        }
+
+        private void StartDecide(Item item)
+        {
             deciding = item;
             list.StartDecide();
+        }
+
+        // カテゴリの吹き出し：カッ・←→で選ぶ、ドンで決める（決めると板が光って段位道場へ）
+        private void UpdateCategory(float dt)
+        {
+            popupAge += dt;
+            int count = DanList.Categories.Count;
+            if (count == 0) { choosingCategory = false; return; }
+
+            int move = 0;
+            if (InputManager.IsDrumPressed(DrumPart.LeftKa) || KeyPressed(KeyboardKey.Left)) move--;
+            if (InputManager.IsDrumPressed(DrumPart.RightKa) || KeyPressed(KeyboardKey.Right)) move++;
+            if (move != 0)
+            {
+                categoryChoice = (categoryChoice + move + count) % count;
+                MenuSounds.Ka();
+            }
+
+            if (InputManager.IsDonPressed() || Raylib.IsKeyPressed(KeyboardKey.Enter) || Raylib.IsKeyPressed(KeyboardKey.KpEnter))
+            {
+                MenuSounds.Don();
+                DanSelectScene.CategoryIndex = categoryChoice;
+                choosingCategory = false;
+                // 「段位道場」の声（A-Style の Sound/Entry/DaniDojo.ogg。推測なんだけど、決めたときに鳴るもの）
+                string? skin = SkinManager.CurrentPath;
+                if (skin != null)
+                {
+                    danEntrySound ??= SoundEffect.Load(Path.Combine(skin, DanEntrySound), out _, 1);
+                    danEntrySound?.Play((float)ConfigManager.Sound.GetFinalVolume(ConfigManager.Sound.VoiceVolume));
+                }
+                StartDecide(Current);
+            }
         }
 
         // 点滅が終わったら、その項目の画面を開く
@@ -145,7 +226,7 @@ namespace TaikoSim.Scenes
             switch (item.Title)
             {
                 case "演奏ゲーム": SceneManager.ToSongSelectFromMode(new SongSelectScene()); break;
-                case "段位道場": SceneManager.ToSongSelectFromMode(new DanSelectScene()); break;
+                case "段位道場": SceneManager.ToDanSelectFromMode(new DanSelectScene(intro: true)); break;
                 case "設定": Game.OpenSettings(); break;
                 case "クレジット": SceneManager.Simple(new CreditsScene()); break;
             }
@@ -195,8 +276,39 @@ namespace TaikoSim.Scenes
                 DrawHint("テスト：.tja ファイルをウィンドウにドラッグ＆ドロップすると譜面が流れます", 984, new Color(240, 205, 120, 255), 20);
             }
 
+            if (choosingCategory) DrawCategoryPopup();
             if (toastTimer > 0f) DrawBanner(toast, new Color(255, 200, 60, 255));
             else if (exitTimer > 0f) DrawBanner("3秒以内にもう一度 Esc を押すと終了します", new Color(255, 200, 60, 255));
+        }
+
+        // カテゴリの吹き出し（まわりは暗くする）
+        private void DrawCategoryPopup()
+        {
+            float t = Math.Clamp(popupAge / 0.1f, 0f, 1f);
+            Raylib.DrawRectangle(0, 0, Screen.Width, Screen.Height, new Color(0, 0, 0, (int)(110 * t)));
+            if (DanList.Categories.Count == 0) return;
+            string title = DanList.Categories[Math.Clamp(categoryChoice, 0, DanList.Categories.Count - 1)].Title;
+            Color ink = new(12, 12, 16, 255);
+
+            if (!MenuSkin.Whole(CategoryPopup, PopupArea, MenuSkin.White(t)))
+            {
+                Rectangle pill = new(PopupArea.X + 20f, PopupArea.Y + 18f, PopupArea.Width - 40f, 72f);
+                Raylib.DrawRectangleRounded(pill, 1f, 12, Fade(ink, t));
+                Raylib.DrawRectangleRounded(new Rectangle(pill.X + 6f, pill.Y + 6f, pill.Width - 12f, pill.Height - 12f), 1f, 12,
+                    Fade(new Color(244, 244, 244, 255), t));
+            }
+            Outlined(title, new Rectangle(PopupArea.X + 90f, PopupArea.Y + 22f, PopupArea.Width - 180f, 66f), 34f,
+                Fade(Color.White, t), Fade(ink, t));
+
+            // 左右の矢印（カテゴリが2つ以上のときだけ。ゆっくり明るくなったり暗くなったり）
+            if (DanList.Categories.Count < 2) return;
+            float pulse = 0.55f + 0.45f * MathF.Abs(MathF.Sin(popupAge * MathF.PI));
+            Rectangle left = new(PopupArea.X + 25f, PopupArea.Y + 31f, 50f, 50f);
+            Rectangle right = new(PopupArea.X + PopupArea.Width - 75f, PopupArea.Y + 31f, 50f, 50f);
+            if (!MenuSkin.Whole(CategoryCursor, left, MenuSkin.White(t * pulse)))
+                Outlined("◀", left, 34f, Fade(new Color(255, 236, 110, 255), t * pulse), Fade(ink, t));
+            if (!MenuSkin.Part(CategoryCursor, new Rectangle(0, 0, -50, 50), right, MenuSkin.White(t * pulse)))
+                Outlined("▶", right, 34f, Fade(new Color(255, 236, 110, 255), t * pulse), Fade(ink, t));
         }
 
         // 01.Entry が無いスキンはモード専用画像を試し、無ければシステムのグラデーションに戻す

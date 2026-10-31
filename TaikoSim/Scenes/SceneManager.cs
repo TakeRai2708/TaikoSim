@@ -28,6 +28,8 @@ namespace TaikoSim.Scenes
         // モード選択 → 選曲：0.5秒で暗く → 1.05秒真っ黒 → 0.3秒で明るく
         public static void ToSongSelectFromMode(Scene scene) => ChangeScene(scene, 0.5f, 1.05f, 0.3f);
         // 選曲 → モード選択：0.5秒で暗く → 0.8秒真っ黒 → 0.65秒で明るく
+        // モード選択 → 段位選択：0.5秒で暗く → 0.4秒真っ黒 → 0.3秒で扉の絵が出てくる（10/31 の動画 01-44-20 の25.8〜27.0秒）
+        public static void ToDanSelectFromMode(Scene scene) => ChangeScene(scene, 0.5f, 0.4f, 0.3f);
         public static void ToModeFromSongSelect(Scene scene) => ChangeScene(scene, 0.5f, 0.8f, 0.65f);
         // リザルト → 次の画面：暗くするのはリザルトが自分でやる(曲もいっしょに小さくするので)。そのあと 0.5秒で明るく
         public static void AfterResult(Scene scene) => ChangeScene(scene, 0f, 0f, 0.5f);
