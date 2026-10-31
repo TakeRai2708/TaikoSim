@@ -80,8 +80,9 @@ namespace TaikoSim.Scenes
 
         // 確認ポップアップ
         private DanCourse? confirming;
-        private bool confirmYes = true;
+        private int confirmChoice = 1;   // 0＝スパナ（演奏オプション。A-Style のときだけ）・1＝挑戦する・2＝挑戦しない
         private float confirmAge;
+        private readonly PlayOptionsPanel options = new();   // 確認のスパナから開く演奏オプション
 
         private string toast = "";
         private float toastTimer;
@@ -170,6 +171,7 @@ namespace TaikoSim.Scenes
 
         public override void OnBack()
         {
+            if (options.IsOpen) { options.Close(); return; }
             if (confirming != null) { CloseConfirm(); return; }
             SceneManager.ToModeFromSongSelect(new ModeSelectScene());
         }
@@ -182,6 +184,7 @@ namespace TaikoSim.Scenes
             if (toastTimer > 0f) toastTimer -= dt;
             introTime += dt;
             slideTime += dt;
+            options.Update(dt);
             if (!IntroDone) return;   // 入りの演出の間は操作できない
             if (!bgmStarted && bgm != null)
             {
@@ -278,7 +281,7 @@ namespace TaikoSim.Scenes
 
             MenuSounds.Don();
             confirming = course;
-            confirmYes = true;
+            confirmChoice = 1;
             confirmAge = 0f;
         }
 
@@ -288,29 +291,44 @@ namespace TaikoSim.Scenes
             MenuSounds.Ka();
         }
 
+        // A-Style のときは「スパナ・挑戦する・挑戦しない」の3つ（本家と同じ）、ほかは「挑戦する・挑戦しない」の2つ
+        private bool ThreeButtons => DanSelectAStyle.ConfirmAvailable;
+
         private void UpdateConfirm(float dt)
         {
             confirmAge += dt;
+            if (options.IsOpen) return;   // 演奏オプションを開いている間は、板の方が入力を使う
 
-            if (InputManager.IsDrumPressed(DrumPart.LeftKa) || InputManager.IsDrumPressed(DrumPart.RightKa)
-                || KeyPressed(KeyboardKey.Left) || KeyPressed(KeyboardKey.Right))
+            int move = 0;
+            if (InputManager.IsDrumPressed(DrumPart.LeftKa) || KeyPressed(KeyboardKey.Left)) move--;
+            if (InputManager.IsDrumPressed(DrumPart.RightKa) || KeyPressed(KeyboardKey.Right)) move++;
+            if (move != 0)
             {
-                confirmYes = !confirmYes;
-                MenuSounds.Ka();
+                int min = ThreeButtons ? 0 : 1;
+                int next = Math.Clamp(confirmChoice + move, min, 2);
+                if (next != confirmChoice) { confirmChoice = next; MenuSounds.Ka(); }
             }
 
             if (InputManager.IsDonPressed() || Raylib.IsKeyPressed(KeyboardKey.Enter) || Raylib.IsKeyPressed(KeyboardKey.KpEnter))
+                ChooseConfirm(confirmChoice);
+        }
+
+        private void ChooseConfirm(int choice)
+        {
+            if (confirming is not DanCourse course) return;
+            if (choice == 0)
             {
-                DanCourse course = confirming!;
-                confirming = null;
-                if (confirmYes)
-                {
-                    MenuSounds.Don();
-                    deciding = course;
-                    decideTimer = 0f;
-                }
-                else MenuSounds.Ka();
+                options.Open();   // 開く音は板の方で鳴らす
+                return;
             }
+            confirming = null;
+            if (choice == 1)
+            {
+                MenuSounds.Don();
+                deciding = course;
+                decideTimer = 0f;
+            }
+            else MenuSounds.Ka();
         }
 
         private static void Start(DanCourse course)
@@ -370,7 +388,20 @@ namespace TaikoSim.Scenes
             }
             DrawFooter();
 
-            if (confirming != null) DrawConfirm();
+            if (confirming != null)
+            {
+                if (ThreeButtons)
+                {
+                    DanSelectAStyle.DrawConfirm(confirmAge, confirmChoice, introTime);
+                    if (!options.IsOpen && Raylib.IsMouseButtonPressed(MouseButton.Left))
+                    {
+                        int clicked = DanSelectAStyle.ButtonAt(Screen.GetMousePosition());
+                        if (clicked >= 0) { confirmChoice = clicked; ChooseConfirm(clicked); }
+                    }
+                }
+                else DrawConfirm();
+            }
+            options.Draw(true);
             if (toastTimer > 0f) DrawBanner(toast);
         }
 
@@ -406,6 +437,11 @@ namespace TaikoSim.Scenes
         {
             bool fixedSlots = Courses.All(c => c.DanIndex is >= 0 and < SlotCount)
                               && Courses.Select(c => c.DanIndex).Distinct().Count() == Courses.Count;
+            if (fixedSlots && DanSelectAStyle.Available)
+            {
+                DanSelectAStyle.DrawTiles(Courses, courseCursor, introTime);
+                return;
+            }
             if (fixedSlots)
             {
                 for (int slot = 0; slot < SlotCount; slot++)
@@ -514,6 +550,11 @@ namespace TaikoSim.Scenes
         // 中央のクリーム色の大パネル
         private void DrawPanel(DanCourse course)
         {
+            if (DanSelectAStyle.Available)
+            {
+                DanSelectAStyle.DrawPanel(course);
+                return;
+            }
 
             Rectangle outer = new(PanelX, PanelY, PanelWidth, PanelHeight);
             Raylib.DrawRectangleRounded(outer, Roundness(outer, 14f), 10, PanelRed);
@@ -705,9 +746,9 @@ namespace TaikoSim.Scenes
             float buttonWidth = 300f, buttonHeight = 86f;
             float by = inner.Y + inner.Height - buttonHeight - 40f;
             DrawConfirmButton(new Rectangle(inner.X + inner.Width / 2f - buttonWidth - 20f, by, buttonWidth, buttonHeight),
-                "挑戦する", confirmYes);
+                "挑戦する", confirmChoice == 1);
             DrawConfirmButton(new Rectangle(inner.X + inner.Width / 2f + 20f, by, buttonWidth, buttonHeight),
-                "挑戦しない", !confirmYes);
+                "挑戦しない", confirmChoice == 2);
         }
 
         private void DrawConfirmButton(Rectangle box, string label, bool selected)
@@ -720,11 +761,8 @@ namespace TaikoSim.Scenes
 
             if (Gui.Clicked(box))
             {
-                confirmYes = label == "挑戦する";
-                DanCourse course = confirming!;
-                confirming = null;
-                if (confirmYes) { MenuSounds.Don(); deciding = course; decideTimer = 0f; }
-                else MenuSounds.Ka();
+                confirmChoice = label == "挑戦する" ? 1 : 2;
+                ChooseConfirm(confirmChoice);
             }
         }
 
