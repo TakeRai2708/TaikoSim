@@ -48,7 +48,9 @@ namespace TaikoSim.Scenes
         private const float CondBoxX = 775f, CondBoxWidth = 990f;
         private const float CondBoxHeight = 110f, CondBoxStep = 133f;
 
-        private const float PlateX = 205f, PlateY = 320f, PlateHeight = 320f;
+        // 段位プレート：本家の段位選択（ニジイロ・達人のスクショ）は x145〜375・y205〜、幅約230・高さ約485。
+        //   縦横比は保ってこの枠に収める（10/31 に測り直した。前は高さ320で小さかった）
+        private const float PlateX = 145f, PlateY = 205f, PlateWidth = 230f, PlateHeight = 485f;
 
         // 色（動画から拾った）
         private static readonly Color Cream = new(250, 242, 218, 255);
@@ -394,10 +396,8 @@ namespace TaikoSim.Scenes
             if (Current is not DanCourse course) return;
             if (Plate(course) is not Texture2D plate || plate.Id == 0) return;
 
-            float h = PlateHeight;
-            float w = h * plate.Width / Math.Max(1, plate.Height);
             Raylib.DrawTexturePro(plate, new Rectangle(0, 0, plate.Width, plate.Height),
-                new Rectangle(PlateX, PlateY, w, h), System.Numerics.Vector2.Zero, 0f, Color.White);
+                DanPanel.FitPlate(plate, PlateX, PlateY, PlateWidth, PlateHeight), System.Numerics.Vector2.Zero, 0f, Color.White);
         }
 
         // 中央のクリーム色の大パネル

@@ -250,7 +250,10 @@ namespace TaikoSim.Scenes
             }
         }
 
-        public void DrawGauge(PlayStats stats)
+        /// <summary>ノルマの境目（段差）の x。段位の「99%以上」の矢印と目印をここに合わせる</summary>
+        public static float NormaBorderX(int norma) => GaugeX + 12 + (norma / 2 - 1) * CellWidth;
+
+        public void DrawGauge(PlayStats stats, bool dan = false)
         {
             if (SkinManager.GetTexture(GaugeBase) is not Texture2D frame
                 || SkinManager.GetTexture(GaugeLight) is not Texture2D light)
@@ -355,7 +358,14 @@ namespace TaikoSim.Scenes
                 DrawPart(frame, new Rectangle(1062, 6 * 84, 133, 84), GaugeX + 1062, GaugeY, tint: markTint);
             }
 
-            if (SkinManager.GetTexture(ClearText) is Texture2D clear)
+            if (dan)
+            {
+                // 段位：「クリア」の字は出さず、合格ボーダーに白い縦の目印（本家・八段のスクショで x≈1750・y235〜290）
+                float mx = NormaBorderX(stats.Norma);
+                Raylib.DrawRectangleRounded(new Rectangle(mx - 7f, GaugeY + 29f, 14f, 59f), 0.5f, 6, new Color(20, 20, 24, 255));
+                Raylib.DrawRectangleRounded(new Rectangle(mx - 4f, GaugeY + 32f, 8f, 53f), 0.5f, 6, Color.White);
+            }
+            else if (SkinManager.GetTexture(ClearText) is Texture2D clear)
             {
                 float height = clear.Height / 2f;
                 DrawPart(clear, new Rectangle(0, stats.IsClear ? height : 0, clear.Width, height),

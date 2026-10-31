@@ -1599,7 +1599,7 @@ namespace TaikoSim.Scenes
             DebugLog.End(PerfSection.PlayLane, t);
 
             t = DebugLog.Begin();
-            hud.DrawGauge(stats);
+            hud.DrawGauge(stats, dan != null);   // 段位は「クリア」の字の代わりにボーダーの目印
             DebugLog.End(PerfSection.PlayGauge, t);
 
             t = DebugLog.Begin();

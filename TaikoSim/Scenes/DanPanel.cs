@@ -30,12 +30,18 @@ namespace TaikoSim.Scenes
         private const float RowBackX = 126f, RowBackWidth = 1514f;    // 行の背景
         private const float LabelX = 126f, LabelWidth = 364f, LabelHeight = 38f, LabelAbove = 29f;
         private const float NeedRight = 478f;                         // 「285 未満」の右はし
-        private const float PlateX = 1628f, PlateY = 652f, PlateHeight = 311f;
+        // 段位プレート：本家（ニジイロ・達人の動画）は幅約230・高さ約485 の枠で x1560〜1790・y560〜1045。
+        //   画像の縦横比は保って、この枠に収める（10/31 にたけらいのスクショで測り直した。前は高さ311で小さかった）
+        private const float PlateX = 1560f, PlateY = 560f, PlateWidth = 230f, PlateHeight = 485f;
 
         // ===== 上 =====
         private const float SongCountX = 1587f, SongCountY = 103f, SongCountWidth = 288f, SongCountHeight = 32f;
-        private const float GaugeLabelX = 1190f, GaugeLabelY = 175f, GaugeLabelWidth = 550f, GaugeLabelHeight = 60f;
-        private const float GaugeTabWidth = 295f, GaugeTabHeight = 38f;
+        // 「魂ゲージ 99%以上」の札：本家（八段のスクショ）は x1190〜1775・y175〜235、タブは幅300。
+        //   字は x1722 で右をそろえ、その右にゲージのボーダーをさす赤い下向きの矢印（y190〜228）
+        private const float GaugeLabelX = 1190f, GaugeLabelY = 175f, GaugeLabelWidth = 585f, GaugeLabelHeight = 60f;
+        private const float GaugeTabWidth = 300f, GaugeTabHeight = 38f;
+        private const float GaugeTextRight = 1722f;
+        private const float ArrowTop = 190f, ArrowBottom = 228f;
         private const float CounterX = 28f, CounterY = 105f, CounterWidth = 187f, CounterHeight = 110f;
 
         // ===== 色（動画から拾った） =====
@@ -189,9 +195,25 @@ namespace TaikoSim.Scenes
             Raylib.DrawRectangleRounded(tab, 1f, 12, Tan);
             Raylib.DrawRectangleRoundedLinesEx(tab, 1f, 12, 2f, TanEdge);
             Centered("魂ゲージ", tab, 24f, Ink);
-            Outlined($"{dan.Course.Gauge.Red} %以上",
-                new Rectangle(GaugeLabelX + GaugeTabWidth, GaugeLabelY + 4f, GaugeLabelWidth - GaugeTabWidth, GaugeLabelHeight - 8f),
-                34f, Color.White, new Color(20, 20, 24, 255));
+            string need = $"{dan.Course.Gauge.Red} %以上";
+            float width = Measure(need, 40f).X;
+            OutlinedAt(need, GaugeTextRight - width, GaugeLabelY + 6f, 40f, Color.White, new Color(20, 20, 24, 255));
+
+            // ボーダーをさす赤い矢印（ゲージの白い目印の真上）
+            float ax = PlayHUD.NormaBorderX((int)Math.Clamp(dan.Course.Gauge.Red, 0, 100));
+            Color edge = new(60, 10, 10, 255), red = new(232, 30, 30, 255);
+            DrawArrow(ax, edge, 3f);
+            DrawArrow(ax, red, 0f);
+        }
+
+        // 下向きの矢印（棒＋三角）。grow をつけると、そのぶん太らせて縁にする
+        private static void DrawArrow(float x, Color color, float grow)
+        {
+            float stemTop = ArrowTop - grow, headTop = ArrowTop + 15f - grow, bottom = ArrowBottom + grow;
+            Raylib.DrawRectangleRec(new Rectangle(x - 5f - grow, stemTop, 10f + grow * 2f, headTop - stemTop + 2f), color);
+            Vector2 l = new(x - 14f - grow, headTop), r = new(x + 14f + grow, headTop), b = new(x, bottom);
+            Raylib.DrawTriangle(l, b, r, color);
+            Raylib.DrawTriangle(l, r, b, color);
         }
 
         // 左上の小さいカウンター（良・可・不可・連打数）
@@ -248,9 +270,8 @@ namespace TaikoSim.Scenes
 
             if (Plate() is Texture2D p)
             {
-                float w = PlateHeight * p.Width / Math.Max(1, p.Height);
                 Raylib.DrawTexturePro(p, new Rectangle(0, 0, p.Width, p.Height),
-                    new Rectangle(PlateX + 65f - w / 2f, PlateY, w, PlateHeight), System.Numerics.Vector2.Zero, 0f, Color.White);
+                    FitPlate(p, PlateX, PlateY, PlateWidth, PlateHeight), Vector2.Zero, 0f, Color.White);
             }
         }
 
@@ -422,6 +443,14 @@ namespace TaikoSim.Scenes
                 if (reach == DanReach.Better) DrawRainbowNumber(v, inner.X + 4f, inner.Y - 4f, 26f);
                 else OutlinedAt(v, inner.X + 4f, inner.Y - 4f, 26f, Color.White, new Color(20, 20, 24, 255));
             }
+        }
+
+        /// <summary>プレートの画像を、縦横比を保って枠に収める（横はまんなか・上はそろえる）</summary>
+        public static Rectangle FitPlate(Texture2D image, float x, float y, float width, float height)
+        {
+            float scale = Math.Min(width / Math.Max(1, image.Width), height / Math.Max(1, image.Height));
+            float w = image.Width * scale, h = image.Height * scale;
+            return new Rectangle(x + (width - w) / 2f, y, w, h);
         }
 
         private static string LabelText(DanExamType type) => type switch
