@@ -70,6 +70,9 @@ namespace TaikoSim.Scenes
         private readonly DanShutter? danShutter;  // 段位のときだけ：曲と曲のあいだにレーンを閉じる扉
         private readonly DanEndBanner danEnd = new();   // 段位の最後の曲の終わりに出す「不合格」など
         private long danStartScore;              // 段位：今の曲を始めたときのスコア（前の曲までの合計）
+        // 段位の上の背景：A-Style の 08.DanGame/Background/0〜/Anime.aup2 を番号の順に重ねる（1920×276 の画面。ずっとくり返す）
+        private readonly List<Aup2> danBackground = new();
+        private float danBackgroundTime;
         private const float DanEndShowSeconds = 3f;   // 「不合格」などを出してから暗くし始めるまで
         public bool IsDan => dan != null;
 
@@ -393,6 +396,16 @@ namespace TaikoSim.Scenes
             Restart();
 
             // 段位：1曲目も、閉じた扉から始めて、開くと曲名を出す（本家・OpenTaiko と同じ）
+            if (dan != null && SkinManager.CurrentPath is string skinPath)
+            {
+                for (int layer = 0; layer < 10; layer++)
+                {
+                    Aup2? anime = Aup2.Load(Path.Combine(skinPath, "Image", "08.DanGame", "Background", layer.ToString(), "Anime.aup2"));
+                    if (anime == null) continue;
+                    anime.Preload();
+                    danBackground.Add(anime);
+                }
+            }
             if (dan != null && danShutter != null)
             {
                 danShutter.LoadSounds();
@@ -434,6 +447,8 @@ namespace TaikoSim.Scenes
             StopSong();
             danPanel?.Unload();
             danShutter?.Unload();
+            foreach (Aup2 anime in danBackground) anime.Unload();
+            danBackground.Clear();
             SkinManager.SystemSkin = false; // ほかの画面は、いつものスキンで
         }
 
@@ -632,6 +647,7 @@ namespace TaikoSim.Scenes
         {
             danPanel?.Update(dt);
             danShutter?.Update(dt);
+            danBackgroundTime += dt;
             // クイックリスタート(F5)で最初から（段位道場のときは、段位の1曲目から）
             if (InputManager.IsSystemPressed(SystemAction.QuickRestart))
             {
@@ -1583,7 +1599,12 @@ namespace TaikoSim.Scenes
             // デバッグ記録：どこに何 ms かかったかを測る(PerfSection.Play〜)
             long t = DebugLog.Begin();
             // システムのスキンのときは背景を描かない(背景のアニメは画像を先に持っているので)
-            if (!SkinManager.SystemSkin) background.Draw();
+            if (!SkinManager.SystemSkin)
+            {
+                if (danBackground.Count > 0)
+                    foreach (Aup2 anime in danBackground) anime.Draw(anime.LoopedFrameAt(danBackgroundTime));
+                else background.Draw();
+            }
             // 段位のときは、下半分を条件パネルにする(下の背景・ダンサーの上に描く)
             if (dan != null && danPanel != null)
             {

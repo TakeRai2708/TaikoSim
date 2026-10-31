@@ -77,6 +77,13 @@ namespace TaikoSim.Graphics
         private readonly string folder;
         private readonly Dictionary<string, Texture2D> textures = new();
 
+        /// <summary>
+        /// aup2 の画面の大きさ（[scene.0] の video.width / video.height）。座標の (0,0) はこの画面のまんなか。
+        /// 段位の入りは 1920×1080 だけど、演奏中の上の背景（08.DanGame/Background）は 1920×276 なので、ファイルごとに読む
+        /// </summary>
+        public float Width { get; private set; } = 1920f;
+        public float Height { get; private set; } = 1080f;
+
         /// <summary>いちばん最後のコマ（これを過ぎたら終わり）</summary>
         public int LastFrame { get; private set; }
 
@@ -155,6 +162,12 @@ namespace TaikoSim.Graphics
                 }
                 int eq = line.IndexOf('=');
                 if (eq > 0) values[line[..eq]] = line[(eq + 1)..];
+                if (section == "scene.0" && eq > 0)
+                {
+                    string key = line[..eq], value = line[(eq + 1)..];
+                    if (key == "video.width" && TryFloat(value, out float w) && w > 0) Width = w;
+                    if (key == "video.height" && TryFloat(value, out float h) && h > 0) Height = h;
+                }
             }
             Flush();
 
@@ -203,6 +216,13 @@ namespace TaikoSim.Graphics
             }
         }
 
+        /// <summary>秒 → コマ。ずっとくり返す背景用（最後のコマの次は 0 コマ目へ）</summary>
+        public float LoopedFrameAt(float seconds)
+        {
+            float length = LastFrame + 1f;
+            return (seconds * FramesPerSecond) % length;
+        }
+
         /// <summary>秒 → コマ。ループ指定があれば、最後まで行ったらループの頭へ戻る</summary>
         public float FrameAt(float seconds)
         {
@@ -213,7 +233,7 @@ namespace TaikoSim.Graphics
         }
 
         /// <summary>
-        /// frame コマ目の絵を描く。offset は画面の左上からのずらし（ふつうは 0）。
+        /// frame コマ目の絵を描く。offset は aup2 の画面の左上を、ゲームの画面のどこに置くか（ふつうは 0）。
         /// holdLast を true にすると、最後のコマを過ぎても最後の絵を出しつづける。
         /// </summary>
         public void Draw(float frame, Vector2 offset = default, float alpha = 1f, bool holdLast = false)
@@ -257,7 +277,7 @@ namespace TaikoSim.Graphics
 
             // 画像の中の軸（まんなか＋中心X/Y）を、画面の (960 + X, 540 + Y) に合わせる
             float pivotX = tex.Width / 2f + item.CenterX.At(t), pivotY = tex.Height / 2f + item.CenterY.At(t);
-            Vector2 at = new(Screen.Width / 2f + item.X.At(t) + offset.X, Screen.Height / 2f + item.Y.At(t) + offset.Y);
+            Vector2 at = new(Width / 2f + item.X.At(t) + offset.X, Height / 2f + item.Y.At(t) + offset.Y);
 
             Raylib.BeginBlendMode(item.Blend switch
             {

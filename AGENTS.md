@@ -412,6 +412,8 @@ A-Style の見た目は**横倒しの太鼓**（どんちゃん＝赤い顔・�
 - 魂ゲージの札 `Gauge/Condition_Plate.png`（タブと赤い矢印入り）(1192,163)、目印 `Gauge/Condition_Stopper.png` をボーダーの x−21・y230
 - 左のパネル `MiniTaiko/Background.png` (0,276)、「段位道場」マーク `MiniTaiko/CourseSymbol.png` (27,351)
 - 扉 `Screen.png`（1422×195）：閉じきると (498,288)。左半分・右半分がそれぞれ外から入る
+- 上の背景：`Background/0〜5/Anime.aup2` を番号の順に重ねて、それぞれずっとくり返す（`Background/Anime.aup2` は作った人の確認用なので使わない）。
+  **この aup2 は画面の大きさが 1920×276**（`[scene.0]` の video.width/height）。座標の (0,0) はその画面のまんなかなので、`Aup2` はファイルごとに大きさを読む
 - 最後の字 `End/Text.png`（800×150 が3つ：金の合格・赤の合格・不合格。金と赤の順番は推測）を原寸で (809,309)
 
 - **まだ作っていない**：
