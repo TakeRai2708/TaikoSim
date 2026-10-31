@@ -24,7 +24,8 @@ namespace TaikoSim.Scenes
         private static readonly Item[] Items =
         {
             new("演奏ゲーム", "すきな曲・むずかしさをえらんであそぶ", new Color(225, 70, 80, 255), true),
-            new("段位道場", "すきな段位にちょうせんする", new Color(70, 90, 170, 255), true),
+            // 説明は TaikøNauts と同じ3行（10/31 の動画 2026-10-31_01-44-20.mp4 の16秒あたり）
+            new("段位道場", "3曲連続して演奏しながら、\nお題の合格を目指そう!\n合格すると腕前が認定されるよ!", new Color(70, 90, 170, 255), true),
             new("特訓モード", "準備中", new Color(60, 150, 110, 255), false),
             new("設定", "音・キー・画面・スキンなどの設定", new Color(90, 100, 125, 255), true),
             new("クレジット", "使っているソフト・フォント・ライセンス", new Color(60, 130, 150, 255), true),
@@ -317,7 +318,8 @@ namespace TaikoSim.Scenes
             Outlined(item.Title, new Rectangle(inner.X + 20, inner.Y + 30, inner.Width - 40, 90), 72, text, ink);
             Rectangle pill = new Rectangle(inner.X + 60, inner.Y + inner.Height - 110, inner.Width - 120, 70);
             Raylib.DrawRectangleRounded(pill, 1f, 12, Fade(new Color(255, 255, 255, 210), open));
-            Centered(item.Description, new Rectangle(pill.X + 20, pill.Y, pill.Width - 40, pill.Height), 32, Fade(ink, open));
+            // スキンの画像が無いときの細い帯は1行しか入らないので、行をつなげて書く（はみ出すぶんは小さくなる）
+            Centered(item.Description.Replace("\n", ""), new Rectangle(pill.X + 20, pill.Y, pill.Width - 40, pill.Height), 32, Fade(ink, open));
         }
 
         // 980×160 の板とタイトル。開いたときは土台だけ伸ばし、タイトルは原寸で上に置く
@@ -344,7 +346,14 @@ namespace TaikoSim.Scenes
                         Outlined("えらんであそべるよ！", new Rectangle(plate.X + 20, plate.Y + 100, plate.Width - 40, 48), 36, Color.White, ink);
                     }
                     else
-                        Outlined(item.Description, plate, 38, Color.White, ink);
+                    {
+                        // 段位道場は3行（本家：行の間 55px くらい・白い字に黒い縁）
+                        string[] lines = item.Description.Split('\n');
+                        float lineHeight = Math.Min(55f, (plate.Height - 20f) / Math.Max(1, lines.Length));
+                        float top = plate.Y + (plate.Height - lineHeight * lines.Length) / 2f;
+                        for (int i = 0; i < lines.Length; i++)
+                            Outlined(lines[i], new Rectangle(plate.X + 20, top + i * lineHeight, plate.Width - 40, lineHeight), 34, Color.White, ink);
+                    }
                 }
             }
 
