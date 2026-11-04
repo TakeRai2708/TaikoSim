@@ -3,6 +3,8 @@
 このファイルは、TaikoSim の作業を引き継ぐ AI（ChatGPT / Codex など）向けの説明書です。
 作業を始める前に、全部読んでください。
 
+**問題点と確認待ちは `KNOWN-ISSUES.txt` にまとめています。作業前に読み、進捗・検証結果が変わったら更新してください。**
+
 **あわせて `TAIKONAUTS-SPEC.md` も読んでください。**
 あちらは TaikøNauts の公式ドキュメント（全50ページ）から写した「本家がどう作られているか」のメモです。
 段位道場の `dan.json`、どんちゃんの `Config.json`、`category.def` / `order.def`、`SONGGENREID` などの
