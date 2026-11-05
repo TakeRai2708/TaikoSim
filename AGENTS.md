@@ -610,6 +610,51 @@ Measured by overlaying images on frames of the 九段 video (03-04-03 at 20 s, 2
 ### What's next (discussed with たけらい)
 - **Order (10/30): dan dojo → training mode → small fixes → online battle**
 
+#### Planned: private room-based online battle (agreed with たけらい, 2026-11-05)
+
+Status: wishlist / agreed user flow only. **Not implemented by this documentation change.**
+Scope: a small friends-only room system, initially for two players. No public-service-scale matchmaking or account/ranking system is planned.
+
+Confirmed flow and requirements:
+- [ ] The host creates a room and receives an entry code.
+- [ ] The guest enters that code to join the room.
+- [ ] The room owner presses "Play" to move both players to song selection.
+- [ ] The host chooses and confirms the song.
+- [ ] **Start checking/transferring the song when the host confirms that song, not when a cursor merely highlights it, and not after both players finish choosing difficulties.**
+- [ ] If the guest lacks the matching song/chart data, automatically download the necessary files from the host. Transfer the TJA (including its difficulties), audio, and other files needed by that song.
+- [ ] Once the song is available, each player chooses their own difficulty and play options.
+- [ ] Start play only after both players confirm their choices and finish loading; coordinate a shared start/countdown.
+- [ ] Continue through normal play and results, adapted for the room.
+- [ ] When the owner leaves the room, close that room for the guest as well and return them with an explanation.
+
+Implementation decisions to settle when work starts (not additional agreed features):
+- Room server/transport and how song files travel between the players.
+- Content hashes to distinguish different files with the same title and avoid unnecessary downloads.
+- Storage/reuse of received songs, progress/cancel UI, incomplete-transfer cleanup, and validation before loading.
+- Disconnect/timeout handling, ready cancellation, and the post-result/replay flow.
+- Keep local audio and judging independent of network delays; communicate room state/start coordination and the data needed for results.
+
+
+#### Planned: full-featured mobile support and 120 Hz (2026-11-05)
+
+Status: wishlist / requirements only. **Not implemented by this documentation change.**
+Target platforms: Android and iOS.
+
+Requirements:
+- [ ] Preserve the desktop feature set rather than building a reduced mobile edition: normal play, dan dojo, skins, chart import, settings and play options, plus training and room-based online battle as those features are implemented.
+- [ ] Adapt navigation and play to touch input, including simultaneous touches, while retaining each mode's behavior. Mobile layout and platform-specific controls may differ from Windows.
+- [ ] Offer a 120 Hz / 120 fps display target when supported by the device and operating system. Request the appropriate display mode and verify actual refresh rate and frame pacing on real devices.
+- [ ] Fall back gracefully to an available refresh rate when 120 Hz cannot be used; do not assume that a 120 Hz panel guarantees sustained 120 fps.
+- [ ] Keep chart/audio clocks, judging, input timestamps and animation timing independent of rendering FPS. A higher display rate must not alter judging rules or force the 60 Hz compatibility/60-hit options.
+- [ ] Keep the agreed online-room flow on mobile, including automatic song transfer on host song confirmation (never merely on highlighting a song).
+
+Implementation work to investigate before choosing a framework:
+- Separate shared game/chart/judging logic from Windows-specific input, file picking, audio and window/display code.
+- Assess reusable rendering/skin support and Android/iOS audio backends; do not promise a direct build of the current Windows target.
+- Design touch regions and layouts for landscape screens, display cutouts and safe areas.
+- Test audio latency, multitouch, background/resume, file import, memory use and sustained high-refresh performance on real phones.
+- Treat training and online battle as planned features, not already implemented desktop functionality.
+
 #### Make rendering lighter, reduce input latency, fix the exclusive-fullscreen crash (たけらい's wish, 10/30)
 たけらい suggested "let's implement DirectX and Vulkan". Asked about the goal, it was
 **"run lighter and more stable", "reduce input latency", "fix crashes in fullscreen"**.
