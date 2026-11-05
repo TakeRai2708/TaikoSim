@@ -1350,15 +1350,6 @@ namespace TaikoSim.Scenes
             // 1P の印(カーソルの上)
             if (diffTime >= MarkerAt) DrawPlayerMarker(DiffBoxArea(diffCursor));
 
-            // 裏おにの説明(裏がある曲だけ)
-            if (HasCourse(CourseType.Oni) && HasCourse(CourseType.Edit))
-            {
-                string uraHint = diffCursor == 5
-                    ? (uraCount > 0 ? $"→ ・カッ あと {UraSwitchCount - uraCount} 回" : ura ? "→ ・カッ 10回・Tab：おもてにもどす" : "→ ・カッ 10回・Tab：裏おに")
-                    : "おにで → ・カッ 10回・Tab：裏おに";
-                Outlined(uraHint, S(new Rectangle(650, 765, 834, 34)), 24 * scale, Fade(Color.White, alpha), Fade(ink, alpha));
-            }
-
             // 下のまんなか：えらぶ・決定
             if (t >= 1f) DrawDiffHint();
         }
