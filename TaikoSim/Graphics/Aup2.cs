@@ -71,6 +71,7 @@ namespace TaikoSim.Graphics
             public Blend Blend;
             public int GroupLayers;               // グループ制御のときだけ：下の何レイヤーに効くか
             public bool IsGroup;
+            public bool FlipX, FlipY;
         }
 
         private readonly List<Item> items = new();
@@ -207,6 +208,10 @@ namespace TaikoSim.Graphics
                     item.ResizeX = Track.Parse(v.GetValueOrDefault("X"), 100);
                     item.ResizeY = Track.Parse(v.GetValueOrDefault("Y"), 100);
                     break;
+                case "反転":
+                    item.FlipX = ToInt(v.GetValueOrDefault("左右反転"), 0) != 0;
+                    item.FlipY = ToInt(v.GetValueOrDefault("上下反転"), 0) != 0;
+                    break;
                 case "グループ制御":
                     item.IsGroup = true;
                     item.X = Track.Parse(v.GetValueOrDefault("X"), 0);
@@ -277,6 +282,8 @@ namespace TaikoSim.Graphics
 
             // 画像の中の軸（まんなか＋中心X/Y）を、画面の (960 + X, 540 + Y) に合わせる
             float pivotX = tex.Width / 2f + item.CenterX.At(t), pivotY = tex.Height / 2f + item.CenterY.At(t);
+            if (item.FlipX) pivotX = tex.Width - pivotX;
+            if (item.FlipY) pivotY = tex.Height - pivotY;
             Vector2 at = new(Width / 2f + item.X.At(t) + offset.X, Height / 2f + item.Y.At(t) + offset.Y);
 
             Raylib.BeginBlendMode(item.Blend switch
@@ -285,7 +292,7 @@ namespace TaikoSim.Graphics
                 Blend.Multiply => BlendMode.Multiplied,
                 _ => BlendMode.Alpha,
             });
-            Raylib.DrawTexturePro(tex, new Rectangle(0, 0, tex.Width, tex.Height),
+            Raylib.DrawTexturePro(tex, new Rectangle(0, 0, item.FlipX ? -tex.Width : tex.Width, item.FlipY ? -tex.Height : tex.Height),
                 new Rectangle(at.X, at.Y, tex.Width * sx, tex.Height * sy),
                 new Vector2(pivotX * sx, pivotY * sy), item.Rotation.At(t),
                 new Color(255, 255, 255, (int)Math.Round(255 * Math.Clamp(opacity, 0f, 1f))));
@@ -303,6 +310,9 @@ namespace TaikoSim.Graphics
         }
 
         /// <summary>使っている画像を先に全部読んでおく（初めて出るときに止まらないように）</summary>
+        public bool HasAllImages => items.Any(i => i.Image != null)
+            && items.Where(i => i.Image != null).All(i => Texture(i.Image!) != null);
+
         public void Preload()
         {
             foreach (Item item in items)
