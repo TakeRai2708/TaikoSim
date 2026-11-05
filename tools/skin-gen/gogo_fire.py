@@ -47,13 +47,18 @@ def blob_mask(X, Y, x, y, r, angle):
 def frame(f):
     """11/5 たけらい「火の粉が多くて気が散る。A-Style 参考にして」→ A-Style の GoGoSoul.png のつくりを参考に作り直した
        （A-Style：丸い玉の右上から、くるっと巻いた炎が2〜4本。コマごとに長さと巻き方が変わる。火の粉はときどき1つだけ）
-       シンプル：玉（半径95）＋右上に巻いた炎3本（コマごとに伸び縮み）＋火の粉はコマ 3〜5 の間に1つだけ。うすいオレンジのべた塗り"""
+       シンプル：玉（半径95。ふちがゆらゆら波打つ）＋右上に巻いた炎3本（コマごとに伸び縮み）。うすいオレンジのべた塗り。
+       最後に形をぼかして切り直して、角を丸くする（このとき小さい火の粉は消えるので、火の粉は実際には出ない）"""
     S = SS
     ys, xs = np.mgrid[0:H * S, 0:W * S]
     X = xs / S
     Y = ys / S
     t = f / N * 2 * math.pi
-    m = (X - CX) ** 2 + (Y - CY) ** 2 <= 95 ** 2
+    # 玉：ふちがゆらゆら波打って、ゆっくり形が変わる(11/5「判定まわりの円、動きないじゃん」)
+    dx, dy = X - CX, Y - CY
+    theta = np.arctan2(dy, dx)
+    ball_r = 95 + 4.5 * np.sin(2 * theta - t) + 3.0 * np.sin(3 * theta + 2 * t) + 2.0 * math.sin(t * 2)
+    m = dx * dx + dy * dy <= ball_r ** 2
 
     def stroke(points, widths):
         nonlocal m
@@ -87,6 +92,9 @@ def frame(f):
         u = (f - 3) / 3
         x, y = tips[0]
         m |= blob_mask(X, Y, x + 18 * u + 6, y - 26 * u - 6, 7 * (1 - 0.5 * u), math.radians(-55))
+    # 角を丸める(11/5「かくかくしすぎ」)：形をぼかしてから半分で切り直す → とがった角・つなぎ目が丸くなる
+    soft = Image.fromarray((m * 255).astype(np.uint8)).filter(ImageFilter.GaussianBlur(7 * S))
+    m = np.array(soft) >= 128
     rgba = np.zeros((H * S, W * S, 4), dtype=np.uint8)
     rgba[m] = (255, 146, 60, 112)
     return Image.fromarray(rgba, 'RGBA').resize((W, H), Image.LANCZOS)
