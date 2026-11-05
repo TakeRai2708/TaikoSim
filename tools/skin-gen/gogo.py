@@ -10,16 +10,17 @@ def sparkle():
     シンプルの数字は明るい銀なので、加算で白を足しても見えなかった(六段の動画)。
     ふちがあるので、プログラムはふつうの重ね方で描く(暗いところがある星はふつう・無い星は加算、と PlayerEffects が決める)
     本家の星は銀の数字でも金の数字でも白のまま(六段の動画の 99→100→103 コンボ)"""
-    S = 40
+    # 11/5：「ちょっと主張激しい」→ 40→32px・ふちを細く、うすい灰色に・全体を少し透かす
+    S = 32
     c = Canvas(S, S)
     m = S / 2
     pts = []
     for i in range(8):
         a = i * math.pi / 4 - math.pi / 2
-        r = 18 if i % 2 == 0 else 4.2
+        r = 14 if i % 2 == 0 else 3.0
         pts.append((m + math.cos(a) * r, m + math.sin(a) * r))
-    c.poly(pts, fill=(255, 255, 255, 255), outline=(96, 98, 112, 230), width=2)
-    c.circle(m, m, 3.2, fill=(255, 255, 255, 255))
+    c.poly(pts, fill=(255, 255, 255, 225), outline=(100, 102, 116, 140), width=1.2)
+    c.circle(m, m, 2.4, fill=(255, 255, 255, 235))
     c.save(E + 'MiniTaiko/Effect.png')
 
 def sparkle_old():

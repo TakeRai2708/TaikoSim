@@ -735,9 +735,10 @@ namespace TaikoSim.Scenes
             for (int y = 0; y < image.Height; y++)
                 for (int x = 0; x < image.Width; x++)
                     pixels[y * image.Width + x] = Raylib.GetImageColor(image, x, y);
-            // こい(透明度 50%以上)のに暗い(明るさ 50%未満)点があれば「ふち付き」とみなす
+            // ある程度こい(透明度 25%以上)のに暗い(明るさ 55%未満)点があれば「ふち付き」とみなす
+            //   （A-Style の星は白と黄色だけで暗い点が無い。シンプルの星はうすい灰色のふち）
             foreach (Color c in pixels)
-                if (c.A > 128 && (c.R + c.G + c.B) / 3 < 128) { sparkleHasOutline = true; break; }
+                if (c.A > 64 && (c.R + c.G + c.B) / 3 < 140) { sparkleHasOutline = true; break; }
             if (!sparkleHasOutline)
             {
                 for (int y = 0; y < image.Height; y++)

@@ -10,6 +10,7 @@ ORANGE = (240, 120, 20)
 
 W, H, N = 480, 600, 8
 CX, CY, R = 243, 297, 92
+R2 = 98    # 11/5 の作り直しの玉の半径
 
 
 def tongue_mask(X, Y, ox, oy, angle, length, width, t, phase, curl):
@@ -42,6 +43,8 @@ def blob_mask(X, Y, x, y, r, angle):
 
 
 def frame(f):
+    """11/5 たけらいの絵(判定枠をくるむ玉＋右上へ1本の短い舌。しずく形・彗星みたいな形)に合わせて作り直した
+       画面では 0.9倍なので、玉の半径 R=105 → 画面で約95px。舌の先は中心から約200(画面で約180)・右上 −30°"""
     S = SS
     ys, xs = np.mgrid[0:H * S, 0:W * S]
     X = xs / S
@@ -50,26 +53,30 @@ def frame(f):
     dx, dy = X - CX, Y - CY
     rho = np.hypot(dx, dy)
     theta = np.arctan2(dy, dx)  # 画面は下が +y なので、上は -90°
-    # 外に行くほど右へねじる(炎の先が右へ曲がる)
-    k = 0.20 + 0.05 * math.sin(t)
-    th = theta - k * np.clip(rho - R, 0, None) / R
-    # 玉のふちから出る炎(角度・高さ・幅・揺れのずれ)。高さは時間で伸び縮み
-    radius = R * (1 + 0.04 * np.sin(theta))
-    for ang, height, sigma, ph in ((-145, 45, 0.20, 0.0), (-112, 120, 0.22, 1.1), (-84, 170, 0.24, 2.3),
-                                    (-56, 140, 0.21, 3.6), (-30, 70, 0.19, 4.8)):
+    # 外に行くほど少し右へねじる(舌の先が少し上へ反る)
+    k = 0.10 + 0.03 * math.sin(t)
+    th = theta + k * np.clip(rho - R2, 0, None) / R2
+    radius = R2 * (1 + 0.025 * np.sin(theta * 3 + t))
+    # しずく形の土台：右上(−32°)へ太く伸びる
+    c0 = math.radians(-32) + 0.04 * math.sin(t)
+    d0 = np.angle(np.exp(1j * (th - c0)))
+    radius = np.maximum(radius, R2 + 100 * (1 + 0.08 * math.sin(t * 2)) * np.exp(-np.abs(d0 / 0.62) ** 1.25))
+    # 上のふちにゆらめく細い炎(角度・高さ・幅・揺れのずれ)。炎っぽく見えるように、先をとがらせる
+    for ang, height, sigma, ph in ((-88, 26, 0.09, 0.5), (-64, 40, 0.10, 1.7), (-44, 48, 0.10, 2.9), (-24, 44, 0.09, 4.1), (-6, 26, 0.08, 5.3)):
         c = math.radians(ang) + 0.06 * math.sin(t + ph)
-        h = height * (1 + 0.16 * math.sin(t * 2 + ph))
-        d = np.angle(np.exp(1j * (th - c)))  # 角度の差(-π〜π)
-        radius = np.maximum(radius, R + h * np.exp(-np.abs(d / sigma) ** 1.35))
-    # ふちを少し波打たせる
-    radius = radius + 5 * np.sin(rho * 0.07 - t * 2) * (rho > R)
+        h = height * (0.75 + 0.35 * (0.5 + 0.5 * math.sin(t * 2 + ph)))
+        d = np.angle(np.exp(1j * (th - c)))
+        base = R2 + 100 * np.exp(-np.abs((c - c0) / 0.62) ** 1.25)
+        lick = np.clip(1 - np.abs(d / sigma), 0, 1) ** 1.6
+        radius = np.maximum(radius, np.where(lick > 0, base * 0.97 + h * lick, 0))
+    radius = radius + 3 * np.sin(rho * 0.08 - t * 2) * (rho > R2)
     m = rho <= radius
-    # 火の粉：右上へ上がって、小さくなる(8コマで入れ替わる)
-    for j, (sx, sy, r0, ph) in enumerate(((330, 110, 13, 0.0), (285, 80, 9, 0.33), (370, 150, 8, 0.66))):
+    # 火の粉：舌の先から右上へ2つだけ(小さく)
+    for j, (sx, sy, r0, ph) in enumerate(((405, 190, 8, 0.0), (430, 228, 6, 0.5))):
         u = (f / N + ph) % 1.0
-        x = sx + 35 * u + 6 * math.sin(t + j)
-        y = sy - 55 * u
-        m |= blob_mask(X, Y, x, y, r0 * (1 - 0.55 * u), math.radians(-60))
+        x = sx + 18 * u + 3 * math.sin(t + j)
+        y = sy - 34 * u
+        m |= blob_mask(X, Y, x, y, r0 * (1 - 0.6 * u), math.radians(-40))
     rgba = np.zeros((H * S, W * S, 4), dtype=np.uint8)
     rgba[m] = (*ORANGE, int(255 * 0.62))
     return Image.fromarray(rgba, 'RGBA').resize((W, H), Image.LANCZOS)
