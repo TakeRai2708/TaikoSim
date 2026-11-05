@@ -508,6 +508,10 @@ Measured by overlaying images on frames of the 九段 video (03-04-03 at 20 s, 2
 - Go-go fire (`Lane/GoGoSoul.png`, 480×600 per frame × 8): fireball center (243,297) placed on the judge circle at **0.9×**, additive blend.
   At start uses OpenTaiko's scale curve (0.8→2.5→…→1.0). 0.05 s per frame. **Draw after the soul gauge** (so it isn't hidden)
 - Combo sparkles (`MiniTaiko/Effect.png`): **from 50 combo; the stars are always pure white** (silver/gold applies to the digits).
+  Digits: silver at 50–99, **gold from 100** (11/5 六段 video: 99 silver → 100 gold). Stars stay white on both.
+  The code draws a copy of the star with its color forced to white (alpha kept) with additive blending, so A-Style's yellow arms no longer look gold on gold digits.
+  A star with dark outline pixels (Simple: 40×40 white 4-point star with a grey edge, `gogo.py`) is drawn as-is with normal alpha blending
+  (Simple's light silver digits swallowed an additive white star)
   Measured frame by frame on a TaikøNauts video (gold 133 combo). One cycle = 16 ms × 36 steps:
   - One star per digit at the same time, **center (steps 2–9) → right (10–17) → left (18–25)**. Each lasts 8 steps (0.13 s), swelling and shrinking (sin)
   - Horizontal: center = digit center, right +17 px, left −11 px (for a 66 px wide digit; scale with width)

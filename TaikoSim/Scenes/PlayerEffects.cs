@@ -78,9 +78,12 @@ namespace TaikoSim.Scenes
         private const int ComboSparkleFrom = 50;
         private const float ComboSparkleStep = 0.016f;
         private const int ComboSparkleSteps = 36;
-        //   星の画像はそのままの色で描く(OpenTaiko と同じ。A-Style の Effect.png は「真ん中が白・十字の腕が黄色」の 30×30)
-        //   銀・金に分かれて見えるのは数字の方(Combo_Number.png の2段目・3段目)。星は銀でも金でも同じ
-        //   (10/27 に白くして色をかけたら、まわりのうすい光まで白くなってボヤけたので、やめた)
+        //   銀・金に分かれて見えるのは数字の方(Combo_Number.png の2段目・3段目。100コンボで金)。
+        //   **星は銀の数字でも金の数字でも白のまま**(11/5 の六段の動画の 99→100→103 コンボで確かめた)。
+        //   A-Style の Effect.png は「真ん中が白・十字の腕が黄色」の 30×30 で、そのまま加算すると金の数字の上で金色に見えていた
+        //   → 色だけ白にした星(透明度はそのまま。うすい光もうすいまま)を加算する。
+        //   ふちの暗いところがある星(シンプル。明るい銀の数字でも見えるように灰色のふち付き)は、ふつうの重ね方でそのまま描く
+        //   (10/27 に「白くして色をかけた」ときはボヤけた。今回は加算のまま色だけ変えるので、うすい光は白くならない)
 
         // ゴーゴー開始の火花の位置(下の真ん中)と傾き。OpenTaiko の Game_Effect_GoGoSplash_X/Y
         private static readonly float[] SplashX = { 180, 450, 780, 1140, 1470, 1740 };
@@ -714,12 +717,46 @@ namespace TaikoSim.Scenes
         private const float SparkleHeight = 53f / 78f;      // 数字の下からの高さ(数字の高さに対する割合)
         private const float SparkleRise = 1.05f;            // 1段で上がる px(OpenTaiko と同じ)
 
+        // 星の画像から作った「色だけ白にした星」と、ふちの暗いところがあるか(元の画像ごとに1回だけ調べる)
+        private static uint sparkleSourceId;
+        private static Texture2D sparkleWhite;
+        private static bool sparkleHasOutline;
+
+        private static Texture2D PrepareSparkle(Texture2D star)
+        {
+            if (sparkleSourceId == star.Id) return sparkleHasOutline ? star : sparkleWhite;
+            if (sparkleWhite.Id != 0) Raylib.UnloadTexture(sparkleWhite);
+            sparkleSourceId = star.Id;
+            sparkleWhite = default;
+            sparkleHasOutline = false;
+            Image image = Raylib.LoadImageFromTexture(star);
+            Raylib.ImageFormat(ref image, PixelFormat.UncompressedR8G8B8A8);
+            Color[] pixels = new Color[image.Width * image.Height];
+            for (int y = 0; y < image.Height; y++)
+                for (int x = 0; x < image.Width; x++)
+                    pixels[y * image.Width + x] = Raylib.GetImageColor(image, x, y);
+            // こい(透明度 50%以上)のに暗い(明るさ 50%未満)点があれば「ふち付き」とみなす
+            foreach (Color c in pixels)
+                if (c.A > 128 && (c.R + c.G + c.B) / 3 < 128) { sparkleHasOutline = true; break; }
+            if (!sparkleHasOutline)
+            {
+                for (int y = 0; y < image.Height; y++)
+                    for (int x = 0; x < image.Width; x++)
+                        Raylib.ImageDrawPixel(ref image, x, y, new Color((byte)255, (byte)255, (byte)255, pixels[y * image.Width + x].A));
+                sparkleWhite = Raylib.LoadTextureFromImage(image);
+                Raylib.SetTextureFilter(sparkleWhite, TextureFilter.Bilinear);
+            }
+            Raylib.UnloadImage(image);
+            return sparkleHasOutline || sparkleWhite.Id == 0 ? star : sparkleWhite;
+        }
+
         private void DrawComboSparkles(float rightX, float padding, int count, float digitWidth, float digitHeight, float bottomY)
         {
-            if (SkinManager.GetTexture(ComboSparkleImage) is not Texture2D star) return;
+            if (SkinManager.GetTexture(ComboSparkleImage) is not Texture2D source) return;
+            Texture2D star = PrepareSparkle(source);
             int v = (int)(comboSparkleTime / ComboSparkleStep) % ComboSparkleSteps;
             float within = comboSparkleTime / ComboSparkleStep % 1f; // 段の中の進み具合(ふくらみをなめらかにする)
-            Raylib.BeginBlendMode(BlendMode.Additive);
+            Raylib.BeginBlendMode(sparkleHasOutline ? BlendMode.Alpha : BlendMode.Additive);
             foreach (var (start, offsetX) in SparkleSlots)
             {
                 int age = v - start;

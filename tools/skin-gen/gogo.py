@@ -1,11 +1,29 @@
 # コンボのキラキラ(MiniTaiko/Effect.png)。ゴーゴーの炎は gogo_fire.py
 from common import *
 import numpy as np
+import math
 
 E = 'Image/04.EnsoGame/'
 
 def sparkle():
-    """30×30 の小さい十字の星。真ん中が白、細い腕は黄色で、先にいくほど消える
+    """40×40 の白い4本の角の星に、うすい灰色のふち(11/5 に作り直した)
+    シンプルの数字は明るい銀なので、加算で白を足しても見えなかった(六段の動画)。
+    ふちがあるので、プログラムはふつうの重ね方で描く(暗いところがある星はふつう・無い星は加算、と PlayerEffects が決める)
+    本家の星は銀の数字でも金の数字でも白のまま(六段の動画の 99→100→103 コンボ)"""
+    S = 40
+    c = Canvas(S, S)
+    m = S / 2
+    pts = []
+    for i in range(8):
+        a = i * math.pi / 4 - math.pi / 2
+        r = 18 if i % 2 == 0 else 4.2
+        pts.append((m + math.cos(a) * r, m + math.sin(a) * r))
+    c.poly(pts, fill=(255, 255, 255, 255), outline=(96, 98, 112, 230), width=2)
+    c.circle(m, m, 3.2, fill=(255, 255, 255, 255))
+    c.save(E + 'MiniTaiko/Effect.png')
+
+def sparkle_old():
+    """(前の版)30×30 の小さい十字の星。真ん中が白、細い腕は黄色で、先にいくほど消える
     A-Style の Effect.png を測った形に合わせた(腕の長さ 約13px・太さ 約3px・腕の色 (254,254,64))
     前の版は太い光の輪がついていて、光りすぎていた"""
     S = 30
