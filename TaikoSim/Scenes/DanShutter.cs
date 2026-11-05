@@ -254,6 +254,7 @@ namespace TaikoSim.Scenes
             float alpha = textElapsed < TextFadeFrom ? 1f : 1f - (textElapsed - TextFadeFrom) / TextFadeSeconds;
             if (alpha <= 0f) return;
             Color fill = Fade(Color.White, alpha), edge = Fade(new Color(20, 20, 24, 255), alpha);
+            using OutlineRatioScope outlineScope = UseOutlineRatio(DanTitleOutlineRatio);   // 本家の曲名は縁が少し太め
             float centerX = (Left + Right) / 2f;
             float width = Right - Left - 200f;
             if (subtitle.Length == 0)

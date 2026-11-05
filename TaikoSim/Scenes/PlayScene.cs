@@ -1613,7 +1613,7 @@ namespace TaikoSim.Scenes
 
         public override void Draw()
         {
-            // 段位道場のときは、文字の縁を太くする（MenuDraw.DanOutlineRatio）
+            // 段位道場のときは、文字の縁を本家に合わせて細くする（MenuDraw.DanOutlineRatio）
             using MenuDraw.OutlineRatioScope outlineScope = dan != null ? MenuDraw.UseOutlineRatio(MenuDraw.DanOutlineRatio) : default;
             Raylib.ClearBackground(new Color(24, 26, 36, 255));
 

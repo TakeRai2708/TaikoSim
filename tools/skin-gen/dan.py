@@ -102,7 +102,7 @@ def rainbow_strip(w, h, offset, sat=0.55):
 def song_ball(c, cx, cy, r, k, size=None):
     """1st/2nd/3rd の色玉"""
     c.circle(cx, cy, r, fill=rgba(SONG_COLORS[k]), outline=WHITE, width=max(2, r * 0.1))
-    c.text(cx, cy + 1, ['1st', '2nd', '3rd'][k], size or r * 0.95, fill=WHITE, stroke=max(2, r * 0.12), stroke_fill=INKA)
+    c.text(cx, cy + 1, ['1st', '2nd', '3rd'][k], size or r * 0.95, fill=WHITE, stroke=max(2, r * 0.08), stroke_fill=INKA)
 
 def coin(c, cx, cy, r):
     """条件のコイン(シンプル：黄色い丸に白い点)"""
@@ -146,7 +146,7 @@ def stamps():
             for i in range(8):
                 a = i / 8 * math.tau
                 c.circle(cx + math.cos(a) * 31, 39 + math.sin(a) * 31, 3, fill=hsv(i / 8, 0.6, 1.0))
-        c.text(cx, 40, '合格', 24, fill=rgba(rings[k]), stroke=3, stroke_fill=WHITE)
+        c.text(cx, 40, '合格', 24, fill=rgba(rings[k]), stroke=2, stroke_fill=WHITE)
     c.save(SEL + 'Stamp.png')
 
 def panel():
@@ -335,8 +335,8 @@ def rainbow_digits(rel, w, h, size, stroke):
 def disqualify_text():
     """「達成失敗」972×86 が2つ（大きいバー用・小さいバー用）"""
     c = Canvas(972, 172)
-    c.text(486, 43, '達成失敗', 60, fill=(236, 60, 50, 255), stroke=7, stroke_fill=WHITE)
-    c.text(322, 129, '達成失敗', 60, fill=(236, 60, 50, 255), stroke=7, stroke_fill=WHITE)
+    c.text(486, 43, '達成失敗', 60, fill=(236, 60, 50, 255), stroke=5, stroke_fill=WHITE)
+    c.text(322, 129, '達成失敗', 60, fill=(236, 60, 50, 255), stroke=5, stroke_fill=WHITE)
     c.save(GAME + 'ConditionPanel/Disqualify_Text.png')
 
 def mini_position():
@@ -363,16 +363,16 @@ def course_symbol():
     """左のパネルの「段位道場」マーク 136×136"""
     c = Canvas(136, 136)
     c.poly([(68, 6), (112, 50), (68, 94), (24, 50)], fill=(214, 72, 58, 255), outline=INKA, width=5)
-    c.text(68, 51, '段', 40, fill=WHITE, stroke=4, stroke_fill=INKA)
-    c.text(68, 118, '段位道場', 25, fill=WHITE, stroke=4, stroke_fill=INKA)   # A-Style も絵の下に字が入っている
+    c.text(68, 51, '段', 40, fill=WHITE, stroke=3, stroke_fill=INKA)
+    c.text(68, 118, '段位道場', 25, fill=WHITE, stroke=2, stroke_fill=INKA)   # A-Style も絵の下に字が入っている
     c.save(GAME + 'MiniTaiko/CourseSymbol.png')
 
 def end_text():
     """最後の字 800×150 が3つ：金の合格・赤の合格・不合格"""
     c = Canvas(800, 450)
-    c.text(400, 75, '合格', 110, fill=(250, 204, 50, 255), stroke=12, stroke_fill=INKA)
-    c.text(400, 225, '合格', 110, fill=(236, 72, 56, 255), stroke=12, stroke_fill=INKA)
-    c.text(400, 375, '不合格', 110, fill=(110, 186, 236, 255), stroke=12, stroke_fill=INKA)
+    c.text(400, 75, '合格', 110, fill=(250, 204, 50, 255), stroke=8, stroke_fill=INKA)
+    c.text(400, 225, '合格', 110, fill=(236, 72, 56, 255), stroke=8, stroke_fill=INKA)
+    c.text(400, 375, '不合格', 110, fill=(110, 186, 236, 255), stroke=8, stroke_fill=INKA)
     c.save(GAME + 'End/Text.png')
 
 def screen():
@@ -399,12 +399,14 @@ def screen():
         c2.circle(kx, 97, 17, fill=(150, 118, 62, 255)); c2.circle(kx, 97, 14, fill=(196, 162, 92, 255)); c2.circle(kx, 97, 10, fill=(58, 40, 26, 255))
     c2.save(GAME + 'Screen.png')
 
+# 文字の縁（stroke）は 11/5 に本家の割合（文字の大きさの約0.06〜0.08倍）に合わせて細くした。
+#   本家の六段の動画で、条件「346 未満」は約0.06倍、バーの数字は約0.055倍だった（前は0.1〜0.16倍で太すぎ）
 def dan_screens():
     mini_plates(); plate_effect(); plate_arrow(); stamps(); panel(); panel_side(); song_bars(); course_symbols()
     condition_bar(); gauge_condition_bar(); condition_content(); confirm()
     condition_panel_background(); condition_row_base(); contexts(); mini_contexts(); gauge_bases(); gauge_fills()
-    rainbow_digits(GAME + 'ConditionPanel/Large_Gauge_Number.png', 80, 100, 92, 7)
-    rainbow_digits(GAME + 'ConditionPanel/Mini_Gauge_Number.png', 30, 38, 34, 3)
+    rainbow_digits(GAME + 'ConditionPanel/Large_Gauge_Number.png', 80, 100, 92, 5)
+    rainbow_digits(GAME + 'ConditionPanel/Mini_Gauge_Number.png', 30, 38, 34, 2)
     disqualify_text(); mini_position(); gauge_plate(); course_symbol(); end_text(); screen()
 
 def run():

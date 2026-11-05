@@ -43,8 +43,14 @@ namespace TaikoSim.UI
         //   (縁が細いと、白い字がうすく・灰色っぽく見える)
         public const float OutlineRatio = 0.16f;
 
-        // 段位道場の画面だけ、縁をもっと太くする(11/5 たけらい。本家の六段の動画で「346 未満」の縁が約0.22倍だった)
-        public const float DanOutlineRatio = 0.22f;
+        // 段位道場の画面の縁（ふだんより細い）
+        //   11/5 たけらい「太すぎ」。本家の六段の動画（2026-11-05_09-32-24.mp4）を、白い字から黒い縁の外がわまでの距離で測りなおした：
+        //     条件「346 未満」(300秒) … 字の高さ50px に縁3px → 文字の大きさの約0.06倍
+        //     バーの数字 … 高さ110px に縁8px → 約0.055倍
+        //     レーンの曲名「MATSURI D/A」(154.5秒) … 大文字の高さ50px に縁6.3px → 約0.095倍（DanTitleOutlineRatio）
+        //   （前に 0.22 にしたのは測りまちがい。縁のまわりのうすい影まで数えていた）
+        public const float DanOutlineRatio = 0.08f;
+        public const float DanTitleOutlineRatio = 0.1f;   // 曲と曲の間に、ふすまの上に出す曲名・作曲者
 
         // 今使っている割合(ふだんは OutlineRatio。段位の画面を描いている間だけ UseOutlineRatio で変える)
         public static float CurrentOutlineRatio { get; private set; } = OutlineRatio;
