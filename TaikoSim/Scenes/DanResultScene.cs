@@ -81,7 +81,7 @@ namespace TaikoSim.Scenes
 
         private void LoadImages()
         {
-            if (dan.Course.PlatePath.Length > 0) plate = LoadFrom(dan.Course.PlatePath);
+            plate = DanPlates.Load(dan.Course);   // スキンのプレート → 無ければ段位フォルダ
             if (result is DanResultType.Red or DanResultType.Gold)
             {
                 foreach (string rel in dan.Course.ShodanTextFor(result == DanResultType.Gold))

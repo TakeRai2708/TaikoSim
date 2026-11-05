@@ -809,17 +809,12 @@ namespace TaikoSim.Scenes
 
         private Texture2D? Plate(DanCourse course)
         {
-            if (course.PlatePath.Length == 0) return null;
-            string full = Path.Combine(course.FolderPath, course.PlatePath);
-            if (plates.TryGetValue(full, out Texture2D cached)) return cached.Id == 0 ? null : cached;
+            // スキンのプレート → 無ければ段位フォルダの danPlatePath（Graphics/DanPlates.cs）
+            string key = DanPlates.Find(course) ?? course.FolderPath;
+            if (plates.TryGetValue(key, out Texture2D cached)) return cached.Id == 0 ? null : cached;
 
-            Texture2D texture = default;
-            try
-            {
-                if (File.Exists(full)) texture = Raylib.LoadTexture(full);
-            }
-            catch { /* 読めなければ画像なしで描く */ }
-            plates[full] = texture;   // 読めなかったことも覚える(毎フレーム試さないように)
+            Texture2D texture = DanPlates.Load(course);
+            plates[key] = texture;   // 読めなかったことも覚える(毎フレーム試さないように)
             return texture.Id == 0 ? null : texture;
         }
     }

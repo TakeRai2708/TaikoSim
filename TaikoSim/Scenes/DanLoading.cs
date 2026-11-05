@@ -55,13 +55,7 @@ namespace TaikoSim.Scenes
         {
             if (plate.Id != 0) Raylib.UnloadTexture(plate);
             plate = default;
-            if (danCourse.PlatePath.Length == 0) return;
-            try
-            {
-                string full = Path.Combine(danCourse.FolderPath, danCourse.PlatePath);
-                if (File.Exists(full)) plate = Raylib.LoadTexture(full);
-            }
-            catch { /* 読めなければプレートなし */ }
+            plate = DanPlates.Load(danCourse);   // スキンのプレート → 無ければ段位フォルダ
         }
 
         public static void Update(float dt)

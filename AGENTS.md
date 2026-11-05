@@ -192,6 +192,7 @@ python gogo.py        # combo sparkles (MiniTaiko/Effect.png)
 python endres.py      # end-of-song effects, result
 python play.py        # play screen (notes, lane, digits...; regenerates everything, careful)
 python sounds.py      # sounds (needs ffmpeg)
+python dan.py         # dan dojo images (20 dan plates)
 ```
 - Output overwrites `TaikoSim/Skins/TaikoSim-Simple/` directly
   (set `TAIKOSIM_SKIN_OUT` to write elsewhere)
@@ -457,6 +458,13 @@ Measured by overlaying images on frames of the 九段 video (03-04-03 at 20 s, 2
 - Top background: `Background/0–5/Anime.aup2` layered in index order, each looping forever (`Background/Anime.aup2` is the author's preview — unused).
   **These aup2 scenes are 1920×276** (`video.width/height` in `[scene.0]`). (0,0) is that scene's center, so `Aup2` reads the size per file
 - Final text `End/Text.png` (three 800×150: gold pass, red pass, fail; the gold/red order is a guess) at native size at (809,309), popping 1.3 → 1
+- **Dan plates come from the skin** (`Graphics/DanPlates.cs`, 11/5): `Image/06.DanSelect/DanPlate/{danIndex}.png` (五級 = 0 … 初段 = 5 … 六段 = 10 … 外伝 = 19),
+  falling back to the dan folder's `danPlatePath` (so custom dans still show one). たけらい: a plate from the song folder shows in every skin, which felt wrong.
+  - Loaded with mipmaps + Trilinear filtering (before, plates were loaded with the default point filter and looked jagged when stretched)
+  - A-Style's `Dan_Plate.png` is only 190×371 but shown at 230×485. On たけらい's PC we put 2× (380×742) versions made with Real-ESRGAN
+    (`realesrgan-x4plus-anime` via the `ncnn` pip package on CPU: ×4, alpha also through the model, then Lanczos down to ×2) into
+    `TaikoNauts-latest\Skins\A-Style\Image\06.DanSelect\DanPlate\`. **Not in the repo** (someone else's art). The dan folders' `Dan_Plate.png` / dan.json are untouched
+  - Simple has its own 20 plates from `tools/skin-gen/dan.py` (tier-colored board, vertical name, English below)
 - Code-drawn panel (no A-Style): plate `PlateX 1560, PlateY 560, W 230, H 485`; top-left counter (良・可・不可・連打数) box (28, 98) 212×128,
   labels 21 px, numbers 27 px (enlarged 11/5; たけらい said the numbers were too small)
 

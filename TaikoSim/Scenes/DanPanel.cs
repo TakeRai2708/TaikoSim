@@ -129,15 +129,7 @@ namespace TaikoSim.Scenes
             if (!plateTried)
             {
                 plateTried = true;
-                if (dan.Course.PlatePath.Length > 0)
-                {
-                    try
-                    {
-                        string full = Path.Combine(dan.Course.FolderPath, dan.Course.PlatePath);
-                        if (File.Exists(full)) plate = Raylib.LoadTexture(full);
-                    }
-                    catch { /* 読めなければプレートなし */ }
-                }
+                plate = DanPlates.Load(dan.Course);   // スキンのプレート → 無ければ段位フォルダ
             }
             return plate.Id == 0 ? null : plate;
         }
