@@ -97,6 +97,20 @@ namespace TaikoSim.Scenes
         // ===== 難易度をえらぶ =====
         private static readonly CourseType[] PanelCourses = { CourseType.Easy, CourseType.Normal, CourseType.Hard, CourseType.Oni };
         private bool diffOpen;
+        // 戻る専用。秒数は実測前の仮調整で、開くアニメの逆再生ではない。
+        private const float ReturnOutSeconds = 0.18f, ReturnInSeconds = 0.18f;
+        private float returnTime = -1f;
+        private Action? returnSwap;
+        private float ReturnAlpha => returnTime < 0f ? 1f : returnTime < ReturnOutSeconds
+            ? 1f - returnTime / ReturnOutSeconds
+            : Math.Clamp((returnTime - ReturnOutSeconds) / ReturnInSeconds, 0f, 1f);
+
+        private void BeginReturn(Action swap)
+        {
+            if (returnTime >= 0f) return;
+            returnTime = 0f;
+            returnSwap = swap;
+        }
         private int diffCursor;                        // 0 戻る、1 オプション、2〜5 かんたん〜おに
         private bool ura;
         private SongEntry? diffSong;
@@ -156,6 +170,8 @@ namespace TaikoSim.Scenes
 
         public override void Enter()
         {
+            returnTime = -1f;
+            returnSwap = null;
             if (!SongList.IsScanned && !SongList.IsScanning) SongList.StartScan();
             wasScanning = SongList.IsScanning;
             searchFocused = false;
@@ -345,6 +361,17 @@ namespace TaikoSim.Scenes
             PreloadListText();
             preview.Update(dt);
             options.Update(dt);
+            if (returnTime >= 0f)
+            {
+                returnTime += dt;
+                if (returnSwap != null && returnTime >= ReturnOutSeconds)
+                {
+                    Action swap = returnSwap;
+                    returnSwap = null;
+                    swap();
+                }
+                if (returnTime >= ReturnOutSeconds + ReturnInSeconds) returnTime = -1f;
+            }
 
             // 読み込みが終わったら一覧を作り直す
             bool scanning = SongList.IsScanning;
@@ -375,6 +402,7 @@ namespace TaikoSim.Scenes
             string? previewTja = diffOpen ? diffSong?.TjaPath
                 : inSongs && CurrentItem is { Kind: Kind.Song } now ? now.Song!.TjaPath : null;
             preview.Request(previewTja, diffOpen || list.Expand > 0f);
+            if (returnTime >= 0f) { DiscardTypedChars(); return; }
 
             // 検索の箱に入力中
             if (searchFocused)
@@ -574,6 +602,11 @@ namespace TaikoSim.Scenes
 
         private void CloseGenre()
         {
+            BeginReturn(CloseGenreNow);
+        }
+
+        private void CloseGenreNow()
+        {
             inSongs = false;
             preview.Request(null, false);
             if (openSpecial == Special.Search)
@@ -588,6 +621,7 @@ namespace TaikoSim.Scenes
         // Esc：オプション → 難易度 → 曲の一覧 → ジャンルの一覧 → モード選択 の順に1つ戻る
         public override void OnBack()
         {
+            if (returnTime >= 0f) return;
             if (flipTime >= 0f) return; // ジャンルがめくれている途中は戻れない(途中で止めると一覧がおかしくなる)
             if (searchFocused)
             {
@@ -676,10 +710,13 @@ namespace TaikoSim.Scenes
         {
             MenuSounds.Ka();
             options.CloseNow();
-            diffOpen = false;
-            diffSong = null;
-            list.EndDecide();
-            list.OpenNow();
+            BeginReturn(() =>
+            {
+                diffOpen = false;
+                diffSong = null;
+                list.EndDecide();
+                list.OpenNow();
+            });
         }
 
         private void UpdateDifficulty()
@@ -971,7 +1008,7 @@ namespace TaikoSim.Scenes
             else
             {
                 float listAlpha = diffOpen ? 1f - Math.Clamp((diffTime - ListFadeStart) / (ListFadeEnd - ListFadeStart), 0f, 1f) : 1f;
-                if (listAlpha > 0f) DrawList(listAlpha);
+                if (listAlpha > 0f) DrawList(listAlpha * ReturnAlpha);
             }
 
             if (diffOpen) DrawDifficulty();
@@ -1008,7 +1045,7 @@ namespace TaikoSim.Scenes
 
             int baseIndex = (int)MathF.Round(list.Shown);
             var (before, after) = BarList.VisibleRange(items.Count);
-            bool clickable = !diffOpen && !list.Deciding && flipTime < 0f;
+            bool clickable = returnTime < 0f && !diffOpen && !list.Deciding && flipTime < 0f;
             var flip = FlipLook();
 
             // 選んでいる板は、ほかの板の上に描くので最後
@@ -1300,7 +1337,7 @@ namespace TaikoSim.Scenes
         {
             if (diffSong == null || diffTime < PanelInStart) return;
             float t = Math.Clamp((diffTime - PanelInStart) / (PanelInEnd - PanelInStart), 0f, 1f);
-            float alpha = t;
+            float alpha = t * ReturnAlpha;
             // 10/29のお手本70.40〜70.70秒：A-Styleの板は原寸のままフェードする。
             float scale = MenuSkin.Has(TnPanelPath(diffType)) ? 1f : 0.92f + 0.08f * EaseOut(t);
             Vector2 center = new Vector2(DiffPanel.X + DiffPanel.Width / 2f, DiffPanel.Y + DiffPanel.Height / 2f);
@@ -1334,7 +1371,7 @@ namespace TaikoSim.Scenes
                     Fade(Color.White, alpha), Fade(InkColor, alpha));
 
             // 箱：戻る・オプション・かんたん〜おに
-            bool ready = DiffReady && active && !options.IsOpen;
+            bool ready = returnTime < 0f && DiffReady && active && !options.IsOpen;
             for (int i = 0; i < 6; i++)
             {
                 Rectangle box = S(DiffBoxArea(i));
@@ -1350,7 +1387,7 @@ namespace TaikoSim.Scenes
 
             // 1P の印(カーソルの上)
             if (diffTime >= MarkerAt)
-                DrawPlayerMarker(DiffBoxArea(diffCursor), Math.Clamp((diffTime - MarkerAt) / 0.1f, 0f, 1f));
+                DrawPlayerMarker(DiffBoxArea(diffCursor), ReturnAlpha * Math.Clamp((diffTime - MarkerAt) / 0.1f, 0f, 1f));
 
             // 下のまんなか：えらぶ・決定
             DrawDiffHint(alpha);
