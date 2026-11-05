@@ -468,6 +468,13 @@ Measured by overlaying images on frames of the 九段 video (03-04-03 at 20 s, 2
     Check each result by shrinking it back and comparing with the original into
     `TaikoNauts-latest\Skins\A-Style\Image\06.DanSelect\DanPlate\`. **Not in the repo** (someone else's art). The dan folders' `Dan_Plate.png` / dan.json are untouched
   - Simple has its own 20 plates from `tools/skin-gen/dan.py` (tier-colored board, vertical name, English below)
+- **Simple now ships dan-screen images with the A-Style names, sizes and frame layouts** (`dan_screens()` in `tools/skin-gen/dan.py`, 11/5),
+  so `DanSelectAStyle` / `DanPanelAStyle` draw Simple too. Only sizes and inner part positions (tabs, frames, bars) follow A-Style; the art is Simple's flat look
+  (cream boards, tan tabs, dark outlines). 06.DanSelect: MiniPlate, Plate_Effect, Plate_Arrow, Stamp, Panel, Panel_Side, SongBar, Song_CourseSymbol,
+  Condition_Bar, GaugeCondition_Bar, Condition_Content, Challenge_Check/{Panel_Base, Panel, Select_Effect}.
+  08.DanGame: ConditionPanel/* (Background, Base, Context, Mini_Context, {Large,Small,Mini}_Gauge(_Base/_Rainbow/_Number), Disqualify_Text, Mini_Gauge_Position),
+  Gauge/{Condition_Plate, Condition_Stopper}, MiniTaiko/CourseSymbol, Screen (fusuma), End/Text. Not made: 06 Header, 07.DanLoading (code-drawn), 08 MiniTaiko/Background, 09.DanResult
+- Dan screens draw text with a thicker outline (`MenuDraw.UseOutlineRatio(MenuDraw.DanOutlineRatio)` = 0.22× size vs 0.16 elsewhere; 11/5)
 - Code-drawn panel (no A-Style): plate `PlateX 1560, PlateY 560, W 230, H 485`; top-left counter (良・可・不可・連打数) box (28, 98) 212×128,
   labels 21 px, numbers 27 px (enlarged 11/5; たけらい said the numbers were too small)
 
