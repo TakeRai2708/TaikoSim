@@ -103,7 +103,9 @@ namespace TaikoSim.UI
             {
                 float bodyX = x + size / 2f, bodyW = rollBody * s;
                 Raylib.DrawTexturePro(body, new Rectangle(0, 0, body.Width, body.Height), new Rectangle(bodyX, y, bodyW, size), Vector2.Zero, 0f, Color.White);
-                Raylib.DrawTexturePro(tail, new Rectangle(0, 0, tail.Width, tail.Height), new Rectangle(bodyX + bodyW - size / 2f, y, size, size), Vector2.Zero, 0f, Color.White);
+                // おわりの画像は、丸いところが画像の左側にある。演奏画面(PlayScene)と同じく、画像の左はしを胴の終わりに置く
+                //   (前は半分左にずれていて、丸が胴の中に埋まり、おわりが四角く見えていた)
+                Raylib.DrawTexturePro(tail, new Rectangle(0, 0, tail.Width, tail.Height), new Rectangle(bodyX + bodyW, y, size, size), Vector2.Zero, 0f, Color.White);
                 Raylib.DrawTexturePro(head, new Rectangle(0, 0, head.Width, head.Height), new Rectangle(x, y, size, size), Vector2.Zero, 0f, Color.White);
             }
             x += size + rollBody * s + gap * s;
