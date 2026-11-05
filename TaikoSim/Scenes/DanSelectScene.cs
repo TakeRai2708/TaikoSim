@@ -355,6 +355,7 @@ namespace TaikoSim.Scenes
 
         public override void Draw()
         {
+            using OutlineRatioScope outlineScope = UseOutlineRatio(DanOutlineRatio);   // 段位の画面は文字の縁を太く
             Gui.BeginFrame();
             if (intro != null) intro.Draw(IntroFrame, holdLast: true);   // 入りの演出（終わったら道場の絵のまま）
             else DrawBackground();

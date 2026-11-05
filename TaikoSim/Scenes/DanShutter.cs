@@ -39,8 +39,8 @@ namespace TaikoSim.Scenes
         private const float Seam = 6f;                 // 2枚のふすまの合わせ目（木の色）
 
         // 曲名の場所（測った値）
-        private const float TitleCenterY = 388f, SubtitleCenterY = 447f;
-        private const float TitleSize = 52f, SubtitleSize = 30f;
+        private const float TitleCenterY = 372f, SubtitleCenterY = 442f;   // 11/5：字を大きくしたので少し上へ
+        private const float TitleSize = 72f, SubtitleSize = 40f;   // 11/5：52/30 だと小さく、縁も見えなかった（本家の六段の動画は約1.5倍）
 
         private const string ScreenImage = "Image/08.DanGame/Screen.png";
         private const string InSound = "Sound/DanGame/ScreenIn.ogg";

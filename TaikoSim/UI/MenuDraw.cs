@@ -43,8 +43,30 @@ namespace TaikoSim.UI
         //   (縁が細いと、白い字がうすく・灰色っぽく見える)
         public const float OutlineRatio = 0.16f;
 
+        // 段位道場の画面だけ、縁をもっと太くする(11/5 たけらい。本家の六段の動画で「346 未満」の縁が約0.22倍だった)
+        public const float DanOutlineRatio = 0.22f;
+
+        // 今使っている割合(ふだんは OutlineRatio。段位の画面を描いている間だけ UseOutlineRatio で変える)
+        public static float CurrentOutlineRatio { get; private set; } = OutlineRatio;
+
+        /// <summary>using の間だけ縁の割合を変える(抜けたら元に戻る)。例：using var _ = MenuDraw.UseOutlineRatio(MenuDraw.DanOutlineRatio);</summary>
+        public static OutlineRatioScope UseOutlineRatio(float ratio)
+        {
+            OutlineRatioScope scope = new(CurrentOutlineRatio, true);
+            CurrentOutlineRatio = ratio;
+            return scope;
+        }
+
+        public readonly struct OutlineRatioScope : IDisposable
+        {
+            private readonly float previous;
+            private readonly bool active;
+            internal OutlineRatioScope(float previous, bool active) { this.previous = previous; this.active = active; }
+            public void Dispose() { if (active) CurrentOutlineRatio = previous; }
+        }
+
         // 縁の太さ(文字の大きさから決める。小さい字でも 2px はつける。フォントに持っている距離より太くはしない)
-        public static float OutlineWidth(float size) => Math.Min(Math.Max(2f, size * OutlineRatio), DynamicFont.MaxOutline(size));
+        public static float OutlineWidth(float size) => Math.Min(Math.Max(2f, size * CurrentOutlineRatio), DynamicFont.MaxOutline(size));
 
         // 縁取りした文字を、四角の真ん中にはみ出さない大きさで書く
         //   縁は、まわりにぐるっと(円の上に)ずらした文字を描いて作る。8方向だとななめだけ飛び出してトゲトゲになるので、細かく回す

@@ -138,6 +138,7 @@ namespace TaikoSim.Scenes
 
         public override void Draw()
         {
+            using OutlineRatioScope outlineScope = UseOutlineRatio(DanOutlineRatio);   // 段位の画面は文字の縁を太く
             Gui.BeginFrame();
             Raylib.DrawRectangleGradientV(0, 0, Screen.Width, Screen.Height, new Color(40, 70, 130, 255), new Color(20, 36, 80, 255));
 

@@ -155,6 +155,7 @@ namespace TaikoSim.Scenes
         // シンプル：暗い背景に、うすい横線と段位の名前だけ
         private static void DrawSimple()
         {
+            using OutlineRatioScope outlineScope = UseOutlineRatio(DanOutlineRatio);   // 段位の画面は文字の縁を太く
             Raylib.DrawRectangleGradientV(0, 0, 1920, 1080, new Color(22, 24, 34, 255), new Color(46, 48, 58, 255));
             Raylib.DrawRectangle(0, 538, 1920, 2, new Color(255, 255, 255, 40));
             Centered("段位道場", new Rectangle(0, 400, 1920, 60), 40f, new Color(200, 200, 210, 255));
