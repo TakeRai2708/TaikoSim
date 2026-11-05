@@ -124,9 +124,15 @@ namespace TaikoSim.Charts
         public float Progress(DanExam exam, int songIndex = 0)
         {
             long border = exam.For(songIndex).Red;
-            if (border <= 0) return 1f;
+            // ボーダーが0（「連打数 0 以上」＝その曲は条件なし）は、空のバー。
+            // 本家（11/5 の六段の動画）は演奏中もリザルトも、暗い空のバーに「0」だった
+            if (border <= 0) return 0f;
             return Math.Clamp(Displayed(exam, songIndex) / (float)border, 0f, 1f);
         }
+
+        /// <summary>「0 以上」みたいに、その曲には条件が無いか（バーは空・虹にしない）</summary>
+        public static bool NoCondition(DanExam exam, int songIndex) =>
+            !exam.IsLess && exam.For(songIndex).Red <= 0;
 
         /// <summary>
         /// 条件のバーの今の状態（色と点滅を決める）。OpenTaiko の Dan_Cert.UpdateReachStatus と同じ考え方。
@@ -144,6 +150,7 @@ namespace TaikoSim.Charts
             int i = exam.PerSong ? Math.Clamp(songIndex, 0, Tallies.Length - 1) : 0;
             long amount = exam.PerSong ? Tallies[i].Value(exam.Type) : Total(exam.Type);
             DanThreshold t = exam.For(i);
+            if (NoCondition(exam, i)) return DanReach.Low;   // 条件なし：空のバー・白い数字（虹にしない）
             bool gold = !exam.HasGold(i) || Satisfies(amount, t.Gold, exam.IsLess);
 
             if (exam.IsLess)

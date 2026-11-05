@@ -39,10 +39,12 @@ namespace TaikoSim.Scenes
         public static void Simple(Scene scene) => ChangeScene(scene, 0.3f, 0f, 0.3f);
         // 選曲 → 演奏：黒くせずに、曲の読み込み画面(虹色の幕)をはさむ。動きは SongLoading にまとめた
         public static void ToPlayWithLoading(Scene scene, string title, string subtitle) => SongLoading.Start(scene, title, subtitle);
+        // 段位選択 → 段位の演奏：道場の絵の読み込み画面をはさむ（DanLoading）
+        public static void ToDanPlay(Scene scene, Charts.DanCourse course) => DanLoading.Start(scene, course);
 
         // 暗くしている途中・真っ黒の間(今の画面を操作させない)
         //   曲の読み込み画面の、幕が開き始めるまでも同じ
-        public static bool IsBlocking => phase is Phase.FadeOut or Phase.Hold || SongLoading.IsBlocking;
+        public static bool IsBlocking => phase is Phase.FadeOut or Phase.Hold || SongLoading.IsBlocking || DanLoading.IsBlocking;
 
         // 画面を切り替える予約をする
         //   fadeOut：今の画面をだんだん暗くする秒数(0 ならいきなり)
@@ -71,6 +73,7 @@ namespace TaikoSim.Scenes
         public static void Update(float dt)
         {
             SongLoading.Update(dt); // 曲の読み込み画面(読み込む時が来たら ChangeScene を呼ぶ)
+            DanLoading.Update(dt);  // 段位の読み込み画面(同じ)
             if (phase == Phase.None) return;
             // 画面の準備で1フレームが長くなっても、明るくするのが一瞬で終わらないように、1回に進める時間をおさえる
             timer += Math.Min(dt, 1f / 30f);
@@ -115,6 +118,7 @@ namespace TaikoSim.Scenes
         public static void DrawFade()
         {
             SongLoading.Draw();
+            DanLoading.Draw();
             float black = phase switch
             {
                 Phase.FadeOut => fadeOutSeconds > 0f ? Math.Clamp(timer / fadeOutSeconds, 0f, 1f) : 1f,

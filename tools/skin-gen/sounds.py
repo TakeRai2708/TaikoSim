@@ -30,8 +30,29 @@ def mix(total, parts):
         out[i:j] += sig[:j - i]
     return out
 def mtof(m): return 440 * 2 ** ((m - 69) / 12)
-def save(rel, y):
-    y = y / max(1e-6, np.abs(y).max()) * 0.85
+def rms_peak_db(y, win=0.05):
+    """50ms ずつの音の大きさ(RMS)の一番大きいところ(dB)。耳で感じる大きさに近い"""
+    n = max(1, int(SR * win))
+    c = np.cumsum(np.concatenate([[0.0], y * y]))
+    if len(y) <= n: return 10 * np.log10(max(1e-12, c[-1] / len(y)))
+    return 10 * np.log10(max(1e-12, ((c[n:] - c[:-n]) / n).max()))
+
+def loud(y, target_db, ceiling=0.89):
+    """たたく音を target_db(50ms の RMS)まで大きくする。
+       音量を上げるだけだと割れるので、tanh(ソフトリミッター)でてっぺんを丸める。ピークは ceiling(−1dB。ogg にすると少しはみ出すので余裕をとる)まで"""
+    y = y / max(1e-6, np.abs(y).max())
+    lo, hi = 1.0, 40.0
+    for _ in range(40):
+        g = (lo + hi) / 2
+        if rms_peak_db(np.tanh(g * y) / np.tanh(g) * ceiling) < target_db: lo = g
+        else: hi = g
+    return np.tanh(lo * y) / np.tanh(lo) * ceiling
+
+# 11/5 にたけらいが「シンプルの音色が小さい」。A-Style の音を同じ測り方で測ると ドン −4.0dB・カッ −8.0dB だった
+DON_DB, KA_DB = -4.0, -8.0
+
+def save(rel, y, peak=0.85):
+    y = y / max(1e-6, np.abs(y).max()) * peak
     path = os.path.join(OUT, rel)
     os.makedirs(os.path.dirname(path), exist_ok=True)
     wav = path[:-4] + '.wav'
@@ -150,8 +171,8 @@ def save_hitsound(folder, name, don_sig, ka_sig):
     old = OUT
     try:
         OUT = d
-        save('dong.ogg', don_sig)
-        save('ka.ogg', ka_sig)
+        save('dong.ogg', loud(don_sig, DON_DB), peak=0.89)
+        save('ka.ogg', loud(ka_sig, KA_DB), peak=0.89)
     finally:
         OUT = old
     with open(os.path.join(d, 'HitSounds.json'), 'w', encoding='utf-8') as f:
@@ -186,14 +207,18 @@ def woodblock(freq):
     return (np.sin(2 * np.pi * freq * x) + 0.4 * np.sin(2 * np.pi * freq * 2.7 * x)) * np.exp(-x / 0.035) + \
         np.random.default_rng(int(freq)).normal(0, 1, len(x)) * np.exp(-x / 0.003) * 0.3
 
+def save_taiko():
+    """スキンのドン・カッ(Sound/Taiko/0.Taiko/)"""
+    save('Sound/Taiko/0.Taiko/don.ogg', loud(don(), DON_DB), peak=0.89)
+    save('Sound/Taiko/0.Taiko/ka.ogg', loud(ka(), KA_DB), peak=0.89)
+
 def hitsounds():
     save_hitsound('Electro', '電子音', electro_don(), electro_ka())
     save_hitsound('Clap', '手拍子', clap(0.2), clap(0.9))
     save_hitsound('WoodBlock', 'ウッドブロック', woodblock(520), woodblock(1150))
 
 def run():
-    save('Sound/Taiko/0.Taiko/don.ogg', don())
-    save('Sound/Taiko/0.Taiko/ka.ogg', ka())
+    save_taiko()
     save('Sound/Taiko/Balloon.ogg', pop())
     save('Sound/EnsoGame/End/Failed.ogg', kyoton())
     save('Sound/EnsoGame/End/Clear.ogg', sparkle(3, 1.0))

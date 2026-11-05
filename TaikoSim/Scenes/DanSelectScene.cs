@@ -113,7 +113,13 @@ namespace TaikoSim.Scenes
         /// <param name="intro">モード選択から来たときは true（入りの演出を出す）。段位から戻ってきたときは false</param>
         public DanSelectScene(bool intro = false) => withIntro = intro;
 
-        private float IntroFrame => intro == null ? float.MaxValue : introTime * Aup2.FramesPerSecond;
+        // aup2 が無いスキン（シンプル）の入り：本家みたいな扉や文字の演出はしないで、
+        //   画面が明るくなってきたら（0.2秒）札が左から出て（0.7秒）、パネルがすべりこむ（0.2秒）だけ。合わせて約1.1秒
+        //   （11/5 たけらい「ド派手じゃなくていい。シンプルで。文字の演出もまねしなくていい」）
+        private const float SimpleLeadFrames = 12f;
+        private float IntroFrame => intro != null ? introTime * Aup2.FramesPerSecond
+            : withIntro ? TilesFrom - SimpleLeadFrames + introTime * Aup2.FramesPerSecond
+            : float.MaxValue;
 
         /// <summary>入りの演出が終わって、操作できるか</summary>
         private bool IntroDone => IntroFrame >= PanelTo;
@@ -335,9 +341,8 @@ namespace TaikoSim.Scenes
 
         private static void Start(DanCourse course)
         {
-            DanSong first = course.Songs[0];
-            string title = first.Title.Length > 0 ? first.Title : Path.GetFileNameWithoutExtension(first.FullPath);
-            SceneManager.ToPlayWithLoading(new PlayScene(course), title, course.Title);
+            // 本家は曲の読み込み画面（幕）ではなく、道場の絵の読み込み画面（11/5 の六段の動画）
+            SceneManager.ToDanPlay(new PlayScene(course), course);
         }
 
         private void ShowToast(string text)

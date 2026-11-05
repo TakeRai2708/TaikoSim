@@ -42,7 +42,9 @@ namespace TaikoSim.Scenes
         private const float GaugeTabWidth = 300f, GaugeTabHeight = 38f;
         private const float GaugeTextRight = 1722f;
         private const float ArrowTop = 190f, ArrowBottom = 228f;
-        private const float CounterX = 28f, CounterY = 105f, CounterWidth = 187f, CounterHeight = 110f;
+        // 11/5 たけらい「判定の数の文字が小さい」→ 箱を少し大きくして、ラベル 17→21px・数字 22→27px
+        private const float CounterX = 28f, CounterY = 98f, CounterWidth = 212f, CounterHeight = 128f;
+        private const float CounterLabelSize = 21f, CounterValueSize = 27f;
 
         // ===== 色（動画から拾った） =====
         private static readonly Color PanelBack = new(230, 232, 238, 255);
@@ -246,12 +248,13 @@ namespace TaikoSim.Scenes
             for (int i = 0; i < rows.Length; i++)
             {
                 float y = inner.Y + 2f + i * rowHeight;
-                Rectangle labelBox = new(inner.X + 4f, y + 2f, 100f, rowHeight - 4f);
+                Rectangle labelBox = new(inner.X + 4f, y + 2f, 104f, rowHeight - 4f);
                 Raylib.DrawRectangleRounded(labelBox, 1f, 8, new Color(255, 255, 255, 60));
-                Centered(rows[i].Label, labelBox, 17f, rows[i].Color);
+                Centered(rows[i].Label, labelBox, CounterLabelSize, rows[i].Color);
                 string value = rows[i].Value.ToString(CultureInfo.InvariantCulture);
-                float w = Measure(value, 22f).X;
-                OutlinedAt(value, inner.X + inner.Width - 8f - w, y + 1f, 22f, Color.White, new Color(20, 20, 24, 255));
+                Vector2 size = Measure(value, CounterValueSize);
+                OutlinedAt(value, inner.X + inner.Width - 8f - size.X, y + (rowHeight - size.Y) / 2f, CounterValueSize,
+                    Color.White, new Color(20, 20, 24, 255));
             }
         }
 

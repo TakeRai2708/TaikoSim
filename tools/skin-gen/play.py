@@ -288,6 +288,13 @@ def gauge():
         lut = np.array([colorsys.hsv_to_rgb(i / 256, 0.55, 1.0) for i in range(256)]) * 255
         col = lut[(hue * 255).astype(int)]
         dark = a[:, :, :3].mean(axis=2) < 40
+        # A-Style の虹は、マスの下のふち（1コマの72行目）に暗い影がところどころある。
+        # それを黒い帯とまちがえて塗ると、マスの下にギザギザが出る（11/5 たけらいの動画）。
+        # 72行目は「1つ上も暗いとき」だけ黒にする（上が色なら上の色につなげる）
+        for f in range(24):
+            y = int(round(f * fh)) + 72
+            if 0 < y < h:
+                dark[y] &= dark[y - 1]
         out[:, :, :3] = col
         out[dark, :3] = 22
         return out

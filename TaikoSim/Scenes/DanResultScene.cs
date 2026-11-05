@@ -343,7 +343,8 @@ namespace TaikoSim.Scenes
             long amount = exam.PerSong ? dan.Tallies[song].Value(exam.Type) : dan.Total(exam.Type);
             bool ok = DanPlay.Satisfies(amount, exam.For(song).Red, exam.IsLess);
             // 本家のリザルトは、満たした条件は端まで虹色。割った条件はそこまでを灰色
-            float progress = ok ? 1f : dan.Progress(exam, song);
+            // 「0 以上」（その曲は条件なし）は空のバー（本家のリザルトもそう）
+            float progress = DanPlay.NoCondition(exam, song) ? 0f : ok ? 1f : dan.Progress(exam, song);
             if (progress > 0f)
                 DrawRainbow(new Rectangle(inner.X, inner.Y, inner.Width * progress, inner.Height), ok ? null : FailGray, alpha);
 

@@ -18,7 +18,7 @@ namespace TaikoSim.Scenes
     //   10/31 の九段の動画でも、1曲目の終わり → 約2秒で閉じる → 約3秒閉じたまま → 開いて曲名、を確かめた。
     //
     //   見た目（同じ動画を測った）：扉はレーンの x498〜1920・y288〜476 をおおう（下の灰色の帯「ドン・カッ」は出したまま）。
-    //   左右2枚。白地に灰色の模様、まんなかに大きいオレンジのどん顔、合わせ目に小さい取っ手。
+    //   左右2枚。シンプルは自作のふすま（木の縁・和紙・合わせ目のそばに丸い引き手）。
     //   A-Style の画像は使わない（他人のスキンなので）。コードで描く。
     public sealed class DanShutter
     {
@@ -34,7 +34,7 @@ namespace TaikoSim.Scenes
 
         // 扉がおおう場所（測った値）
         private const float Left = 498f, Right = 1920f, Top = 288f, Bottom = 476f;
-        private const float Seam = 22f;                // 2枚の扉の合わせ目のすき間
+        private const float Seam = 6f;                 // 2枚のふすまの合わせ目（木の色）
 
         // 曲名の場所（測った値）
         private const float TitleCenterY = 388f, SubtitleCenterY = 447f;
@@ -192,9 +192,9 @@ namespace TaikoSim.Scenes
                 // 左の扉は左はしから、右の扉は右はしから出てくる
                 float leftEdge = Left - doorWidth + doorWidth * closed;          // 左の扉の左はし
                 float rightEdge = Right - doorWidth * closed;                     // 右の扉の左はし
-                // 合わせ目のすき間（濃い灰色）は、閉じきったときだけ見える
+                // 合わせ目のすき間（木の色）は、閉じきったときだけ見える
                 if (closed >= 0.999f)
-                    Raylib.DrawRectangle((int)(Left + doorWidth), (int)Top, (int)Seam + 1, (int)(Bottom - Top), new Color(70, 70, 74, 255));
+                    Raylib.DrawRectangle((int)(Left + doorWidth), (int)Top, (int)Seam + 1, (int)(Bottom - Top), Wood);
                 DrawDoor(leftEdge, doorWidth, knobOnRight: true);
                 DrawDoor(rightEdge, doorWidth, knobOnRight: false);
             }
@@ -202,40 +202,37 @@ namespace TaikoSim.Scenes
             if (textElapsed >= 0f) DrawTitle();
         }
 
+        // ふすま（11/5 たけらい「どんちゃんみたいなのは入れなくていい。もう少しふすまっぽく」）
+        //   木の縁（框）→ 和紙の面（上がほんの少し明るい）→ 横の細い桟の影 → 合わせ目のそばに丸い引き手
+        private static readonly Color Wood = new(78, 52, 34, 255), WoodLight = new(112, 78, 50, 255);
+        private static readonly Color Paper = new(240, 233, 216, 255), PaperShade = new(226, 216, 194, 255);
+
         private static void DrawDoor(float x, float width, bool knobOnRight)
         {
             float height = Bottom - Top;
             Rectangle door = new(x, Top, width, height);
-            Rectangle inner = new(x + 6f, Top + 6f, width - 12f, height - 12f);
+            const float frame = 9f;
+            Rectangle paper = new(x + frame, Top + frame, width - frame * 2f, height - frame * 2f);
             // レーンの外（左のパネル・画面の外）にはみ出したところは描かない。
             //   Raylib のはみ出し切りは入れ子にできないので、描くものごとに切り直す
             if (!Clip(door)) return;
-            Raylib.DrawRectangleRec(door, new Color(92, 92, 96, 255));                       // 枠
-            Raylib.DrawRectangleRec(inner, new Color(244, 244, 244, 255));                   // 白地
-            float knobX = knobOnRight ? inner.X + inner.Width - 16f : inner.X + 16f;
-            Raylib.DrawCircleV(new Vector2(knobX, Top + height * 0.48f), 11f, new Color(60, 60, 64, 255));  // 取っ手（合わせ目のそば）
+            Raylib.DrawRectangleRec(door, Wood);                                                      // 木の縁
+            Raylib.DrawRectangleLinesEx(new Rectangle(x + 2f, Top + 2f, width - 4f, height - 4f), 2f, WoodLight); // 縁のつや
+            Raylib.DrawRectangleGradientV((int)paper.X, (int)paper.Y, (int)MathF.Ceiling(paper.Width), (int)paper.Height, Paper, PaperShade); // 和紙
+            // 和紙の横のすじ（ごくうすく）と、上と下に細い桟
+            Color fiber = new(214, 202, 178, 90);
+            for (float y = paper.Y + 13f; y < paper.Y + paper.Height - 4f; y += 17f)
+                Raylib.DrawRectangle((int)paper.X, (int)y, (int)MathF.Ceiling(paper.Width), 1, fiber);
+            Color rail = new(196, 182, 156, 255);
+            Raylib.DrawRectangle((int)paper.X, (int)(paper.Y + paper.Height * 0.2f), (int)MathF.Ceiling(paper.Width), 2, rail);
+            Raylib.DrawRectangle((int)paper.X, (int)(paper.Y + paper.Height * 0.8f), (int)MathF.Ceiling(paper.Width), 2, rail);
 
-            // 灰色の模様（ななめの線を格子に）
-            if (!Clip(inner)) { Raylib.EndScissorMode(); return; }
-            Color line = new(222, 222, 224, 255);
-            for (float d = -height; d < width + height; d += 34f)
-            {
-                Raylib.DrawLineEx(new Vector2(inner.X + d, inner.Y), new Vector2(inner.X + d + height, inner.Y + height), 6f, line);
-                Raylib.DrawLineEx(new Vector2(inner.X + d + height, inner.Y), new Vector2(inner.X + d, inner.Y + height), 6f, line);
-            }
-
-            // どん顔（オレンジの大きい輪 → 白い輪 → オレンジの顔）
-            Color orange = new(214, 74, 18, 255);
-            Vector2 c = new(inner.X + inner.Width * 0.52f, inner.Y + inner.Height * 0.62f);
-            Raylib.DrawCircleV(c, 250f, orange);
-            Raylib.DrawCircleV(c, 222f, Color.White);
-            Raylib.DrawCircleV(c, 200f, orange);
-            // 目
-            Raylib.DrawCircleV(new Vector2(c.X - 90f, c.Y - 85f), 37f, Color.White);
-            Raylib.DrawCircleV(new Vector2(c.X + 90f, c.Y - 85f), 37f, Color.White);
-            // 口（ω）
-            DrawMouthArc(new Vector2(c.X - 34f, c.Y - 18f));
-            DrawMouthArc(new Vector2(c.X + 34f, c.Y - 18f));
+            // 引き手（合わせ目のそば。金色の輪 → くぼみ）
+            float knobX = knobOnRight ? paper.X + paper.Width - 34f : paper.X + 34f;
+            Vector2 k = new(knobX, Top + height * 0.5f);
+            Raylib.DrawCircleV(k, 17f, new Color(150, 118, 62, 255));
+            Raylib.DrawCircleV(k, 14f, new Color(196, 162, 92, 255));
+            Raylib.DrawCircleV(k, 10f, new Color(58, 40, 26, 255));
             Raylib.EndScissorMode();
         }
 
@@ -247,21 +244,6 @@ namespace TaikoSim.Scenes
             if (x1 - x0 < 1f || y1 - y0 < 1f) return false;
             Raylib.BeginScissorMode((int)x0, (int)y0, (int)MathF.Ceiling(x1 - x0), (int)MathF.Ceiling(y1 - y0));
             return true;
-        }
-
-        // 口の半分（下に丸い太い線）
-        private static void DrawMouthArc(Vector2 center)
-        {
-            const float radius = 30f, thick = 13f;
-            Vector2 prev = default;
-            for (int i = 0; i <= 16; i++)
-            {
-                float a = MathF.PI * i / 16f;   // 0〜180度（下半分）
-                Vector2 p = new(center.X + MathF.Cos(a) * radius, center.Y + MathF.Sin(a) * radius * 0.75f);
-                if (i > 0) Raylib.DrawLineEx(prev, p, thick, Color.White);
-                Raylib.DrawCircleV(p, thick / 2f, Color.White);
-                prev = p;
-            }
         }
 
         private void DrawTitle()
