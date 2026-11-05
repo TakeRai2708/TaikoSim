@@ -7,6 +7,9 @@ namespace TaikoSim.Charts
     //   なので、読めない・見つからないときは **ロックしない側に倒す**（遊べなくして詰ませない）。
     public static class DanUnlock
     {
+        /// <summary>解禁条件を使うか（今は使わない＝全部の段位がいつでも遊べる）</summary>
+        public const bool UseRequirements = false;
+
         /// <summary>
         /// その段位を選べるか。
         /// </summary>
@@ -14,6 +17,9 @@ namespace TaikoSim.Charts
         public static bool IsUnlocked(DanCourse course, out string error)
         {
             error = "";
+            // 11/5 たけらい「解禁はしなくていい。どの段位もいつでもやりたいに決まってる」→ いつでも遊べる。
+            //   requirements.json の読み込みと判定（下）は残してあるので、使いたくなったら UseRequirements を true に
+            if (!UseRequirements) return true;
             if (course.Requirement == null) return true;   // requirements.json が無ければいつでも遊べる
 
             List<string> problems = new();

@@ -322,6 +322,7 @@ In A-Style they look like **sideways taiko drums** (Don-chan = red face, light-b
   - With `--test` it also runs **boundary tests for pass/fail** (initially 28 cases from the real 初段 and 十段 data; 48 now including the ReachStatus tests. No CI — run by hand)
   - Verified on たけらい's "10 段位道場": category names, danIndex order, difficulty→CourseType, relative path resolution,
     十段's "可 and 連打 per song / 不可 whole course" detection, 以上/未満 assignment
+  - **Unlock conditions are turned off** (`DanUnlock.UseRequirements = false`, 11/5): たけらい wants every dan playable at any time. Parsing/evaluation code is kept
   - **Not yet tested with real data**: `requirements.json` and `ChangeEffect` (not in たけらい's folder)
   - **`DanList` folder scanning itself is unverified** (needs Raylib, so it can't be in dan-check)
 
