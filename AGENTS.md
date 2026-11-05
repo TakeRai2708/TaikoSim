@@ -473,7 +473,7 @@ Measured by overlaying images on frames of the 九段 video (03-04-03 at 20 s, 2
   (cream boards, tan tabs, dark outlines). 06.DanSelect: MiniPlate, Plate_Effect, Plate_Arrow, Stamp, Panel, Panel_Side, SongBar, Song_CourseSymbol,
   Condition_Bar, GaugeCondition_Bar, Condition_Content, Challenge_Check/{Panel_Base, Panel, Select_Effect}.
   08.DanGame: ConditionPanel/* (Background, Base, Context, Mini_Context, {Large,Small,Mini}_Gauge(_Base/_Rainbow/_Number), Disqualify_Text, Mini_Gauge_Position),
-  Gauge/{Condition_Plate, Condition_Stopper}, MiniTaiko/CourseSymbol, Screen (fusuma), End/Text. Not made: 06 Header, 07.DanLoading (code-drawn), 08 MiniTaiko/Background, 09.DanResult
+  Gauge/{Condition_Plate, Condition_Stopper}, MiniTaiko/CourseSymbol, Screen (fusuma), End/Text. Not made: 06 Header, 07.DanLoading (code-drawn), 08 MiniTaiko/Background. 09.DanResult: see below (no stamp aup2)
 - Dan screens draw text with a THINNER outline: `MenuDraw.UseOutlineRatio(MenuDraw.DanOutlineRatio)` = 0.08× size (0.16 elsewhere). The lane song title between songs (DanShutter) uses `DanTitleOutlineRatio` = 0.1.
   Measured 11/5 in video b as distance from the white glyph to the outer edge of the black outline: need text 「346 未満」 ≈ 0.06× font size, bar digits ≈ 0.055×, lane title 「MATSURI D/A」 ≈ 0.095×. (An earlier 0.22 was a mismeasurement; the user said it was far too thick.)
   Simple dan images in tools/skin-gen/dan.py follow the same idea: PIL stroke ≈ 0.055–0.08× font size (Large digits size 92 stroke 5, Mini 34 stroke 2, End text 110 stroke 8).
@@ -483,7 +483,32 @@ Measured by overlaying images on frames of the 九段 video (03-04-03 at 20 s, 2
 - **Not built yet**:
   - `ChangeEffect` (between-song effect) is **parsed only**. The doors above (same as OpenTaiko) are shown instead.
     The original uses 8 millisecond parameters + `Anime.aup2` (see `TAIKONAUTS-SPEC.md`)
-  - Dan result with A-Style images (`09.DanResult/`)
+  - (done 11/5) Dan result with skin images — see "Dan result drawn with skin images" below
+
+#### Dan result drawn with skin images (11/5; `Scenes/DanResultAStyle.cs`)
+Measured on the 11/5 六段 video (`2026-11-05_09-32-24.mp4`, 423.9–445 s) by template-matching the `09.DanResult` images onto frames. Used when the skin has `09.DanResult/` (A-Style and Simple); otherwise `DanResultScene` code-draws as before.
+t = 0 when the result fades in (fade 0.07 s).
+- Background `Background.png` (0,0). Plate (same box as before) appears at 0.33 s over 0.2 s
+- **Per-song breakdown**: wood `Song/Panel_Background.png` (340,88). Song rows `Song/Panel_Base.png` (1440×256) at (380, 148 + 276·i), sliding in from the right at 0.78 + 0.425·i s:
+  offset = 1494·(1 − easeOutCubic(t/0.117)) + 40·clamp(1 − (t − 0.083)/0.267) (fast to ~40 px in 7 frames, then a slow 40 px creep, done at 0.35 s)
+  - Inside a row: `SongStage.png` (80×80 ×3) at (+48,+47); course mark `06.DanSelect/Song_CourseSymbol.png` at (+147,+47); level number centered (+201,+110) (the ★ is in Panel_Base);
+    title x +252, center y +88, 44 px white with dark outline; counts `Score_Number.png` (28×40 black digits) right-aligned at +443 / +760 / +1077 / +1395, y +166.
+    Songs not reached: 「???」, no counts, `NotReached.png` on the right (position is a guess)
+- **Summary** starts at 6.93 s: `Overall/Panel.png` slides in from the right (346,88) with an overshoot (keyframes in `PanelSlide`: −18 px at 0.18 s, +8 px at 0.27 s, settled at 0.37 s)
+  - 0.97 s: `Overall/JudgementPanel.png` (345,92) fades in 0.23 s. Score text centered (680,222) ~92 px (font; no image matched). Stats `Score_Number` right edges 1261 / 1715, y 157 + 62·row
+  - Rows `Overall/Base.png` (1400×160) at x 400: gauge y 352, conditions y 506 + 154·k (max 3 rows). Tab label center (+187,+19); `08.../Context.png` at (+20,+60)
+  - Soul gauge: `Overall/Gauge_Base.png` frame 0 at (520,384). Cells/rainbow/soul reuse the play gauge images (`04.EnsoGame/Gauge/`) with the play-gauge origin at (550,385)
+    (red cells = Gauge_Light (0,33,21,33) at y+45; rainbow = bottom 33 px of the play Rainbow frame; Soul_Text at +1067; Soul_Anime at (+1039,−115)).
+    Fill starts 1.55 s after the summary, **40 % per second**. When done: 「100%」 `Overall/Gauge_Number.png` bottom (orange) row at (764,357), digits 34 px apart, % 47 px after the last digit.
+    Border marker `08.../Gauge/Condition_Stopper.png` centered at 562 + 1050·norma/100 − 4
+  - Condition rows start 1.1 s after the gauge is done; each fades in 0.2 s, counts from 0 over 1.65 s (skipped for 「未満」 with nothing used), then the number pops.
+    Next row 1.15 s after the last pop. Whole-course rows: need text right +365 / center +87; `Large_Gauge_Base` at (+381,+19); digits at (+397,+7).
+    Per-song rows: columns 465 px apart; bar (+120,+65) 330×50 code-drawn; digits = `Large_Gauge_Number` **rainbow row at half size (40×50), 25 px apart** (always that row in the video); numbers pop 0.7 s apart per song
+  - Stamp 0.53 s after the last pop: `Stamp/{n}/Anime.aup2` played as-is (1920×1080 scene; loops from `_loopStartFrame` 99).
+    n: 0 fail, 1 red, 2 gold, 3 red full combo, 4 gold full combo, 5 red donderful, 6 gold donderful (the video: red pass + donderful → 5, rainbow ring).
+    Skins without the aup2 (Simple) get the code-drawn stamp centered at (196,556)
+- `DanPlay.DisplayedFor / ProgressFor / ReachFor` take an amount so the counting-up bars use the same colors as play
+- Simple's `09.DanResult` images come from `dan_result()` in `tools/skin-gen/dan.py` (same names, sizes and inner layout as A-Style)
 
 ### Play-option badges (`UI/OptionBadges.cs`; A-Style `Image/99.Common/Option_Icon/`)
 - Images are **40×40 frames laid out horizontally**. **Frame 0 is empty (= off)**; content starts at frame 1

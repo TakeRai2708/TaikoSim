@@ -17,6 +17,7 @@ namespace TaikoSim.Scenes
     //        魂ゲージのバーが伸びる → 条件のバーが上から順に出る → 左の段位プレートに「合格」のスタンプ
     //   満たした条件のバーは虹色。割った条件は灰色。
     //   ドン・Enter で演出を飛ばす／もう一度で段位選択へ（何もしなければ 25秒で戻る）
+    //   スキンに Image/09.DanResult/ があれば、その画像で描く（DanResultAStyle。11/5 の六段の動画で測った）
     public sealed class DanResultScene : Scene
     {
         private readonly DanPlay dan;
@@ -58,6 +59,7 @@ namespace TaikoSim.Scenes
 
         private readonly List<Texture2D> shodanTextures = new();
         private Texture2D plate;
+        private DanResultAStyle? aStyle;   // スキンに 09.DanResult の画像があるとき
 
         public DanResultScene(DanPlay dan)
         {
@@ -69,6 +71,12 @@ namespace TaikoSim.Scenes
         {
             age = 0f;
             LoadImages();
+            if (DanResultAStyle.Available)
+            {
+                aStyle = new DanResultAStyle(dan, result);
+                aStyle.Load();
+            }
+            FontManager.PreloadSkinMain(dan.Course.Songs.Select(s => s.Title).Append("???").Append(dan.Course.Title).ToArray());
             DebugLog.Event("段位", $"{dan.Course.Title}：{Verdict(result)}　ゲージ {dan.Gauge:0.#}%");
         }
 
@@ -77,6 +85,8 @@ namespace TaikoSim.Scenes
             foreach (Texture2D t in shodanTextures) if (t.Id != 0) Raylib.UnloadTexture(t);
             shodanTextures.Clear();
             if (plate.Id != 0) { Raylib.UnloadTexture(plate); plate = default; }
+            aStyle?.Unload();
+            aStyle = null;
         }
 
         private void LoadImages()
@@ -110,13 +120,13 @@ namespace TaikoSim.Scenes
         private float SummaryAt => BreakdownSeconds;
         private float RowsAt => SummaryAt + GaugeFillSeconds;
         private int ExamCount => dan.Course.Exams.Count;
-        private float StampAt => RowsAt + ExamCount * RowDelay + StampDelay;
-        private float FullyShownAt => StampAt + 0.6f;
+        private float StampAt => aStyle?.StampAt ?? RowsAt + ExamCount * RowDelay + StampDelay;
+        private float FullyShownAt => aStyle?.FullyShownAt ?? StampAt + 0.6f;
 
         public override void Update(float dt)
         {
             age += dt;
-            if (age >= AutoBackSeconds) { Back(); return; }
+            if (age >= Math.Max(AutoBackSeconds, FullyShownAt + 10f)) { Back(); return; }
 
             bool pressed = InputManager.IsDonPressed()
                            || Raylib.IsKeyPressed(KeyboardKey.Enter) || Raylib.IsKeyPressed(KeyboardKey.KpEnter);
@@ -140,6 +150,17 @@ namespace TaikoSim.Scenes
         {
             using OutlineRatioScope outlineScope = UseOutlineRatio(DanOutlineRatio);   // 段位の画面は文字の縁を本家に合わせて細く
             Gui.BeginFrame();
+            if (aStyle != null)
+            {
+                aStyle.DrawBackground();
+                DrawPlate(Math.Clamp((age - PlateAt) / 0.2f, 0f, 1f));
+                aStyle.Draw(age);
+                if (aStyle.HasStampAnime) aStyle.DrawStamp(age);
+                else DrawStamp(AStyleStampX, AStyleStampY);
+                DrawShodan();
+                DrawFooter();
+                return;
+            }
             Raylib.DrawRectangleGradientV(0, 0, Screen.Width, Screen.Height, new Color(40, 70, 130, 255), new Color(20, 36, 80, 255));
 
             DrawPlate();
@@ -154,21 +175,28 @@ namespace TaikoSim.Scenes
             if (age < SummaryAt) DrawBreakdown();
             else DrawSummary();
 
-            DrawStamp();
+            DrawStamp(StampX + StampSize / 2f, StampY + StampSize * 0.3f);
             DrawShodan();
             DrawFooter();
         }
 
-        private void DrawPlate()
+        // A-Style：プレートは明るくなってから 0.33秒で、0.2秒かけて出る（六段の動画）
+        private const float PlateAt = 0.33f;
+        // A-Style の画像でスタンプのアニメが無いスキン（シンプル）は、ここにコードのスタンプ（aup2 のスタンプのまんなか）
+        private const float AStyleStampX = 196f, AStyleStampY = 556f;
+
+        private void DrawPlate(float appear = 1f)
         {
+            if (appear <= 0f) return;
             if (plate.Id == 0)
             {
-                Outlined(dan.Course.Title, new Rectangle(PlateX - 20f, PlateY + 100f, 190f, 120f), 72f, Color.White, new Color(150, 30, 30, 255));
+                Outlined(dan.Course.Title, new Rectangle(PlateX - 20f, PlateY + 100f, 190f, 120f), 72f, Fade(Color.White, appear), Fade(new Color(150, 30, 30, 255), appear));
                 return;
             }
             float w = PlateHeight * plate.Width / Math.Max(1, plate.Height);
+            float drop = (1f - EaseOut(appear)) * 20f;
             Raylib.DrawTexturePro(plate, new Rectangle(0, 0, plate.Width, plate.Height),
-                new Rectangle(PlateX + 75f - w / 2f, PlateY, w, PlateHeight), System.Numerics.Vector2.Zero, 0f, Color.White);
+                new Rectangle(PlateX + 75f - w / 2f, PlateY - drop, w, PlateHeight), System.Numerics.Vector2.Zero, 0f, Fade(Color.White, appear));
         }
 
         // ① 曲ごとの内訳
@@ -377,13 +405,12 @@ namespace TaikoSim.Scenes
         }
 
         // 左の段位プレートの上に「合格」のスタンプ
-        private void DrawStamp()
+        private void DrawStamp(float cx, float cy)
         {
             if (age < StampAt) return;
             float t = Math.Clamp((age - StampAt) / 0.25f, 0f, 1f);
             float scale = 1f + (1f - EaseOut(t)) * 0.8f;
             float size = StampSize * scale;
-            float cx = StampX + StampSize / 2f, cy = StampY + StampSize * 0.3f;
 
             Color ring = result switch
             {

@@ -112,22 +112,30 @@ namespace TaikoSim.Charts
         ///   GetDisplayedAmount()（Range != Less ? Amount : Value[0] - Amount）と同じ。
         /// 「以上」系（良・連打・叩けた数・スコア・最大コンボ）は、そのまま今の数。
         /// </summary>
-        public long Displayed(DanExam exam, int songIndex = 0)
+        public long Displayed(DanExam exam, int songIndex = 0) => DisplayedFor(exam, songIndex, Amount(exam, songIndex));
+
+        /// <summary>条件の数そのもの（曲ごと条件はその曲の数、それ以外は全曲の合計）</summary>
+        public long Amount(DanExam exam, int songIndex = 0) =>
+            exam.PerSong ? Tallies[Math.Clamp(songIndex, 0, Tallies.Length - 1)].Value(exam.Type) : Total(exam.Type);
+
+        /// <summary>Displayed の、数を自分で渡す版（段位リザルトで、数を 0 から数えあげるのに使う）</summary>
+        public static long DisplayedFor(DanExam exam, int songIndex, long amount)
         {
-            long amount = exam.PerSong ? Tallies[Math.Clamp(songIndex, 0, Tallies.Length - 1)].Value(exam.Type)
-                                       : Total(exam.Type);
             if (!exam.IsLess) return amount;
             return Math.Max(0, exam.For(songIndex).Red - amount);
         }
 
         /// <summary>バーの伸び具合（0〜1）。「未満」系は残りの割合なので、使うほど減る</summary>
-        public float Progress(DanExam exam, int songIndex = 0)
+        public float Progress(DanExam exam, int songIndex = 0) => ProgressFor(exam, songIndex, Amount(exam, songIndex));
+
+        /// <summary>Progress の、数を自分で渡す版</summary>
+        public static float ProgressFor(DanExam exam, int songIndex, long amount)
         {
             long border = exam.For(songIndex).Red;
             // ボーダーが0（「連打数 0 以上」＝その曲は条件なし）は、空のバー。
             // 本家（11/5 の六段の動画）は演奏中もリザルトも、暗い空のバーに「0」だった
             if (border <= 0) return 0f;
-            return Math.Clamp(Displayed(exam, songIndex) / (float)border, 0f, 1f);
+            return Math.Clamp(DisplayedFor(exam, songIndex, amount) / (float)border, 0f, 1f);
         }
 
         /// <summary>「0 以上」みたいに、その曲には条件が無いか（バーは空・虹にしない）</summary>
@@ -148,7 +156,14 @@ namespace TaikoSim.Charts
         {
             if (exam.Thresholds.Length == 0) return DanReach.Better;
             int i = exam.PerSong ? Math.Clamp(songIndex, 0, Tallies.Length - 1) : 0;
-            long amount = exam.PerSong ? Tallies[i].Value(exam.Type) : Total(exam.Type);
+            return ReachFor(exam, i, Amount(exam, i));
+        }
+
+        /// <summary>Reach の、数を自分で渡す版（段位リザルトで数えあげている途中の色に使う）</summary>
+        public static DanReach ReachFor(DanExam exam, int songIndex, long amount)
+        {
+            if (exam.Thresholds.Length == 0) return DanReach.Better;
+            int i = exam.PerSong ? songIndex : 0;
             DanThreshold t = exam.For(i);
             if (NoCondition(exam, i)) return DanReach.Low;   // 条件なし：空のバー・白い数字（虹にしない）
             bool gold = !exam.HasGold(i) || Satisfies(amount, t.Gold, exam.IsLess);
@@ -157,7 +172,7 @@ namespace TaikoSim.Charts
             {
                 if (!Satisfies(amount, t.Red, true)) return DanReach.Failure;
                 if (amount + 4 >= t.Red && amount > 0) return DanReach.Danger;
-                float percent = Percent(exam, i);
+                float percent = Percent(exam, i, amount);
                 if (percent < 20f) return DanReach.Danger;
                 if (percent < 30f) return DanReach.Low;
                 return gold ? DanReach.Success : DanReach.High;
@@ -170,15 +185,15 @@ namespace TaikoSim.Charts
                 double better = t.Gold - t.Red <= 0 ? 100 : 100.0 * (amount - t.Red) / (t.Gold - t.Red);
                 return better < 100.0 / 3 ? DanReach.Success : better < 200.0 / 3 ? DanReach.NearBetter : DanReach.NearerBetter;
             }
-            float p = Percent(exam, i);
+            float p = Percent(exam, i, amount);
             return p < 50f ? DanReach.Low : p < 95f ? DanReach.High : DanReach.NearSuccess;
         }
 
         // バーの伸び具合を % で（OpenTaiko の GetAmountToPercent。0 以外は 1〜100）
-        private float Percent(DanExam exam, int songIndex)
+        private static float Percent(DanExam exam, int songIndex, long amount)
         {
             long border = exam.For(songIndex).Red;
-            long shown = Displayed(exam, songIndex);
+            long shown = DisplayedFor(exam, songIndex, amount);
             if (border <= 0 || shown <= 0) return 0f;
             return Math.Clamp(100f * shown / border, 1f, 100f);
         }

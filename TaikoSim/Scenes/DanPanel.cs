@@ -358,7 +358,7 @@ namespace TaikoSim.Scenes
         }
 
         // 状態ごとのバーの色・点滅（A-Style の画像で描くときも同じものを使う）
-        private static Color FillColor(DanReach reach, bool isLess) => reach switch
+        internal static Color FillColor(DanReach reach, bool isLess) => reach switch
         {
             DanReach.Success or DanReach.NearBetter or DanReach.NearerBetter => BarPink,
             DanReach.High or DanReach.NearSuccess or DanReach.NearerSuccess => BarYellow,

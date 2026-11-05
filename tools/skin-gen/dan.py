@@ -409,9 +409,122 @@ def dan_screens():
     rainbow_digits(GAME + 'ConditionPanel/Mini_Gauge_Number.png', 30, 38, 34, 2)
     disqualify_text(); mini_position(); gauge_plate(); course_symbol(); end_text(); screen()
 
+
+# ---------- 09.DanResult（段位リザルト） ----------
+#   A-Style と同じ名前・大きさ・中の配置（DanResultAStyle がそのまま使える）。絵は Simple のあっさりした見た目
+#   中の配置は A-Style の画像を測った値（JudgementPanel のスコアの箱 122〜545×57〜186 など）
+RES = 'Image/09.DanResult/'
+BOARD = (250, 248, 242, 255)
+
+def result_background():
+    """1920×1080：落ち着いた紺のグラデーションに、うすい横線"""
+    t = np.linspace(0, 1, 1080)[:, None, None]
+    top, bot = np.array([44, 66, 112.]), np.array([20, 30, 58.])
+    a = np.zeros((1080, 1920, 4), np.uint8)
+    a[:, :, :3] = (top * (1 - t) + bot * t).astype(np.uint8)
+    a[:, :, 3] = 255
+    for y in range(60, 1080, 120):
+        a[y:y + 2, :, :3] = np.minimum(255, a[y:y + 2, :, :3].astype(int) + 10).astype(np.uint8)
+    save_image(Image.fromarray(a, 'RGBA'), RES + 'Background.png')
+
+def result_song_panels():
+    """曲の内訳：うしろの板 1532×928（横木4本）・曲の板 1440×256・1st/2nd/3rd の玉 80×80×3・「未到達」345×150"""
+    c = Canvas(1532, 928)
+    c.rect(40, 40, 1492, 896, fill=(214, 200, 176, 255), outline=INKA, width=4)
+    for k in range(4):
+        y = 33 + k * 276
+        c.rect(12, y, 1520, y + 29, fill=TAN, outline=INKA, width=4, radius=4)
+    c.save(RES + 'Song/Panel_Background.png')
+
+    c = Canvas(1440, 256)
+    c.rect(0, 2, 1440, 254, fill=BOARD)
+    c.rect(0, 0, 1440, 4, fill=INKA)
+    c.rect(0, 252, 1440, 256, fill=INKA)
+    c.rect(36, 30, 1420, 140, fill=(255, 255, 255, 255), radius=55)          # 玉と曲名の帯
+    c.rect(141, 45, 231, 125, fill=TAN, outline=TAN_EDGE, width=2, radius=8)  # 難易度の札（★は板に入れる）
+    c.text(163, 110, '★', 26, fill=INKA)
+    labels = [('良', (226, 132, 20, 255)), ('可', INKA), ('不可', (54, 104, 210, 255)), ('連打数', (226, 120, 36, 255))]
+    for k, (txt, col) in enumerate(labels):
+        x0 = 141 + k * 317
+        c.rect(x0, 154, x0 + 309, 220, fill=(255, 255, 255, 255), outline=(220, 218, 212, 255), width=2, radius=8)
+        c.text(x0 + 14, 187, txt, 32, fill=col, stroke=2, stroke_fill=WHITE, anchor='lm')
+    c.save(RES + 'Song/Panel_Base.png')
+
+    c = Canvas(240, 80)
+    for k in range(3):
+        song_ball(c, k * 80 + 40, 40, 36, k, size=30)
+    c.save(RES + 'Song/SongStage.png')
+
+    c = Canvas(345, 150)
+    c.text(172, 75, '未到達', 84, fill=(178, 168, 236, 255), stroke=6, stroke_fill=INKA)
+    c.save(RES + 'Song/NotReached.png')
+
+def result_overall():
+    """まとめ：大きいパネル 1520×940・スコアと良可不可の板 1520×270・行の板 1400×160・魂ゲージの帯 1252×91×2"""
+    c = Canvas(1520, 940)
+    c.rect(2, 2, 1518, 938, fill=INKA, radius=6)
+    c.rect(8, 8, 1512, 932, fill=(206, 186, 140, 255), radius=4)
+    c.rect(24, 24, 1496, 916, fill=(234, 234, 238, 255), outline=(196, 178, 134, 255), width=2)
+    c.save(RES + 'Overall/Panel.png')
+
+    c = Canvas(1520, 270)
+    c.rect(122, 57, 545, 186, fill=(44, 108, 150, 255), outline=(26, 70, 100, 255), width=3, radius=14)
+    c.rect(132, 66, 535, 94, fill=(36, 92, 130, 255), radius=10)
+    c.text(333, 80, 'スコア', 24, fill=WHITE)
+    rows = [[('良', (226, 132, 20, 255)), ('可', INKA), ('不可', (54, 104, 210, 255))],
+            [('連打数', (226, 120, 36, 255)), ('最大コンボ数', (226, 120, 36, 255)), ('叩けた数', (90, 170, 60, 255))]]
+    for (x0, x1), labels in zip(((565, 930), (946, 1384)), rows):
+        c.rect(x0, 57, x1, 242, fill=(252, 251, 252, 255), outline=(206, 204, 210, 255), width=2, radius=12)
+        for r, (txt, col) in enumerate(labels):
+            y0 = 59 + r * 62
+            if r != 1:
+                c.rect(x0 + 2, y0, x1 - 2, y0 + 60, fill=(238, 236, 238, 255), radius=10 if r else 10)
+            c.text(x0 + 14, y0 + 31, txt, 32, fill=col, stroke=2, stroke_fill=WHITE, anchor='lm')
+    c.save(RES + 'Overall/JudgementPanel.png')
+
+    c = Canvas(1400, 160)
+    c.rect(2, 3, 1394, 142, fill=BOARD, outline=(214, 210, 200, 255), width=2, radius=14)
+    c.rect(2, 0, 380, 40, fill=TAN, outline=TAN_EDGE, width=2, radius=20)
+    c.save(RES + 'Overall/Base.png')
+
+    c = Canvas(1252, 182)
+    for k, band in enumerate([(92, 22, 26, 255), (24, 74, 84, 255)]):
+        y = k * 91
+        c.rect(0, y + 33, 1100, y + 88, fill=INKA, radius=8)
+        c.rect(42, y + 46, 1090, y + 76, fill=band)
+        c.rect(1087, y + 1, 1251, y + 88, fill=INKA, radius=10)
+    c.save(RES + 'Overall/Gauge_Base.png')
+
+def result_numbers():
+    """数字：Score_Number 28×40（黒）・Gauge_Number 55×62 の 0〜9 と %（上＝白、下＝オレンジ）"""
+    fit_digits(RES + 'Score_Number.png', 28, 40, [(INKA, None, 0)], 40)
+
+    w, h, size, stroke = 55, 62, 58, 4
+    c = Canvas(w * 11, h * 2)
+    chars = '0123456789%'
+    for r in range(2):
+        for n, ch in enumerate(chars):
+            fill = WHITE if r == 0 else (255, 150, 60, 255)
+            c.text(n * w + w / 2, r * h + h / 2 + 2, ch, size if ch != '%' else size * 0.8, fill=fill, stroke=stroke, stroke_fill=INKA)
+    path = c.save(RES + 'Overall/Gauge_Number.png')
+    # 下の段はオレンジ → 黄色のたてグラデーションにする
+    im = Image.open(path).convert('RGBA'); a = np.array(im).astype(float)
+    row = a[h:2 * h]
+    bright = row[:, :, 0] > 200
+    t = np.linspace(0, 1, h)[:, None]
+    col = np.stack([np.full_like(t, 255), 110 + 120 * t, 70 + 20 * t], axis=2)
+    col = np.repeat(col, row.shape[1], axis=1)
+    row[:, :, :3] = np.where(bright[:, :, None], col, row[:, :, :3])
+    a[h:2 * h] = row
+    Image.fromarray(a.astype(np.uint8), 'RGBA').save(path)
+
+def dan_result():
+    result_background(); result_song_panels(); result_overall(); result_numbers()
+
 def run():
     dan_plates()
     dan_screens()
+    dan_result()
 
 if __name__ == '__main__':
     run()

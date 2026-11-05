@@ -126,7 +126,7 @@ namespace TaikoSim.Scenes
         }
 
         // バーの中身：ふつうは白いバーに状態の色をかける、虹はコマ送り。点滅も DanPanel と同じ
-        private static void DrawFill(string fillPath, string rainbowPath, int rainbowFrames, float x, float y, float width, float height,
+        internal static void DrawFill(string fillPath, string rainbowPath, int rainbowFrames, float x, float y, float width, float height,
             float progress, DanReach reach, bool isLess, float clock,
             Func<DanReach, bool, Color> fillColor, Func<DanReach, float> blink, Func<DanReach, float> flash)
         {
@@ -145,7 +145,7 @@ namespace TaikoSim.Scenes
         }
 
         // 数字の画像を左から並べる（row 0＝白・1＝虹）
-        private static void DrawDigits(string path, long value, float x, float y, float cellWidth, float cellHeight, float advance,
+        internal static void DrawDigits(string path, long value, float x, float y, float cellWidth, float cellHeight, float advance,
             int row, Color tint)
         {
             string text = Math.Max(0, value).ToString(CultureInfo.InvariantCulture);
@@ -157,7 +157,7 @@ namespace TaikoSim.Scenes
             }
         }
 
-        private static string Label(DanExamType type) => type switch
+        internal static string Label(DanExamType type) => type switch
         {
             DanExamType.Great => "良の数",
             DanExamType.Good => "可の数",
