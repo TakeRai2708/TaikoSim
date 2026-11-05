@@ -1517,8 +1517,9 @@ namespace TaikoSim.Scenes
                 Vector2 at = new(DiffHintBox.X + (DiffHintBox.Width - guide.Width) / 2f,
                     DiffHintBox.Y + (DiffHintBox.Height - guide.Height) / 2f);
                 guide.Draw(guide.LoopedFrameAt(Math.Max(0f, diffTime - PanelInEnd)), at);
-                Centered("カッで選択", new Rectangle(at.X + 210, at.Y + 18, 260, 40), 28, InkColor);
-                Centered("ドンで決定", new Rectangle(at.X + 210, at.Y + 62, 260, 40), 28, InkColor);
+                // 素材の太鼓の中心はおよそ(112,67)と(285,67)。文字はそれぞれの右へ。
+                Centered("えらぶ", new Rectangle(at.X + 174, at.Y + 46, 92, 40), 28, InkColor);
+                Centered("決定", new Rectangle(at.X + 350, at.Y + 46, 115, 40), 28, InkColor);
                 return;
             }
             if (MenuSkin.Whole(MenuSkin.SongFolder + "Hint.png", DiffHintBox, Color.White)) return;
