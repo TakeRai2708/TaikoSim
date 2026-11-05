@@ -595,6 +595,31 @@ Measured by overlaying images on frames of the 九段 video (03-04-03 at 20 s, 2
 ### What's next (discussed with たけらい)
 - **Order (10/30): dan dojo → training mode → small fixes → online battle**
 
+#### Planned: private room-based online battle (agreed with たけらい, 2026-11-05)
+
+Status: wishlist / agreed user flow only. **Not implemented by this documentation change.**
+Scope: a small friends-only room system, initially for two players. No public-service-scale matchmaking or account/ranking system is planned.
+
+Confirmed flow and requirements:
+- [ ] The host creates a room and receives an entry code.
+- [ ] The guest enters that code to join the room.
+- [ ] The room owner presses "Play" to move both players to song selection.
+- [ ] The host chooses and confirms the song.
+- [ ] **Start checking/transferring the song when the host confirms that song, not when a cursor merely highlights it, and not after both players finish choosing difficulties.**
+- [ ] If the guest lacks the matching song/chart data, automatically download the necessary files from the host. Transfer the TJA (including its difficulties), audio, and other files needed by that song.
+- [ ] Once the song is available, each player chooses their own difficulty and play options.
+- [ ] Start play only after both players confirm their choices and finish loading; coordinate a shared start/countdown.
+- [ ] Continue through normal play and results, adapted for the room.
+- [ ] When the owner leaves the room, close that room for the guest as well and return them with an explanation.
+
+Implementation decisions to settle when work starts (not additional agreed features):
+- Room server/transport and how song files travel between the players.
+- Content hashes to distinguish different files with the same title and avoid unnecessary downloads.
+- Storage/reuse of received songs, progress/cancel UI, incomplete-transfer cleanup, and validation before loading.
+- Disconnect/timeout handling, ready cancellation, and the post-result/replay flow.
+- Keep local audio and judging independent of network delays; communicate room state/start coordination and the data needed for results.
+
+
 #### Make rendering lighter, reduce input latency, fix the exclusive-fullscreen crash (たけらい's wish, 10/30)
 たけらい suggested "let's implement DirectX and Vulkan". Asked about the goal, it was
 **"run lighter and more stable", "reduce input latency", "fix crashes in fullscreen"**.
