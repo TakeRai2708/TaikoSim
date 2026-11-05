@@ -192,9 +192,10 @@ namespace TaikoSim.Charts
             }
         }
 
-        private static DanRequirement? ReadRequirement(JsonElement e, string baseFolder, int depth = 0)
+        private static DanRequirement ReadRequirement(JsonElement e, string baseFolder, int depth = 0)
         {
-            if (e.ValueKind != JsonValueKind.Object || depth > 16) return null;
+            if (e.ValueKind != JsonValueKind.Object || depth > 16)
+                return new DanRequirement { Error = "解禁条件の形式が不正か、入れ子が深すぎます" };
 
             string typeText = Str(e, "type").Trim().ToLowerInvariant();
             DanRequirement req = new();
@@ -206,15 +207,15 @@ namespace TaikoSim.Charts
                     req.Type = typeText == "all" ? DanRequirementType.All : DanRequirementType.Any;
                     if (e.TryGetProperty("conditions", out JsonElement list) && list.ValueKind == JsonValueKind.Array)
                         foreach (JsonElement child in list.EnumerateArray())
-                            if (ReadRequirement(child, baseFolder, depth + 1) is { } c) req.Children.Add(c);
-                    // 空配列は指定できない決まりなので、読めたものが無ければロックしない
+                            req.Children.Add(ReadRequirement(child, baseFolder, depth + 1));
+                    // 不正な子条件も残す。評価時に必ずエラーを通知して、ロックしない。
                     if (req.Children.Count == 0) req.Error = $"{typeText} の conditions が空です";
                     return req;
 
                 case "not":
                     req.Type = DanRequirementType.Not;
-                    if (e.TryGetProperty("condition", out JsonElement only) && ReadRequirement(only, baseFolder, depth + 1) is { } sole)
-                        req.Children.Add(sole);
+                    if (e.TryGetProperty("condition", out JsonElement only))
+                        req.Children.Add(ReadRequirement(only, baseFolder, depth + 1));
                     if (req.Children.Count == 0) req.Error = "not の condition がありません";
                     return req;
 
@@ -228,7 +229,8 @@ namespace TaikoSim.Charts
                 case "songclear":
                     req.Type = DanRequirementType.SongClear;
                     SetPath(req, e, baseFolder);
-                    req.Course = ParseCourse(Str(e, "course"));
+                    if (ParseCourse(Str(e, "course")) is { } clearCourse) req.Course = clearCourse;
+                    else req.Error = "songClear の course が読めません";
                     req.SongClear = DanClearTypes.ParseSong(Str(e, "clearType"));
                     if (req.SongClear == SongClearType.None) req.Error = "songClear の clearType が読めません";
                     return req;
@@ -236,15 +238,21 @@ namespace TaikoSim.Charts
                 case "songscore":
                     req.Type = DanRequirementType.SongScore;
                     SetPath(req, e, baseFolder);
-                    req.Course = ParseCourse(Str(e, "course"));
-                    req.Score = Math.Max(0, Long(e, "score", 0));
+                    if (ParseCourse(Str(e, "course")) is { } scoreCourse) req.Course = scoreCourse;
+                    else req.Error = "songScore の course が読めません";
+                    if (e.TryGetProperty("score", out JsonElement score) && score.ValueKind == JsonValueKind.Number && score.TryGetInt64(out long points) && points >= 0)
+                        req.Score = points;
+                    else req.Error = "songScore の score は0以上の整数で指定してください";
                     return req;
 
                 case "songrank":
                     req.Type = DanRequirementType.SongRank;
                     SetPath(req, e, baseFolder);
-                    req.Course = ParseCourse(Str(e, "course"));
-                    req.Rank = Math.Clamp(Int(e, "rank", 1), 1, 7);
+                    if (ParseCourse(Str(e, "course")) is { } rankCourse) req.Course = rankCourse;
+                    else req.Error = "songRank の course が読めません";
+                    if (e.TryGetProperty("rank", out JsonElement rank) && rank.ValueKind == JsonValueKind.Number && rank.TryGetInt32(out int rankValue) && rankValue is >= 1 and <= 7)
+                        req.Rank = rankValue;
+                    else req.Error = "songRank の rank は1〜7の整数で指定してください";
                     return req;
 
                 default:
@@ -260,13 +268,14 @@ namespace TaikoSim.Charts
         }
 
         // requirements.json の course 名(Easy / Normal / Hard / Oni / Ura)
-        private static CourseType ParseCourse(string text) => text.Trim().ToLowerInvariant() switch
+        private static CourseType? ParseCourse(string text) => text.Trim().ToLowerInvariant() switch
         {
             "easy" => CourseType.Easy,
             "normal" => CourseType.Normal,
             "hard" => CourseType.Hard,
             "ura" => CourseType.Edit,
-            _ => CourseType.Oni,
+            "oni" => CourseType.Oni,
+            _ => null,
         };
 
         // ===== ChangeEffect =====

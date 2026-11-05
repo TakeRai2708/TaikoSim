@@ -43,14 +43,16 @@ namespace TaikoSim.Charts
             switch (req.Type)
             {
                 case DanRequirementType.All:
+                    bool all = true;
                     foreach (DanRequirement child in req.Children)
-                        if (!Evaluate(child, problems, depth + 1)) return false;
-                    return true;
+                        if (!Evaluate(child, problems, depth + 1)) all = false;
+                    return all;
 
                 case DanRequirementType.Any:
+                    bool any = false;
                     foreach (DanRequirement child in req.Children)
-                        if (Evaluate(child, problems, depth + 1)) return true;
-                    return false;
+                        if (Evaluate(child, problems, depth + 1)) any = true;
+                    return any;
 
                 case DanRequirementType.Not:
                     return req.Children.Count > 0 && !Evaluate(req.Children[0], problems, depth + 1);
