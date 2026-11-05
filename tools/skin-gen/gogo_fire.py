@@ -59,11 +59,13 @@ def frame(f):
     t = f / N * 2 * math.pi
     dx, dy = X - CX, Y - CY
     theta = np.arctan2(dy, dx)
-    ball_r = 95 + 2.5 * np.sin(2 * theta - t) + 1.5 * np.sin(3 * theta + 2 * t) + 1.5 * math.sin(t * 2)   # ほぼ丸。少しだけゆれる
+    # 11/5：玉は判定枠の小さい丸(半径約50)より大きく、大きい丸(約77)より小さく → 画面で約63 ＝ 0.9倍で描くので 70
+    BALL = 70
+    ball_r = BALL + 2.0 * np.sin(2 * theta - t) + 1.2 * np.sin(3 * theta + 2 * t) + 1.2 * math.sin(t * 2)   # ほぼ丸。少しだけゆれる
     # 右上の肩を少し盛り上げる（A-Style も、玉の右上がこぶのようにふくらんで、そこから炎が分かれている）
     hump_c = math.radians(-48)
     hd = np.angle(np.exp(1j * (theta - hump_c)))
-    ball_r = ball_r + 12 * np.exp(-(hd / 0.5) ** 2)
+    ball_r = ball_r + 9 * np.exp(-(hd / 0.5) ** 2)
     m = dx * dx + dy * dy <= ball_r ** 2
     rng = np.random.default_rng(100 + f)          # コマごとにちがう形（決まった乱数なので毎回同じ画像になる）
 
@@ -87,17 +89,17 @@ def frame(f):
 
     # 炎 3〜4本：玉の上〜右上（−95°〜−30°）から上向きに立って、2〜3回くねりながら右へなびく
     count = int(rng.integers(3, 5))
-    bases = np.sort(rng.uniform(-95, -30, count))
+    bases = np.sort(rng.uniform(-85, -20, count))
     for k, b in enumerate(bases):
         a = math.radians(b)
-        rr = 95 + 12 * math.exp(-((a - hump_c) / 0.5) ** 2) - 16
+        rr = BALL + 9 * math.exp(-((a - hump_c) / 0.5) ** 2) - 12
         bx, by = CX + math.cos(a) * rr, CY + math.sin(a) * rr
         length = rng.uniform(55, 130) * (1.0 + 0.25 * (b > -60))          # 右上側の炎ほど長め
-        heading = math.radians(rng.uniform(-88, -60))                   # 上〜ななめ右上に立つ
-        turn = math.radians(rng.uniform(45, 95))                        # 先へ行くほど右へ
+        heading = math.radians(rng.uniform(-62, -34))                   # ななめ右上へ(11/5「もう少し寝かせて」)
+        turn = math.radians(rng.uniform(30, 70))                        # 先へ行くほど右へ
         wiggle = math.radians(rng.uniform(18, 32)) * (1 if rng.random() < 0.5 else -1)
         waves = rng.uniform(1.0, 1.6)
-        w0 = rng.uniform(15, 22)
+        w0 = rng.uniform(13, 19)
         pts = curve(bx, by, heading, length, turn, wiggle, 80, waves)
         n = len(pts)
         ws = []
@@ -115,7 +117,7 @@ def frame(f):
 
     # 葉っぱ形のかけら：半分くらいのコマで 1〜2個、右上へ
     for j in range(int(rng.integers(0, 3)) if rng.random() < 0.6 else 0):
-        x0 = CX + rng.uniform(60, 150); y0 = CY - rng.uniform(150, 230)
+        x0 = CX + rng.uniform(110, 190); y0 = CY - rng.uniform(100, 170)
         pts = curve(x0, y0, math.radians(rng.uniform(-70, -30)), rng.uniform(30, 48), math.radians(rng.uniform(40, 80)), 0, 30)
         n = len(pts)
         stroke(pts, [rng.uniform(5, 7.5) * math.sin(math.pi * i / (n - 1)) ** 0.8 for i in range(n)])   # 両はしがとがる

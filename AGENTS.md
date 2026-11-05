@@ -507,7 +507,8 @@ Measured by overlaying images on frames of the 九段 video (03-04-03 at 20 s, 2
   - A-Style has eyes and a mouth; **Simple has no face** (shape only)
 - Simple's go-go fire (11/5; たけらい asked to match A-Style's tongue shapes): A-Style's GoGoSoul tongues are thin, wave in an S 2–3 times with small lobes,
   have **sharp tips**, rise up-right from a slight hump on the ball's upper right, 2–4 per frame with big per-frame changes (flicker), and leaf-shaped
-  fragments (pointed at both ends) sometimes break off. Simple follows that structure with its own drawing: nearly round ball (r 95, slight wobble) + small hump,
+  fragments (pointed at both ends) sometimes break off. Simple follows that structure with its own drawing: nearly round ball (r 70 in the image = ~63 px on screen at 0.9×, i.e. between the judge frame's
+  small circle r≈50 and big circle r≈77; slight wobble) + small hump, tongues leaning diagonally up-right (heading −62°…−34°),
   3–4 tongues per frame from a seeded RNG (seed 100+frame), occasional side branch, 0–2 leaf fragments, only a 2.2 px blur to smooth joints (tips stay sharp),
   flat light orange (255,146,60, α112). `frame()` in `tools/skin-gen/gogo_fire.py`
 - Go-go fire (`Lane/GoGoSoul.png`, 480×600 per frame × 8): fireball center (243,297) placed on the judge circle at **0.9×**, additive blend.
