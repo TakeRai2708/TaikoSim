@@ -1,575 +1,623 @@
-# AGENTS.md — TaikoSim を手伝う AI へ（引き継ぎ書）
+# AGENTS.md — Handoff guide for AI assistants working on TaikoSim
 
-このファイルは、TaikoSim の作業を引き継ぐ AI（ChatGPT / Codex など）向けの説明書です。
-作業を始める前に、全部読んでください。
+This file is for any AI (Claude, ChatGPT / Codex, etc.) that picks up work on TaikoSim.
+Read all of it before you start.
 
-**あわせて `TAIKONAUTS-SPEC.md` も読んでください。**
-あちらは TaikøNauts の公式ドキュメント（全50ページ）から写した「本家がどう作られているか」のメモです。
-段位道場の `dan.json`、どんちゃんの `Config.json`、`category.def` / `order.def`、`SONGGENREID` などの
-**ファイル形式の正解**はあちらに書いてあります。
-このファイル（AGENTS.md）の方は、TaikoSim で**実際に動画や画像を測って決めた値**を書く場所です。
+**Also read `TAIKONAUTS-SPEC.md`.**
+That file is a digest of the official TaikøNauts documentation (50 pages): "how the original is built".
+The **correct file formats** live there: dan-dojo `dan.json`, Don-chan `Config.json`, `category.def` / `order.def`, `SONGGENREID`, etc.
+This file (AGENTS.md) is where we record **values we actually measured** from videos and images for TaikoSim.
 
----
-
-## 1. プロジェクトの説明
-
-- **TaikoSim**：太鼓の達人のシミュレーター（自分用・**非公開**。絶対に公開しない）
-- 作っている人：たけらい（日本の IT 専門学校の学生。Windows 11）
-- 言語・ライブラリ
-  - C# / .NET 10（`net10.0-windows`）
-  - Raylib-cs 8.1.0（描画）
-  - ManagedBass 3.1.1（＋ Mix / Wasapi / Asio）（音）
-- 譜面は `.tja`（OpenTaiko / TJAPlayer3 と同じ形式）
-- 画面の座標は全部 **1920×1080** で考える（`Graphics/Screen.cs` が拡大・縮小する）
-
-### 何に合わせるか（大事）
-1. **動き・ルール**：OpenTaiko → TJAPlayer3 の順で合わせる（OpenTaiko のソースが一番の手本）
-2. **見た目**：TaikøNauts（OpenTaiko の派生）の **A-Style** スキンに合わせる
-   - たけらいが TaikøNauts の動画を撮って送ってくれる。それを1コマずつ見て、座標・時間を測って合わせてきた
-   - 測った値はコードのコメントと、この文書の「8. 測った値」に書いてある
+> Language note: this file is in English so that AI agents can read it quickly.
+> The user (たけらい) is Japanese. **All replies to the user must be in Japanese** (see §2).
+> Code comments in the repo are written in plain, easy Japanese — keep that style when you add comments.
 
 ---
 
-## 2. たけらいへの話し方・進め方（必ず守る）
+## 1. Project overview
 
-- **友達みたいなカジュアルな日本語**（ネットスラング OK、絵文字多め）。対等な立場で、ボケにはツッコむ
-- **あいまいに言わない。細かく、具体的な数字で説明する**
-- 分からないときは「**分からない**」とはっきり言う。推測で話すときは、頭に「**推測なんだけど**」をつける
-- **いきなり作らない**。まず「どう理解したか」「何をするか」を説明して、決めてほしいことを選択肢（A/B/C）で聞く
-- プロンプトがあいまいなときは、作る前に聞く
-- コードを渡すときは、**「修正差分」と「修正後の全コード」の両方**を出す（大きいファイルは、ファイルを添付して差分を見せる）
-- `<details>` タグ（折りたたみ）は使わない（そのまま文字で出て見にくい）
-- 「1ブロックずつコピペ」みたいな、どこからどこまでか分かりにくい説明はしない
-- 返事の最後に、この2行をつける：
+- **TaikoSim**: a Taiko no Tatsujin simulator. Personal use only, **private. Never publish it.**
+- Author: たけらい (Japanese IT vocational-school student, Windows 11)
+- Stack
+  - C# / .NET 10 (`net10.0-windows`)
+  - Raylib-cs 8.1.0 (rendering)
+  - ManagedBass 3.1.1 (+ Mix / Wasapi / Asio) (audio)
+- Charts are `.tja` (same format as OpenTaiko / TJAPlayer3)
+- All screen coordinates assume **1920×1080** (`Graphics/Screen.cs` scales to the window)
+
+### What to match (important)
+1. **Behavior / rules**: OpenTaiko first, then TJAPlayer3 (OpenTaiko's source is the primary reference)
+2. **Visuals**: the **A-Style** skin of TaikøNauts (an OpenTaiko fork)
+   - たけらい records TaikøNauts videos and sends them. We step through them frame by frame and measure coordinates and timings
+   - Measured values are in code comments and in §8 of this file
+
+---
+
+## 2. How to talk to たけらい and how to work (mandatory)
+
+- **Casual Japanese like a friend** (net slang OK, plenty of emoji). Equal footing; when he jokes, do a tsukkomi
+- **Never be vague. Explain in detail with concrete numbers**
+- If you don't know, say 「**分からない**」 plainly. When guessing, start the sentence with 「**推測なんだけど**」
+- **Don't build things right away.** First explain how you understood the request and what you plan to do; offer choices as A/B/C when a decision is needed
+- If the prompt is ambiguous, ask before building
+- When delivering code, give **both the diff (修正差分) and the full modified code (修正後の全コード)** (attach large files and show the diff)
+- Do not use `<details>` (collapsible) tags — they show up as raw text and are hard to read
+- Don't give instructions like "copy-paste one block at a time" where block boundaries are unclear
+- End every reply with exactly these two lines:
   - `📋 タブ名：「（今の話題の名前）」`
   - `💾 Ctrl+Shift+S で保存してね`
 
 ---
 
-## 3. Git のルール
+## 3. Git rules
 
-- 作業は **ブランチ** でする（名前の例：`codex/なにか`。今までは `claude/なにか` だった）
-- **master へのマージは、たけらいが「マージして」と言ったときだけ**
-- **プッシュは、たけらいが「上げて」と言ったときだけ**（先に説明して、OK をもらう）
-- コミットメッセージは **日本語**。何をしたかが分かるように、箇条書きでまとめる
-- リモートのブランチを消すのは、たけらいが VS（Visual Studio）でやる
+- Japanese commit messages; summarize what changed as bullet points
+- Work on branches (e.g. `codex/xxx`; earlier ones were `claude/xxx`)
+- **Merge into master only when たけらい says 「マージして」**
+- **Push only when たけらい says 「上げて」** (explain first and get an OK)
+  - In practice (since 10/31) たけらい has had Claude commit directly on master and push, then sync `claude/aot`:
+    `git branch -f claude/aot master && git push -f origin claude/aot`
+- Remote branches are deleted by たけらい in Visual Studio
+- The GitHub repo moved to `https://github.com/TakeRai2708/TaikoSim.git` (pushes to the old URL still redirect)
 
-### 今のブランチ（2026-10-30 時点）
-- **master**：`claude/option-skip` までマージ済み
-- まだ master に入れていない（本人確認待ち）：`claude/hitsound-flip`（音色・スキップ間隔・めくれ・文字の縁・スライダー）→ その上に `claude/aot`（逆コンパイル対策）
-- 他の `claude/`・`codex/` ブランチは全部マージ済み（消してよい）
+### Branch status (as of 2026-11-05)
+- **master**: everything is merged (up to the dan-dojo work of 11/5)
+- **claude/aot**: kept identical to master
+- All other `claude/` / `codex/` branches are merged (safe to delete)
 
 ---
 
-## 4. ビルドの仕方
+## 4. Building
 
-- たけらいの PC（Windows・Visual Studio）で動かす。**AI の側では実行して画面を確かめられない**ことが多いので、
-  「ビルドは通った・見た目はまだ確かめていない」を正直に伝える
-- Linux でコンパイルの確認だけするとき：
+- Runs on たけらい's PC (Windows, Visual Studio). **The AI side usually cannot run the game and look at the screen**,
+  so be honest: "it compiles, but I haven't checked the visuals"
+- To compile-check on Linux:
   ```
   dotnet build TaikoSim/TaikoSim.csproj -p:EnableWindowsTargeting=true
   ```
-  （NuGet から Raylib-cs と ManagedBass を取ってくる必要がある）
-- NuGet につながらないときは `tools/build-check/`（README.md を見て）：`./setup.sh` で Raylib-cs 8.1.0 と ManagedBass のソースを取ってきて、
-  `dotnet build Check.csproj` で TaikoSim のソースといっしょにコンパイルする（Windows フォームの FolderBrowserDialog だけ、`stub.cs` の空のクラスで代わりにする）
-- 見た目は動かして確かめられないので、Python（Pillow）でスキンの画像を重ねた見本を作って、たけらいの動画のコマと並べて見比べる
-- `bass.dll` などはリポジトリに入っている
+  (needs NuGet for Raylib-cs and ManagedBass)
+- Without NuGet access use `tools/build-check/` (see its README.md): `./setup.sh` fetches the Raylib-cs 8.1.0 and ManagedBass sources,
+  then `dotnet build Check.csproj` compiles them together with the TaikoSim sources (only the Windows Forms FolderBrowserDialog is replaced by an empty class in `stub.cs`)
+- Since visuals can't be run, build mock-ups in Python (Pillow) by compositing skin images and compare them side by side with frames from たけらい's videos
+- `bass.dll` etc. are committed to the repo
 
-### 逆コンパイル対策：Native AOT（exe を機械語にして、中の C# コード(IL)を exe に入れない）
-- たけらいの希望で、友達に渡す exe を **Native AOT** で作る方針（ILSpy などで中身を読めなくする）
-- **ふつうの `dotnet build` では効かない。** exe を作るときに、Visual Studio か下のコマンドで：
+### Anti-decompilation: Native AOT (compile the exe to machine code so no C# IL ships inside it)
+- たけらい wants the exe given to friends built with **Native AOT** (so ILSpy etc. can't read it)
+- **A normal `dotnet build` does not do this.** Build the exe from Visual Studio or with:
   ```
   dotnet publish TaikoSim/TaikoSim.csproj -r win-x64 -c Release
   ```
-  - Visual Studio に「**C++ によるデスクトップ開発**」を入れておく必要がある（AOT は C++ の道具を使う）
-- AOT で動くように直したところ（`claude/aot`）：
-  - **JSON**：リフレクション（実行時に型を調べるしくみ。AOT で使えない）をやめて、**ソース生成**にした（`Configs/AppJsonContext.cs`）。
-    設定・履歴・曲キャッシュの読み書きは、型ごとの `AppJsonContext.Default.XXX` を渡す。JSON で保存する型を増やしたら、ここに `[JsonSerializable(typeof(…))]` を足す
-  - **フォルダ選択**：Windows フォーム（AOT で使えない）をやめて、Win32 を直接呼ぶ（`Platform/FolderPicker.cs`、shell32 の SHBrowseForFolder）
-  - csproj：`UseWindowsForms` を外し、`PublishAot`・`IsAotCompatible`・`JsonSerializerIsReflectionEnabledByDefault=false` を足した
-  - `JsonDocument.Parse`（HitSounds・SkinPreview・SkinManager・PlayBackground）はリフレクションを使わないので、そのままでOK
-- **AI の側（Linux）では AOT の publish は試せない**（Windows のビルド環境が要る）。`tools/build-check` に `IsAotCompatible` を入れて、
-  自作コードに AOT の警告（IL・SYSLIB）が出ないかは Linux でも静的に確認できる（CA1420 は by-ref/配列の P/Invoke の注意で、既存の WindowsIME などでも出る。AOT は実行時マーシャリングに対応しているので問題ない）
-- **まだ確かめていない**：Raylib-cs 8.1.0 と ManagedBass の NuGet が AOT で問題なく動くか（たけらいの PC で publish して確認）。
-  もし publish で IL 警告や失敗が出たら、そのライブラリの型を `[DynamicDependency]` などで残す対応が要るかも
+  - Visual Studio needs the **"Desktop development with C++"** workload (AOT uses the C++ toolchain)
+- What was changed to make AOT work (`claude/aot`):
+  - **JSON**: no reflection (unavailable under AOT); uses **source generation** (`Configs/AppJsonContext.cs`).
+    Reading/writing settings, history and song cache passes the per-type `AppJsonContext.Default.XXX`. When you add a type that is saved as JSON, add `[JsonSerializable(typeof(…))]` there
+  - **Folder picker**: no Windows Forms (unavailable under AOT); calls Win32 directly (`Platform/FolderPicker.cs`, shell32 `SHBrowseForFolder`)
+  - csproj: removed `UseWindowsForms`; added `PublishAot`, `IsAotCompatible`, `JsonSerializerIsReflectionEnabledByDefault=false`
+  - `JsonDocument.Parse` (HitSounds, SkinPreview, SkinManager, PlayBackground) doesn't use reflection, so it stays
+- **AOT publish can't be tested on the AI side (Linux)** (needs the Windows toolchain). With `IsAotCompatible` in `tools/build-check`
+  you can statically check on Linux that our own code raises no AOT warnings (IL / SYSLIB). (CA1420 is a by-ref/array P/Invoke notice that also appears in existing code such as WindowsIME; AOT supports runtime marshalling, so it's fine)
+- **Not yet verified**: whether the Raylib-cs 8.1.0 and ManagedBass NuGet packages work under AOT (たけらい must publish and check on his PC).
+  If publish emits IL warnings or fails, those library types may need to be preserved with `[DynamicDependency]` etc.
+
+### Debug log (CSV) — for investigating slowness, input, audio drift
+- Turn on via Settings "一般 → デバッグ → デバッグ記録（CSV）" or the song-select option 「デバッグ記録(CSV)」
+- While on, three CSVs are written to `Logs/Debug_<date>_<time>/` (on a background thread so the game doesn't stall; the 10 newest folders are kept)
+  - `frames.csv`: **one row per frame**. Frame interval, work time (CPU busy time), time per section
+    (song list, scene update, scene draw, settings panel, FPS display, canvas submit, screenshot, compositing, present/wait;
+    during play also background, lane, gauge, notes, effects, panel text, ending; plus "text" across everything),
+    FPS, number of text draws, text pages, texture count, memory, bytes allocated this frame, GC counts, song-vs-screen drift, output latency, BASS CPU
+  - `events.csv`: events. Scene changes (and their prep time), heavy frames (> 20 ms, top 3 sections),
+    texture and font-page loads, song loads, skin, GC, display settings, and **every log line shown on the black console**
+  - `input.csv`: input during play (same columns as the old "input diagnostics CSV")
+- "重さの内訳を画面に出す" shows "average / worst frame" per second at the top right (for recording a video to share)
+- Times are CPU-side. Real GPU cost shows up lumped into "canvas submit" and "present/wait"
+- To add a measured section: add it to `PerfSection` in `Diagnostics/DebugLog.cs` and wrap with `DebugLog.Begin()` → `DebugLog.End(section, t)`
 
 ---
 
-### デバッグ記録（CSV）— 重さ・入力・音のズレを調べるとき
-- 設定の「一般 → デバッグ → デバッグ記録（CSV）」か、選曲画面のオプション「デバッグ記録(CSV)」で ON
-- ON の間、`Logs/Debug_日付_時間/` に3つの CSV を書く（裏のスレッドで書くので、ゲームは止まらない。古いのは10個まで残す）
-  - `frames.csv`：**1フレームに1行**。フレーム間隔・作業（CPU が働いた時間）・場所ごとの時間
-    （曲一覧・画面の更新・画面の描画・設定パネル・FPS表示・キャンバス送り・スクショ・画面合成・表示・待ち、
-    演奏中は 背景・レーン・ゲージ・音符・演出・パネル文字・終わり、それと全部の中の「文字」）、
-    FPS・描いた文字の数・文字のページ数・画像の数・メモリ・そのフレームで確保した量・GC の回数・曲と画面のズレ・出力遅延・BASS の CPU
-  - `events.csv`：できごと。画面の切り替え（と準備の時間）・重いフレーム（20ms 超え。どこが重かったか上から3つ）・
-    画像やフォントのページの読み込み・曲の読み込み・スキン・GC・画面の設定、それと**黒い画面に出したログ全部**
-  - `input.csv`：演奏中の入力（前の「入力診断CSV」と同じ列）
-- 「重さの内訳を画面に出す」を ON にすると、右上に1秒ごとの「平均 / 一番重いフレーム」を出す（録画して見せてもらうとき用）
-- 時間は CPU 側で測っている。GPU の本当の重さは「キャンバス送り」と「表示・待ち」にまとめて出る
-- 測る場所を足すときは `Diagnostics/DebugLog.cs` の `PerfSection` に足して、`DebugLog.Begin()` → `DebugLog.End(場所, t)` で囲む
-
-## 5. フォルダの構成（主なもの）
+## 5. Folder layout (main parts)
 
 ```
 TaikoSim/
-  Program.cs, Game.cs          … 起動・メインループ
-  Scenes/                      … 画面
-    ModeSelectScene.cs         … モード選択（起動して最初の画面）
-    SongSelectScene.cs         … 選曲画面（ジャンル → 曲 → 難易度）
-    PlayScene.cs               … 演奏画面（判定・音符・レーン）
-    PlayHUD.cs                 … 演奏画面の上の方（スコア・ゲージ・曲名）
-    PlayerEffects.cs           … 演奏の演出（花火・ミニ太鼓・コンボ数・キラキラ・ゴーゴー）
-    PlayEnd.cs                 … 演奏が終わったときの演出（クリア・フルコンボ・ドンダフルコンボ・紙吹雪）
-    ResultScene.cs             … リザルト
+  Program.cs, Game.cs          … startup, main loop
+  Scenes/                      … screens
+    ModeSelectScene.cs         … mode select (first screen after boot)
+    SongSelectScene.cs         … song select (genre → song → difficulty)
+    PlayScene.cs               … play screen (judging, notes, lane)
+    PlayHUD.cs                 … top of the play screen (score, gauge, title)
+    PlayerEffects.cs           … play effects (fireworks, mini taiko, combo number, sparkles, go-go)
+    PlayEnd.cs                 … end-of-song effects (clear, full combo, donderful combo, confetti)
+    ResultScene.cs             … result
+    SongLoading.cs             … song loading screen (curtain)
+    DanSelectScene.cs, DanSelectAStyle.cs        … dan select
+    DanPanel.cs, DanPanelAStyle.cs, DanShutter.cs … dan play (condition panel, doors between songs)
+    DanLoading.cs              … dan loading screen (dojo picture)
+    DanResultScene.cs          … dan result
   UI/
-    BarList.cs                 … モード選択・選曲画面の「斜めの板」の動き（共通）
-    MenuDraw.cs                … 文字（太字＋まるい縁取り）などの描く道具
-    MenuSkin.cs                … スキンの画像を描く道具（無ければ false → プログラムで描く）
-    PlayOptionsPanel.cs        … 演奏オプションの板（選曲画面の左下）
+    BarList.cs                 … the diagonal "bars" motion shared by mode select and song select
+    MenuDraw.cs                … drawing helpers (bold text with round outline, etc.)
+    MenuSkin.cs                … draws skin images (returns false if missing → code draws instead)
+    PlayOptionsPanel.cs        … play options panel (bottom left of song select)
   Graphics/
-    SkinManager.cs             … スキンの画像を読む
-    FontManager.cs, DynamicFont.cs … 日本語フォント（足りない文字はあとから足す）
-  Diagnostics/DebugLog.cs      … デバッグ記録（CSV）と重さの内訳
-  Audio/                       … BASS・プレビュー・メニューの音
-  Charts/                      … .tja の読み込み・曲の一覧・履歴
-  Skins/TaikoSim-Simple/       … 自作スキン（Git で管理）
-tools/skin-gen/                … Simple スキンの画像・音を作る Python（下を見て）
+    SkinManager.cs             … loads skin images
+    FontManager.cs, DynamicFont.cs … Japanese fonts (missing glyphs added on demand)
+    Aup2.cs                    … AviUtl2 project (.aup2) player
+  Diagnostics/DebugLog.cs      … debug CSV log and timing breakdown
+  Audio/                       … BASS, preview, menu sounds
+  Charts/                      … .tja loading, song list, history, dan data
+  Skins/TaikoSim-Simple/       … our own skin (tracked in Git)
+tools/skin-gen/                … Python that generates the Simple skin's images and sounds (see §7)
+tools/dan-check/               … runs the dan parser on a real dan folder (+ boundary tests)
+tools/build-check/             … compile check without NuGet
 ```
 
 ---
 
-## 6. スキンの決まり
+## 6. Skin rules
 
-- スキンは `Skins/スキン名/` に入れる。フォルダの作りは **TaikøNauts と同じ**
-  - `Image/02.SongSelect/`（選曲）・`Image/03.SongLoading/`（曲の読み込み画面。`Scenes/SongLoading.cs`。下の「曲の読み込み画面」を見て）
-  - `Image/04.EnsoGame/`（演奏）・`Image/05.Result/`（リザルト）
-  - `Image/01.Entry/`（モード選択。TaikøNauts での本当の名前はこれ。Simple は今も `Image/01.ModeSelect/` を使っている）
-    - 中は `Bar/Bar/番号.png`（板）・`Bar/Title/番号.png`（題字）・`Bar/Overlay.png`・`Bar/Selected.png`・`Bar/Pop/番号.png`・
-      `Bar/1POnly.png`・`Background.png`・`Header.png`・`Background_Fireworks.png`。
-      **`Bar/` が2段あるのは間違いではない**（たけらいが実物で確かめた）
-  - `Font/default.otf`（曲名・メニューの文字に使うフォント）
-- 画像が無いときは、プログラムが自分で描く（スキンが無くても動くようにする）
-- テスト用の `SkinManager.SystemSkin = true` のときは、画像を全部「無い」ことにする
+- Skins live in `Skins/<skin name>/`. The folder structure is **the same as TaikøNauts**
+  - `Image/02.SongSelect/` (song select), `Image/03.SongLoading/` (song loading screen, `Scenes/SongLoading.cs`; see "Song loading screen" in §9)
+  - `Image/04.EnsoGame/` (play), `Image/05.Result/` (result)
+  - `Image/01.Entry/` (mode select; this is TaikøNauts' real name. Simple still uses `Image/01.ModeSelect/`)
+    - Inside: `Bar/Bar/<n>.png` (bars), `Bar/Title/<n>.png` (titles), `Bar/Overlay.png`, `Bar/Selected.png`, `Bar/Pop/<n>.png`,
+      `Bar/1POnly.png`, `Background.png`, `Header.png`, `Background_Fireworks.png`.
+      **The doubled `Bar/` is not a mistake** (たけらい checked the real thing)
+  - `Font/default.otf` (font for song titles and menus)
+- When an image is missing, the program draws it itself (the game must work without a skin)
+- In tests, `SkinManager.SystemSkin = true` treats every image as missing
 
-### Simple スキン（`TaikoSim-Simple`）
-- 画像・音は全部 **自分で作ったもの**（`tools/skin-gen/` の Python で作る）
-- 選曲画面の画像は、**A-Style と同じ名前・同じ並び方**にしてある（プログラムが同じ場所を使えるように）
-  - 例：`02.SongSelect/Difficulty_Panel.png`（開いた曲の板の札）、`Difficulty_Select/Difficulty_Panel.png`（難易度のカード）
-- A-Style の画像そのものは **入れない**（他人のスキンなので）。形の参考にするだけ
+### Simple skin (`TaikoSim-Simple`)
+- All images and sounds are **our own work** (generated by Python in `tools/skin-gen/`)
+- Song-select images use **the same names and layouts as A-Style** (so the code can use the same positions)
+  - e.g. `02.SongSelect/Difficulty_Panel.png` (tag on the opened song bar), `Difficulty_Select/Difficulty_Panel.png` (difficulty cards)
+- **Never commit A-Style images** (someone else's skin). Use them only as shape references
+- たけらい wants Simple to stay **simple and original**: don't copy A-Style's flashy animations, characters or text effects
 
-### A-Style（TaikøNauts）の画像を読むところ
-- `SongSelectScene.cs` の「TaikøNauts のスキン」の部分
-- 板の番号は box.def の `#BOXTYPE`、背景は `#BGTYPE`。書いてなければジャンル名から決める
-  （J-POP→1、アニメ→3、ボーカロイド→4、どうよう・バラエティ→0、クラシック→7、ゲームミュージック→5、ナムコオリジナル→6、最近遊んだ曲→9、お気に入り→10）
+### Where A-Style (TaikøNauts) images are read
+- The "TaikøNauts skin" part of `SongSelectScene.cs`
+- Bar number comes from `#BOXTYPE` in box.def, background from `#BGTYPE`. If absent, derived from the genre name
+  (J-POP→1, Anime→3, Vocaloid→4, Children/Variety→0, Classic→7, Game Music→5, Namco Original→6, Recently played→9, Favorites→10)
 
 ---
 
-## 7. `tools/skin-gen/`（Simple スキンを作る Python）
+## 7. `tools/skin-gen/` (Python that generates the Simple skin)
 
 ```
 pip install pillow numpy
 cd tools/skin-gen
-python menu.py        # モード選択・選曲画面の画像
-python loading.py     # 曲の読み込み画面（03.SongLoading の5枚）
-python gogo_fire.py   # ゴーゴーの炎（Lane/GoGoSoul.png）
-python gogo.py        # コンボのキラキラ（MiniTaiko/Effect.png）
-python endres.py      # 演奏の終わりの演出・リザルト
-python play.py        # 演奏画面（音符・レーン・数字など。全部作り直すので注意）
-python sounds.py      # 音（ffmpeg が必要）
+python menu.py        # mode select and song select images
+python loading.py     # song loading screen (the 5 images in 03.SongLoading)
+python gogo_fire.py   # go-go fire (Lane/GoGoSoul.png)
+python gogo.py        # combo sparkles (MiniTaiko/Effect.png)
+python endres.py      # end-of-song effects, result
+python play.py        # play screen (notes, lane, digits...; regenerates everything, careful)
+python sounds.py      # sounds (needs ffmpeg)
 ```
-- できたものは、そのまま `TaikoSim/Skins/TaikoSim-Simple/` に上書きされる
-  （別の場所に出したいときは、環境変数 `TAIKOSIM_SKIN_OUT`）
-- **フォント**：もともとは Noto Sans CJK の **Black** と **Bold** で描いた。
-  無いときは `Font/default.otf`（Noto Sans CJK JP Bold）で代わりに描く（少し細くなる）。
-  `tools/skin-gen/fonts/NotoSansCJK-Black.ttc` に置くか、環境変数 `TAIKOSIM_FONT_BLACK` / `TAIKOSIM_FONT_BOLD` で場所を教える
-- **ゲージの棒**（`play.py` の gauge）だけは、A-Style の画像の形を使って色を塗り直している。
-  A-Style の `04.EnsoGame` の場所を `TAIKOSIM_ASTYLE_ENSO` で渡さないと、ゲージは作らない（今の画像のまま）
-- 1つの部分だけ直したいときは、`python -c "import menu; menu.tn_cards()"` みたいに関数だけ呼ぶ
+- Output overwrites `TaikoSim/Skins/TaikoSim-Simple/` directly
+  (set `TAIKOSIM_SKIN_OUT` to write elsewhere)
+- **Fonts**: originally drawn with Noto Sans CJK **Black** and **Bold**.
+  If missing, `Font/default.otf` (Noto Sans CJK JP Bold) is used instead (slightly thinner).
+  Put `NotoSansCJK-Black.ttc` in `tools/skin-gen/fonts/` or point `TAIKOSIM_FONT_BLACK` / `TAIKOSIM_FONT_BOLD` at the files
+- **Gauge bars** (`gauge` in `play.py`) are the only exception: they reuse A-Style's image shapes and repaint the colors.
+  Without the A-Style `04.EnsoGame` path in `TAIKOSIM_ASTYLE_ENSO` the gauge is not regenerated (current images are kept)
+  - Rainbow.png: row 72 of each 77-px frame (bottom edge of the cells) has dark shading in A-Style; it is only painted black if the row above is also dark.
+    Otherwise a jagged edge appears under the cells (fixed 11/5)
+- **Hit sounds** (`sounds.py`): `loud()` raises them to A-Style's loudness — peak 50 ms RMS **don −4.0 dB / ka −8.0 dB** —
+  with a tanh soft limiter (ceiling −1 dB) so they don't clip. Used for the skin's `Sound/Taiko/0.Taiko/` (`save_taiko()`)
+  and for the Electro / Clap / WoodBlock hit-sound sets (`hitsounds()`). Before 11/5 Simple was 5–9 dB quieter
+- To regenerate just one part, call a single function, e.g. `python -c "import menu; menu.tn_cards()"`
 
 ---
 
-## 8. 測った値（TaikøNauts の動画から。コードのコメントにも書いてある）
+## 8. Measured values (from TaikøNauts videos; also in code comments)
 
-### 選曲画面（`UI/BarList.cs`）
-- 板は斜めに並ぶ：左上 = (495 + 40r + 10·sign(r), 478 + 135r + 120·sign(r))（r は選んでいる板からの距離）。板の大きさ 932×124
-- カーソルは **0.15秒** で1つ動く（一定の速さ）。動いている間は板は小さいまま
-- 止まってから **0.33秒** で黄色い枠が出る → **0.43秒** で、選んでいる板が **0.1秒** で開く（y 385〜695）（モード選択も同じ）
-- **プレビューの曲は、板が開くのと同時に、最初から普通の音量で流す**（フェードなし）
-- 開いた板の枠：止まっている間は **こい黄色 (253,253,0)**、太さ約 20px（上下左右そろえる）。
-  決定すると 0.53秒、明るい色（黄色の上に白 56.5% ＝ 淡い黄色 (253,253,144)）と黄色を 0.15秒ごとに行き来して（明るいのが 0.11秒）、そのあと白。
-  （10/27 に「止まっている間は淡い黄色」と書いたのはまちがい。「全○曲」の吹き出しの色を測っていた）
-  A-Style の `Bar/Selected.png` は、塗った形が 18,22 から 972×166・角の丸み約48px → この形ぴったりで切って、角50pxで9分割
-- 開いた板の飾り（`Bar/Decoration.png`）は **伸ばさない**。閉じた板と同じ大きさ（938×133）で、開いた板の上にくっつける
-- 背景（`Background/番号.png`）は左へ **1秒で96px** 流れる（縦は動かない）
-- 開いたジャンルの板：
-  - ジャンル名は閉じた板と同じ場所・同じ大きさ（板の一番上）
-  - 中の明るい板は、ジャンル名の帯より下だけ（板の上から113px〜下から22px。開ききると y 498〜673）。
-    枠が出ると閉じた板の中の板は消え、開くにつれて下へ広がる（曲の板は今までどおり全体）
-  - キャラは枠が出たときから 0.13秒でじわっと出る
-  - 「全 ○ 曲」は吹き出し `Maker_Balloon.png`（870×122）を原寸で (528, 291) に。文字は吹き出しの (435, 58) が真ん中。板が開ききって 0.07秒で出る
-  - 両わきのキャラ `Box_Pop/番号.png`（1344×486、0〜13）を原寸で (288, 271) に（A-Style だけ。Simple には無い）
-- 決定 → 枠が点滅（0.53秒）→ 一覧が消える（0.75〜0.92秒）→ 難易度の板が出る（1.25〜1.58秒）→ 1P の印（1.7秒）
-- **ジャンルを決めたとき**（`SongSelectScene` の Flip〜。決めた瞬間を 0 として）：0〜0.53秒 枠が点滅 → 0.63秒まで白 →
-  ここから（FlipStart＝0.63秒からの秒。10/30 の動画で測り直した）0〜0.067 板がポンッと大きく（横 1.21・縦 1.14倍）、枠は消える／0〜0.12 ジャンル名・キャラ・吹き出しが消える／
-  0.11〜0.22 上の板は上へ・下の板は下へ 150px すべって消える／0.26〜0.41 板が横につぶれる（933→794→556→355→204→0px）／0.41〜0.60 細い線のまま／
-  0.60〜0.77 ほぼ一定の速さで元の幅まで広がる（中身は空）／0.77 中身が最初の曲の板（開いた形）／0.77〜0.90 中身と上下の板がじわっと出る／黄色い枠は 0.77 の 0.33秒あと
-  （10/29 の A.mp4 は広がる途中で 0.13秒止まってパッと戻っていた。重さで止まっていたみたいなので、10/30 の方を使う）
-- 「とじる」は7曲ごと（OpenTaiko と同じ）。開いたジャンルの場所に「とじる＋曲＋ランダム」が入る
-- 裏おにがある曲は、開いた曲の板の「おに」の札が **1.5秒ごと** に裏おにと入れ替わる（0.25秒でじわっと）
-- 難易度の板：枠 352..1562 × 62..808、曲名の箱 388..1528 × 97..307
-- 戻る・オプション・カードは **画像の原寸**：戻る (383, 406)・オプション (514, 406) どちらも 114×112、
-  カード x = 647 / 862 / 1077 / 1292（215px ずつ）・y = 406・196×354（つぶすと★と数字がずれる）
-- 難易度のカード（画像 196×354 の中）：★ の真ん中 (77.5, 263.5)、数字の真ん中 (108, 264)、★の列の点 x = 30, 45, …, 165・y = 293
-- 開いた曲の板の札（176×86 の中）：数字の真ん中 (146, 43)
+### Song select (`UI/BarList.cs`)
+- Bars are laid out diagonally: top-left = (495 + 40r + 10·sign(r), 478 + 135r + 120·sign(r)) (r = distance from the selected bar). Bar size 932×124
+- The cursor moves one step every **0.15 s** (constant speed). Bars stay small while it moves
+- After it stops: yellow frame at **0.33 s** → at **0.43 s** the selected bar opens over **0.1 s** (y 385–695) (mode select is the same)
+- **The preview song starts together with the bar opening, from the beginning, at normal volume** (no fade)
+- Frame of the opened bar: while idle **solid yellow (253,253,0)**, about 20 px thick (equal on all sides).
+  On decide, for 0.53 s it alternates between a light color (white 56.5% over yellow = pale yellow (253,253,144)) and yellow every 0.15 s (light part 0.11 s), then white.
+  (The 10/27 note saying "pale yellow while idle" was wrong — that measured the "全○曲" balloon.)
+  A-Style `Bar/Selected.png`: the filled shape is at 18,22, 972×166, corner radius ≈48 px → cut exactly to that shape and 9-slice with 50 px corners
+- The opened bar's decoration (`Bar/Decoration.png`) is **not stretched**. Same size as on the closed bar (938×133), attached on top of the opened bar
+- Background (`Background/<n>.png`) scrolls left at **96 px/s** (no vertical motion)
+- Opened genre bar:
+  - Genre name: same place and size as on the closed bar (top of the bar)
+  - The bright inner panel is only below the genre-name band (113 px from the top to 22 px from the bottom; fully open = y 498–673).
+    When the frame appears the closed bar's inner panel disappears, and it grows downward as the bar opens (song bars use the whole bar as before)
+  - Characters fade in over 0.13 s from when the frame appears
+  - "全 ○ 曲" uses the balloon `Maker_Balloon.png` (870×122) at native size at (528, 291). Text centered at (435, 58) in the balloon. Appears 0.07 s after the bar is fully open
+  - Characters on both sides `Box_Pop/<n>.png` (1344×486, 0–13) at native size at (288, 271) (A-Style only; Simple has none)
+- Decide → frame blinks (0.53 s) → list disappears (0.75–0.92 s) → difficulty panel appears (1.25–1.58 s) → 1P marker (1.7 s)
+- **Choosing a genre** (`SongSelectScene` Flip…; t = 0 at the decide moment): 0–0.53 s frame blinks → white until 0.63 s →
+  from here (seconds since FlipStart = 0.63 s, re-measured on the 10/30 video): 0–0.067 the bar pops larger (×1.21 wide, ×1.14 tall) and the frame disappears / 0–0.12 genre name, characters and balloon disappear /
+  0.11–0.22 bars above slide up and bars below slide down by 150 px and vanish / 0.26–0.41 the bar squashes horizontally (933→794→556→355→204→0 px) / 0.41–0.60 stays a thin line /
+  0.60–0.77 widens back at nearly constant speed (empty inside) / 0.77 contents become the first song's bar (open shape) / 0.77–0.90 contents and neighbor bars fade in / yellow frame 0.33 s after 0.77
+  (The 10/29 A.mp4 paused 0.13 s mid-widen and then snapped; that looked like a hitch, so use the 10/30 video)
+- "とじる" (close) every 7 songs (same as OpenTaiko). The opened genre's slot contains "とじる + songs + random"
+- For songs with Ura Oni, the "おに" tag on the opened song bar swaps with Ura every **1.5 s** (0.25 s crossfade)
+- Difficulty panel: frame 352..1562 × 62..808, song-title box 388..1528 × 97..307
+- Back, options and cards are drawn **at native image size**: back (383, 406) and options (514, 406), both 114×112;
+  cards x = 647 / 862 / 1077 / 1292 (215 px apart), y = 406, 196×354 (squashing them misaligns the stars and digits)
+- Difficulty card (inside the 196×354 image): star center (77.5, 263.5), number center (108, 264), star-row dots x = 30, 45, …, 165, y = 293
+- Tag on the opened song bar (inside 176×86): number center (146, 43)
 
-### モード選択（`Scenes/ModeSelectScene.cs`。A-Style の `Image/01.Entry/`）
-- 一覧は **ぐるっと回らない**（先頭と末尾で止まる）
-- 板は選曲より上下に **50px** 広く離れる。開くときは上下に **23px** ずつ広がる
-- 板の画像は 980×160。開いたときは土台だけ伸ばして、題字（`Title/番号.png`）は原寸で上に置く
-- 使う番号は「演奏ゲーム」→0、「段位道場」→1 だけ。
-  A-Style の 2・3 は「プレイヤー設定」「AIバトル演奏」で、TaikoSim の項目と中身が違うので使わない
-- 花火（`Background_Fireworks.png`、300×300 の2コマ）は 3.2秒で1周。1.4秒かけてふくらみながら出て消える
-- 「段位道場」には `1POnly.png`、「演奏ゲーム」には選曲と同じキャラ（`Bar/Pop/0.png` を (288, 271) に原寸）
-- 下の「フリープレイ」は**文字だけ**。48px で (730, 1012, 460, 56) の真ん中（前は 30px で小さすぎた）
+### Mode select (`Scenes/ModeSelectScene.cs`; A-Style `Image/01.Entry/`)
+- The list **does not wrap** (stops at the first and last item)
+- Bars are spaced **50 px** further apart vertically than song select. When opening they spread **23 px** up and down each
+- Bar images are 980×160. When open, only the base is stretched; the title (`Title/<n>.png`) is placed on top at native size
+- Only indices 0 ("演奏ゲーム") and 1 ("段位道場") are used.
+  A-Style's 2 and 3 are "Player settings" and "AI battle", which differ from TaikoSim's items, so they're unused
+- Fireworks (`Background_Fireworks.png`, two 300×300 frames): one cycle per 3.2 s. They swell and fade over 1.4 s
+- "段位道場" shows `1POnly.png`; "演奏ゲーム" shows the same character as song select (`Bar/Pop/0.png` at (288, 271) native size)
+- The "フリープレイ" at the bottom is **text only**, 48 px, centered in (730, 1012, 460, 56) (it used to be 30 px, too small)
+- 段位道場 description (same as the original): 「3曲連続して演奏しながら、\nお題の合格を目指そう!\n合格すると腕前が認定されるよ!」 (34 px, line height 55)
 
-#### まだ実装していない：エントリー画面（コインを入れる一番最初の画面）
-`CreditBar.png` はモード選択のものではなく、**エントリー画面**のもの。作るときのために測った値を残しておく。
-- `CreditBar.png` は 1172×380 の2コマ。上が「1人プレイ」、下が「2人プレイ」
-- 1コマ（1172×190）の中：バーの本体が y21〜178、焼き込みの文字「1人プレイ」が x148〜380・y73〜125
-- 画像の原寸で下まんなかに置くと収まる（x=374、y=884。本体 y905〜1062、影が y1073）
-  - **この y=884 は実機を測った値ではない**（スクショ・動画が無いので、影が画面に収まる位置にしただけ）
+#### Not implemented yet: entry screen (the very first "insert coin" screen)
+`CreditBar.png` belongs to the **entry screen**, not mode select. Values measured for when we build it:
+- `CreditBar.png` is 1172×380 with 2 frames. Top = "1人プレイ", bottom = "2人プレイ"
+- Inside one frame (1172×190): bar body y21–178; baked-in text "1人プレイ" x148–380, y73–125
+- Placed bottom-center at native size it fits (x = 374, y = 884; body y905–1062, shadow to y1073)
+  - **y = 884 was not measured on real hardware** (no screenshot/video; just chosen so the shadow fits on screen)
 
-### 選曲画面の文字（`Scenes/SongSelectScene.cs` の `DrawHeader`・`DrawEmpty`）
-- 左上の「演奏ゲーム」「ジャンルをえらぶ」は**出さない**。スキンの画像とかぶってじゃまになるため（10/30 に消した）。
-  どのジャンルにいるかは一覧の板そのもので分かる。右上の「F3：検索」「○曲」は残す
-- 曲が1つも無いときのフォルダのパスは、薄い灰色（`Gui.SubTextColor`）だと読めないので、うすい黄色 (255, 236, 160)
+### Song-select text (`Scenes/SongSelectScene.cs` `DrawHeader` / `DrawEmpty`)
+- The top-left "演奏ゲーム" / "ジャンルをえらぶ" is **not drawn**: it overlapped skin images (removed 10/30).
+  The bars themselves show which genre you're in. The top-right "F3：検索" and "○曲" stay
+- When there are no songs, the folder path uses pale yellow (255, 236, 160) because light grey (`Gui.SubTextColor`) was unreadable
 
-### どんちゃん・かつちゃん（`Image/99.Common/Chara/`。`Graphics/CharaConfig.cs`・`Graphics/CharaAtlas.cs`）
-A-Style の見た目は**横倒しの太鼓**（どんちゃん＝赤い顔・水色の胴、かつちゃん＝その逆）。
-- 素材：`01.DonChan` / `02.KatsuChan` に **23種類のアニメ、片方で4456コマ**。1コマ **820×599**、全体で435MB
-- `Config.json` に位置・倍率・ループ時間(ms)・モーションの拍数が**全部入っている**。キーは camelCase
-  - 演奏：`ensoGameX [-83,-83]` `ensoGameY [-111,690]` `ensoGameNormalScale 0.81`
-  - 選曲：`songSelectX [-185,1300]` `songSelectY [436,436]` `songSelectLoopTime 1000` `songSelectWaitLoopTime 560`
-  - 拍数：`normalMotionBeat 4` `combo10MotionBeat 2` `goGoMotionMotionBeat 4`（**Motion が2回入ったキー名**なので注意）
-  - 位置の配列は [1P, 2P]。TaikoSim は1人プレイだけなので [0] を使う
-- **そのまま読むと載らない**：1コマ 1.87MB → `normal`(471コマ) だけで 883MB、演奏画面ぶん全部で 4.7GB
-- なので初回だけ `Cache/Chara/<スキン名>/<キャラ>/` にアトラスを焼く（`CharaAtlas.BuildIfNeeded`）
-  - ① 余白カット（中身は 820×599 のうち 346×284 くらい。**全コマ調べて union を取る**。一部だけ見ると切れる）
-  - ② 画面の倍率で縮小（演奏 0.81）　③ コマ間引き 1/2（30fps 相当。マスコットなので分からない）
-  - → `normal` が 883MB → **71MB**。`gogo` 896MB → 102MB
-  - アトラス1枚は **4096×4096 まで**（GPU の上限は今どき16384 だが古いと4096 なので安全側）。あふれたら複数ページ
-  - `Image` 系（LoadImage/ImageCrop/ImageResize/ImageDraw）は CPU だけなので**別スレッドで焼ける**。
-    テクスチャ化（`LoadTextureFromImage`/`LoadTexture`）だけメインスレッド
-  - 検証済み：アトラスのコマ5 ＝ 元のコマ10（間引き2）で画素差 0.00
-- **シンプルスキンにはどんちゃんを入れない**（画像を再配布できない。画像が無ければ何も描かない）
+### Don-chan / Katsu-chan (`Image/99.Common/Chara/`; `Graphics/CharaConfig.cs`, `Graphics/CharaAtlas.cs`)
+In A-Style they look like **sideways taiko drums** (Don-chan = red face, light-blue body; Katsu-chan = the reverse).
+- Assets: `01.DonChan` / `02.KatsuChan`, **23 animations, 4456 frames each**. One frame is **820×599**; 435 MB total
+- `Config.json` contains **all** positions, scales, loop times (ms) and motion beat counts. Keys are camelCase
+  - Play: `ensoGameX [-83,-83]` `ensoGameY [-111,690]` `ensoGameNormalScale 0.81`
+  - Song select: `songSelectX [-185,1300]` `songSelectY [436,436]` `songSelectLoopTime 1000` `songSelectWaitLoopTime 560`
+  - Beats: `normalMotionBeat 4` `combo10MotionBeat 2` `goGoMotionMotionBeat 4` (**note the doubled "Motion" in the key name**)
+  - Position arrays are [1P, 2P]. TaikoSim is single player, so [0] is used
+- **Loading them as-is doesn't fit in memory**: 1.87 MB per frame → `normal` (471 frames) alone is 883 MB; the whole play screen is 4.7 GB
+- So on first use we bake atlases into `Cache/Chara/<skin>/<chara>/` (`CharaAtlas.BuildIfNeeded`)
+  - ① Trim margins (actual content is about 346×284 of 820×599. **Scan all frames and take the union**, or parts get cut)
+  - ② Downscale by the on-screen scale (play 0.81)   ③ Drop every other frame (≈30 fps; unnoticeable for a mascot)
+  - → `normal` 883 MB → **71 MB**, `gogo` 896 MB → 102 MB
+  - One atlas page is **at most 4096×4096** (modern GPUs allow 16384, older ones 4096; stay safe). Overflow goes to more pages
+  - `Image` operations (LoadImage/ImageCrop/ImageResize/ImageDraw) are CPU-only and **can run on a worker thread**.
+    Only texture creation (`LoadTextureFromImage`/`LoadTexture`) must be on the main thread
+  - Verified: atlas frame 5 = original frame 10 (decimation 2), pixel difference 0.00
+- **The Simple skin has no Don-chan** (we can't redistribute the images; with no images nothing is drawn)
 
-### 段位道場（`Charts/Dan.cs`・`DanJson.cs`・`DanList.cs`）
-**ファイル形式の正解は `TAIKONAUTS-SPEC.md` の「1. 段位道場」に全部書いてある。** ここには実装のメモだけ。
-- 形式は **TaikøNauts に合わせた**（`dan.def` ＋ `dan.json`）。たけらいが既に作ってある段位がそのまま動くため。
-  OpenTaiko の TJA ヘッダー方式（`#NEXTSONG` ＋ `EXAM`）は、読めたら読む程度のおまけ扱い（まだ未実装）
-- **合否の判定ロジックだけは OpenTaiko 準拠**（赤合格／金合格、以上／未満の扱い）
-- 踏みやすい罠：
-  - **「以上」か「未満」かは dan.json に書かれていない。条件の種類で決まる**（`DanExamTypes.IsLess()`）。
-    `Good`(可) と `Miss`(不可) だけが「未満」。間違えると合否が丸ごと逆になる
-  - `threshold` は**単一オブジェクトなら全体条件、曲数ぶんの配列なら曲ごと条件**
-  - **「未満」系で `gold` が 0 のときは「金の条件なし」とみなす**（0未満は達成不可能なため）。
-    `conditionGauge` の `gold:0` も同じ。たけらいの初段が `不可 red:36 / gold:0`、ゲージが `red:97 / gold:0` になっている
-  - `conditionGauge` はドキュメント内で食い違っている（表の見出しは「合格ゲージ条件」、本文は「初期値」）。
-    実ファイルから見て**合格ボーダー**として扱っている
-- クリア記録は `SongHistory` に足した（`Records` ＝ 曲＋難易度ごと、`DanRecords` ＝ dan.json ごと）。
-  `requirements.json` の `songClear` / `songScore` / `songRank` / `danClear` の判定に要る。
-  キーは今までどおり「Songs フォルダからの相対パス」（`SongHistory.KeyFor()`）
-- 画面とつなぎ方：
-  - モード選択「段位道場」→ `DanSelectScene`（板は `UI/BarList` を使い回し。dan.def が複数なら ←→ でカテゴリ切り替え）
-  - 決定 → `PlayScene(DanCourse)`。**全曲を1つの PlayScene で遊ぶ**（10/31 に変えた。前は曲ごとに新しい PlayScene と読み込み画面だった）
-    - 曲の終わり（`UpdateDanEnd` → `DanSongEnded`）：次の曲があれば `DanShutter`（扉）を閉じ、閉じたまま0.8秒の `OnDanSwap` で次の .tja と曲を読む
-    - **魂ゲージ・スコア・コンボは曲をまたいで続く**。魂ゲージの1打の増え方は**全曲の音符の合計**で決める（`PlayStats.Reset(course, dan.TotalNotes())`。
-      音符の数は `DanList.FillSongInfo` で `DanSong.NoteCounts` に数えておく）
-    - 曲ごとのクリア・フルコンボの帯は出さない。最後の曲（か `AlreadyFailed()`）の終わりに、レーンに「不合格」など（`DanEndBanner`）→ 暗くして `DanResultScene`
-    - 「未満」を使い切っても、その曲は最後まで遊ぶ（たけらいと決めた。本家の動画もそう）
-  - 最後に `DanResultScene` → 条件ごとの○×と合否、合格なら `shodanTextPaths` の画像を出す。たどり着かなかった曲は「???」「未到達」
-  - 合格したら `SongHistory.SaveDanRecord`（次の段位の解禁条件に効く）。**オート（`DanPlay.AutoPlayed`）・途中でやめたときは記録しない**
-  - `#DISABLEDCHEAT:true` のカテゴリは、オート演奏とオート連打を切る
-  - キー（TaikøNauts と同じ）：Esc＝段位選択へ（不合格扱い）／**F2・クイックリスタート＝1曲目からやり直し**／**F3＝強制終了（不合格でリザルト）**。
-    段位中は F3 のデバッグ表示は使えない
-  - 段位中はノルマを段位の合格ゲージにする（ゲージの目印がボーダーに出る。合否の判定は `DanPlay` 側）
-- `tools/dan-check` で、実際の段位フォルダに対してパーサを動かして中身を確認できる（README を見て）
-  - `--test` を付けると**合否の判定の境界値テスト**も走る（実データの初段・十段で28件。CIは無いので手で回す）
-  - たけらいの「10 段位道場」で検証済み：カテゴリ名・danIndex 順・difficulty→CourseType・相対パス解決・
-    十段の「可と連打＝曲ごと／不可＝全体」の判別・以上／未満の付き方
-  - **まだ実データで試せていない**：`requirements.json` と `ChangeEffect`（たけらいのフォルダに入っていないため）
-  - **`DanList` のフォルダ探索自体も未検証**（Raylib が要るので dan-check に入れられない）
-#### 本家の見た目（10/31 の動画 `2026-10-31_01-44-20.mp4` を測った。1920×1080・60fps・9分）
-**10/31 にこの見た目に作り直した**（`DanSelectScene`・`DanPanel`・`DanResultScene`）。下は測った値と、実装の場所。
-- 段位選択：`Scenes/DanSelectScene.cs`（札は ←→/カッで選ぶ、カテゴリは ↑↓。決定 → 確認ポップアップ）
-- 演奏中：`Scenes/DanPanel.cs`。`PlayScene` が背景のすぐあとに `DrawBottom()`（下半分）、曲名のあとに `DrawTop()`。
-  今の曲の成績は `PlayScene.SyncDanLive()` で毎フレーム `DanPlay` に入れている。段位中は左下のスコアボードは出さない
-  - 条件が4つ以上あるときは3つずつ、4秒ごとにページを切り替える（本家でどうなるかは未確認）
-  - バーの色は **OpenTaiko の `Dan_Cert.UpdateReachStatus` と同じルール**（`DanPlay.Reach()` → `DanReach`）。下の「10/31 九段の動画」を見て
-- リザルト：`Scenes/DanResultScene.cs`。①曲ごとの内訳（3.6秒）→ ②まとめ（ゲージが1秒で伸び、条件が0.3秒ずつ出て、スタンプ）
-- **演奏オプションのバッジ（AUTO）の本当の位置もこの動画で分かった**：左のパネル、難易度マークの右で原寸40×40・左上 (170, 353)
-**いま TaikoSim が作っている見た目は本家と全然違う。** 下が本家の正解。
+### Dan dojo (`Charts/Dan.cs`, `DanJson.cs`, `DanList.cs`)
+**The correct file format is fully described in "1. Dan dojo" of `TAIKONAUTS-SPEC.md`.** Only implementation notes here.
+- The format **matches TaikøNauts** (`dan.def` + `dan.json`), so たけらい's existing dans work as-is.
+  OpenTaiko's TJA-header style (`#NEXTSONG` + `EXAM`) is a nice-to-have (not implemented yet)
+- **Only the pass/fail logic follows OpenTaiko** (red pass / gold pass, handling of "以上" (at least) / "未満" (less than))
+- Pitfalls:
+  - **dan.json does not say "以上" or "未満". It's decided by the condition type** (`DanExamTypes.IsLess()`).
+    Only `Good` (可) and `Miss` (不可) are "未満". Get it wrong and pass/fail flips entirely
+  - `threshold` is **a whole-course condition if it's a single object, a per-song condition if it's an array with one entry per song**
+  - **For "未満" types, `gold: 0` means "no gold condition"** (less than 0 is impossible).
+    Same for `conditionGauge` `gold:0`. たけらい's 初段 has `不可 red:36 / gold:0` and gauge `red:97 / gold:0`
+  - `conditionGauge` is contradictory in the docs (table heading "pass gauge condition", body text "initial value").
+    Judging from real files we treat it as **the pass border**
+  - A border of 0 (e.g. 「連打数 0 以上」 = no condition for that song) shows **an empty bar with "0"**, not a full rainbow
+    (`DanPlay.NoCondition`; `Progress` returns 0 and `Reach` returns Low). Confirmed on the 11/5 六段 video, both in play and on the result
+- Clear records were added to `SongHistory` (`Records` = per song + difficulty, `DanRecords` = per dan.json).
+  Needed for `songClear` / `songScore` / `songRank` / `danClear` in `requirements.json`.
+  Keys are "path relative to the Songs folder" as before (`SongHistory.KeyFor()`)
+- Screens and flow:
+  - Mode select 「段位道場」 → `DanSelectScene` (if there are multiple dan.def, choose the category in a popup first)
+  - Decide → `DanLoading` (dojo loading screen) → `PlayScene(DanCourse)`. **All songs are played in one PlayScene** (changed 10/31; before, each song was a new PlayScene with its own loading screen)
+    - End of a song (`UpdateDanEnd` → `DanSongEnded`): if there's a next song, `DanShutter` (doors) closes; 0.8 s into the closed state `OnDanSwap` loads the next .tja and audio
+    - **Soul gauge, score and combo carry over across songs.** The gauge gain per hit is based on **the total note count of all songs** (`PlayStats.Reset(course, dan.TotalNotes())`;
+      note counts are stored in `DanSong.NoteCounts` by `DanList.FillSongInfo`)
+    - No per-song clear / full-combo banners. At the end of the last song (or `AlreadyFailed()`) the lane shows 「不合格」 etc. (`DanEndBanner`) → fade → `DanResultScene`
+    - Even when a "未満" condition is used up, that song is played to the end (agreed with たけらい; the original does the same)
+  - Finally `DanResultScene` → ○/× per condition and pass/fail; on pass, the `shodanTextPaths` image
+  - On pass `SongHistory.SaveDanRecord` (affects unlocking the next dan). **Not recorded when autoplayed (`DanPlay.AutoPlayed`) or quit midway**
+  - Categories with `#DISABLEDCHEAT:true` disable auto play and auto roll
+  - Keys (same as TaikøNauts): Esc = back to dan select (counts as fail) / **F2 or quick restart = restart from song 1** / **F3 = force end (fail, go to result)**.
+    The F3 debug display is unavailable during dan
+  - During dan, the norma is the dan's pass gauge (the gauge marker shows at the border; pass/fail is decided by `DanPlay`)
+- `tools/dan-check` runs the parser on a real dan folder to inspect it (see its README)
+  - With `--test` it also runs **boundary tests for pass/fail** (initially 28 cases from the real 初段 and 十段 data; 48 now including the ReachStatus tests. No CI — run by hand)
+  - Verified on たけらい's "10 段位道場": category names, danIndex order, difficulty→CourseType, relative path resolution,
+    十段's "可 and 連打 per song / 不可 whole course" detection, 以上/未満 assignment
+  - **Not yet tested with real data**: `requirements.json` and `ChangeEffect` (not in たけらい's folder)
+  - **`DanList` folder scanning itself is unverified** (needs Raylib, so it can't be in dan-check)
 
-**段位選択画面**
-- 上に**段位の札が横一列**（斜めの板ではない）。**幅68px・x=190 から20枚**、縦は y38〜190
-  - 並び：五級 四級 三級 二級 一級／初段 二段 三段 四段 五段／六段 七段 八段 九段 十段／玄人 名人 超人 達人／外伝
-  - 色分け：級＝茶、初段〜五段＝青緑、六段〜十段＝赤、玄人〜達人＝灰、外伝＝濃緑
-  - **選んでいる札だけ少し大きい**（幅75px・y48〜219）。これで `danIndex` の並びが確定した
-    （**初段＝5・十段＝14**。たけらいの dan.json と一致している）
-- 左に**段位プレートの縦看板**（`danPlatePath`。七段なら「七段 / SEVENTH DAN」）
-- 中央に**クリーム色の大パネル**（赤い枠。だいたい x365〜1845・y215〜1030）
-  - 課題曲は3行。**y=240 / 350 / 460（110px 間隔）・高さ90px**
-    - 左に **1st/2nd/3rd の色玉**（x425〜510、約80px。緑・水色・ピンク）
-    - その右に難易度の冠＋★、さらに右に曲名
-  - 下に「合格条件」の茶色いタブ、その下に条件のボックス
-    - 魂ゲージだけ左に独立、ほかは右側に縦積み
-    - **曲ごと条件は 1st/2nd/3rd を横に並べる**（色玉と同じ色で対応させる）
-    - 条件ごとに**空の進捗バー**が下にある（演奏中に伸びる）
-- 左下にどんちゃん、1P のネームプレート
-- **決定すると「この段位に挑戦するのか？」の確認ポップアップが出る**（挑戦する／挑戦しない）← TaikoSim には無い
+#### Original's look (measured from the 10/31 video `2026-10-31_01-44-20.mp4`; 1920×1080, 60 fps, 9 min)
+**Rebuilt to this look on 10/31** (`DanSelectScene`, `DanPanel`, `DanResultScene`).
+- Dan select: `Scenes/DanSelectScene.cs` (choose the plate with ←→ / ka, category with ↑↓. Decide → confirm popup)
+- During play: `Scenes/DanPanel.cs`. `PlayScene` calls `DrawBottom()` (lower half) right after the background and `DrawTop()` after the title.
+  The current song's stats go into `DanPlay` every frame via `PlayScene.SyncDanLive()`. The bottom-left scoreboard is hidden during dan
+  - With 4+ conditions, pages of 3 switch every 4 s (unknown how the original handles it)
+  - Bar colors follow **the same rules as OpenTaiko's `Dan_Cert.UpdateReachStatus`** (`DanPlay.Reach()` → `DanReach`; see the 10/31 九段 video section)
+- Result: `Scenes/DanResultScene.cs`. ① per-song breakdown (3.6 s) → ② summary (gauge fills over 1 s, conditions appear 0.3 s apart, stamp)
+- **This video also revealed the real position of the play-option badge (AUTO)**: left panel, right of the difficulty mark, 40×40 native, top-left (170, 353)
 
-**段位の演奏画面**
-- **画面の上半分だけが演奏エリア**（レーンは y285〜530 に圧縮）。下半分がずっと条件パネル
-- 右上に曲名＋**「1曲目 / 3曲」**
-- 魂ゲージの上に**「魂ゲージ 99%以上」のラベル**
-- 左上に段位専用の小さいカウンター（良／可／不可／連打数）
-- 条件パネル（y540〜1080・全幅）：行ごとに「茶色いタブ（可の数）＋コイン＋285 未満＋大きいバー」
-  - **右はしに段位プレート**
-  - まだ遊んでいない曲の枠は灰色のプレースホルダで出す
-- ★**「未満」系のバーは「残り回数」を出して減っていく**（`可の数 285未満` なら 285 から始まって満タン、
-  可を取るたびに数字が減ってバーが縮む）。「以上」系は 0 から増える。
-  OpenTaiko の `GetDisplayedAmount()`（`Range != Less ? Amount : Value[0] - Amount`）と同じ。**逆にしないこと**
+**Dan select screen (original)**
+- **A single row of dan plates** at the top (not diagonal bars). **68 px wide, 20 plates from x = 190**, y 38–190
+  - Order: 五級 四級 三級 二級 一級 / 初段 二段 三段 四段 五段 / 六段 七段 八段 九段 十段 / 玄人 名人 超人 達人 / 外伝
+  - Colors: kyu = brown, 初段–五段 = teal, 六段–十段 = red, 玄人–達人 = grey, 外伝 = dark green
+  - **Only the selected plate is slightly larger** (75 px wide, y 48–219). This fixed the `danIndex` order
+    (**初段 = 5, 十段 = 14**, matching たけらい's dan.json)
+- On the left, a **tall dan plate sign** (`danPlatePath`; e.g. 「七段 / SEVENTH DAN」)
+- A **large cream panel** in the center (red frame, roughly x365–1845, y215–1030)
+  - Three song rows at **y = 240 / 350 / 460 (110 px apart), 90 px tall**
+    - **1st/2nd/3rd colored balls** on the left (x425–510, about 80 px; green, light blue, pink)
+    - To the right: difficulty crown + ★, then the song title
+  - Below: a brown 「合格条件」 tab and the condition boxes
+    - Soul gauge alone on the left, the others stacked on the right
+    - **Per-song conditions show 1st/2nd/3rd side by side** (colors match the balls)
+    - Each condition has an **empty progress bar** below it (fills during play)
+- Don-chan and the 1P name plate at the bottom left
+- **Deciding opens a confirm popup 「この段位に挑戦するのか？」** (挑戦する / 挑戦しない)
 
-**段位リザルト**
-- 左に段位プレート＋どんちゃん＋1P のネームプレート
-- 金の枠の大パネル：スコアの箱（青）／良・可・不可（左列）／連打数・最大コンボ数・叩けた数（右列）
-- その下に条件のバー。**満たした条件はバーが虹色グラデになる**（演奏中はピンク）
-- 魂ゲージのバーには「99 以上」の目印と、端に「魂」の炎アイコン
+**Dan play screen (original)**
+- **Only the top half is the play area** (lane squeezed to y285–530). The bottom half is always the condition panel
+- Top right: song title + **「1曲目 / 3曲」**
+- **A 「魂ゲージ 99%以上」 label** above the soul gauge
+- A small dan-only counter at the top left (良 / 可 / 不可 / 連打数)
+- Condition panel (y540–1080, full width): each row = brown tab (e.g. 可の数) + coin + 「285 未満」 + large bar
+  - **Dan plate at the right edge**
+  - Slots for songs not yet played are shown as grey placeholders
+- ★ **"未満" bars show "remaining count" and decrease** (`可の数 285未満` starts at 285 with a full bar;
+  each 可 lowers the number and shrinks the bar). "以上" bars grow from 0.
+  Same as OpenTaiko's `GetDisplayedAmount()` (`Range != Less ? Amount : Value[0] - Amount`). **Don't invert it**
 
-#### 10/31 九段の動画（`2026-10-31_03-04-03.mp4`。たけらいが不可で落ちたプレイ）で分かったこと
-- **曲と曲のあいだ**（`Scenes/DanShutter.cs`。時間は OpenTaiko の `Dan_Cert.cs`）：曲が終わる → 扉が1.0秒で閉じる → 閉じたまま2.3秒（0.8秒で次の曲へ入れかえ）→
-  0.27秒で開く → レーンに曲名（中心 y388・52px）とアーティスト（y447・30px）が2.9秒（2.0秒から0.5秒で消える）。1曲目も閉じた扉から始まる
-  - 扉はレーンの x498〜1920・y288〜476（下の「ドン・カッ」の帯は出したまま）。左右2枚、白地に灰色の模様＋オレンジのどん顔。**コードで描いている**
-  - 音は A-Style の `Sound/DanGame/ScreenIn.ogg`（閉じる）・`ScreenOut.ogg`（開く）
-  - **時間は止めない**（11/5 に直した。OpenTaiko の #NEXTSONG と同じ考え方）。11/5 の六段の動画と .tja から逆算した値：
-    - 前の曲の**最後の音符から 2.2秒**でふすまが閉じ始める（2曲目 2.25秒・3曲目 2.23秒）
-    - 前の曲の **#END から 10.78秒**で次の曲の 0秒（音の頭）（2曲目 10.71秒・3曲目 10.84秒。OpenTaiko は 6.2＋2.5＝8.7秒）
-    - 1曲目：演奏画面が明るくなり始めてから 1.71秒でふすまが開き始め、6.69秒で曲の 0秒
-    - 「開ききってから何秒」は曲ごとにバラバラ（6.10秒・5.48秒）なので、そこを基準にしないこと
-  - シンプルの扉は自作のふすま（木の縁・和紙・引き手）
-- **スコア・左上のカウンター（良・可・不可・連打）は全曲の合計で続く**（1曲目の終わり 良1088 → 2曲目で1140）
-- **バーの色**（1px 拾った値）：ピンク (254,167,190)／黄 (254,252,41)／赤 (247,104,50)／空 (61,61,61)／虹（数字も虹っぽくなる）
-  - 「未満」：割った＝バーが空・数字0・まんなかに赤い「達成失敗」／残り4回以下か20%未満＝赤く点滅（灰色に消えたり出たり）／30%未満＝赤／
-    それ以外は 金もセーフ＝ピンク・金だけ割った＝黄（九段の不可：残り7＝ピンク、5＝黄、3・2＝赤く点滅）
-  - 「以上」：金も満たした＝虹／赤を満たした＝ピンク（金に近いほど白く速く点滅）／95%以上＝黄が点滅／50%以上＝黄／それより下＝黄（推測。OpenTaiko は赤い絵を使っている）
-  - 割った瞬間に A-Style の `Sound/DanGame/Disqualify.ogg`（無ければ OpenTaiko の `Sounds/Dan/Failed.ogg`）
-- 曲ごと条件：右の小さい枠に、終わった曲の札（1st）＋その曲の結果のミニバー（色は大きいバーと同じ）＋数字
-- 曲名の下の札は「N曲目 / M曲」とジャンル（`dan.json` の `genre`）が**約2秒ずつ入れかわる**
-- 左のパネルの難易度マークは「段位道場」のマーク（赤い布の包み）。`MiniTaiko/CourseSymbol_Dan.png` が無ければコードで描く
-- 最後の曲の終わり：不合格ならレーンに水色の「不合格」（両側に小さいキャラ。TaikoSim は字だけ）→ 暗転 → リザルト。合格のときの見た目はまだ見ていない
-- リザルトの曲ごとの画面：たどり着かなかった曲は灰色の板に「???」と「未到達」
-- 段位選択の札は **x = 190 + danIndex × 68 の決まった場所**（20枠。無い段位はうすい札）
+**Dan result (original)**
+- Dan plate + Don-chan + 1P name plate on the left
+- Large gold-framed panel: blue score box / 良・可・不可 (left column) / 連打数・最大コンボ数・叩けた数 (right column)
+- Condition bars below. **Satisfied conditions become a rainbow gradient** (pink during play)
+- The soul-gauge bar has a 「99 以上」 marker and a 「魂」 flame icon at the end
 
-#### aup2（AviUtl2 のプロジェクト）の再生と、段位道場の入り（10/31）
-- TaikøNauts の A-Style は、段位の演出を **`Anime.aup2`（AviUtl2 のプロジェクトファイル。ただの文字のファイル）** で作っている。
-  `Graphics/Aup2.cs` で読んで描く（対応範囲は `TAIKONAUTS-SPEC.md` の11章と同じ：標準描画の X/Y/中心/Z軸回転/拡大率/透明度/合成モード、
-  拡大率フィルタ、グループ制御の X/Y、2点間の「直線移動」「直線移動(時間制御)」）
-  - 座標は画面のまんなかが (0,0)。画像の「まんなか＋中心X/Y」の点を (960+X, 540+Y) に置き、拡大・回転もその点が軸
-  - 画像の場所が作った人の PC の絶対パスで書かれていることがあるので、**ファイル名だけ取って aup2 と同じフォルダから読む**
-  - **確かめた**：Python で同じルールで 65コマ目を描いて、本家の動画（27.8秒）と重ねたらぴったり同じだった
-  - 推測：時間制御のベジェの y は上下が逆に保存されているとみなして `1 - y` にしている（未確認）
-- A-Style の段位まわりの画像：`Image/06.DanSelect/`（段位選択）・`07.DanLoading/`・`08.DanGame/`（演奏中）・`09.DanResult/`（リザルト）、
-  `Image/01.Entry/DanCategorySelect/`（Popup.png・Cursor.png）。音は `Sound/DanSelect/`・`DanGame/`・`DanResult/`・`Entry/DaniDojo.ogg`・`BGM/DanSelect.ogg`・`BGM/DanResult.ogg`
-- **モード選択 → 段位選択**（10/31 の動画 01-44-20 の17〜31秒）：
-  - 段位道場を決めると、板の上に吹き出し「◀ カテゴリ名 ▶」（`Popup.png` 870×122 を原寸で (525,258)）。まわりは暗くなる。←→ で dan.def のカテゴリ、ドンで決定
-  - 板が光る → 0.5秒で暗く → 0.4秒真っ黒 → 0.3秒で出てくる（`SceneManager.ToDanSelectFromMode`）
-  - 段位選択は `06.DanSelect/Background/Anime.aup2`（245コマ）をそのまま再生（扉 → 「段」「位」「道」「場」が1.75倍から縮んで出る → 扉が開く → 道場）。同時に `Sound/DanSelect/Intro.ogg`
-  - 197コマで `Header.png`、221〜263コマで段位の札が左から右へ出る、263〜275コマでパネルとプレートが右からすべりこむ。そこから操作できて BGM
-  - 段位を切りかえると、前のパネルが横へ出て（0.1秒）次のパネルが反対から入る（0.1秒）
-  - 段位から戻ってきたときは演出なしで、道場の絵（aup2 の最後のコマ）から始める
+#### Findings from the 10/31 九段 video (`2026-10-31_03-04-03.mp4`; たけらい failed on 不可)
+- **Between songs** (`Scenes/DanShutter.cs`; door timings from OpenTaiko `Dan_Cert.cs`): doors close in 1.0 s → stay closed 2.3 s (next song swapped in at 0.8 s) →
+  open in 0.27 s → title on the lane (center y388, 52 px) and artist (y447, 30 px) for 2.9 s (fades out over 0.5 s from 2.0 s)
+  - The doors cover the lane x498–1920, y288–476 (the 「ドン・カッ」 strip below stays visible). Two halves
+  - Simple draws its own **fusuma** (sliding paper doors: wood frame 9 px, washi paper with faint lines and two thin rails, round brass pull near the seam, 6 px wood-colored seam).
+    No Don-chan face (たけらい: "no Don-chan, make it look like fusuma")
+  - Sounds: A-Style `Sound/DanGame/ScreenIn.ogg` (close), `ScreenOut.ogg` (open)
+  - **Time never stops** (OpenTaiko's `#NEXTSONG` model; changed 11/5). Back-calculated from the 11/5 六段 video and the .tja files:
+    - Doors start closing **2.2 s after the previous song's last note** (song 2: 2.25 s, song 3: 2.23 s)
+    - The next song's 0 s (start of its audio) is **10.78 s after the previous song's #END** (song 2: 10.71 s, song 3: 10.84 s). OpenTaiko uses 6.2 + 2.5 = 8.7 s
+      (`PlayScene.OnDanSwap`: `nowMs = oldNow - danPrevEndMs - DanNextSongAfterEndMs`)
+    - Song 1: doors start opening 1.71 s after the play screen starts fading in; the song's 0 s is at 6.69 s
+    - "Seconds from doors fully open to the next song" varies per song (6.10 s, 5.48 s) — don't use that as the reference.
+      This is probably why the arcade has different gaps per dan
+- **Score and the top-left counter (良・可・不可・連打) carry over across songs** (end of song 1: 良1088 → song 2 continues at 1140)
+- **Bar colors** (sampled pixels): pink (254,167,190) / yellow (254,252,41) / red (247,104,50) / empty (61,61,61) / rainbow (digits also look rainbow)
+  - "未満": broken = empty bar, digit 0, red 「達成失敗」 in the middle / ≤ 4 remaining or < 20% = blinking red (fades to grey and back) / < 30% = red /
+    otherwise gold still safe = pink, only gold broken = yellow (九段 不可: 7 left = pink, 5 = yellow, 3 and 2 = blinking red)
+  - "以上": gold also met = rainbow / red met = pink (blinks whiter and faster the closer to gold) / ≥ 95% = blinking yellow / ≥ 50% = yellow / below = yellow (guess; OpenTaiko uses a red image)
+  - On breaking: A-Style `Sound/DanGame/Disqualify.ogg` (fallback: OpenTaiko `Sounds/Dan/Failed.ogg`)
+- Per-song conditions: small slots on the right show finished songs' tags (1st) + that song's mini bar (same colors as the large bar) + number
+- The tag under the song title alternates between 「N曲目 / M曲」 and the genre (`genre` in `dan.json`) **about every 2 s**
+- The left panel's difficulty mark is the 「段位道場」 mark (red cloth bundle). Code-drawn if `MiniTaiko/CourseSymbol_Dan.png` is missing
+- End of the last song: on fail, a light-blue 「不合格」 on the lane (small characters on both sides; TaikoSim shows text only) → fade → result. Pass not seen yet
+- Result per-song page: songs not reached show a grey plate with 「???」 and 「未到達」
+- Dan-select plates sit at **fixed places x = 190 + danIndex × 68** (20 slots; missing dans show faint plates)
 
-#### 段位選択を A-Style の画像で描く（11/1。`Scenes/DanSelectAStyle.cs`）
-置き場所は動画 01-44-20 の34秒（初段）・50秒（確認）のコマに画像を重ね合わせて探した（OpenCV の matchTemplate）。画像が無いスキンは今までのコードの絵
-- 札 `MiniPlate.png`（80×168 が6色：級／初〜五段／六〜十段／玄人〜超人／達人＝金／外伝）：左上 (190 + danIndex×68 − 8, 26)。
-  **無い段位の枠も名前を出して色を×0.5**（本家の五級〜一級・玄人〜外伝がちょうど半分の明るさ）。名前は黒い字36px、1文字めのまんなかが札の上から100px・37px ずつ
-  - 選んでいる札：22px 下げて `Plate_Effect.png`（白い縁＋中は29%の白）を重ねる。左右にうすい `Plate_Arrow.png`（札のまんなかから −85／+29px、上は +47px。右は反転）
-  - 合格した段位には `Stamp.png`（90×76 が6つ。並びは推測：(コンボ種別−1)×2 ＋ 金なら1）
-- パネル `Panel.png` (346,192)（右下に影・合格条件のタブと枠入り）、左右の模様 `Panel_Side.png`（40×806 が6色）を (364,215) と (1800,215 反転)
-- 課題曲の帯 `SongBar.png`（1380×110 が3つ）(412, 231 + 110×行)。難易度のマーク `Song_CourseSymbol.png`（78×52 が5つ）(529, 245 + 110×行)、
-  ★レベルのまんなか (567, 309)、曲名は x640 から・まんなか y283 の白い字に黒い縁
-- 魂ゲージの箱 `GaugeCondition_Bar.png` (434,611)、条件の箱 `Condition_Bar.png` (751, 608 + 132×行)、
-  中身 `Condition_Content.png`（50px ずつ：コイン／1st／2nd／3rd／白いバー）：コインの行 (768, 654 + 132×行)・白いバー (775, 690 + 132×行)・曲ごとは列を331px ずつ。
-  「814 以上」は右はし x1085・まんなか y679（魂ゲージは右はし735・y693）。**金の数は出さない**（本家も出していない）
-- 確認ポップアップ `Challenge_Check/Panel_Base.png`（青い箱。質問の文字入り）と `Panel.png`（ボタン）はどちらも 1368×488 を原寸で (276,296)。
-  ボタンは「スパナ（演奏オプション）・挑戦する・挑戦しない」の3つ、まんなか (613.5 / 858.5 / 1196.5, 581.5)。
-  カーソル `Select_Effect.png`（350×150 が7つ：大＝黄枠・光・白枠・白塗り／小＝黄枠・光・白枠）。出方：0.2秒で暗く → 箱が0.75倍から0.13秒 → 0.2秒後にボタン
+#### aup2 (AviUtl2 project) playback and the dan intro (10/31)
+- TaikøNauts A-Style makes its dan animations as **`Anime.aup2` (AviUtl2 project file; plain text)**.
+  `Graphics/Aup2.cs` loads and draws it (supported: same as chapter 11 of `TAIKONAUTS-SPEC.md` — standard draw X/Y/center/Z-rotation/scale/opacity/blend mode,
+  scale filter, group control X/Y, two-point 「直線移動」 and 「直線移動(時間制御)」)
+  - (0,0) is the center of the scene. The point "image center + 中心X/Y" goes to (W/2 + X, H/2 + Y); scale and rotation pivot there
+  - Image paths are sometimes absolute paths from the author's PC, so **take only the file name and load from the aup2's folder**
+  - **Verified**: drawing frame 65 in Python with the same rules matched the original video (27.8 s) exactly
+  - Guess: bezier y values of time-controlled moves seem stored upside down, so we use `1 - y` (unverified)
+  - 透明度 (transparency) 0 = opaque. 60 fps. Blend modes 加算 (add) / 乗算 (multiply) supported
+- A-Style dan images: `Image/06.DanSelect/` (select), `07.DanLoading/`, `08.DanGame/` (play), `09.DanResult/` (result),
+  `Image/01.Entry/DanCategorySelect/` (Popup.png, Cursor.png). Sounds: `Sound/DanSelect/`, `DanGame/`, `DanResult/`, `Entry/DaniDojo.ogg`, `BGM/DanSelect.ogg`, `BGM/DanResult.ogg`
+- **Mode select → dan select** (10/31 video 01-44-20, 17–31 s):
+  - After choosing 段位道場, a balloon 「◀ category ▶」 appears over the bar (`Popup.png` 870×122 native at (525,258)); the rest is dimmed. ←→ chooses the dan.def category, don decides (`Sound/Entry/DaniDojo.ogg`)
+  - Bar flashes → dark over 0.5 s → black 0.4 s → appears over 0.3 s (`SceneManager.ToDanSelectFromMode`)
+  - Dan select plays `06.DanSelect/Background/Anime.aup2` (245 frames) as-is (doors → 「段」「位」「道」「場」 shrink in from 1.75× → doors open → dojo), together with `Sound/DanSelect/Intro.ogg`
+  - Frame 197: `Header.png`; frames 221–263: plates appear left to right; frames 263–275: panel and plate slide in from the right. Input and BGM start after that
+  - Switching dans: the old panel slides out sideways (0.1 s), the new one slides in from the other side (0.1 s)
+  - Coming back from a dan: no intro; start from the dojo picture (last frame of the aup2)
+  - **Simple (no aup2)**: no doors or text effects. Plates wipe in from the left (0.7 s) and the panel slides in (0.2 s), starting 0.2 s into the fade-in (≈1.1 s total; `SimpleLeadFrames`)
 
-#### 段位の演奏中を A-Style の画像で描く（11/1。`Scenes/DanPanelAStyle.cs` ほか）
-九段の動画（03-04-03 の20秒・250秒・164秒・311秒）のコマに画像を重ねて測った。行は 159px ずつ下へ
-- 下半分の背景 `ConditionPanel/Background.png` (0,540)、行の背景 `Base.png`（タブ入り）(123, 579)、ラベルの字のまんなか (305, 598)
-- `Context.png`（220×65：コイン／1st／2nd／3rd）(135, 633)、「120 未満」は右はし x478・まんなか y664
-- ゲージの枠 `Large_Gauge_Base.png`（1008×120 が2つ：枠・中の暗い帯。曲ごと条件は `Small_Gauge_Base.png` 684）(491, 591)。
-  中身は枠から (+18,+16)：白い `Large_Gauge.png` 972×86 に状態の色をかける／虹は `Large_Gauge_Rainbow.png`（16コマ、`Small_` は8コマ）
-- 数字 `Large_Gauge_Number.png`（80×100、上の段が白・下が虹）を枠から (+21, −8)、56px 間隔。割ったら灰色で、`Disqualify_Text.png` を枠から (+18,+17)
-- ほかの曲：小さい枠 `Mini_Gauge_Base.png`（254×50 が2つ）(1236, 枠の y+10、2つめは +47)、中身は (+11,+9) の 232×30、`Mini_Context.png` (−36,+5)、
-  数字 `Mini_Gauge_Number.png`（30×38）(+10,−1) 20px 間隔、まだの曲は `Mini_Gauge_Position.png` を (1200, 同じ y)
-- 魂ゲージの札 `Gauge/Condition_Plate.png`（タブと赤い矢印入り）(1192,163)、目印 `Gauge/Condition_Stopper.png` をボーダーの x−21・y230
-- 左のパネル `MiniTaiko/Background.png` (0,276)、「段位道場」マーク `MiniTaiko/CourseSymbol.png` (27,351)
-- 扉 `Screen.png`（1422×195）：閉じきると (498,288)。左半分・右半分がそれぞれ外から入る
-- 上の背景：`Background/0〜5/Anime.aup2` を番号の順に重ねて、それぞれずっとくり返す（`Background/Anime.aup2` は作った人の確認用なので使わない）。
-  **この aup2 は画面の大きさが 1920×276**（`[scene.0]` の video.width/height）。座標の (0,0) はその画面のまんなかなので、`Aup2` はファイルごとに大きさを読む
-- 最後の字 `End/Text.png`（800×150 が3つ：金の合格・赤の合格・不合格。金と赤の順番は推測）を原寸で (809,309)
+#### Dan loading screen (11/5; `Scenes/DanLoading.cs`)
+Measured on the 11/5 六段 video (`2026-11-05_09-32-24.mp4`, 17.8–23.6 s). Replaces the song-loading curtain after 「挑戦する」
+- Dan select fades out 0.47 s → black 0.6 s → dojo picture fades in 0.47 s → shown 3.2 s (longer if loading is slow; at least 0.3 s after loading) → fades out 0.53 s → play screen fades in 0.5 s (doors closed)
+- A-Style: `07.DanLoading/Background.png` (1920×1300) scrolls up at **73.5 px/s** from the start of the fade-in and stops at 220 px (bottom edge). Dan plate (`danPlatePath`) at top right, about x1638–1783, top y162
+- Simple: dark gradient, 「段位道場」 and the dan name, plus the plate. Nothing copied from the original picture
+- F2 retry still uses the normal song-loading curtain (5 s of dojo picture on every retry felt too long; ask たけらい if he wants otherwise)
 
-- **まだ作っていない**：
-  - `ChangeEffect`（曲間演出）は**パーサだけ**。今は上の扉（OpenTaiko と同じもの）を出している。
-    本家は 8つのミリ秒パラメータ＋`Anime.aup2` で作り込む仕組み（`TAIKONAUTS-SPEC.md` 参照）
-  - 段位選択画面の A-Style 画像（`01.Entry/DanCategorySelect/` の Cursor・Popup、`danPanelSidePath` など）。
-    今はコードで描いている。`danPlatePath` の画像だけは段位のフォルダから直接読んで出している
+#### Dan select drawn with A-Style images (11/1; `Scenes/DanSelectAStyle.cs`)
+Positions found by template-matching the images onto frames 34 s (初段) and 50 s (confirm) of video 01-44-20 (OpenCV matchTemplate). Skins without the images keep the code-drawn look
+- Plates `MiniPlate.png` (six 80×168 colors: kyu / 初–五段 / 六–十段 / 玄人–超人 / 達人 = gold / 外伝): top-left (190 + danIndex×68 − 8, 26).
+  **Empty slots also show the name, with color ×0.5** (the original's 五級–一級 and 玄人–外伝 are exactly half brightness). Names in black 36 px; first character centered 100 px below the plate top, 37 px per character
+  - Selected plate: 22 px lower with `Plate_Effect.png` (white edge + 29% white inside) on top. Faint `Plate_Arrow.png` on both sides (−85 / +29 px from the plate center, +47 px from the top; right one mirrored)
+  - Passed dans get `Stamp.png` (six 90×76; order is a guess: (combo type − 1)×2 + 1 if gold)
+- Panel `Panel.png` at (346,192) (shadow bottom-right; 合格条件 tab and frame included); side patterns `Panel_Side.png` (six 40×806) at (364,215) and (1800,215, mirrored)
+- Song bars `SongBar.png` (three 1380×110) at (412, 231 + 110×row). Difficulty mark `Song_CourseSymbol.png` (five 78×52) at (529, 245 + 110×row);
+  ★ level center (567, 309); title from x640, center y283, white text with black outline
+- Soul gauge box `GaugeCondition_Bar.png` (434,611); condition boxes `Condition_Bar.png` (751, 608 + 132×row);
+  contents `Condition_Content.png` (50 px each: coin / 1st / 2nd / 3rd / white bar): coin row (768, 654 + 132×row), white bar (775, 690 + 132×row), per-song columns 331 px apart.
+  「814 以上」 right edge x1085, center y679 (soul gauge: right 735, y693). **The gold value is not shown** (the original doesn't either)
+- Confirm popup `Challenge_Check/Panel_Base.png` (blue box with the question baked in) and `Panel.png` (buttons), both 1368×488 at native size at (276,296).
+  Three buttons: wrench (play options), 挑戦する, 挑戦しない; centers (613.5 / 858.5 / 1196.5, 581.5).
+  Cursor `Select_Effect.png` (seven 350×150: large = yellow frame / glow / white frame / white fill; small = yellow frame / glow / white frame). Appearance: dims over 0.2 s → box from 0.75× over 0.13 s → buttons 0.2 s later
+- Plate area: `PlateX 145, PlateY 205, W 230, H 485`, fitted with `DanPanel.FitPlate`
 
-### 演奏オプションのバッジ（`UI/OptionBadges.cs`。A-Style の `Image/99.Common/Option_Icon/`）
-- 画像は **1コマ 40×40 を横に並べたもの**。**コマ0 は空っぽ（＝オフ）**、コマ1 から中身が入っている
-  - `Auto.png` 80×40（2コマ）／`Speed.png` 600×40（15コマ：空 / ×1.1 1.2 1.3 1.4 1.5 1.6 1.7 1.8 1.9 2.0 2.5 3.0 3.5 4.0）
-  - `Abekobe` `Doron` `HiSpeedLock` `Adjust` は 80×40 の2コマ、`Random` は 120×40 の3コマ、
-    `PlaySpeed` は 480×40 の12コマ（0.5〜0.9 / 空 / 1.1〜1.5 / 2.0）。**TaikoSim にその機能が無いので今は使わない**
-- `Speed.png` のコマ1〜14 は、TaikoSim の `HiSpeedSteps` から `0.5` と `1.0` を抜いたものと**完全一致**。
-  1.0倍以下はバッジを出さない。段階にない値（数字で直接入れたとき）は一番近い段階のバッジにする
-- 置き場所は**左のパネル、難易度マークの右**（左上 (170, 353)・原寸40×40、複数あれば右へ並べる）。
-  10/31 の段位道場の動画（AUTO 付き）で測った。前は推測で曲名の下に置いていた
-  - 2つ以上つけたときの並ぶ向き・順番は未確認（はやさ → AUTO の順で右へ並べている）
-- 画像が無いスキン（シンプルなど）では、黄色い角丸の札に文字（`AUTO`・`×1.5`）で代わりに描く
+#### Dan play drawn with A-Style images (11/1; `Scenes/DanPanelAStyle.cs` and others)
+Measured by overlaying images on frames of the 九段 video (03-04-03 at 20 s, 250 s, 164 s, 311 s). Rows are 159 px apart
+- Lower-half background `ConditionPanel/Background.png` (0,540); row background `Base.png` (with tab) (123, 579); label text center (305, 598)
+- `Context.png` (220×65: coin / 1st / 2nd / 3rd) (135, 633); 「120 未満」 right edge x478, center y664
+- Gauge frame `Large_Gauge_Base.png` (two 1008×120: frame, dark inner band; per-song conditions use `Small_Gauge_Base.png` 684) at (491, 591).
+  Fill at (+18,+16) from the frame: white `Large_Gauge.png` 972×86 tinted by state / rainbow `Large_Gauge_Rainbow.png` (16 frames at 30 fps; `Small_` has 8)
+- Digits `Large_Gauge_Number.png` (80×100; top row white, bottom row rainbow) at (+21, −8) from the frame, 56 px apart. Broken: grey, plus `Disqualify_Text.png` at (+18,+17)
+- Other songs: small frame `Mini_Gauge_Base.png` (two 254×50) at (1236, frame y+10; second +47), fill (+11,+9) 232×30, `Mini_Context.png` (−36,+5),
+  digits `Mini_Gauge_Number.png` (30×38) at (+10,−1), 20 px apart; unplayed songs show `Mini_Gauge_Position.png` at (1200, same y)
+- Soul gauge tag `Gauge/Condition_Plate.png` (tab and red arrow included) (1192,163); marker `Gauge/Condition_Stopper.png` at border x−21, y230
+  (`PlayHUD.NormaBorderX(norma) = GaugeX + 12 + (norma/2 − 1) × CellWidth`)
+- Left panel `MiniTaiko/Background.png` (0,276); 「段位道場」 mark `MiniTaiko/CourseSymbol.png` (27,351)
+- Doors `Screen.png` (1422×195): fully closed at (498,288). Left and right halves slide in from outside
+- Top background: `Background/0–5/Anime.aup2` layered in index order, each looping forever (`Background/Anime.aup2` is the author's preview — unused).
+  **These aup2 scenes are 1920×276** (`video.width/height` in `[scene.0]`). (0,0) is that scene's center, so `Aup2` reads the size per file
+- Final text `End/Text.png` (three 800×150: gold pass, red pass, fail; the gold/red order is a guess) at native size at (809,309), popping 1.3 → 1
+- Code-drawn panel (no A-Style): plate `PlateX 1560, PlateY 560, W 230, H 485`; top-left counter (良・可・不可・連打数) box (28, 98) 212×128,
+  labels 21 px, numbers 27 px (enlarged 11/5; たけらい said the numbers were too small)
 
-### お気に入りのキー
-- TaikoSim は **F4**、TaikøNauts は F8。**たけらいの希望で F4 のまま**（本家に合わせない）
+- **Not built yet**:
+  - `ChangeEffect` (between-song effect) is **parsed only**. The doors above (same as OpenTaiko) are shown instead.
+    The original uses 8 millisecond parameters + `Anime.aup2` (see `TAIKONAUTS-SPEC.md`)
+  - Dan result with A-Style images (`09.DanResult/`)
 
-### 演奏画面
-- 判定枠の中心：(620, 389)
-- 風船（`Notes/Normal/*/10.png`、390×195）：A-Style の 0/10.png を1pxずつ測った形。まんなかは y=95.5
-  - 頭の丸は半径52（外に黒4px → クリーム色の縁9px → オレンジ (255,120,0)）。中心 (96, 95.5)
-  - 首の帯は x146〜164 で平ら（上下の高さ24）。頭と同じオレンジで、右はしに黒2px を入れてふくらみと分ける
-  - ふくらみは x165〜297 で (255,80,0)。上下の高さは x171〜184 が 20（くびれ）→ 244〜256 が 42（最大）→ 297 で 0
-  - A-Style には目と口があるが、**シンプルスキンは顔ナシ**（形だけまねる）
-- ゴーゴーの炎（`Lane/GoGoSoul.png`、1コマ 480×600 × 8コマ）：炎の玉の中心 (243,297) を判定枠に合わせて **0.9倍**・加算合成。
-  始まったときは OpenTaiko の倍率（0.8→2.5→…→1.0）。コマは 0.05秒ごと。**魂ゲージより後に描く**（隠れないように）
-- コンボのキラキラ（`MiniTaiko/Effect.png`）：**50コンボから、星はいつも真っ白**（銀・金に分かれるのは数字の方）。
-  TaikøNauts の動画（金の133コンボを1/60秒ずつ）を測った値。1周は 16ms × 36段：
-  - どのけたにも同時に1つずつ、**まんなか（2〜9段）→ 右（10〜17段）→ 左（18〜25段）**。1つは8段（0.13秒）で、ふくらんでしぼむ（sin）
-  - 横：まんなかは数字の中心、右は +17px、左は −11px（数字の幅 66px のとき。幅に合わせて比で変える）
-  - 高さ：3つとも数字の下から 53px 上（数字の高さ 78px のとき）。そこから1段に 1.05px ずつ上がる
-  - **加算合成**で描く（A-Style の星は真ん中が白・腕が黄色。加算で重ねると明るい数字の上で真っ白に光る）
-  - 白くして色をかけるのは×（10/27 にやってボヤけた）。OpenTaiko の式そのままも×（右と左が 12〜15px 下に出る）
-- 画面の切り替え（`SceneManager`）：暗くする → 真っ黒で待つ → 明るくする、を TaikøNauts の秒数でやる
-  - モード選択 → 選曲：0.5 → 1.05 → 0.3秒（`ToSongSelectFromMode`）
-  - 選曲 → モード選択：0.5 → 0.8 → 0.65秒（`ToModeFromSongSelect`）
-  - リザルト → 次：リザルトが 0.5秒で暗くして 1.05秒真っ黒 → 0.5秒で明るく（`AfterResult`）
-  - 起動の読み込み → モード選択：0.3秒で暗く → 0.5秒で明るく（`AfterBoot`。TaikøNauts は IC カードの画面なので TaikoSim で決めた）
-  - 暗くしている間と真っ黒の間は、今の画面の Update を止める
-- ドンダフルコンボ：表示のタイミング・紙吹雪の場所（525,162 / 右は反転 1367）・速さ（30コマ/秒）は TaikøNauts と同じ
-- BASS の効果音の遅れ：HitSoundLagMs = バッファ + 更新間隔/2（判定だけに入れる）
+### Play-option badges (`UI/OptionBadges.cs`; A-Style `Image/99.Common/Option_Icon/`)
+- Images are **40×40 frames laid out horizontally**. **Frame 0 is empty (= off)**; content starts at frame 1
+  - `Auto.png` 80×40 (2 frames) / `Speed.png` 600×40 (15 frames: empty / ×1.1 1.2 1.3 1.4 1.5 1.6 1.7 1.8 1.9 2.0 2.5 3.0 3.5 4.0)
+  - `Abekobe` `Doron` `HiSpeedLock` `Adjust` are 80×40 (2 frames), `Random` 120×40 (3 frames),
+    `PlaySpeed` 480×40 (12 frames: 0.5–0.9 / empty / 1.1–1.5 / 2.0). **TaikoSim lacks those features, so they're unused for now**
+- `Speed.png` frames 1–14 **exactly match** TaikoSim's `HiSpeedSteps` minus `0.5` and `1.0`.
+  No badge at ≤ 1.0×. Values not on a step (typed directly) use the nearest step's badge
+- Position: **left panel, right of the difficulty mark** (top-left (170, 353), native 40×40; more badges go to the right).
+  Measured on the 10/31 dan video (with AUTO). It used to be guessed under the song title
+  - Order/direction with 2+ badges is unverified (we draw speed → AUTO to the right)
+- Skins without images (Simple etc.) draw a yellow rounded tag with text (`AUTO`, `×1.5`) instead
 
----
+### Favorite key
+- TaikoSim uses **F4**; TaikøNauts uses F8. **Kept at F4 at たけらい's request** (not matching the original)
 
-## 9. やりかけ・これからやること
-
-### やりかけ（master に入っているけど、まだたけらいが確かめていない）
-- 文字は **SDF フォント**（`claude/sdf-font`）。小さい文字がにじむ・縁取りが重いのを直した
-  - 96px で文字を描く → ふちまでの距離を計算 → 48px（`DynamicFont.BaseSize`）にして 2048×2048 のページに詰める。距離は ±8px（`Spread`）
-  - 描くときはシェーダーが、距離から「ふちの前後 0.5px だけ半透明」にする → どの大きさでもくっきり
-  - 縁取りは文字を太らせて描くだけ（縁 → 文字 の2回。前は 25回ずらして描いていた）。角は丸くなる。
-    太さの上限は `DynamicFont.MaxOutline(size)`（文字の大きさの約 1/6）
-  - 縁取りした文字は `FontManager.DrawSkinMainOutlined` / `DrawOutlined`（`MenuDraw.OutlinedAt` もこれを使う）
-  - 距離の計算は 1文字 約0.5ms（クラウドの遅い CPU 1コア）。たくさん足すときは CPU のコアを全部使う
-- 縁取りの太さを「文字の大きさ × 0.11」で自動にした
-- Simple の選曲画面の画像を、A-Style と同じ並び方に作り直した（数字の画像・★・カード）
-
-- 曲の読み込み画面（`Scenes/SongLoading.cs`。難易度を決めた → 演奏の間。`SceneManager.ToPlayWithLoading` で呼ぶ）
-  - TaikøNauts の動画（10/29 の A.mp4、82.4〜87.9秒）を 1/60秒ずつ測った：
-    決めてから 0.4秒待つ → 幕（`Background_Fade.png` の左右半分）が 0.48秒で閉じる（一定の速さ） →
-    ヒント 0.15秒・ドンとカツが外側の上から飛びこむ 0.3秒・板が 0.02秒後から 0.28秒で横に広がる → 広がりきったら曲名がパッと出る →
-    幕が閉じてから 3.83秒（読み込みが長いときは、読み終わってから 0.3秒）→ 消える 0.29秒（板は上下につぶれる・キャラは上へ飛ぶ）→ 幕が 0.48秒で開く
-  - 曲の読み込み（`PlayScene.Enter`）は、曲名まで出て止まった絵になってからやる（読み込みで画面が止まっても見た目が変わらない）
-  - 演奏画面は幕が開き始めたときから動く（それまでは `SceneManager.IsBlocking`）
-  - 板は 0.9倍で真ん中 (960, 400)。曲名は 62px・白い字に黒い縁 6px・真ん中の y=390。サブタイトルは 34px・こい灰色・y=478
-  - TaikøNauts のヒントの画像の名前は `Background_Light..png`（点が2つ）。`Background_Light.png` が無ければそっちを読む
-  - Simple は `tools/skin-gen/loading.py` で作った。**本家の再現はしない・最低限だけ**（たけらいの希望）：上が黒→下がこい灰色の背景と幕（すき間のふちに細い灰色の線）・白い細いふちの赤丸と青丸・曲名の板。キラキラとヒントは無し
-
-- ドンダフルコンボの紙ふぶき（`PlayEnd.DrawConfetti`）
-  - `Confetti.png`（520×368 が横10・縦5）のコマは **縦に読む**（0〜4 が1列目の上から下）。A-Style の画像で、上下のコマは形がつながっていて、左右はつながっていなかった
-  - 扇と文字の **後ろ** に描く（TaikøNauts：扇より上に飛んだ紙だけが見える）。コマの左上は左 (560, 200)・右 (1332, 200)（右は左右反転）、大きい文字から 0.85秒後（67コマ目）から
-  - Simple の `Confetti.png` も縦に読む並びで作り直した（`tools/skin-gen/endres.py` の `confetti()`。はじけて落ちる動き）
-- 曲を決めたとき：枠は 0.53秒で白 → **0.65秒で消える** → 0.70〜0.93秒で一覧が消える（A.mp4 の 69.15秒〜を 1/60秒ずつ）
-
-- 設定画面の動き（`SettingsOverlay`・`Gui`。transitions.dev・reui.io・shadcn/ui をまねした。たけらいが選んだ：スライダー案A・右からすべりこむ・全部入り）
-  - 開く：全画面は右から、F1 のパネルは左から 0.3秒（ease-out quint）。閉じる：0.22秒（ease-in cubic）。動いている間は入力を受け付けない
-  - すべらせ方は `Rlgl.PushMatrix` + `Translatef`（はみ出しを切る `BeginScissorMode` は Translatef が効かないので、ずらした分を足す）
-  - カテゴリ：左の青い帯が次の場所へスッと動く。右の中身は 18px ずれたところから 0.22秒で戻り、上に重ねた背景色がうすくなって出てくる
-  - `Gui.Approach(キー, 目標, 速さ)`：部品ごとの値を目標へじわっと近づける（ボタンの色・トグルの丸・スライダー）。1秒使われないキーは捨てる
-  - スライダー：細いバー 6px＋白い丸つまみ（ふつう半径10・さわると12・ドラッグ中13、うすい影）。選択中・ドラッグ中は青い光。さわっている間は上に数字の吹き出し。マイナスがあるものは 0 に目印
-
-- 選曲画面のスキップ（OpenTaiko の `CStageSongSelect`：スクロール中の LeftChange/RightChange で `tカーソルスキップ` を7回・`Skip.ogg`）
-  - カーソルが動いている途中（前の 0.15秒の動きが終わる前）にカッか ↑↓ を押し直すと、7曲まとめて飛ぶ。↑↓の押しっぱなしのくり返しとホイールでは飛ばない
-  - スキップしてから **0.5秒** は、カッ・↑↓を受け付けない（TaikøNauts の動画 10/30：連打し続けると、スキップの音がちょうど 0.5秒ごとに鳴って、その間はカッの音も動きも無かった）
-  - 音は `Sound/SongSelect/Skip.ogg`（A-Style にある。Simple は `sounds.py` の `skip()` で作った。無ければカッ）
-- 音色（`Audio/HitSounds.cs`）：exe の横の `HitSounds/名前/`（dong.ogg か don.ogg・ka.ogg・HitSounds.json）。OpenTaiko の `Global/HitSounds` と同じ並びで、そのまま入れても使える
-  - いちばん上は「スキン」（スキンの `Sound/Taiko/0.Taiko/`）。選んだものは `GameConfig.HitSound`（フォルダ名）。演奏オプションの「音色」でカッ → ドン、0.15秒あとにカッを鳴らす
-  - TaikoSim の音色（電子音・手拍子・ウッドブロック）は `tools/skin-gen/sounds.py` の `hitsounds()` で作って `TaikoSim/HitSounds/` に入れた（ビルドで exe の横にコピー）
-- 演奏オプションの板（`UI/PlayOptionsPanel.cs`）：A-Style の `02.SongSelect/Option/` の画像で描く。操作は OpenTaiko の `CActPlayOption` と同じ
-  - カッ・←→で値を変える／ドン・Enter で次の項目、最後の項目で閉じる（開ききるまでドンは無視）／↑↓で項目／数字キーで直接入力／Esc・F2 で閉じる
-  - はやさ（HS倍率）の段階は OpenTaiko と同じ（0.5, 1.0〜2.0 は 0.1ずつ, 2.5〜4.0 は 0.5ずつ）。オート連打は 0,5,8,10,12,15,18,20,25,30,40,50,60,80,100、精度は 5%ずつ（TaikoSim で決めた）
-  - 見た目は TaikøNauts の動画（10/18 の `2026-10-18_00-27-01.mp4` の 50〜58秒）を測った：
-    板は原寸で (0, 465)（8項目ぶん。TaikoSim の項目の数に合わせて 61px ずつ伸ばす・縮める）／左上に 1P の印 54px (36, 28)・「演奏オプション」32px (105, 中心 55)／
-    項目の帯は板の (32, 94) から 61px ずつ、ふだんは白を半分重ねる・選んでいる帯は (254,255,0)／名前は白い字に黒い縁 26px／
-    値は白い箱（帯の (178, 6)）に黒っぽい字に白い縁、選んでいる帯は箱なしで ◀ 値 ▶（矢印は帯の (186, 10) と (326, 10)）／ON/OFF は「する」「しない」
-  - 動き（同じ動画）：開く＝画面の下から 3000px/秒で上がって 60px 行きすぎ、0.07秒で戻る。閉じる＝0.04秒で 54px 上がって 0.04秒で戻り、3100px/秒で落ちる
-  - 文字は今はスキンの曲名用フォント（`Font/default.*`）。TaikøNauts は `SkinConfig.json` でシステム用のフォントを指定できるらしい（中身を教えてもらったら対応する）
-  - 開く音は `Sound/SongSelect/Option.ogg`（無ければドン）。Simple の画像は `menu.py` の `option_images()`
-- おに ⇔ 裏おに：おにの上で右（カッ・→ の押し直し）を **10回** で切り替え（本物の新筐体と同じ。たけらいの希望）。左へ動いたら数え直し、Tab はすぐ切り替え
-  - OpenTaiko は1回で切り替わる（`nスイッチカウント` はあるけど、マイナスにする場所が無くて使われていない。最初のコミットから同じ）
-  - 音は `Sound/SongSelect/UraFlip.ogg`（A-Style にある。Simple は `sounds.py` の `ura_flip()`。無ければドン）
-
-- 項目（10/30）：オート演奏・はやさ・オート連打・音色・毎回同じ出方・判定の板。オートの精度（良・可・不可）は設定の「演奏」、デバッグ記録は設定の「一般」へ移した
-- 文字の縁：`MenuDraw.OutlineRatio` を 0.11 → **0.16**（TaikøNauts のサブタイトルは縁が約1.5倍あって、細いと白い字がうすく見えた）。
-  そのために SDF フォントの `Spread` を 8 → 12 にした（縁の太さの上限が文字の大きさの約 0.24倍になる）
-- 設定のスキンのプレビュー（`UI/SkinPreview.cs`）：選んでいるスキンのフォルダから直接読む（適用前でもそのスキンで見える）。判定枠・ドン・カッ・大ドン・大カッ・連打・風船
-- スライダーのドラッグ：`Gui.BeginFrame` で、ドラッグを切るのは本当にマウスを離したときだけ（F1 の後ろの画面も BeginFrame を呼ぶので、ドラッグが毎フレーム切れていた）
-
-### これからやること（たけらいと話していたもの）
-- **これからの流れ（10/30）：段位道場 → 特訓モード → 細かいところの修正 → オンライン対戦**
-
-#### 描画を軽く・入力遅延を減らす・排他フルスクリーンの落ちを直す（10/30 にたけらいが希望）
-たけらいから「DirectX と Vulkan を実装しよう」という話が出た。狙いを聞いたら
-**「動作を軽く・安定させたい」「入力遅延を減らしたい」「フルスクリーンで落ちるのを直したい」**の3つだった。
-つまり API そのものが目的ではないので、**いきなり描画APIを乗り換えてはいけない**。順番を守ること。
-
-まず事実：
-- **Raylib は OpenGL 専用。** 公式FAQに "built on top of OpenGL API ... there are currently no plans to
-  support any other graphics APIs" と明記されている
-- `rlgl` が抽象化しているのは **OpenGL のバージョン違いだけ**（1.1 / 2.1 / 3.3 / 4.3 / ES2 / ES3）。別APIへの橋は無い
-- Vulkan は "could be added if really required"（抽象化レイヤーを作るのが大仕事、というニュアンス）。DirectX は言及すらない
-- TaikoSim 側の依存：**`Raylib.*` が540箇所・`Rlgl.*` が35箇所・64ファイル中38ファイル**。
-  さらに**自作の GLSL シェーダーが2本**（`DynamicFont` の SDF フォント、`SkinManager` の連打の熱）。
-  乗り換えるなら HLSL / SPIR-V に書き直しになる → **実質フルリライト**
-
-やる順番：
-1. **測る（コード変更ゼロ）**：設定の「一般 → デバッグ → デバッグ記録（CSV）」をONにして重い曲を1曲遊び、
-   `frames.csv` と `events.csv` を見る。描画が重いのか・GCなのか・BASSなのか・vsync待ちなのかが数字で出る。
-   **測る前に原因を決めつけないこと**
-2. **安いところから潰す**：目標FPS 0 ＋ 垂直同期OFF（TaikøNauts公式の低遅延推奨設定。設定にもう入っている）、
-   排他フルスクリーンの落ち（`Graphics/Screen.cs` の 117行目あたり。描画APIとは無関係に直せるはず）、
-   GC が原因なら毎フレームの確保を減らす
-3. **それでも足りなければバックエンド**：最有力は **ANGLE**（OpenGL ES → D3D11 の翻訳レイヤー。Chrome が使っている）。
-   **コードを変えずに D3D11 で動く可能性がある**のが強み。
-   Silk.NET / Veldrid への乗り換えや、有志フォークの `rlvk`（Raylib in Vulkan）は、その次
-- 戻るときの動き（難易度 → 曲・曲 → ジャンル・選曲 → モード選択）を TaikøNauts に合わせる（動画待ち）
-- A-Style の選曲画面の第2段：検索・オプションの板・鬼→裏の切り替えアニメ（`Oni_Transition.png`）・自己ベスト・王冠
-- モード選択の A-Style 対応（TaikøNauts のフォルダ名を教えてもらう）
-- 前からの残り：フルスクリーン（排他）で落ちるときのログ、スキンの座標の確認
+### Play screen
+- Judge circle center: (620, 389)
+- Balloon (`Notes/Normal/*/10.png`, 390×195): shape measured pixel by pixel from A-Style 0/10.png. Center y = 95.5
+  - Head circle radius 52 (black 4 px outside → cream rim 9 px → orange (255,120,0)). Center (96, 95.5)
+  - Neck band flat at x146–164 (height 24). Same orange as the head; 2 px black on its right edge separates it from the body
+  - Body x165–297 in (255,80,0). Height: 20 at x171–184 (waist) → 42 at 244–256 (max) → 0 at 297
+  - A-Style has eyes and a mouth; **Simple has no face** (shape only)
+- Go-go fire (`Lane/GoGoSoul.png`, 480×600 per frame × 8): fireball center (243,297) placed on the judge circle at **0.9×**, additive blend.
+  At start uses OpenTaiko's scale curve (0.8→2.5→…→1.0). 0.05 s per frame. **Draw after the soul gauge** (so it isn't hidden)
+- Combo sparkles (`MiniTaiko/Effect.png`): **from 50 combo; the stars are always pure white** (silver/gold applies to the digits).
+  Measured frame by frame on a TaikøNauts video (gold 133 combo). One cycle = 16 ms × 36 steps:
+  - One star per digit at the same time, **center (steps 2–9) → right (10–17) → left (18–25)**. Each lasts 8 steps (0.13 s), swelling and shrinking (sin)
+  - Horizontal: center = digit center, right +17 px, left −11 px (for a 66 px wide digit; scale with width)
+  - Vertical: all three start 53 px above the digit bottom (for a 78 px tall digit), rising 1.05 px per step
+  - **Additive blend** (A-Style stars are white in the middle with yellow arms; additive makes them glow white over bright digits)
+  - Whitening + tinting was wrong (tried 10/27, looked blurry). OpenTaiko's formula verbatim is also wrong (right and left come out 12–15 px too low)
+- Scene transitions (`SceneManager`): fade out → hold black → fade in, with TaikøNauts timings
+  - Mode select → song select: 0.5 → 1.05 → 0.3 s (`ToSongSelectFromMode`)
+  - Song select → mode select: 0.5 → 0.8 → 0.65 s (`ToModeFromSongSelect`)
+  - Mode select → dan select: 0.5 → 0.4 → 0.3 s (`ToDanSelectFromMode`)
+  - Result → next: the result fades itself over 0.5 s, 1.05 s black → 0.5 s fade in (`AfterResult`)
+  - Boot loading → mode select: 0.3 s out → 0.5 s in (`AfterBoot`; TaikøNauts shows an IC-card screen here, so TaikoSim chose these values)
+  - Dan select → dan play: `DanLoading` (see above)
+  - The current scene's Update is paused while fading out and while black
+- Donderful combo: display timing, confetti position (525,162 / right side mirrored at 1367) and speed (30 frames/s) match TaikøNauts
+- Soul gauge rainbow: `Gauge/Rainbow.png` 24 frames (3 sets × 8 frames for norma 80/70/60%); each frame is crossfaded into the next
+- BASS hit-sound lag: HitSoundLagMs = buffer + update period / 2 (applied to judging only)
 
 ---
 
-## 10. 気をつけること
+## 9. Work in progress and what's next
 
-- 曲は約 3000 曲ある。文字や画像は **先に読み込んで**、スクロール中に止まらないようにする（`FontManager.PreloadSkinMain` など）
-- ファイルの文字コードは UTF-8。BOM つきのファイルは BOM のまま保存する
-- コメントは日本語で、やさしい言葉で書く（今のコードと同じ書き方）
-- 他人のスキンや曲のファイルをリポジトリに入れない
+### In master but not yet confirmed by たけらい on his PC
+- Text uses an **SDF font** (`claude/sdf-font`). Fixes blurry small text and heavy outlines
+  - Render glyphs at 96 px → compute distance to the edge → shrink to 48 px (`DynamicFont.BaseSize`) and pack into 2048×2048 pages. Distance range ±12 px (`Spread`)
+  - At draw time a shader makes only ±0.5 px around the edge semi-transparent → crisp at any size
+  - Outlines are just the glyph drawn fattened (outline → glyph, 2 draws; previously 25 offset draws). Corners are rounded.
+    Maximum thickness `DynamicFont.MaxOutline(size)` (about 0.24× the text size with Spread 12)
+  - Outlined text: `FontManager.DrawSkinMainOutlined` / `DrawOutlined` (`MenuDraw.OutlinedAt` uses them)
+  - Distance computation is ~0.5 ms per glyph (one slow cloud CPU core). Use all CPU cores when adding many glyphs
+- Outline thickness: `MenuDraw.OutlineRatio` = **0.16 × text size** (was 0.11; TaikøNauts subtitles have ~1.5× thicker outlines and thin outlines made white text look faint).
+  For that, SDF `Spread` went 8 → 12
+- Simple's song-select images were remade with the A-Style layout (digit images, ★, cards)
+
+- Song loading screen (`Scenes/SongLoading.cs`; between choosing a difficulty and play; called via `SceneManager.ToPlayWithLoading`)
+  - Measured frame by frame on the TaikøNauts video (10/29 A.mp4, 82.4–87.9 s):
+    0.4 s wait after deciding → the curtain (left and right halves of `Background_Fade.png`) closes in 0.48 s (constant speed) →
+    hint 0.15 s, Don and Katsu drop in from the outer top 0.3 s, plate widens over 0.28 s starting 0.02 s later → when fully wide the title appears instantly →
+    3.83 s after the curtain closed (if loading is long, 0.3 s after it finishes) → disappears over 0.29 s (plate squashes vertically, characters fly up) → curtain opens in 0.48 s
+  - The song is loaded (`PlayScene.Enter`) once the title is shown and the picture is static (a hitch during loading doesn't change the look)
+  - The play screen runs from when the curtain starts opening (blocked before that by `SceneManager.IsBlocking`)
+  - Plate at 0.9×, centered (960, 400). Title 62 px, white with 6 px black outline, center y = 390. Subtitle 34 px, dark grey, y = 478
+  - TaikøNauts' hint image is named `Background_Light..png` (two dots). If `Background_Light.png` is missing, that one is read
+  - Simple made by `tools/skin-gen/loading.py`. **No attempt to reproduce the original; minimal only** (たけらい's wish): black-to-dark-grey background and curtain (thin grey line at the gap edge), red and blue circles with thin white rims, a title plate. No sparkles, no hints
+
+- Donderful-combo confetti (`PlayEnd.DrawConfetti`)
+  - `Confetti.png` (520×368 cells, 10 across × 5 down) is **read column-wise** (0–4 = first column top to bottom). In A-Style, vertically adjacent cells continue the shape; horizontally they don't
+  - Drawn **behind** the fan and text (TaikøNauts: only paper flying above the fan is visible). Cell top-left: left (560, 200), right (1332, 200) (right mirrored), from 0.85 s after the big text (frame 67)
+  - Simple's `Confetti.png` was also rebuilt in column order (`confetti()` in `tools/skin-gen/endres.py`; bursts and falls)
+- On choosing a song: frame turns white over 0.53 s → **disappears at 0.65 s** → list fades out 0.70–0.93 s (A.mp4 from 69.15 s, frame by frame)
+
+- Settings screen motion (`SettingsOverlay`, `Gui`; modeled on transitions.dev, reui.io, shadcn/ui. たけらい chose: slider plan A, slide in from the right, everything included)
+  - Open: full screen slides from the right, the F1 panel from the left, 0.3 s (ease-out quint). Close: 0.22 s (ease-in cubic). Input is ignored while moving
+  - Sliding uses `Rlgl.PushMatrix` + `Translatef` (`BeginScissorMode` clipping isn't affected by Translatef, so add the offset manually)
+  - Categories: the blue bar on the left glides to the new spot. Content on the right starts 18 px off and returns over 0.22 s while a background-colored overlay fades out
+  - `Gui.Approach(key, target, speed)`: per-widget values ease toward a target (button color, toggle knob, slider). Keys unused for 1 s are dropped
+  - Slider: thin 6 px bar + white round knob (radius 10 normal, 12 hover, 13 dragging, soft shadow). Blue glow when selected/dragging. A value bubble above while hovered. A marker at 0 for ranges with negatives
+
+- Song-select skip (OpenTaiko `CStageSongSelect`: LeftChange/RightChange during scrolling calls `tカーソルスキップ` 7 times with `Skip.ogg`)
+  - Pressing ka or ↑↓ again while the cursor is still moving (before the previous 0.15 s move finishes) jumps 7 songs. Held ↑↓ repeat and the mouse wheel don't skip
+  - For **0.5 s** after a skip, ka and ↑↓ are ignored (TaikøNauts video 10/30: mashing played the skip sound exactly every 0.5 s, with no ka sound or motion in between)
+  - Sound `Sound/SongSelect/Skip.ogg` (A-Style has it; Simple's is made by `skip()` in `sounds.py`; fallback is ka)
+- Hit sounds (`Audio/HitSounds.cs`): `HitSounds/<name>/` next to the exe (dong.ogg or don.ogg, ka.ogg, HitSounds.json). Same layout as OpenTaiko's `Global/HitSounds`, so those can be dropped in
+  - The first entry is "skin" (the skin's `Sound/Taiko/0.Taiko/`). The choice is `GameConfig.HitSound` (folder name). In the play options 「音色」, ka → plays don, then ka 0.15 s later
+  - TaikoSim's own sets (Electro / Clap / WoodBlock) are made by `hitsounds()` in `tools/skin-gen/sounds.py` into `TaikoSim/HitSounds/` (copied next to the exe at build)
+- Play options panel (`UI/PlayOptionsPanel.cs`): drawn with A-Style `02.SongSelect/Option/` images. Controls match OpenTaiko's `CActPlayOption`
+  - ka / ←→ change the value; don / Enter go to the next item and close after the last (don is ignored until fully open); ↑↓ move between items; number keys type a value; Esc / F2 close
+  - Speed (HS) steps match OpenTaiko (0.5, 1.0–2.0 by 0.1, 2.5–4.0 by 0.5). Auto roll: 0,5,8,10,12,15,18,20,25,30,40,50,60,80,100; accuracy in 5% steps (TaikoSim's choice)
+  - Look measured on the TaikøNauts video (10/18 `2026-10-18_00-27-01.mp4`, 50–58 s):
+    panel at native size at (0, 465) (sized for 8 items; grows/shrinks 61 px per item to match TaikoSim's item count) / top-left 1P mark 54 px (36, 28), 「演奏オプション」 32 px (105, center 55) /
+    item bands from (32, 94) in the panel, 61 px apart; normally half-white overlay, selected band (254,255,0) / names white with black outline 26 px /
+    values in a white box (band (178, 6)), dark text with white outline; the selected band has no box and shows ◀ value ▶ (arrows at band (186, 10) and (326, 10)) / ON/OFF are 「する」「しない」
+  - Motion (same video): open = rises from the bottom at 3000 px/s, overshoots 60 px, settles in 0.07 s. Close = rises 54 px in 0.04 s, returns in 0.04 s, then drops at 3100 px/s
+  - Text uses the skin's title font (`Font/default.*`) for now. TaikøNauts can apparently set a system font in `SkinConfig.json` (support it once we learn its contents)
+  - Open sound `Sound/SongSelect/Option.ogg` (fallback: don). Simple's images: `option_images()` in `menu.py`
+  - Items (10/30): auto play, speed, auto roll, hit sound, same note pattern every time, judge panel. Auto accuracy (良/可/不可) moved to Settings "演奏", debug log to Settings "一般"
+- Oni ⇔ Ura Oni: on Oni, press right (ka / → re-press) **10 times** to switch (like the real new cabinet; たけらい's wish). Moving left resets the count; Tab switches immediately
+  - OpenTaiko switches with one press (`nスイッチカウント` exists but nothing ever decrements it; unchanged since the first commit)
+  - Sound `Sound/SongSelect/UraFlip.ogg` (A-Style has it; Simple's from `ura_flip()` in `sounds.py`; fallback is don)
+- Skin preview in settings (`UI/SkinPreview.cs`): reads directly from the selected skin folder (visible before applying). Judge circle, don, ka, big don, big ka, roll, balloon
+- Slider dragging: `Gui.BeginFrame` cancels a drag only when the mouse button is really released (the screen behind F1 also calls BeginFrame, which cancelled drags every frame)
+
+- Dan dojo items from たけらい's 11/5 Simple-skin playthrough (all in master, **not yet checked on his PC**):
+  gauge jaggies fixed, 「0 以上」 empty bar, louder hit sounds, larger top-left counter, `DanLoading`, Simple dan-select intro, fusuma doors,
+  between-song timing from the .tja back-calculation
+  - Still open: **text outline thickness** — たけらい said outlines differ from the original; ask which texts before changing anything
+
+### Known issues (unconfirmed, waiting for data)
+- AUDIO-001 (hits feel off): Codex's `codex/known-issues` branch has `KNOWN-ISSUES.txt`. **Not merged** — waiting for たけらい's config and CSV data.
+  Main suspects with default settings: (1) the judging clock is 17.5 ms ahead of the visuals (nowMs − (AudioOffsetMs − HitSoundLagMs)),
+  (2) in BASS mode the song position doesn't subtract device latency (WASAPI/ASIO do)
+
+### What's next (discussed with たけらい)
+- **Order (10/30): dan dojo → training mode → small fixes → online battle**
+
+#### Make rendering lighter, reduce input latency, fix the exclusive-fullscreen crash (たけらい's wish, 10/30)
+たけらい suggested "let's implement DirectX and Vulkan". Asked about the goal, it was
+**"run lighter and more stable", "reduce input latency", "fix crashes in fullscreen"**.
+The API itself isn't the goal, so **do not jump to a different graphics API**. Follow this order.
+
+Facts first:
+- **Raylib is OpenGL-only.** The official FAQ says "built on top of OpenGL API ... there are currently no plans to
+  support any other graphics APIs"
+- `rlgl` only abstracts **OpenGL versions** (1.1 / 2.1 / 3.3 / 4.3 / ES2 / ES3). No bridge to other APIs
+- Vulkan "could be added if really required" (implying the abstraction layer is a big job). DirectX isn't mentioned at all
+- TaikoSim's dependency: **540 `Raylib.*` calls, 35 `Rlgl.*` calls, 38 of 64 files**,
+  plus **two custom GLSL shaders** (`DynamicFont` SDF font, `SkinManager` roll heat). Switching means rewriting them as HLSL / SPIR-V → **effectively a full rewrite**
+
+Order:
+1. **Measure (zero code changes)**: turn on Settings "一般 → デバッグ → デバッグ記録（CSV）", play one heavy song,
+   and read `frames.csv` and `events.csv`. The numbers show whether it's drawing, GC, BASS or vsync waits.
+   **Don't decide the cause before measuring**
+2. **Fix the cheap things**: target FPS 0 + vsync OFF (TaikøNauts' official low-latency recommendation; already in settings),
+   the exclusive-fullscreen crash (around line 117 of `Graphics/Screen.cs`; should be fixable independent of the graphics API),
+   reduce per-frame allocations if GC is the cause
+3. **Only if still not enough, the backend**: the top candidate is **ANGLE** (OpenGL ES → D3D11 translation layer, used by Chrome).
+   Its strength is that it **may run on D3D11 with no code changes**.
+   Moving to Silk.NET / Veldrid, or the community fork `rlvk` (Raylib in Vulkan), comes after that
+- Match the "back" motions (difficulty → song, song → genre, song select → mode select) to TaikøNauts (waiting for a video)
+- Phase 2 of A-Style song select: search, options panel, Oni→Ura transition animation (`Oni_Transition.png`), personal best, crowns
+- Older leftovers: logs for the exclusive-fullscreen crash, checking skin coordinates
+
+---
+
+## 10. Things to watch out for
+
+- There are about 3000 songs. **Preload** text and images so scrolling never stalls (`FontManager.PreloadSkinMain` etc.)
+- Files are UTF-8. **Keep the BOM on files that have one** (e.g. Python `utf-8-sig` when editing)
+- Code comments are in Japanese, in plain, easy words (same style as the existing code)
+- Never commit other people's skins or song files
+- Raylib scissor mode can't be nested — re-scissor per element (see `DanShutter.Clip`)
