@@ -70,6 +70,16 @@ namespace TaikoSim.Scenes
         private readonly DanShutter? danShutter;  // 段位のときだけ：曲と曲のあいだにレーンを閉じる扉
         private readonly DanEndBanner danEnd = new();   // 段位の最後の曲の終わりに出す「不合格」など
         private long danStartScore;              // 段位：今の曲を始めたときのスコア（前の曲までの合計）
+        private double danPrevEndMs;             // 段位：前の曲の #END の時間（次の曲の始まりを決める）
+
+        // ===== 段位の曲と曲のあいだ（11/5 の六段の動画と .tja から逆算。OpenTaiko と同じく時間は止めない） =====
+        //   ・前の曲の最後の音符から 2.2秒で、ふすまが閉じ始める（2曲目 2.25秒・3曲目 2.23秒）
+        //   ・前の曲の #END から 10.78秒で、次の曲の 0秒（音の頭）（2曲目 10.71秒・3曲目 10.84秒）
+        //     OpenTaiko は #NEXTSONG に 6.2秒＋音源の前の空白 2.5秒＝8.7秒。TaikøNauts は約2秒長い
+        //   ・1曲目：演奏画面が明るくなり始めてから 6.69秒で曲の 0秒
+        private const double DanCloseAfterLastNoteMs = 2200;
+        private const double DanNextSongAfterEndMs = 10780;
+        private const double DanFirstSongStartMs = 6690;
         // 段位の上の背景：A-Style の 08.DanGame/Background/0〜/Anime.aup2 を番号の順に重ねる（1920×276 の画面。ずっとくり返す）
         private readonly List<Aup2> danBackground = new();
         private float danBackgroundTime;
@@ -411,6 +421,7 @@ namespace TaikoSim.Scenes
                 danShutter.LoadSounds();
                 (string title, string subtitle) = DanSongTitle(dan.SongIndex);
                 danShutter.StartFirst(title, subtitle);
+                nowMs = -DanFirstSongStartMs;   // 1曲目の 0秒は、画面が明るくなり始めてから 6.69秒
             }
             // ウィンドウを作ったスレッドだけを監視する。開始できなくても従来の演奏は継続。
             // F8がOFFでもWindows側の時刻を拾う。使えなければRaylib取得時刻で代用。
@@ -660,8 +671,8 @@ namespace TaikoSim.Scenes
             if (diagnosticMessageTimer > 0f) diagnosticMessageTimer -= dt;
 
             // 元の時計と補正はそのまま。診断中だけ補正量とフレーム時間を調べる。
-            //   段位で扉が閉じている・開いている途中は、曲の時間を止めておく（開ききってから流れはじめる）
-            if (danShutter == null || !danShutter.HoldsTime) nowMs += dt * 1000.0;
+            //   段位でも時間は止めない（OpenTaiko と同じ。曲と曲のあいだは OnDanSwap で次の曲の時計に付けかえる）
+            nowMs += dt * 1000.0;
             double beforeSync = nowMs;
             UpdateSongSync();
             UpdateDiagnosticsRecording(); // デバッグ記録を途中で ON・OFF しても、すぐ合わせる
@@ -719,6 +730,19 @@ namespace TaikoSim.Scenes
 
         // 演奏後の演出を始める時間(譜面の時間)
         //   今の分岐で出てくる音符の、最後の音符(連打・風船は終わり)の 1.5秒後 と #END の 1秒後 の早い方
+        // 今の分岐で出てくる最後の音符の時間（連打・風船は終わり）。音符が無ければ #END
+        private double LastNoteMs()
+        {
+            double last = double.NegativeInfinity;
+            foreach (Note note in course!.Notes)
+            {
+                if (!branches.IsActive(note)) continue;
+                double time = note.IsRoll || note.IsBalloon ? Math.Max(note.TimeMs, note.EndTimeMs) : note.TimeMs;
+                if (time > last) last = time;
+            }
+            return double.IsNegativeInfinity(last) ? course.EndTimeMs : last;
+        }
+
         private double GetChartEndMs()
         {
             double chartEnd = course!.EndTimeMs + EndAfterChartEndMs;
@@ -800,7 +824,9 @@ namespace TaikoSim.Scenes
 
             if (!danEnd.Started)
             {
-                if (gameMs >= GetChartEndMs()) DanSongEnded();
+                // 最後の曲はふつうの終わり方。それ以外は、最後の音符から 2.2秒でふすまを閉じる
+                double endAt = dan.IsLastSong ? GetChartEndMs() : LastNoteMs() + DanCloseAfterLastNoteMs;
+                if (gameMs >= endAt) DanSongEnded();
                 return;
             }
 
@@ -836,6 +862,7 @@ namespace TaikoSim.Scenes
             }
 
             // 次の曲へ：扉を閉じる（閉じたまま0.8秒で OnDanSwap が呼ばれる）
+            danPrevEndMs = course?.EndTimeMs ?? 0;
             (string title, string subtitle) = DanSongTitle(dan.SongIndex + 1);
             danShutter.StartNext(title, subtitle);
         }
@@ -844,6 +871,7 @@ namespace TaikoSim.Scenes
         private void OnDanSwap()
         {
             if (dan == null) return;
+            double oldNow = nowMs;   // 前の曲の時計（ふすまが閉じている間も進んでいる）
             song?.Dispose();
             song = null;
             dan.SongIndex = Math.Min(dan.SongIndex + 1, dan.SongCount - 1);
@@ -854,6 +882,8 @@ namespace TaikoSim.Scenes
             LoadSong();
             PrepareJudge();
             Restart();
+            // 次の曲の 0秒は、前の曲の #END から 10.78秒（時間はそのまま流れつづける）
+            nowMs = oldNow - danPrevEndMs - DanNextSongAfterEndMs;
             DebugLog.Event("段位", $"{dan.Course.Title} {dan.SongIndex + 1}曲目：{chart?.Title}");
         }
 

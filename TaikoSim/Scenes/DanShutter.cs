@@ -31,12 +31,8 @@ namespace TaikoSim.Scenes
         private const float TextSeconds = 2.9f;
         private const float TextFadeFrom = 2.0f;
         private const float TextFadeSeconds = 0.51f;
-        // 扉が開ききってから、さらに曲の時間を止めておく秒数（固定）。
-        //   11/5 の六段の動画（TaikøNauts）と TaikoSim を比べて、開ききってから最初の音符が来るまでが
-        //   1曲目は 1.84秒、2曲目からは 3.13秒 本家の方が長かった。その分をそのまま足す。
-        //   （OpenTaiko は「前の曲の #END から 6.2秒＋2.5秒」で次の曲。本家のゲーセンは段位ごとに計算しているらしいけど、
-        //     たけらいと相談して固定にした）
-        private const float FirstWaitSeconds = 1.84f, NextWaitSeconds = 3.13f;
+        // 1曲目は閉じたままの時間が短い（11/5 の六段の動画：演奏画面が明るくなり始めてから 1.71秒で開き始めた）
+        private const float FirstClosedSeconds = 1.71f;
 
         // 扉がおおう場所（測った値）
         private const float Left = 498f, Right = 1920f, Top = 288f, Bottom = 476f;
@@ -55,7 +51,6 @@ namespace TaikoSim.Scenes
         private float textElapsed = -1f;
         private bool swapped;
         private bool first;
-        private float waitLeft;   // 開ききったあと、まだ時間を止めておく残り
         private string title = "", subtitle = "";
         private SoundEffect? inSound, outSound;
 
@@ -68,8 +63,6 @@ namespace TaikoSim.Scenes
         /// <summary>扉が少しでも出ているか（出ている間は、曲の終わりの処理を待つ）</summary>
         public bool IsBusy => phase != Phase.Hidden;
 
-        /// <summary>曲の時間を止めておくか（閉じたまま・開いている途中。閉じていく間は前の曲の続きなので止めない）</summary>
-        public bool HoldsTime => phase is Phase.Closed or Phase.Opening || waitLeft > 0f;
 
         public void LoadSounds()
         {
@@ -97,7 +90,6 @@ namespace TaikoSim.Scenes
             swapped = true;   // 1曲目はもう読んであるので入れかえない
             textElapsed = -1f;
             first = true;
-            waitLeft = 0f;
         }
 
         /// <summary>次の曲へ：扉を閉じる。閉じたまま0.8秒で Swap が呼ばれる</summary>
@@ -110,7 +102,6 @@ namespace TaikoSim.Scenes
             swapped = false;
             textElapsed = -1f;
             first = false;
-            waitLeft = 0f;
             Play(inSound);
         }
 
@@ -121,7 +112,6 @@ namespace TaikoSim.Scenes
                 textElapsed += dt;
                 if (textElapsed >= TextSeconds) textElapsed = -1f;
             }
-            if (waitLeft > 0f) waitLeft = Math.Max(0f, waitLeft - dt);
             if (phase == Phase.Hidden) return;
 
             elapsed += dt;
@@ -136,7 +126,7 @@ namespace TaikoSim.Scenes
                         swapped = true;
                         Swap?.Invoke();
                     }
-                    if (elapsed >= ClosedSeconds)
+                    if (elapsed >= (first ? FirstClosedSeconds : ClosedSeconds))
                     {
                         phase = Phase.Opening;
                         elapsed = 0f;
@@ -145,11 +135,7 @@ namespace TaikoSim.Scenes
                     }
                     break;
                 case Phase.Opening:
-                    if (elapsed >= OpenSeconds)
-                    {
-                        phase = Phase.Hidden;
-                        waitLeft = first ? FirstWaitSeconds : NextWaitSeconds;
-                    }
+                    if (elapsed >= OpenSeconds) phase = Phase.Hidden;
                     break;
             }
         }
