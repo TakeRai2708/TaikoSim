@@ -462,7 +462,9 @@ Measured by overlaying images on frames of the 九段 video (03-04-03 at 20 s, 2
   falling back to the dan folder's `danPlatePath` (so custom dans still show one). たけらい: a plate from the song folder shows in every skin, which felt wrong.
   - Loaded with mipmaps + Trilinear filtering (before, plates were loaded with the default point filter and looked jagged when stretched)
   - A-Style's `Dan_Plate.png` is only 190×371 but shown at 230×485. On たけらい's PC we put 2× (380×742) versions made with Real-ESRGAN
-    (`realesrgan-x4plus-anime` via the `ncnn` pip package on CPU: ×4, alpha also through the model, then Lanczos down to ×2) into
+    (`realesrgan-x4plus-anime` via the `ncnn` pip package on CPU: ×4, alpha also through the model, then Lanczos down to ×2)
+    **Use `num_threads=1`**: with 2 threads ncnn sometimes returned corrupted output (black blobs / glitch lines in 4 of 10 plates).
+    Check each result by shrinking it back and comparing with the original into
     `TaikoNauts-latest\Skins\A-Style\Image\06.DanSelect\DanPlate\`. **Not in the repo** (someone else's art). The dan folders' `Dan_Plate.png` / dan.json are untouched
   - Simple has its own 20 plates from `tools/skin-gen/dan.py` (tier-colored board, vertical name, English below)
 - Code-drawn panel (no A-Style): plate `PlateX 1560, PlateY 560, W 230, H 485`; top-left counter (良・可・不可・連打数) box (28, 98) 212×128,
