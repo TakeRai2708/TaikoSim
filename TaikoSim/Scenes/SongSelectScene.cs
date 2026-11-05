@@ -1301,7 +1301,8 @@ namespace TaikoSim.Scenes
             if (diffSong == null || diffTime < PanelInStart) return;
             float t = Math.Clamp((diffTime - PanelInStart) / (PanelInEnd - PanelInStart), 0f, 1f);
             float alpha = t;
-            float scale = 0.92f + 0.08f * EaseOut(t); // 少し小さいところから広がる
+            // 10/29のお手本70.40〜70.70秒：A-Styleの板は原寸のままフェードする。
+            float scale = MenuSkin.Has(TnPanelPath(diffType)) ? 1f : 0.92f + 0.08f * EaseOut(t);
             Vector2 center = new Vector2(DiffPanel.X + DiffPanel.Width / 2f, DiffPanel.Y + DiffPanel.Height / 2f);
             Rectangle S(Rectangle r) => new Rectangle(center.X + (r.X - center.X) * scale, center.Y + (r.Y - center.Y) * scale, r.Width * scale, r.Height * scale);
 
@@ -1348,10 +1349,11 @@ namespace TaikoSim.Scenes
             }
 
             // 1P の印(カーソルの上)
-            if (diffTime >= MarkerAt) DrawPlayerMarker(DiffBoxArea(diffCursor));
+            if (diffTime >= MarkerAt)
+                DrawPlayerMarker(DiffBoxArea(diffCursor), Math.Clamp((diffTime - MarkerAt) / 0.1f, 0f, 1f));
 
             // 下のまんなか：えらぶ・決定
-            if (t >= 1f) DrawDiffHint();
+            DrawDiffHint(alpha);
         }
 
         // 難易度の箱の場所(0 戻る、1 オプション、2〜5 かんたん〜おに)
@@ -1495,43 +1497,43 @@ namespace TaikoSim.Scenes
         }
 
         // 1P の印(赤い丸に「1P」、下に三角)
-        private static void DrawPlayerMarker(Rectangle box)
+        private static void DrawPlayerMarker(Rectangle box, float alpha)
         {
             Vector2 c = new Vector2(box.X + box.Width / 2f, 358);
             // TaikøNauts のスキン：Difficulty_Select/Player_Cursor.png(縦に 1P・2P・…。1段 136×130、中身は 14,0 から 114×113)
-            if (MenuSkin.Part(Tn + "Difficulty_Select/Player_Cursor.png", new Rectangle(14, 0, 114, 113), new Rectangle(c.X - 57, c.Y - 56, 114, 113), Color.White)) return;
-            if (MenuSkin.Whole(MenuSkin.SongFolder + "Marker_1P.png", new Rectangle(c.X - 56, c.Y - 56, 112, 118), Color.White)) return;
-            Raylib.DrawTriangle(new Vector2(c.X - 14, c.Y + 34), new Vector2(c.X, c.Y + 58), new Vector2(c.X + 14, c.Y + 34), InkColor);
-            Raylib.DrawCircleV(c, 53, InkColor);
-            Raylib.DrawCircleV(c, 48, MarkerColor);
-            Raylib.DrawTriangle(new Vector2(c.X - 10, c.Y + 36), new Vector2(c.X, c.Y + 52), new Vector2(c.X + 10, c.Y + 36), MarkerColor);
-            Outlined("1P", new Rectangle(c.X - 44, c.Y - 30, 88, 60), 50, Color.White, InkColor);
+            if (MenuSkin.Part(Tn + "Difficulty_Select/Player_Cursor.png", new Rectangle(14, 0, 114, 113), new Rectangle(c.X - 57, c.Y - 56, 114, 113), MenuSkin.White(alpha))) return;
+            if (MenuSkin.Whole(MenuSkin.SongFolder + "Marker_1P.png", new Rectangle(c.X - 56, c.Y - 56, 112, 118), MenuSkin.White(alpha))) return;
+            Raylib.DrawTriangle(new Vector2(c.X - 14, c.Y + 34), new Vector2(c.X, c.Y + 58), new Vector2(c.X + 14, c.Y + 34), Fade(InkColor, alpha));
+            Raylib.DrawCircleV(c, 53, Fade(InkColor, alpha));
+            Raylib.DrawCircleV(c, 48, Fade(MarkerColor, alpha));
+            Raylib.DrawTriangle(new Vector2(c.X - 10, c.Y + 36), new Vector2(c.X, c.Y + 52), new Vector2(c.X + 10, c.Y + 36), Fade(MarkerColor, alpha));
+            Outlined("1P", new Rectangle(c.X - 44, c.Y - 30, 88, 60), 50, Fade(Color.White, alpha), Fade(InkColor, alpha));
         }
 
         // 下のまんなかの「えらぶ・決定」
-        private void DrawDiffHint()
+        private void DrawDiffHint(float alpha)
         {
             if (!SkinManager.SystemSkin && smallControlGuide is Aup2 guide)
             {
                 // Smallは原寸500×124。従来の案内と同じ中心へ置く（位置は実機で確認予定）。
                 Vector2 at = new(DiffHintBox.X + (DiffHintBox.Width - guide.Width) / 2f,
                     DiffHintBox.Y + (DiffHintBox.Height - guide.Height) / 2f);
-                guide.Draw(guide.LoopedFrameAt(Math.Max(0f, diffTime - PanelInEnd)), at);
+                guide.Draw(guide.LoopedFrameAt(Math.Max(0f, diffTime - PanelInStart)), at, alpha);
                 // 素材の太鼓の中心はおよそ(112,67)と(285,67)。文字はそれぞれの右へ。
-                Centered("えらぶ", new Rectangle(at.X + 174, at.Y + 46, 92, 40), 28, InkColor);
-                Centered("決定", new Rectangle(at.X + 350, at.Y + 46, 115, 40), 28, InkColor);
+                Centered("えらぶ", new Rectangle(at.X + 174, at.Y + 46, 92, 40), 28, Fade(InkColor, alpha));
+                Centered("決定", new Rectangle(at.X + 350, at.Y + 46, 115, 40), 28, Fade(InkColor, alpha));
                 return;
             }
-            if (MenuSkin.Whole(MenuSkin.SongFolder + "Hint.png", DiffHintBox, Color.White)) return;
-            Raylib.DrawRectangleRounded(DiffHintBox, 0.3f, 10, Color.White);
+            if (MenuSkin.Whole(MenuSkin.SongFolder + "Hint.png", DiffHintBox, MenuSkin.White(alpha))) return;
+            Raylib.DrawRectangleRounded(DiffHintBox, 0.3f, 10, Fade(Color.White, alpha));
             Rectangle choose = new Rectangle(DiffHintBox.X + 18, DiffHintBox.Y + 18, 152, 50);
             Rectangle decide = new Rectangle(DiffHintBox.X + 190, DiffHintBox.Y + 18, 152, 50);
-            Raylib.DrawRectangleRounded(choose, 1f, 10, InkColor);
-            Raylib.DrawRectangleRounded(decide, 1f, 10, InkColor);
-            Raylib.DrawRectangleRounded(new Rectangle(choose.X + 3, choose.Y + 3, choose.Width - 6, choose.Height - 6), 1f, 10, Color.White);
-            Raylib.DrawRectangleRounded(new Rectangle(decide.X + 3, decide.Y + 3, decide.Width - 6, decide.Height - 6), 1f, 10, Color.White);
-            Centered("カッ：えらぶ", choose, 26, InkColor);
-            Centered("ドン：決定", decide, 26, InkColor);
+            Raylib.DrawRectangleRounded(choose, 1f, 10, Fade(InkColor, alpha));
+            Raylib.DrawRectangleRounded(decide, 1f, 10, Fade(InkColor, alpha));
+            Raylib.DrawRectangleRounded(new Rectangle(choose.X + 3, choose.Y + 3, choose.Width - 6, choose.Height - 6), 1f, 10, Fade(Color.White, alpha));
+            Raylib.DrawRectangleRounded(new Rectangle(decide.X + 3, decide.Y + 3, decide.Width - 6, decide.Height - 6), 1f, 10, Fade(Color.White, alpha));
+            Centered("カッ：えらぶ", choose, 26, Fade(InkColor, alpha));
+            Centered("ドン：決定", decide, 26, Fade(InkColor, alpha));
         }
 
         // 検索の箱
