@@ -1,4 +1,4 @@
-﻿﻿using System.Numerics;
+﻿using System.Numerics;
 using System.Text;
 using Raylib_cs;
 using TaikoSim.Audio;
@@ -104,6 +104,7 @@ namespace TaikoSim.Scenes
         private int diffType;
         private Item? diffItem;                          // 難易度の板の番号(TaikøNauts のスキンの Difficulty_Select/Background/番号.png)
         private float diffTime;                        // 決定してからの時間(切り替えのアニメに使う)
+        private Aup2? smallControlGuide;
         private readonly PlayOptionsPanel options = new();
 
         // ===== 検索 =====
@@ -163,11 +164,28 @@ namespace TaikoSim.Scenes
             afterBlink = null;
             MenuSkin.Preload(MenuSkin.SongFolder, MenuSkin.BarImages.Concat(MenuSkin.SongImages).Concat(MenuSkin.TnSongImages));
             SongLoading.Preload(); // 曲の読み込み画面の画像(決めた瞬間に止まらないように)
+            smallControlGuide?.Unload();
+            smallControlGuide = null;
+            if (SkinManager.CurrentPath is string skin)
+            {
+                smallControlGuide = Aup2.Load(Path.Combine(skin, "Image", "99.Common", "Control_Guide", "Small", "Anime.aup2"));
+                if (smallControlGuide != null)
+                {
+                    smallControlGuide.Preload();
+                    if (!smallControlGuide.HasAllImages)
+                    {
+                        smallControlGuide.Unload();
+                        smallControlGuide = null;
+                    }
+                }
+            }
         }
 
         public override void Exit()
         {
             preview.Dispose();
+            smallControlGuide?.Unload();
+            smallControlGuide = null;
             options.CloseNow();
         }
 
@@ -1500,8 +1518,18 @@ namespace TaikoSim.Scenes
         }
 
         // 下のまんなかの「えらぶ・決定」
-        private static void DrawDiffHint()
+        private void DrawDiffHint()
         {
+            if (!SkinManager.SystemSkin && smallControlGuide is Aup2 guide)
+            {
+                // Smallは原寸500×124。従来の案内と同じ中心へ置く（位置は実機で確認予定）。
+                Vector2 at = new(DiffHintBox.X + (DiffHintBox.Width - guide.Width) / 2f,
+                    DiffHintBox.Y + (DiffHintBox.Height - guide.Height) / 2f);
+                guide.Draw(guide.LoopedFrameAt(Math.Max(0f, diffTime - PanelInEnd)), at);
+                Centered("カッで選択", new Rectangle(at.X + 210, at.Y + 18, 260, 40), 28, InkColor);
+                Centered("ドンで決定", new Rectangle(at.X + 210, at.Y + 62, 260, 40), 28, InkColor);
+                return;
+            }
             if (MenuSkin.Whole(MenuSkin.SongFolder + "Hint.png", DiffHintBox, Color.White)) return;
             Raylib.DrawRectangleRounded(DiffHintBox, 0.3f, 10, Color.White);
             Rectangle choose = new Rectangle(DiffHintBox.X + 18, DiffHintBox.Y + 18, 152, 50);
