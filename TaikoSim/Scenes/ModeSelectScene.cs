@@ -1,4 +1,4 @@
-﻿using TaikoSim.Charts;
+using TaikoSim.Charts;
 using Raylib_cs;
 using TaikoSim.Audio;
 using TaikoSim.Configs;
@@ -128,8 +128,12 @@ namespace TaikoSim.Scenes
             // 決定したあとの点滅中は、何もできない。点滅が終わったら次の画面へ
             if (deciding != null)
             {
-                if (list.DecideTime < BarList.BlinkEnd) return;
+                // 演奏ゲームは板を消して背景だけを見せてから暗転する。
+                // お手本36.5〜37秒付近の背景だけの区間。待ち時間0.4秒は仮調整。
+                float backgroundWait = deciding.Title == "演奏ゲーム" ? 0.4f : 0f;
+                if (list.DecideTime < BarList.BlinkEnd + backgroundWait) return;
                 Item item = deciding;
+                hideDecidedList = item.Title == "演奏ゲーム";
                 deciding = null;
                 list.EndDecide();
                 Open(item);
@@ -184,6 +188,7 @@ namespace TaikoSim.Scenes
 
         private void StartDecide(Item item)
         {
+            hideDecidedList = false;
             deciding = item;
             list.StartDecide();
         }
@@ -338,8 +343,11 @@ namespace TaikoSim.Scenes
         }
 
         // 項目(斜めに並べる。先頭と末尾の外には項目を描かない)
+        private bool hideDecidedList;
+
         private void DrawList()
         {
+            if (hideDecidedList || deciding?.Title == "演奏ゲーム" && list.DecideTime >= BarList.BlinkEnd) return;
             bool clickable = deciding == null;
             bool entryLayout = EntryBarType(Items[0]) >= 0;
             int selectedPos = cursor;
