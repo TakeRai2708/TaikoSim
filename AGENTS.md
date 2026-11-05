@@ -505,6 +505,9 @@ Measured by overlaying images on frames of the 九段 video (03-04-03 at 20 s, 2
   - Neck band flat at x146–164 (height 24). Same orange as the head; 2 px black on its right edge separates it from the body
   - Body x165–297 in (255,80,0). Height: 20 at x171–184 (waist) → 42 at 244–256 (max) → 0 at 297
   - A-Style has eyes and a mouth; **Simple has no face** (shape only)
+- Simple's go-go fire (11/5, chosen by たけらい from several mock-ups): the ball around the judge circle with round embers flowing up-right (−30°).
+  Metaball (fields summed, 4th power) so embers near the ball merge into one band that tapers and breaks into droplets toward the tip;
+  root ~5% thicker than the mock. Light orange outside (255,140,60, α100), pale yellow core circle (α110). `frame()` in `tools/skin-gen/gogo_fire.py`
 - Go-go fire (`Lane/GoGoSoul.png`, 480×600 per frame × 8): fireball center (243,297) placed on the judge circle at **0.9×**, additive blend.
   At start uses OpenTaiko's scale curve (0.8→2.5→…→1.0). 0.05 s per frame. **Draw after the soul gauge** (so it isn't hidden)
 - Combo sparkles (`MiniTaiko/Effect.png`): **from 50 combo; the stars are always pure white** (silver/gold applies to the digits).
