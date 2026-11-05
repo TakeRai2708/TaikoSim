@@ -1,5 +1,5 @@
 # ゴーゴーの炎(Lane/GoGoSoul.png)
-#   11/5 に作り直した：玉から火の粉が流れて、根元はつながる形(frame の説明を見て)。下の昔の説明は前の版のもの
+#   11/5 に作り直した：A-Style のつくりを参考に、玉＋右上に巻いた炎3本＋たまに火の粉1つ(frame の説明を見て)。下の昔の説明は前の版のもの
 # (前の版) 作り直し
 #   玉と炎を1つの形として描く：玉の上側が、上へ行くほど大きく波打ちながら右上へ伸びて、先がくるっと曲がる
 #   その形を「しずく形 × 波」の式で、1ピクセルずつ中か外かを決めて塗る(3倍で描いて縮める)
@@ -45,36 +45,50 @@ def blob_mask(X, Y, x, y, r, angle):
 
 
 def frame(f):
-    """11/5 たけらいと決めた形（見本の「火の粉が玉とつながる版」の2番・細め）
-       判定枠をくるむ玉から、右上(−30°)へ丸い火の粉が流れていく。近い丸どうしは溶け合ってくっつく(メタボール)ので、
-       玉の近くは1本の帯につながって見えて、先へ行くほどだんだん細く・小さくなって、ぽつぽつちぎれる。
-       根元のつながりは見本より約5%太く。外はうすいオレンジ、真ん中に明るい黄色の丸。8コマでくり返す"""
+    """11/5 たけらい「火の粉が多くて気が散る。A-Style 参考にして」→ A-Style の GoGoSoul.png のつくりを参考に作り直した
+       （A-Style：丸い玉の右上から、くるっと巻いた炎が2〜4本。コマごとに長さと巻き方が変わる。火の粉はときどき1つだけ）
+       シンプル：玉（半径95）＋右上に巻いた炎3本（コマごとに伸び縮み）＋火の粉はコマ 3〜5 の間に1つだけ。うすいオレンジのべた塗り"""
     S = SS
     ys, xs = np.mgrid[0:H * S, 0:W * S]
     X = xs / S
     Y = ys / S
-    u_loop = f / N
+    t = f / N * 2 * math.pi
+    m = (X - CX) ** 2 + (Y - CY) ** 2 <= 95 ** 2
 
-    def blob(cx, cy, r):
-        return (r * r / ((X - cx) ** 2 + (Y - cy) ** 2 + 1.0)) ** 2   # 4乗：近いところだけくっつく
+    def stroke(points, widths):
+        nonlocal m
+        for (px, py), w in zip(points, widths):
+            if w > 0.3:
+                m |= (X - px) ** 2 + (Y - py) ** 2 <= w * w
 
-    field = blob(CX, CY, 80)
-    rng = np.random.default_rng(5)
-    n = 18
-    for k in range(n):
-        s0 = (k + rng.random() * 0.6) / n
-        a = math.radians(-30 + rng.normal(0, 12))
-        size = 0.8 + 0.4 * rng.random()
-        u = (s0 + u_loop) % 1.0
-        d = 75 + 160 * u
-        r = (18.9 * (1 - u) ** 1.15 + 4 * u) * size        # 先へいくほどなめらかに細く(根元は約5%太く)
-        field += blob(CX + math.cos(a) * d, CY + math.sin(a) * d, r)
-    outer = field >= 1.0
-    dx, dy = X - CX, Y - CY
-    core = dx * dx + dy * dy <= 52 * 52
+    # 巻いた炎(根元の角度・長さ・太さ・巻き・揺れのずれ)。根元は玉のふち
+    tips = []
+    for ang, length, width, curl, ph in ((-62, 150, 24, 1.5, 0.0), (-35, 115, 21, 1.25, 2.1), (-12, 72, 16, 1.0, 4.2)):
+        L = length * (0.72 + 0.28 * math.sin(t + ph))            # 伸び縮み
+        a = math.radians(ang + 4 * math.sin(t * 2 + ph))
+        bx, by = CX + math.cos(a) * 88, CY + math.sin(a) * 88
+        pts, ws = [], []
+        steps = 60
+        for i in range(steps + 1):
+            u = i / steps
+            # 根元は外向き → 先へ行くほど右上へなびいて、先がくるっと巻く
+            heading = a + (math.radians(-35) - a) * u * 0.6 + curl * u ** 2.2 * (1.2 + 0.3 * math.sin(t + ph))
+            if i == 0:
+                x, y = bx, by
+            else:
+                x += math.cos(heading) * L / steps
+                y += math.sin(heading) * L / steps
+            pts.append((x, y))
+            ws.append(width * (1 - u) ** 1.1 + 1.2 * (1 - u))
+        stroke(pts, ws)
+        tips.append(pts[-1])
+    # 火の粉：コマ 3〜5 のあいだだけ、いちばん長い炎の先から1つちぎれて上がる
+    if 3 <= f <= 5:
+        u = (f - 3) / 3
+        x, y = tips[0]
+        m |= blob_mask(X, Y, x + 18 * u + 6, y - 26 * u - 6, 7 * (1 - 0.5 * u), math.radians(-55))
     rgba = np.zeros((H * S, W * S, 4), dtype=np.uint8)
-    rgba[outer] = (255, 140, 60, 100)
-    rgba[outer & core] = (255, 214, 120, 110)
+    rgba[m] = (255, 146, 60, 112)
     return Image.fromarray(rgba, 'RGBA').resize((W, H), Image.LANCZOS)
 
 
