@@ -472,14 +472,22 @@ namespace TaikoSim.Scenes
 
         // ===== 描く =====
 
+        // ゴーゴーの炎だけを、魂ゲージより先に描く（ゲージの下になる）
+        //   11/6 たけらい：ゲーセンの太鼓では、判定枠の炎は魂ゲージの下だった（ゲージが炎にかぶさる）
+        public void DrawFireLayer()
+        {
+            Raylib.BeginBlendMode(BlendMode.Additive);
+            DrawGoGoFire();
+            Raylib.EndBlendMode();
+        }
+
         // レーンの上(判定枠より下)：ゴーゴーのレーン・レーンの光
         // ※ 判定枠より先に描くので、光っていても判定枠は見える
         public void DrawLaneLayer()
         {
             // 光は重ねると明るくなる(加算合成)。TaikoNauts の見え方もこれと同じだった
             Raylib.BeginBlendMode(BlendMode.Additive);
-            DrawGoGoLane();
-            DrawGoGoFire(); // 魂ゲージより後に描くので、ゲージにかかるところも隠れない
+            DrawGoGoLane();   // 炎は DrawFireLayer で、魂ゲージより先に描く
             DrawLaneFlash(LaneRedImage, redFlash);
             DrawLaneFlash(LaneBlueImage, blueFlash);
             DrawLaneFlash(LaneYellowImage, yellowFlash);

@@ -539,7 +539,7 @@ t = 0 when the result fades in (fade 0.07 s).
   3–4 tongues per frame from a seeded RNG (seed 100+frame), occasional side branch, 0–2 leaf fragments, only a 2.2 px blur to smooth joints (tips stay sharp),
   flat light orange (255,146,60, α112). `frame()` in `tools/skin-gen/gogo_fire.py`
 - Go-go fire (`Lane/GoGoSoul.png`, 480×600 per frame × 8): fireball center (243,297) placed on the judge circle at **0.9×**, additive blend.
-  At start uses OpenTaiko's scale curve (0.8→2.5→…→1.0). 0.05 s per frame. **Draw after the soul gauge** (so it isn't hidden)
+  At start uses OpenTaiko's scale curve (0.8→2.5→…→1.0). 0.05 s per frame. **Drawn BEFORE the soul gauge, so the gauge covers it** (`PlayerEffects.DrawFireLayer`; 11/6 たけらい saw this on the arcade cabinet. It used to be drawn after the gauge)
 - Combo sparkles (`MiniTaiko/Effect.png`): **from 50 combo; the stars are always pure white** (silver/gold applies to the digits).
   Digits: silver at 50–99, **gold from 100** (11/5 六段 video: 99 silver → 100 gold). Stars stay white on both.
   The code draws a copy of the star with its color forced to white (alpha kept) with additive blending, so A-Style's yellow arms no longer look gold on gold digits.

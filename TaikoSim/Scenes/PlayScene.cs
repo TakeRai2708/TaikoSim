@@ -1653,6 +1653,10 @@ namespace TaikoSim.Scenes
             DebugLog.End(PerfSection.PlayLane, t);
 
             t = DebugLog.Begin();
+            effects.DrawFireLayer();   // ゴーゴーの炎（魂ゲージの下になるように、ゲージより先に）
+            DebugLog.End(PerfSection.PlayEffects, t);
+
+            t = DebugLog.Begin();
             hud.DrawGauge(stats, dan != null);   // 段位は「クリア」の字の代わりにボーダーの目印
             DebugLog.End(PerfSection.PlayGauge, t);
 
