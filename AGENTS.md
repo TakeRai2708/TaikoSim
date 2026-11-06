@@ -560,6 +560,9 @@ t = 0 when the result fades in (fade 0.07 s).
   - Dan select → dan play: `DanLoading` (see above)
   - The current scene's Update is paused while fading out and while black
 - Donderful combo: display timing, confetti position (525,162 / right side mirrored at 1367) and speed (30 frames/s) match TaikøNauts
+- Judge text above the judge circle (良・可・不可) is shown **only when the player hit the note** (`PlayScene.SetJudge`, `delta != null`).
+  A note that scrolls past unhit still counts as 不可 (combo break, gauge down) but shows no text (11/6 たけらい; OpenTaiko also skips `actJudgeString.Start` for `ENoteJudge.Miss`).
+  Windows: 良 ±25 ms, 可 ±75 ms, 不可 ±108 ms (hits outside 108 ms do nothing)
 - Soul gauge cell lighting (`PlayHUD.DrawGauge`; measured 11/6 frame by frame on たけらい's arcade recording `2026-11-06_09-19-28.mp4`):
   - A red cell (before the border) that was just added turns orange: blend 50 % of (255,140,34) over the cell at 0.05 s (base (248,54,12) → (251,98,23)), hold to 0.12 s, linear back to red by 0.48 s.
     Only that cell; neighbours and separators don't change (median of 35 additions). Drawn with a whitened mask of the Gauge_Light red cell (darker separator pixels get less)

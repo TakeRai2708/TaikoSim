@@ -1559,9 +1559,16 @@ namespace TaikoSim.Scenes
                 voice.Play((float)sound.GetFinalVolume(sound.VoiceVolume));
             }
 
-            if (delta != null) lastDeltaMs = delta;
-            shownJudge = judge;
-            judgeTimer = JudgeShowSeconds;
+            // 判定の文字（良・可・不可）は、叩いたときだけ出す。
+            //   見逃して通りすぎた音符（delta が null）は、不可として数えるけど文字は出さない。
+            //   11/6 たけらい「叩かないときは不可は出ない。ずれて叩いたときに不可が出る」。OpenTaiko も同じ
+            //   （tチップのヒット処理 で、Miss のときは actJudgeString.Start を呼ばない）
+            if (delta != null)
+            {
+                lastDeltaMs = delta;
+                shownJudge = judge;
+                judgeTimer = JudgeShowSeconds;
+            }
         }
 
         // 良・可で叩けた音符は消す(不可の音符はそのまま流れていく)
