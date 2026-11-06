@@ -88,6 +88,11 @@ namespace TaikoSim.Scenes
         private readonly List<Aup2> danBackground = new();
         private float danBackgroundTime;
         private const float DanEndShowSeconds = 3f;   // 「不合格」などを出してから暗くし始めるまで
+        // 合格して、段位全体で不可が0なら「フルコンボ」、可も0なら「ドンダフルコンボ」の帯に切りかえる。
+        //   11/6 ゲーセンの六段の動画：402.0秒「合格」→ 403.0秒 白く光って「ドンダフルコンボ!!」（ふつうの曲の終わりと同じ帯）
+        //   不合格のときにも出るのかは分からない（動画が合格だけ）ので、合格のときだけ
+        private const float DanComboAfterSeconds = 1.0f;
+        private PlayResult? danCombo;
         public bool IsDan => dan != null;
 
         private Chart? chart;
@@ -652,6 +657,7 @@ namespace TaikoSim.Scenes
             // 演奏の終わり・スコアランクも最初から
             end.Reset();
             danEnd.Reset();
+            danCombo = null;
             endFadeElapsed = -1f;
             foreach (SoundEffect? sound in endSounds) sound?.Stop();
             scoreRank.Reset();
@@ -835,9 +841,17 @@ namespace TaikoSim.Scenes
             }
 
             danEnd.Update(dt);
+            end.Update(dt);
+            if (danCombo is PlayResult combo && !end.Started && danEnd.Elapsed >= DanComboAfterSeconds)
+            {
+                end.Start(combo);   // 「合格」の字は消えて、フルコンボ・ドンダフルコンボの帯になる
+                SoundConfig sound = ConfigManager.Sound;
+                endSounds[(int)combo]?.Play((float)sound.GetFinalVolume(sound.SeVolume));
+            }
             if (endFadeElapsed < 0f)
             {
-                if (danEnd.Elapsed >= DanEndShowSeconds && gameMs >= course.EndTimeMs + EndAfterChartEndMs) endFadeElapsed = 0f;
+                bool shown = end.Started ? end.IsFinished : danCombo == null && danEnd.Elapsed >= DanEndShowSeconds;
+                if (shown && gameMs >= course.EndTimeMs + EndAfterChartEndMs) endFadeElapsed = 0f;
                 return;
             }
 
@@ -859,6 +873,9 @@ namespace TaikoSim.Scenes
                 // 最後：合否を出す（ここで魂ゲージの条件も決まる）
                 DanResultType result = dan.Overall();
                 danEnd.Start(result);
+                bool passed = result is DanResultType.Red or DanResultType.Gold;
+                danCombo = !passed || dan.Total(DanExamType.Miss) > 0 ? null
+                    : dan.Total(DanExamType.Good) > 0 ? PlayResult.FullCombo : PlayResult.DondaFullCombo;
                 SoundConfig sound = ConfigManager.Sound;
                 endSounds[(int)(result == DanResultType.Failed ? PlayResult.Failed : PlayResult.Clear)]?
                     .Play((float)sound.GetFinalVolume(sound.SeVolume));
@@ -1741,8 +1758,8 @@ namespace TaikoSim.Scenes
             DebugLog.End(PerfSection.PlayHud, t);
 
             t = DebugLog.Begin();
-            end.Draw();          // 演奏後の演出(クリア成功・フルコンボなど)。段位では使わない
-            danEnd.Draw();       // 段位：最後の曲の終わりの「不合格」など
+            end.Draw();          // 演奏後の演出(クリア成功・フルコンボなど)。段位では最後のフルコンボ・ドンダフルコンボだけ
+            if (!end.Started) danEnd.Draw();   // 段位：最後の曲の終わりの「不合格」など（フルコンボの帯に切りかわったら消す）
             // オート演奏の印は、左上の黄緑の箱から A-Style のバッジ(UI/OptionBadges.cs)に移した。
             // 曲名の下に「AUTO」のバッジが出る(スキンに画像が無ければ文字の札で代わりに出る)
             if (showDebugInfo)

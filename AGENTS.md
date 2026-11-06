@@ -459,6 +459,14 @@ Measured by overlaying images on frames of the 九段 video (03-04-03 at 20 s, 2
 - Top background: `Background/0–5/Anime.aup2` layered in index order, each looping forever (`Background/Anime.aup2` is the author's preview — unused).
   **These aup2 scenes are 1920×276** (`video.width/height` in `[scene.0]`). (0,0) is that scene's center, so `Aup2` reads the size per file
 - Final text `End/Text.png` (three 800×150: gold pass, red pass, fail; the gold/red order is a guess) at native size at (809,309), popping 1.3 → 1
+  - **Then, if passed with no 不可 across the whole dan, the lane switches to the normal full-combo banner (any 可 → フルコンボ, none → ドンダフルコンボ) 1.0 s later** (`PlayScene.DanComboAfterSeconds`; uses `PlayEnd` and its sound; the pass text is hidden from then on; fade-out waits for `PlayEnd.IsFinished`).
+    Seen on the 11/6 arcade 六段 video: 402.0 s 「合格」 → 403.0 s white flash → 「ドンダフルコンボ!!」 until ~409 s. Whether it also appears after a fail is unknown (only implemented for passes)
+- Arcade 六段 video (11/6, `2026-11-06_09-10-55.mp4`; 0–80 s barely plays and later parts stall now and then, so long spans run 1–10 % long):
+  - Doors start closing ~2.2 s after the last note (2.25 s and ~2.2 s) — same as TaikøNauts and TaikoSim
+  - Doors slam almost shut in ~0.1 s, then close the last gap over ~0.9 s; open in ~0.17 s (TaikoSim keeps the OpenTaiko/TaikøNauts 1.0 s / 0.27 s; たけらい chose not to change it)
+  - The next song's title is already behind the doors and visible the moment they start opening (TaikoSim: `DanShutter` draws the title under the doors from the closed phase, 11/6)
+  - Next song's 0 s after the previous #END: 8.06 s and 6.98 s (TaikøNauts 10.71/10.84 s). Not constant; maybe the arcade uses the audio length. TaikoSim keeps 10.78 s
+  - After the result, the arcade shows a separate full-screen 「六段合格」 celebration (~4.5 s). Not implemented
 - **Dan plates come from the skin** (`Graphics/DanPlates.cs`, 11/5): `Image/06.DanSelect/DanPlate/{danIndex}.png` (五級 = 0 … 初段 = 5 … 六段 = 10 … 外伝 = 19),
   falling back to the dan folder's `danPlatePath` (so custom dans still show one). たけらい: a plate from the song folder shows in every skin, which felt wrong.
   - Loaded with mipmaps + Trilinear filtering (before, plates were loaded with the default point filter and looked jagged when stretched)

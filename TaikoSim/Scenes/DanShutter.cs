@@ -15,6 +15,8 @@ namespace TaikoSim.Scenes
     //     開く     0.27秒（sin で開く）
     //     曲名     開きはじめから 2.9秒。2.0秒から0.5秒でうすくなって消える
     //   1曲目は「閉じたまま」から始まる（OpenTaiko の Start(0) と同じ）。
+    //   曲名は、扉が閉じきったら扉の「うしろ」に描いておく。開いた瞬間にもう見えている
+    //   （11/6 ゲーセンの六段の動画：148.13秒に開き始めたとき、すき間から曲名がもう見えていた。閉じている途中は出ていない）
     //   10/31 の九段の動画でも、1曲目の終わり → 約2秒で閉じる → 約3秒閉じたまま → 開いて曲名、を確かめた。
     //
     //   見た目（同じ動画を測った）：扉はレーンの x498〜1920・y288〜476 をおおう（下の灰色の帯「ドン・カッ」は出したまま）。
@@ -174,6 +176,8 @@ namespace TaikoSim.Scenes
         /// <summary>レーンの上に、扉と曲名を描く</summary>
         public void Draw()
         {
+            // 曲名は扉より先に描く（扉のうしろ）。閉じきってから出す
+            if (phase is Phase.Closed or Phase.Opening || textElapsed >= 0f) DrawTitle();
             float closed = Closedness();
             if (closed > 0f && SkinManager.GetTexture(ScreenImage) is Texture2D screen)
             {
@@ -202,7 +206,6 @@ namespace TaikoSim.Scenes
                 DrawDoor(rightEdge, doorWidth, knobOnRight: false);
             }
 
-            if (textElapsed >= 0f) DrawTitle();
         }
 
         // ふすま（11/5 たけらい「どんちゃんみたいなのは入れなくていい。もう少しふすまっぽく」）
@@ -251,6 +254,7 @@ namespace TaikoSim.Scenes
 
         private void DrawTitle()
         {
+            // 閉じている間（textElapsed がまだ -1）は、うすくしない
             float alpha = textElapsed < TextFadeFrom ? 1f : 1f - (textElapsed - TextFadeFrom) / TextFadeSeconds;
             if (alpha <= 0f) return;
             Color fill = Fade(Color.White, alpha), edge = Fade(new Color(20, 20, 24, 255), alpha);
