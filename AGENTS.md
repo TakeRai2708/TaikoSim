@@ -560,6 +560,11 @@ t = 0 when the result fades in (fade 0.07 s).
   - Dan select → dan play: `DanLoading` (see above)
   - The current scene's Update is paused while fading out and while black
 - Donderful combo: display timing, confetti position (525,162 / right side mirrored at 1367) and speed (30 frames/s) match TaikøNauts
+- Text under the notes (SENotes, 口唱歌): ドン notes become ドン / ド / コ and カッ notes カッ / カ depending on the spacing to the 3 notes before and after
+  (`Charts/SeNotes.cs`, a port of OpenTaiko `CTja.tSenotes_Core_V2`; decided at load time into `Note.SeKind`; per branch when the chart branches).
+  Spacing is in 16th notes, computed from ms × BPM / 15000 (TaikoSim notes have no beat position), so comparisons allow ±0.02.
+  Checked against the 11/6 arcade 六段 video: 時空庁 around 140 s 「ド カッ カ ド ドン ドン カッ」 and MATSURI around 190 s 「ド カッ カ カッ カ ドン ド カ ド」 both match.
+  Image rows in A-Style / Simple `SENotes.png`: 0 ドン, 1 ド, 2 コ, 3 カ, 4 カッ (OpenTaiko's own image has カッ/カ the other way round)
 - Judge text above the judge circle (良・可・不可) is shown **only when the player hit the note** (`PlayScene.SetJudge`, `delta != null`).
   A note that scrolls past unhit still counts as 不可 (combo break, gauge down) but shows no text (11/6 たけらい; OpenTaiko also skips `actJudgeString.Start` for `ENoteJudge.Miss`).
   Windows: 良 ±25 ms, 可 ±75 ms, 不可 ±108 ms (hits outside 108 ms do nothing)

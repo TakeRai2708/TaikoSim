@@ -41,6 +41,9 @@ namespace TaikoSim.Scenes
         private const string SeRollingImage = "Image/04.EnsoGame/SENotes_Rolling.png";
 
         // 音符の下の文字(SENotes.png の何段目か。1段 130×40)
+        //   ドン・カッの音符は、まわりの音符との間隔で ド(1)・コ(2)・カ(3) にもなる（Note.SeKind。OpenTaiko と同じ決め方）
+        //   ※ OpenTaiko の画像は「カッ・カ」の順だけど、A-Style とシンプルは「カ(3)・カッ(4)」の順
+        private const int SeDo = 1, SeKo = 2, SeShortKa = 3;
         private const int SeDon = 0, SeKa = 4, SeBigDon = 5, SeBigKa = 6, SeRoll = 7, SeRollEnd = 8, SeBalloon = 9, SeKusudama = 10;
         private const float SeWidth = 130f, SeHeight = 40f;
 
@@ -2189,8 +2192,8 @@ namespace TaikoSim.Scenes
 
             int row = note.Type switch
             {
-                NoteType.Don => SeDon,
-                NoteType.Ka => SeKa,
+                NoteType.Don => note.SeKind switch { SeKind.Do => SeDo, SeKind.Ko => SeKo, _ => SeDon },
+                NoteType.Ka => note.SeKind == SeKind.Ka ? SeShortKa : SeKa,
                 NoteType.BigDon => SeBigDon,
                 NoteType.BigKa => SeBigKa,
                 NoteType.Roll or NoteType.BigRoll => SeRoll,

@@ -13,6 +13,16 @@
         Kusudama,  // くすだま
     }
 
+    // 音符の下の文字（口唱歌）。ドン・カッの音符だけ、まわりの音符との間隔で変わる（SeNotes が決める）
+    public enum SeKind
+    {
+        Don,  // ドン
+        Do,   // ド
+        Ko,   // コ
+        Kat,  // カッ
+        Ka,   // カ
+    }
+
     // 譜面分岐のコース(数字は OpenTaiko と同じ。小さいほどやさしい)
     //   音符などの Branch が null のときは「共通」(分岐していないところ)
     public enum BranchType
@@ -95,6 +105,9 @@
     public class Note
     {
         public NoteType Type { get; set; }
+
+        // 音符の下の文字（ドン・カッの音符だけ使う。読み込みのときに SeNotes.Assign が決める）
+        public SeKind SeKind { get; set; }
 
         // 叩くタイミング(曲の頭からのミリ秒)
         public double TimeMs { get; set; }

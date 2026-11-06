@@ -98,6 +98,7 @@ namespace TaikoSim.Charts
                         BalloonsMaster = new List<int>(balloonsMaster),
                     };
                     ParseBody(chart, course, body);
+                    SeNotes.Assign(course);   // 音符の下の文字（ドン・ド・コ／カッ・カ）を決める
 
                     // 同じ難易度がもう1つある(2P用など)ときは、最初の方を使う
                     if (!chart.Courses.Any(c => c.Type == course.Type))
