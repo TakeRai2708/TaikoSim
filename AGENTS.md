@@ -560,6 +560,14 @@ t = 0 when the result fades in (fade 0.07 s).
   - Dan select → dan play: `DanLoading` (see above)
   - The current scene's Update is paused while fading out and while black
 - Donderful combo: display timing, confetti position (525,162 / right side mirrored at 1367) and speed (30 frames/s) match TaikøNauts
+- Soul gauge cell lighting (`PlayHUD.DrawGauge`; measured 11/6 frame by frame on たけらい's arcade recording `2026-11-06_09-19-28.mp4`):
+  - A red cell (before the border) that was just added turns orange: blend 50 % of (255,140,34) over the cell at 0.05 s (base (248,54,12) → (251,98,23)), hold to 0.12 s, linear back to red by 0.48 s.
+    Only that cell; neighbours and separators don't change (median of 35 additions). Drawn with a whitened mask of the Gauge_Light red cell (darker separator pixels get less)
+  - Yellow cells (border and after) do **not** flash when added
+  - After clearing, the whole red section flashes yellow (peak (248,248,9)) **every 0.500 s counted from the moment of clear** (38 flashes fit 0.501 s; the song's bar was 0.983 s, so it is not beat-synced).
+    Within each cycle: dark until 0.27 s → up in 0.06 s → down over 0.17 s. OpenTaiko uses 532 ms (365/448/531 ms), which TaikoSim used before.
+    The recording was only ~10–15 fps after 104 s, so the in-cycle shape is approximate; the 0.5 s period is reliable
+  - No permanent glow on the tip cell (the skin glow added 10/20 was removed 11/6; `SkinManager.GetGaugeGlowCell` is now unused)
 - Soul gauge rainbow: `Gauge/Rainbow.png` 24 frames (3 sets × 8 frames for norma 80/70/60%); each frame is crossfaded into the next
 - BASS hit-sound lag: HitSoundLagMs = buffer + update period / 2 (applied to judging only)
 

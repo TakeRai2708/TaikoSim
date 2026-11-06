@@ -32,6 +32,25 @@ namespace TaikoSim.Scenes
         private const float GaugeMarkAlpha = 0.28f;
         private float elapsed;
         private float gaugeFlashElapsed;
+
+        // 魂ゲージの光り方。ゲーセンの録画（11/6 たけらい、2026-11-06_09-19-28.mp4）を1コマずつ測った値
+        //   ① クリア後に赤い区間ぜんぶが黄色く光る：0.5秒ごと（クリアした瞬間から数える）。
+        //      1回の中で 0.27秒までは光らない → 0.06秒で黄色に → 0.17秒かけて戻る。
+        //      38回の間隔が 0.501秒（曲の拍とは関係なかった。小節は 0.983秒）。
+        //      OpenTaiko は 532ms ごと（365ms まで消えて、83ms で明るく、83ms で戻る）で、TaikoSim も前はそれだった
+        //   ② 赤いマスが増えたとき：増えたマスだけオレンジに光る（35回の真ん中の値）。
+        //      0.05秒で ふつうの赤 (248,54,12) とオレンジ (255,140,34) の半分の色 (251,98,23) になって、
+        //      0.12秒までそのまま → 0.48秒にかけて同じ速さで赤に戻る。となりのマスやマスの外は光らない
+        //   ③ 黄色いマス（ボーダーより先）は、増えても光らない
+        //   ④ いちばん先のマスにずっと光が乗っていることはない（前は 10/20 にスキンの光を乗せていた。11/6 に外した）
+        private const float ClearFlashPeriod = 0.5f, ClearFlashRiseAt = 0.27f, ClearFlashPeakAt = 0.33f;
+        private const float NewCellRise = 0.05f, NewCellHold = 0.12f, NewCellEnd = 0.48f, NewCellPeakAlpha = 0.5f;
+        private static readonly Color NewCellColor = new(255, 140, 34, 255);
+        private readonly float[] cellAge = CreateCellAges();
+        private int lastFilled;
+        private bool wasClear;
+        private static Texture2D cellMask;       // 赤いマスの形だけを白くしたもの（オレンジを重ねるのに使う。全部の演奏で1枚）
+        private static uint cellMaskSource;
         private float scoreBounceElapsed = ScoreBounceSeconds;
         private long shownScore = -1;
         private string scoreText = "0", courseText = "";
@@ -69,6 +88,9 @@ namespace TaikoSim.Scenes
         {
             elapsed = 0;
             gaugeFlashElapsed = 0;
+            Array.Fill(cellAge, NewCellEnd);
+            lastFilled = 0;
+            wasClear = false;
             shownScore = 0;
             scoreBounceElapsed = ScoreBounceSeconds;
             scoreText = "0";
@@ -103,7 +125,9 @@ namespace TaikoSim.Scenes
         public void Update(float dt, long score)
         {
             elapsed = (elapsed + dt) % 60f;
-            gaugeFlashElapsed = (gaugeFlashElapsed + dt) % 0.532f;
+            gaugeFlashElapsed = (gaugeFlashElapsed + dt) % ClearFlashPeriod;
+            for (int i = 0; i < cellAge.Length; i++)
+                if (cellAge[i] < NewCellEnd) cellAge[i] += dt;
             scoreBounceElapsed = Math.Min(ScoreBounceSeconds, scoreBounceElapsed + dt);
             soulFlashAge += dt;
             for (int i = scorePopups.Count - 1; i >= 0; i--)
@@ -283,6 +307,13 @@ namespace TaikoSim.Scenes
 
             bool rainbow = stats.IsMax && SkinManager.GetTexture(Rainbow) is Texture2D;
             int filled = Math.Clamp((int)(stats.Gauge / 2), 0, Cells);
+
+            // 増えたマスを覚える（オレンジに光らせる）。減ったときは数だけ合わせる
+            for (int i = lastFilled; i < filled; i++) cellAge[i] = 0f;
+            lastFilled = filled;
+            // クリアした瞬間から 0.5秒ごとに点滅を数える
+            if (stats.IsClear && !wasClear) gaugeFlashElapsed = 0f;
+            wasClear = stats.IsClear;
             if (rainbow && SkinManager.GetTexture(Rainbow) is Texture2D rainbowTexture)
             {
                 // 24枚は80/70/60%の3組×8コマ。組をまたぐと段差まで移動してしまう。
@@ -313,11 +344,13 @@ namespace TaikoSim.Scenes
             }
             else
             {
-                // クリア後は赤い区間全体が黄色く光る。532ms周期、83msずつで点灯・消灯。
-                float phase = gaugeFlashElapsed * 1000f;
-                float flash = !stats.IsClear || phase <= 365f ? 0f
-                    : phase < 448f ? (phase - 365f) / 83f : (531f - phase) / 83f;
+                // クリア後は赤い区間全体が黄色く光る（上の①）
+                float phase = gaugeFlashElapsed;
+                float flash = !stats.IsClear || phase <= ClearFlashRiseAt ? 0f
+                    : phase < ClearFlashPeakAt ? (phase - ClearFlashRiseAt) / (ClearFlashPeakAt - ClearFlashRiseAt)
+                    : (ClearFlashPeriod - phase) / (ClearFlashPeriod - ClearFlashPeakAt);
                 flash = Math.Clamp(flash, 0f, 1f);
+                Texture2D? mask = PrepareCellMask(light);
                 for (int i = 0; i < filled; i++)
                 {
                     Rectangle source;
@@ -333,18 +366,11 @@ namespace TaikoSim.Scenes
                     if (i < borderCell && flash > 0f)
                         DrawPart(light, new Rectangle(42, 33, 21, 33), GaugeX + 12 + i * CellWidth, y,
                             tint: Raylib.ColorAlpha(Color.White, flash));
-                }
-            }
-
-            // 枠内のぼかしを残した光を重ねる。色と強さはスキンの画像に合わせる。
-            if (!rainbow && filled > 0)
-            {
-                int cell = filled - 1;
-                int column = cell < borderCell ? 0 : cell == borderCell ? 3 : cell == Cells - 1 ? 5 : 4;
-                if (SkinManager.GetGaugeGlowCell(column) is Texture2D glow)
-                {
-                    DrawPart(glow, new Rectangle(0, 0, glow.Width, glow.Height),
-                        GaugeX + 12 + cell * CellWidth - 6, GaugeY + 3);
+                    // 増えたばかりの赤いマスはオレンジに（上の②。黄色いマスは光らない）
+                    float glow = NewCellGlow(cellAge[i]);
+                    if (i < borderCell && glow > 0f && mask is Texture2D cellShape)
+                        DrawPart(cellShape, new Rectangle(0, 0, cellShape.Width, cellShape.Height), GaugeX + 12 + i * CellWidth, y,
+                            CellWidth, 33f, Raylib.ColorAlpha(NewCellColor, glow * NewCellPeakAlpha));
                 }
             }
 
@@ -399,6 +425,46 @@ namespace TaikoSim.Scenes
                         tint: Raylib.ColorAlpha(Color.White, 1f - soulFlashAge / 0.16f));
             }
             else Raylib.DrawText("SOUL", 1805, 232, 28, Color.White);
+        }
+
+        private static float[] CreateCellAges()
+        {
+            float[] ages = new float[Cells];
+            Array.Fill(ages, NewCellEnd);
+            return ages;
+        }
+
+        // 増えてからの秒 → オレンジの強さ（0〜1）。0.05秒で1、0.12秒まで1、0.48秒で0
+        private static float NewCellGlow(float age)
+        {
+            if (age >= NewCellEnd) return 0f;
+            if (age < NewCellRise) return 0.3f + 0.7f * age / NewCellRise;   // 増えた最初のコマですでに3割くらい光っていた
+            if (age < NewCellHold) return 1f;
+            return 1f - (age - NewCellHold) / (NewCellEnd - NewCellHold);
+        }
+
+        // 赤いマス（Gauge_Light の (0,33) 21×33）の形を白くした絵を作る。
+        //   明るい本体ほどこく、暗い区切りはうすくする（ゲーセンでも区切りはほとんど光らなかった）
+        private static Texture2D? PrepareCellMask(Texture2D light)
+        {
+            if (cellMaskSource == light.Id) return cellMask.Id != 0 ? cellMask : null;
+            if (cellMask.Id != 0) Raylib.UnloadTexture(cellMask);
+            cellMask = default;
+            cellMaskSource = light.Id;
+            if (light.Width < 21 || light.Height < 66) return null;
+            Image image = Raylib.LoadImageFromTexture(light);
+            Raylib.ImageFormat(ref image, PixelFormat.UncompressedR8G8B8A8);
+            Raylib.ImageCrop(ref image, new Rectangle(0, 33, 21, 33));
+            for (int y = 0; y < image.Height; y++)
+                for (int x = 0; x < image.Width; x++)
+                {
+                    Color c = Raylib.GetImageColor(image, x, y);
+                    float body = Math.Clamp((c.R - 120f) / 100f, 0f, 1f);
+                    Raylib.ImageDrawPixel(ref image, x, y, new Color((byte)255, (byte)255, (byte)255, (byte)(c.A * body)));
+                }
+            cellMask = Raylib.LoadTextureFromImage(image);
+            Raylib.UnloadImage(image);
+            return cellMask.Id != 0 ? cellMask : null;
         }
 
         private static void DrawFallbackGauge(PlayStats stats)
