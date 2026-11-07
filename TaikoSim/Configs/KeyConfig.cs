@@ -22,6 +22,7 @@ namespace TaikoSim.Configs
         Screenshot,    // スクリーンショット(どこでも反応)
         Search,        // 曲を検索(選曲画面)
         Favorite,      // お気に入りに入れる/外す(選曲画面)
+        TrainingPause, TrainingPreviousBar, TrainingNextBar, TrainingFaster, TrainingSlower,
     }
 
     // キー配置の設定
@@ -57,6 +58,11 @@ namespace TaikoSim.Configs
             { SystemAction.Screenshot, KeyboardKey.F11 }, // F12はVSのデバッグ中に一時停止キーになるので避ける
             { SystemAction.Search, KeyboardKey.F3 },
             { SystemAction.Favorite, KeyboardKey.F4 },
+            { SystemAction.TrainingPause, KeyboardKey.Space },
+            { SystemAction.TrainingPreviousBar, KeyboardKey.Left },
+            { SystemAction.TrainingNextBar, KeyboardKey.Right },
+            { SystemAction.TrainingFaster, KeyboardKey.Up },
+            { SystemAction.TrainingSlower, KeyboardKey.Down },
         };
 
         // システムキーがかぶったときに、代わりに使う空きキーの候補
@@ -111,6 +117,11 @@ namespace TaikoSim.Configs
             SystemAction.Screenshot => "スクリーンショット",
             SystemAction.Search => "検索",
             SystemAction.Favorite => "お気に入り",
+            SystemAction.TrainingPause => "特訓：ポーズ／再開",
+            SystemAction.TrainingPreviousBar => "特訓：前の小節",
+            SystemAction.TrainingNextBar => "特訓：次の小節",
+            SystemAction.TrainingFaster => "特訓：速度を上げる",
+            SystemAction.TrainingSlower => "特訓：速度を下げる",
             _ => action.ToString(),
         };
 

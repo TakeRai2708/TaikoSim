@@ -1,5 +1,6 @@
 using Raylib_cs;
 using TaikoSim.Charts;
+using TaikoSim.Configs;
 using TaikoSim.Graphics;
 using TaikoSim.Input;
 using TaikoSim.UI;
@@ -22,8 +23,13 @@ public partial class PlayScene
     private string trainingNotice = "";
     private double PlaybackRate => isTraining ? trainingTimeline?.Rate ?? 1.0 : 1.0;
 
-    private static bool IsTrainingKey(KeyboardKey key) => key is KeyboardKey.Space
-        or KeyboardKey.Left or KeyboardKey.Right or KeyboardKey.Up or KeyboardKey.Down;
+    private static bool IsTrainingKey(KeyboardKey key) => ConfigManager.Key.SystemKeys
+        .Any(pair => pair.Key is SystemAction.TrainingPause or SystemAction.TrainingPreviousBar
+            or SystemAction.TrainingNextBar or SystemAction.TrainingFaster or SystemAction.TrainingSlower
+            && pair.Value == key);
+
+    private static string TrainingKey(SystemAction action) => ConfigManager.Key.SystemKeys
+        .GetValueOrDefault(action, KeyboardKey.Null).ToString();
 
     // ポーズ中の入力を再開後の打鍵にしない。小節移動と速度変更でも時刻の基準を切り直す。
     private void ClearTrainingInput()
@@ -56,11 +62,11 @@ public partial class PlayScene
             return true;
         }
 
-        bool space = Raylib.IsKeyPressed(KeyboardKey.Space);
-        int move = (Raylib.IsKeyPressed(KeyboardKey.Right) ? 1 : 0)
-            - (Raylib.IsKeyPressed(KeyboardKey.Left) ? 1 : 0);
-        int speed = (Raylib.IsKeyPressed(KeyboardKey.Up) ? 1 : 0)
-            - (Raylib.IsKeyPressed(KeyboardKey.Down) ? 1 : 0);
+        bool space = InputManager.IsSystemPressed(SystemAction.TrainingPause);
+        int move = (InputManager.IsSystemPressed(SystemAction.TrainingNextBar) ? 1 : 0)
+            - (InputManager.IsSystemPressed(SystemAction.TrainingPreviousBar) ? 1 : 0);
+        int speed = (InputManager.IsSystemPressed(SystemAction.TrainingFaster) ? 1 : 0)
+            - (InputManager.IsSystemPressed(SystemAction.TrainingSlower) ? 1 : 0);
 
         if (speed != 0)
         {
@@ -176,7 +182,10 @@ public partial class PlayScene
             FontManager.Draw(text, x, y, size, color);
         }
         Text(chart.Title, 48, 88, 48, Color.White, 1400);
-        Text($"{Chart.GetCourseName(course.Type)}  ★{course.Level}   {(autoPlay ? "AUTO" : "手動演奏")}", 50, 156, 26, Color.LightGray);
+        Raylib.DrawRectangle(48, 150, 650, 76, panel);
+        Text($"{Chart.GetCourseName(course.Type)}  ★{course.Level}", 68, 162, 40,
+            course.Type == CourseType.Edit ? new Color(196, 139, 255, 255) : blue, 455);
+        Text(autoPlay ? "AUTO" : "手動", 550, 176, 24, Color.LightGray);
         string state = trainingPaused ? "ポーズ中" : trainingCountdown > 0 ? "再開まで 1" : "練習中";
         Text(state, 1510, 55, 40, trainingPaused ? Color.Orange : blue, 360);
         Text($"再生速度  {PlaybackRate:0.0}×", 1510, 120, 32, Color.White, 360);
@@ -202,6 +211,10 @@ public partial class PlayScene
         Rlgl.PushMatrix();
         Rlgl.Translatef(700, 570, 0);
         DrawRollPopup();
+        Rlgl.PopMatrix();
+        // 風船は専用の位置へ。扇子用の移動量を使わない。
+        Rlgl.PushMatrix();
+        Rlgl.Translatef(690 - BalloonFrameX, 735 - BalloonFrameY, 0);
         DrawBalloonPopup(gameMs);
         Rlgl.PopMatrix();
         Text($"連打数  {totalRollHits}", 1510, 745, 28, Color.LightGray);
@@ -222,11 +235,12 @@ public partial class PlayScene
             Text(value, 565 - FontManager.Measure(value, 52).X, y + 5, 52, Color.White);
         }
         Text(lastDeltaMs is double delta ? $"直近のズレ  {delta / PlaybackRate:+0.0;-0.0;0.0} ms" : "直近のズレ  —", 690, 730, 32, blue);
-        Text("Space  ポーズ／再開", 690, 810, 32, Color.White);
-        Text("← →  ポーズ中に1小節移動     ↑ ↓  速度変更", 690, 862, 28, Color.LightGray, 1170);
+        Text($"{TrainingKey(SystemAction.TrainingPause)}  ポーズ／再開", 690, 970, 28, Color.White, 650);
+        Text($"{TrainingKey(SystemAction.TrainingPreviousBar)} / {TrainingKey(SystemAction.TrainingNextBar)}  小節移動（ポーズ中）", 1200, 970, 22, Color.LightGray, 660);
+        Text($"{TrainingKey(SystemAction.TrainingSlower)} / {TrainingKey(SystemAction.TrainingFaster)}  速度変更", 1200, 1006, 22, Color.LightGray, 660);
         Raylib.DrawLine(48, 950, 1872, 950, border);
         Text("Esc  選曲へ戻る", 48, 978, 28, Color.White);
-        Text(trainingNotice.Length > 0 ? trainingNotice : "練習の成績は保存されません。低速再生では音程も下がります。", 430, 982, 24, Color.LightGray, 1430);
+        Text(trainingNotice.Length > 0 ? trainingNotice : "練習の成績は保存されません。低速再生では音程も下がります。", 48, 1035, 20, Color.LightGray, 1800);
         if (audioMessage.Length > 0) Text(audioMessage, 690, 918, 20, Color.Orange, 1160);
     }
 }

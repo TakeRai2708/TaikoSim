@@ -85,3 +85,18 @@ foreach (double rate in new[] { 0.5, 0.7, 1.0 })
     Check(scheduler.PendingCount == 0, "ポーズ時に待機打鍵を消せる");
 }
 Console.WriteLine($"PASS: {passed} checks (TJA measures, boundaries, speed, input timing)");
+
+var keys = new KeyConfig();
+keys.SystemKeys.Remove(SystemAction.TrainingPause);
+keys.Fix();
+Check(keys.SystemKeys[SystemAction.TrainingPause] == KeyboardKey.Space, "旧設定にポーズの初期値を補う");
+Check(keys.TrySetSystemKey(SystemAction.TrainingPause, KeyboardKey.P, out _), "ポーズを変更できる");
+Check(!keys.TrySetSystemKey(SystemAction.TrainingNextBar, KeyboardKey.P, out _), "重複キーを拒否する");
+Check(!keys.TrySetSystemKey(SystemAction.TrainingPause, KeyboardKey.Escape, out _), "Escを予約する");
+var json = System.Text.Json.JsonSerializer.Serialize(keys, TrainingJsonContext.Default.KeyConfig);
+var restored = System.Text.Json.JsonSerializer.Deserialize(json, TrainingJsonContext.Default.KeyConfig)!;
+Check(restored.SystemKeys[SystemAction.TrainingPause] == KeyboardKey.P, "変更したキーがJSON保存・復元できる");
+Console.WriteLine($"PASS: {passed} checks including training key configuration");
+
+[System.Text.Json.Serialization.JsonSerializable(typeof(KeyConfig))]
+internal partial class TrainingJsonContext : System.Text.Json.Serialization.JsonSerializerContext { }
