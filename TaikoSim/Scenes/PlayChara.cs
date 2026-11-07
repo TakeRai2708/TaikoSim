@@ -14,8 +14,8 @@ namespace TaikoSim.Scenes
     //
     //   ループのアニメの選び方（OpenTaiko の ReturnDefaultAnime と同じ順）
     //     ① 風船を叩いている途中 → balloon_breaking（風船の位置に出す）
-    //     ② ゴーゴータイム       → gogo
-    //     ③ 曲の終わりでクリア失敗になった → failed_loop（そのあとはずっとこれ）
+    //     ② 曲の終わりでクリア失敗になった → failed_loop（そのあとはずっとこれ）
+    //     ③ ゴーゴータイム       → gogo
     //     ④ 不可のあと           → miss_loop（良か可を1つ出すと元に戻る）
     //     ⑤ ノルマクリア（魂ゲージMAXもふくむ）→ clear
     //     ⑥ それ以外             → normal
