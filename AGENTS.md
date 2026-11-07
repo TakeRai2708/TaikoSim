@@ -301,6 +301,13 @@ In A-Style they look like **sideways taiko drums** (Don-chan = red face, light-b
     - `clearin` also plays during GoGo, then back to `gogo`
     - Balloon: `balloon_breaking` at (212, −8) ×0.95 (match within 1–2 px). `balloon_broke` at the same place, 1 beat. **The balloon image is drawn over Don-chan's mouth** → Don-chan is drawn before the balloon
     - `failed_down` was not seen (the song was cleared). TaikoSim plays it when the song ends without clearing (dan: 不合格) — still a guess
+- **In dan play Don-chan never uses the clear/max motions** (11/8, 十段 on auto `2026-11-08 03-23-19.mp4`: gauge 100 % rainbow, still `normal`; 10 combo = `10combo`). `PlayChara.Load(isDan)`
+- Menu screens (`Graphics/MenuChara.cs`, 11/8) — time-based loops (`…LoopTime` ms per cycle), all checked by template matching on the 11/8 recordings (error ≈ 0):
+  - Mode select and song select: `songselect_loop` (236 frames / 1000 ms) at (−185, 436) ×1, drawn behind the bars. Idle never switches to `songselect_wait_loop` (that is the 2-player "waiting" motion)
+  - Dan select: `songselect_loop` at (`danSelectX/Y`) = (−190, 445) ×1, behind the panel, after the intro
+  - Result: `result_loop` (117 / 500 ms) at (−70, 538) ×0.75 from the fade-in; when the balloon appears (`ClearBalloonTime`) a clear switches to `result_clear_loop` (156 / 700 ms; seen). Fail → `result_failed_in` (200 ms) → `result_failed_loop` (500 ms) (not seen yet)
+  - Not done: the jump when a song is decided (`songSelectSongStartJumpIndex` 66), `dan_select_in`, `entry_loop` (unused on mode select), dan result
+  - Baked by `CharaBaker` too (`songselect_loop` first, then play, then result; `BakeScale`)
 - **The Simple skin has no Don-chan** (we can't redistribute the images; with no images nothing is drawn)
 
 ### Dan dojo (`Charts/Dan.cs`, `DanJson.cs`, `DanList.cs`)
@@ -753,7 +760,11 @@ Order:
 3. **Only if still not enough, the backend**: the top candidate is **ANGLE** (OpenGL ES → D3D11 translation layer, used by Chrome).
    Its strength is that it **may run on D3D11 with no code changes**.
    Moving to Silk.NET / Veldrid, or the community fork `rlvk` (Raylib in Vulkan), comes after that
-- Match the "back" motions (difficulty → song, song → genre, song select → mode select) to TaikøNauts (waiting for a video)
+- "Back" motions (11/8, `2026-11-08 03-14-18.mp4`):
+  - Difficulty → song: the difficulty panel vanishes at once (no fade); the song bar is closed, yellow frame at 0.43 s, opens from 0.45 s (`BarList.CollapseAfterDifficulty`)
+  - 「とじる」 → genre list: the same flip animation as opening a genre (timings within 0.05 s) → `flipOpen = CloseGenreNow`
+  - Song select → mode select (Esc): 0.5 s out, ~0.77 s black, then in — matches `ToModeFromSongSelect`
+  - Esc inside a genre still uses the old 0.18+0.18 s crossfade (not recorded)
 - Phase 2 of A-Style song select: search, options panel, Oni→Ura transition animation (`Oni_Transition.png`), personal best, crowns
 - Older leftovers: logs for the exclusive-fullscreen crash, checking skin coordinates
 

@@ -101,8 +101,13 @@ namespace TaikoSim.Scenes
 
         public override bool CanOpenSettings => false;
 
+        private readonly MenuChara chara = new();   // 左下（スコアの板の上）のどんちゃん（A-Style だけ。MenuChara.cs）
+        private bool charaSwitched;   // 吹き出しが出て、クリア・失敗のアニメに切りかえたか
+
         public override void Enter()
         {
+            chara.Load();
+            if (CharaBaker.Config is CharaConfig cc) chara.Loop("result_loop", cc.ResultLoopTime);
             FontManager.PrepareSkinMainText(data.Title);
             LoadSkin();
             LoadSounds();
@@ -110,6 +115,7 @@ namespace TaikoSim.Scenes
 
         public override void Exit()
         {
+            chara.Dispose();
             bgm?.Dispose();
             bgm = null;
             foreach (SoundEffect? sound in new[] { scoreSound, rankSound, crownSound, balloonSound, donSound }) sound?.Dispose();
@@ -182,6 +188,15 @@ namespace TaikoSim.Scenes
             if (skinGeneration != SkinManager.Generation) LoadSkin();
             elapsed += dt;
             hud.Update(dt, data.Stats.Score);
+            // どんちゃん：吹き出しが出たら、クリアは result_clear_loop、失敗は result_failed_in → result_failed_loop
+            //   （11/8 の録画：クリアのとき、吹き出しと同時に result_loop から result_clear_loop に変わった）
+            if (!charaSwitched && elapsed >= BalloonTime && CharaBaker.Config is CharaConfig rc)
+            {
+                charaSwitched = true;
+                if (IsClear) chara.Loop("result_clear_loop", rc.ResultClearLoopTime);
+                else chara.PlayThen("result_failed_in", rc.ResultFailedInTime, "result_failed_loop", rc.ResultFailedLoopTime);
+            }
+            chara.Update(dt);
 
             if (!bgmStarted && elapsed >= BgmStart)
             {
@@ -277,6 +292,8 @@ namespace TaikoSim.Scenes
             }
             if (Rank >= 0 && elapsed >= RankTime) DrawRank();
             if (IsClear && elapsed >= CrownTime) DrawCrown();
+            // どんちゃん（スコアの板の左下。吹き出しより奥。録画では最初のフェードから出ていた）
+            if (CharaBaker.Config is CharaConfig dc) chara.Draw(dc.ResultX[0], dc.ResultY[0], dc.ResultScale);
             if (elapsed >= BalloonTime) DrawBalloon();
 
             // 最初は真っ暗からだんだん明るく。戻るときはだんだん暗く

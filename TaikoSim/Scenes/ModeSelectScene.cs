@@ -68,8 +68,13 @@ namespace TaikoSim.Scenes
 
         private static Item Current => Items[cursor];
 
+        private readonly MenuChara chara = new();   // 左下のどんちゃん（A-Style だけ。MenuChara.cs）
+
         public override void Enter()
         {
+            chara.Load();
+            CharaConfig? cc = CharaBaker.Config;
+            if (cc != null) chara.Loop("songselect_loop", cc.SongSelectLoopTime);
             cursor = Math.Clamp(cursor, 0, Items.Length - 1);
             list.Reset(cursor);
             deciding = null;
@@ -85,6 +90,7 @@ namespace TaikoSim.Scenes
 
         public override void Exit()
         {
+            chara.Dispose();
             danEntrySound?.Dispose();
             danEntrySound = null;
         }
@@ -115,6 +121,7 @@ namespace TaikoSim.Scenes
         public override void Update(float dt)
         {
             backgroundTime = (backgroundTime + dt) % 3.2f;
+            chara.Update(dt);
             if (exitTimer > 0f) exitTimer -= dt;
             if (toastTimer > 0f) toastTimer -= dt;
             list.Update(dt, cursor);
@@ -265,6 +272,9 @@ namespace TaikoSim.Scenes
                 Raylib.DrawRectangleGradientV(0, 0, Screen.Width, Screen.Height,
                     Raylib.ColorBrightness(baseColor, -0.55f), Raylib.ColorBrightness(baseColor, -0.8f));
             }
+
+            // どんちゃん：モード選択も選曲と同じ songselect_loop（11/8 の録画で確かめた。板より奥）
+            if (CharaBaker.Config is CharaConfig ec) chara.Draw(ec.EntryX[0], ec.EntryY[0], ec.EntryScale);
 
             DrawList();
 

@@ -226,6 +226,17 @@ namespace TaikoSim.Graphics
         };
         public static bool IsBalloonAnim(string anim) => anim.StartsWith("balloon_", StringComparison.Ordinal);
 
+        // メニューの画面のアニメ（モード選択・選曲・段位選択は songselect_loop、リザルトは result_*）
+        public static readonly string[] MenuAnims =
+        {
+            "songselect_loop", "result_loop", "result_clear_loop", "result_failed_in", "result_failed_loop",
+        };
+        public static bool IsResultAnim(string anim) => anim.StartsWith("result_", StringComparison.Ordinal);
+
+        // 焼く順：選曲のどんちゃん（起動してすぐ見る）→ 演奏 → リザルト
+        private static IEnumerable<string> BakeOrder =>
+            new[] { "songselect_loop" }.Concat(PlayAnims).Concat(MenuAnims.Where(a => a != "songselect_loop"));
+
         private const int FrameStep = 2;
 
         private static Thread? worker;
@@ -244,6 +255,13 @@ namespace TaikoSim.Graphics
         /// <summary>演奏画面での倍率（風船のアニメだけ別）</summary>
         public static float PlayScale(string anim) =>
             Config == null ? 1f : IsBalloonAnim(anim) ? Config.EnsoGameBalloonScale : Config.EnsoGameNormalScale;
+
+        /// <summary>そのアニメを焼く倍率（出す画面の倍率）</summary>
+        public static float BakeScale(string anim) =>
+            Config == null ? 1f
+            : anim == "songselect_loop" ? Config.SongSelectScale
+            : IsResultAnim(anim) ? Config.ResultScale
+            : PlayScale(anim);
 
         /// <summary>スキンを読み直したら呼ぶ。前の作業はやめて、新しいスキンで焼き直す</summary>
         public static void Start(string? skinPath, string skinName)
@@ -288,13 +306,13 @@ namespace TaikoSim.Graphics
 
         private static void Run(string source, string cache)
         {
-            foreach (string anim in PlayAnims)
+            foreach (string anim in BakeOrder)
             {
                 if (cancel) return;
                 try
                 {
                     long started = System.Diagnostics.Stopwatch.GetTimestamp();
-                    if (CharaCache.BuildIfNeeded(Path.Combine(source, anim), cache, anim, PlayScale(anim), FrameStep, () => cancel))
+                    if (CharaCache.BuildIfNeeded(Path.Combine(source, anim), cache, anim, BakeScale(anim), FrameStep, () => cancel))
                     {
                         ready[anim] = true;
                         double ms = System.Diagnostics.Stopwatch.GetElapsedTime(started).TotalMilliseconds;

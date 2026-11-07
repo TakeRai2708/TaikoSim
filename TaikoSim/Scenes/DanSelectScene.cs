@@ -137,8 +137,12 @@ namespace TaikoSim.Scenes
         private static DanCourse? Current =>
             Courses.Count == 0 ? null : Courses[Math.Clamp(courseCursor, 0, Courses.Count - 1)];
 
+        private readonly MenuChara chara = new();   // 左下のどんちゃん（A-Style だけ。MenuChara.cs）
+
         public override void Enter()
         {
+            chara.Load();
+            if (CharaBaker.Config is CharaConfig cc) chara.Loop("songselect_loop", cc.DanSelectLoopTime);
             if (!DanList.IsScanned && !DanList.IsScanning) DanList.StartScan();
             categoryCursor = Math.Clamp(categoryCursor, 0, Math.Max(0, Categories.Count - 1));
             courseCursor = Math.Clamp(courseCursor, 0, Math.Max(0, Courses.Count - 1));
@@ -165,6 +169,7 @@ namespace TaikoSim.Scenes
 
         public override void Exit()
         {
+            chara.Dispose();
             foreach (Texture2D t in plates.Values) if (t.Id != 0) Raylib.UnloadTexture(t);
             plates.Clear();
             intro?.Unload();
@@ -186,6 +191,7 @@ namespace TaikoSim.Scenes
 
         public override void Update(float dt)
         {
+            chara.Update(dt);
             DanList.Update();
             if (toastTimer > 0f) toastTimer -= dt;
             introTime += dt;
@@ -377,6 +383,9 @@ namespace TaikoSim.Scenes
             if (tiles < 1f) Raylib.BeginScissorMode(0, 0, (int)(Screen.Width * tiles), Screen.Height);
             DrawTiles();
             if (tiles < 1f) Raylib.EndScissorMode();
+
+            // どんちゃん：入りの演出が終わってから、パネルより奥に（11/8 の録画：右側はパネルに隠れる）
+            if (IntroDone && CharaBaker.Config is CharaConfig dc) chara.Draw(dc.DanSelectX, dc.DanSelectY, dc.DanSelectScale);
 
             // パネルとプレート：入りでは右からすべりこむ。段位を切りかえたら横へ入れかわる
             if (frame >= PanelFrom)

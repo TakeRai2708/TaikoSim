@@ -66,6 +66,12 @@ namespace TaikoSim.Graphics
         public int ResultFailedInTime { get; private set; } = 200;
         public int ResultFailedLoopTime { get; private set; } = 500;
 
+        // 段位選択（段位まわりは配列ではなく1つ）
+        public float DanSelectX { get; private set; }
+        public float DanSelectY { get; private set; }
+        public float DanSelectScale { get; private set; } = 1f;
+        public int DanSelectLoopTime { get; private set; } = 1000;
+
         // 読めなかったら null(そのスキンにはどんちゃんが無い、として何も描かない)
         public static CharaConfig? Load(string jsonPath)
         {
@@ -124,6 +130,11 @@ namespace TaikoSim.Graphics
                     ResultClearLoopTime = Int(r, "resultClearLoopTime", 700),
                     ResultFailedInTime = Int(r, "resultFailedInTime", 200),
                     ResultFailedLoopTime = Int(r, "resultFailedLoopTime", 500),
+
+                    DanSelectX = Num(r, "danSelectX", 0f),
+                    DanSelectY = Num(r, "danSelectY", 0f),
+                    DanSelectScale = Num(r, "danSelectScale", 1f),
+                    DanSelectLoopTime = Int(r, "danSelectLoopTime", 1000),
                 };
                 return c;
             }

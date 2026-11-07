@@ -168,8 +168,12 @@ namespace TaikoSim.Scenes
 
         // ===== 入る・出る =====
 
+        private readonly MenuChara chara = new();   // 左下のどんちゃん（A-Style だけ。MenuChara.cs）
+
         public override void Enter()
         {
+            chara.Load();
+            if (CharaBaker.Config is CharaConfig cc) chara.Loop("songselect_loop", cc.SongSelectLoopTime);
             returnTime = -1f;
             returnSwap = null;
             if (!SongList.IsScanned && !SongList.IsScanning) SongList.StartScan();
@@ -199,6 +203,7 @@ namespace TaikoSim.Scenes
 
         public override void Exit()
         {
+            chara.Dispose();
             preview.Dispose();
             smallControlGuide?.Unload();
             smallControlGuide = null;
@@ -355,6 +360,7 @@ namespace TaikoSim.Scenes
 
         public override void Update(float dt)
         {
+            chara.Update(dt);
             caretTimer += dt;
             if (toastTimer > 0f) toastTimer -= dt;
             if (skipLock > 0f) skipLock -= dt;
@@ -1005,6 +1011,8 @@ namespace TaikoSim.Scenes
             Raylib.DrawRectangleGradientV(0, 0, Screen.Width, Screen.Height,
                 Raylib.ColorBrightness(backColor, -0.35f), Raylib.ColorBrightness(backColor, -0.7f));
             DrawTnBackground();
+            // どんちゃん（背景の上・板より奥）
+            if (CharaBaker.Config is CharaConfig sc) chara.Draw(sc.SongSelectX[0], sc.SongSelectY[0], sc.SongSelectScale);
 
             if (SongList.IsScanning) DrawScanning();
             else if (SongList.Categories.Count == 0) DrawEmpty();
