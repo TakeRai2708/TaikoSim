@@ -195,12 +195,14 @@ namespace TaikoSim.Scenes
         // 診断の収集・判定・打音は、表示のON/OFFに関係なく従来どおり動かす。
         private bool showDebugInfo;
 
-        // 判定に使う「音オフセット」。設定の値に、BASS の効果音の遅れの分(AudioManager.HitSoundLagMs)を足したもの
-        //   マイナスほど早くなる(設定の音オフセットと同じ向き)
-        private static double AudioOffsetMs => ConfigManager.Game.AudioOffsetMs - AudioManager.HitSoundLagMs;
+        // 判定に使う「音オフセット」＝ 設定の音オフセットだけ（見た目と同じ）
+        //   11/8 たけらい「音でたたけば精度取れるけど、判定枠を見てやるとくっそ取れない」：
+        //     前は BASS の効果音の遅れ（AudioManager.HitSoundLagMs ＝ バッファ＋2.5ms。バッファ 40ms だと 42.5ms）を判定だけに入れていたので、
+        //     音符が判定枠のまんなかに来た瞬間に叩くと 42.5ms 遅い扱いになっていた（叩いた音を曲に合わせると、ちょうど合う作りだった）。
+        //   OpenTaiko・TaikøNauts は曲の時計だけで判定して、叩いた音の遅れは補正しない（WASAPI 共有 30〜50ms でも違和感なく叩ける）ので、それに合わせた。
+        private static double AudioOffsetMs => ConfigManager.Game.AudioOffsetMs;
 
-        // 見た目(音符・小節線・ゴーゴー)に使う「音オフセット」。効果音の遅れの補正は入れない
-        //   入れると、音符が曲より早く判定枠に来て、判定枠がずれたように見えるため
+        // 見た目(音符・小節線・ゴーゴー)に使う「音オフセット」。判定と同じ
         private static double ViewAudioOffsetMs => ConfigManager.Game.AudioOffsetMs;
         private bool showDiagnostics; // F8：入力診断を出すか(記録は「デバッグ記録」が ON のときも行う)
         private const int InputLogCount = 8;
@@ -1680,7 +1682,7 @@ namespace TaikoSim.Scenes
             }
 
             // 音オフセット(判定ごとずらす)と譜面オフセット(見た目だけずらす)。どちらもマイナスで早く来る
-            // 効果音の遅れの補正は判定だけに入れて、見た目には入れない(ViewAudioOffsetMs)
+            // 判定と見た目は同じ時計（11/8 から。効果音の遅れの補正は入れない）
             double gameMs = nowMs - AudioOffsetMs;
             double viewMs = nowMs - ViewAudioOffsetMs - ConfigManager.Game.ChartOffsetMs;
 
@@ -2316,7 +2318,7 @@ namespace TaikoSim.Scenes
                 : AudioManager.Mixer != 0
                     ? $"まだ鳴っていない量 平均 {latencyAverageMs:0.0} ms（曲の位置から引いている）"
                     : $"機器の遅れ {latencyAverageMs:0.0} ms・バッファ {AudioManager.BassBufferMs} ms（曲の位置からは引いていない）";
-            string lagText = AudioManager.HitSoundLagMs > 0 ? $"　効果音の遅れ補正 -{AudioManager.HitSoundLagMs:0.0} ms" : "";
+            string lagText = AudioManager.HitSoundLagMs > 0 ? $"　効果音の遅れ（補正はしない） 約{AudioManager.HitSoundLagMs:0.0} ms" : "";
             Line($"出力 {AudioManager.GetTypeName(AudioManager.CurrentType)}　{latencyText}{lagText}", Color.White);
             Line($"入力 {DrumInputScheduler.ModeName(ConfigManager.Game.InputTiming)} / 60打制限 {(ConfigManager.Game.LimitDrumHitsTo60PerSecond ? "ON" : "OFF")}",
                 Color.SkyBlue);

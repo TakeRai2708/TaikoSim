@@ -626,7 +626,7 @@ t = 0 when the result fades in (fade 0.07 s).
     The recording was only ~10–15 fps after 104 s, so the in-cycle shape is approximate; the 0.5 s period is reliable
   - No permanent glow on the tip cell (the skin glow added 10/20 was removed 11/6; `SkinManager.GetGaugeGlowCell` is now unused)
 - Soul gauge rainbow: `Gauge/Rainbow.png` 24 frames (3 sets × 8 frames for norma 80/70/60%); each frame is crossfaded into the next
-- BASS hit-sound lag: HitSoundLagMs = buffer + update period / 2 (applied to judging only)
+- BASS hit-sound lag: HitSoundLagMs = buffer + update period / 2. **Not applied to judging since 11/8** (only shown in F3). With たけらい's 40 ms buffer it made judging 42.5 ms ahead of the visuals: hitting when the note is in the frame counted as late (たけらい: 「音でたたけば取れるけど、判定枠を見ると取れない」). OpenTaiko / TaikøNauts judge on the song clock only and don't compensate hit-sound lag
 
 ---
 
@@ -699,7 +699,7 @@ t = 0 when the result fades in (fade 0.07 s).
 
 ### Known issues (unconfirmed, waiting for data)
 - AUDIO-001 (hits feel off): Codex's `codex/known-issues` branch has `KNOWN-ISSUES.txt`. **Not merged** — waiting for たけらい's config and CSV data.
-  Main suspects with default settings: (1) the judging clock is 17.5 ms ahead of the visuals (nowMs − (AudioOffsetMs − HitSoundLagMs)),
+  Main suspects with default settings: (1) ~~the judging clock is 17.5 ms ahead of the visuals~~ fixed 11/8 (HitSoundLagMs removed from judging),
   (2) in BASS mode the song position doesn't subtract device latency (WASAPI/ASIO do)
 
 ### What's next (discussed with たけらい)
