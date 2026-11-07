@@ -48,7 +48,8 @@
         // フルスクリーンにするか
         public bool Fullscreen { get; set; } = false;
 
-        // フルスクリーンの方式
+        // フルスクリーンの方式（11/8 から使っていない。前の設定ファイルを読めるように残しているだけ。
+        //   フルスクリーンはいつも本物のフルスクリーン。Graphics/Screen.cs の ApplyWindowMode）
         public FullscreenType FullscreenType { get; set; } = FullscreenType.Borderless;
 
         // 垂直同期

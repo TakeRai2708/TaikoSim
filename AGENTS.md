@@ -99,6 +99,14 @@ This file (AGENTS.md) is where we record **values we actually measured** from vi
 - **Not yet verified**: whether the Raylib-cs 8.1.0 and ManagedBass NuGet packages work under AOT (たけらい must publish and check on his PC).
   If publish emits IL warnings or fails, those library types may need to be preserved with `[DynamicDependency]` etc.
 
+### Window modes (11/8): only "framed window" or "real fullscreen", like OpenTaiko
+- The self-made borderless (undecorated window exactly the monitor size) was removed. Windows seemed to treat it as a fullscreen game
+  (independent flip?): Claude's computer-use screenshots of TaikoSim stayed stale and clicks were judged to land on "the desktop". OBS window capture was fine
+- OpenTaiko (Silk.NET + GLFW, rendering through ANGLE; Windows default OpenGL) also has only `WindowState.Normal` (framed) or `WindowState.Fullscreen`
+- Fullscreen = `ToggleFullscreen` at the monitor's native size (no mode switch; the 1920×1080 canvas is scaled). The resolution setting applies to window mode only
+- A window that doesn't fit the monitor is shrunk (keeping 16:9) and centered. `GameConfig.FullscreenType` is kept only so old config files load; the dropdown is gone
+- **Also: computer use's "open application" launched a NEW TaikoSim each time instead of focusing the running one** (several Debug instances piled up). Focus TaikoSim by clicking it
+
 ### KeyProbe (Debug builds only, 11/8)
 - `Diagnostics/KeyProbe.cs` writes `Logs/KeyProbe_<date>_<time>.txt` next to the exe: Windows key/char/focus messages seen by a WH_GETMESSAGE hook on the main thread,
   Raylib `IsKeyDown` changes for DFJK / ERUI / Enter / Esc / Space / arrows, and focus / foreground-window / fullscreen changes.
@@ -760,7 +768,7 @@ Order:
    and read `frames.csv` and `events.csv`. The numbers show whether it's drawing, GC, BASS or vsync waits.
    **Don't decide the cause before measuring**
 2. **Fix the cheap things**: target FPS 0 + vsync OFF (TaikøNauts' official low-latency recommendation; already in settings),
-   the exclusive-fullscreen crash (around line 117 of `Graphics/Screen.cs`; should be fixable independent of the graphics API),
+   the exclusive-fullscreen crash (`Graphics/Screen.cs` `ApplyWindowMode`; since 11/8 fullscreen keeps the monitor's native mode — check whether the crash is gone),
    reduce per-frame allocations if GC is the cause
 3. **Only if still not enough, the backend**: the top candidate is **ANGLE** (OpenGL ES → D3D11 translation layer, used by Chrome).
    Its strength is that it **may run on D3D11 with no code changes**.

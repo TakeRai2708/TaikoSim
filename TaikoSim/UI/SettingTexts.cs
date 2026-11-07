@@ -12,26 +12,12 @@ namespace TaikoSim.UI
 
         public const string Window = "ウィンドウで表示します。ほかの作業をしながら遊びたい人向け。";
 
-        public const string Borderless = "画面いっぱいの枠なしウィンドウで表示します。";
-        public const string BorderlessNote = "※ 解像度はモニターに合わせます";
-
-        public const string Exclusive = "画面合成（DWM）を通さずに表示します。PCによっては遅れやカクつきが減ります。かわりに Alt＋Tab が遅くなります。";
-        public const string ExclusiveNote = "※ 選んだ解像度にモニターを切り替えます";
+        public const string Fullscreen = "モニターいっぱいの本物のフルスクリーンで表示します（OpenTaiko と同じ）。画面合成（DWM）を通さないので、PCによっては遅れやカクつきが減ります。かわりに Alt＋Tab が少し遅くなります。";
+        public const string FullscreenNote = "※ 解像度はモニターのままです（切り替えません）";
 
         public const string VSync = "画面のちらつきを防ぎます。かわりに少し遅延が増えることがあります。";
 
         public const string TargetFps = "0 で無制限。垂直同期オンのときは、モニターのリフレッシュレート（Hz）に合わせます。";
-
-        // フルスクリーン方式のプルダウンの選択肢(FullscreenType の順番)
-        public static readonly string[] FullscreenTypeNames = { "ボーダーレス（おすすめ）", "排他フルスクリーン" };
-
-        // フルスクリーン方式の説明(本文と※の2つ)
-        public static string[] GetFullscreenTypeTexts(FullscreenType type)
-        {
-            return type == FullscreenType.Borderless
-                ? new[] { Borderless, BorderlessNote }
-                : new[] { Exclusive, ExclusiveNote };
-        }
 
         // ===== 折り返して描く =====
 

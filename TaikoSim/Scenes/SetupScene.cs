@@ -311,23 +311,12 @@ namespace TaikoSim.Scenes
                 y += SettingTexts.DrawWrapped(SettingTexts.Window, descX, y, descWidth, DescSize, Gui.SubTextColor, DescLine) + 6;
             }
 
-            // ----- フルスクリーン方式 -----
-            FontManager.Draw("フルスクリーン方式", Left, y + 6, 28, Color.White);
-            int typeIndex = (int)game.FullscreenType;
-            int newTypeIndex = Gui.Dropdown("setupFullscreenType", new Rectangle(ControlX, y, Right - ControlX, 44), SettingTexts.FullscreenTypeNames, typeIndex);
-            if (newTypeIndex != typeIndex)
+            // フルスクリーンの説明（方式はえらべない。OpenTaiko と同じ本物のフルスクリーンだけ）
+            if (game.Fullscreen)
             {
-                game.FullscreenType = (FullscreenType)newTypeIndex;
-                windowChanged = true;
+                y += SettingTexts.DrawWrapped(SettingTexts.Fullscreen, descX, y, descWidth, DescSize, Gui.SubTextColor, DescLine);
+                y += SettingTexts.DrawWrapped(SettingTexts.FullscreenNote, descX, y, descWidth, DescSize, Gui.SubTextColor, DescLine) + 10;
             }
-            y += 54;
-
-            // 選んでいる方式の説明
-            foreach (string text in SettingTexts.GetFullscreenTypeTexts(game.FullscreenType))
-            {
-                y += SettingTexts.DrawWrapped(text, descX, y, descWidth, DescSize, Gui.SubTextColor, DescLine);
-            }
-            y += 10;
 
             // ----- 垂直同期 -----
             bool vsync = Gui.Checkbox(new Rectangle(Left, y, Right - Left, 40), "垂直同期", game.VSync);
@@ -464,7 +453,7 @@ namespace TaikoSim.Scenes
 
             // 画面
             string screenText = $"画面：{game.WindowWidth}×{game.WindowHeight}";
-            if (game.Fullscreen) screenText += game.FullscreenType == FullscreenType.Borderless ? "（ボーダーレス）" : "（排他フルスクリーン）";
+            if (game.Fullscreen) screenText = "画面：フルスクリーン（モニターの解像度）";
             FontManager.Draw(screenText, Left, y, 30, Color.White);
             y += 48;
 

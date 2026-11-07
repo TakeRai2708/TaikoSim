@@ -99,53 +99,46 @@ namespace TaikoSim.Graphics
         }
 
         // 解像度とフルスクリーンを反映する
+        //   11/8：OpenTaiko と同じ「枠ありのウィンドウ」か「本物のフルスクリーン」の2つだけにした。
+        //   前は自前のボーダーレス（枠なしで画面とぴったり同じ大きさ）もあったけど、
+        //   Windows がそれをフルスクリーンのゲームあつかいして、画面の出し方を特別な近道に切りかえるらしく、
+        //   Claude の操作で撮るスクショが古い画面のままになったり、クリックが「デスクトップ」あつかいになったりした（推測。11/8 の調べもの）。
+        //   OpenTaiko（Silk.NET + GLFW）にも自前のボーダーレスは無い。
         public static void ApplyWindowMode()
         {
             GameConfig game = ConfigManager.Game;
-            Diagnostics.DebugLog.Event("画面の設定", $"ウィンドウ {game.WindowWidth}×{game.WindowHeight}　フルスクリーン {game.Fullscreen}（{game.FullscreenType}）");
+            Diagnostics.DebugLog.Event("画面の設定", $"ウィンドウ {game.WindowWidth}×{game.WindowHeight}　フルスクリーン {game.Fullscreen}");
 
-            // 1. いったん普通のウィンドウに戻す
+            // 1. いったん普通の枠ありウィンドウに戻す（前のバージョンの枠なし・Raylib のボーダーレスも外す）
             if (Raylib.IsWindowFullscreen()) Raylib.ToggleFullscreen();
             if (Raylib.IsWindowState(ConfigFlags.BorderlessWindowMode)) Raylib.ToggleBorderlessWindowed();
-            Raylib.ClearWindowState(ConfigFlags.UndecoratedWindow); // 枠を戻す
+            if (Raylib.IsWindowState(ConfigFlags.UndecoratedWindow)) Raylib.ClearWindowState(ConfigFlags.UndecoratedWindow);
 
             int monitor = Raylib.GetCurrentMonitor();
-            bool fillsMonitor = game.WindowWidth >= Raylib.GetMonitorWidth(monitor)
-                             || game.WindowHeight >= Raylib.GetMonitorHeight(monitor);
+            int monitorWidth = Raylib.GetMonitorWidth(monitor), monitorHeight = Raylib.GetMonitorHeight(monitor);
 
-            // 2. 表示のしかた
-            if (game.Fullscreen && game.FullscreenType == FullscreenType.Exclusive)
+            if (game.Fullscreen)
             {
-                // 排他フルスクリーン(本物のフルスクリーン)
-                Raylib.SetWindowSize(game.WindowWidth, game.WindowHeight);
+                // 2. 本物のフルスクリーン。解像度はモニターのまま（切り替えない）
+                //    モニターの解像度を切り替えるのは、落ちたり画面が真っ暗のまま戻らなかったりしやすいので、やらない。
+                //    1920×1080 のキャンバスを、モニターの大きさに合わせて表示する（DrawToWindow）
+                Raylib.SetWindowSize(monitorWidth, monitorHeight);
                 Raylib.ToggleFullscreen();
+                return;
             }
-            else if (game.Fullscreen || fillsMonitor)
+
+            // 3. 枠ありのウィンドウ。モニターに入りきらない大きさなら、入る大きさ（16:9）まで小さくする
+            //    （タイトルバーとタスクバーのぶん、上下に少し余白を取る）
+            int width = game.WindowWidth, height = game.WindowHeight;
+            int maxWidth = monitorWidth - 16, maxHeight = monitorHeight - 100;
+            if (width > maxWidth || height > maxHeight)
             {
-                // ボーダーレス(枠なし・画面ぴったり)
-                // フルスクリーン(ボーダーレス)のときと、ウィンドウがモニター以上の大きさのとき
-                ApplyOwnBorderless(monitor);
+                float fit = Math.Min((float)maxWidth / width, (float)maxHeight / height);
+                width = Math.Max(640, (int)(width * fit));
+                height = Math.Max(360, (int)(height * fit));
             }
-            else
-            {
-                // ふつうのウィンドウは真ん中に
-                Raylib.SetWindowSize(game.WindowWidth, game.WindowHeight);
-                CenterWindow();
-            }
-        }
-
-        // 自前のボーダーレス(Raylibのボーダーレスは常に最前面になってしまうので自分で作る)
-        private static void ApplyOwnBorderless(int monitor)
-        {
-            // ① 先に枠を消す(枠ありのまま大きくすると、Windowsに高さを縮められてしまう)
-            Raylib.SetWindowState(ConfigFlags.UndecoratedWindow);
-
-            // ② モニターと同じ大きさにする
-            Raylib.SetWindowSize(Raylib.GetMonitorWidth(monitor), Raylib.GetMonitorHeight(monitor));
-
-            // ③ モニターの左上にぴったり置く(モニターが2枚あっても大丈夫なように、モニターの位置を使う)
-            Vector2 monitorPos = Raylib.GetMonitorPosition(monitor);
-            Raylib.SetWindowPosition((int)monitorPos.X, (int)monitorPos.Y);
+            Raylib.SetWindowSize(width, height);
+            CenterWindow();
         }
 
         // 垂直同期と目標フレームレートを反映する

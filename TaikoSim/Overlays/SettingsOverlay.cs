@@ -246,7 +246,7 @@ namespace TaikoSim.Overlays
             ConfigManager.Replace(draftGame, draftSound, draftKey, draftSkin);
 
             if (beforeGame.WindowWidth != draftGame.WindowWidth || beforeGame.WindowHeight != draftGame.WindowHeight
-                || beforeGame.Fullscreen != draftGame.Fullscreen || beforeGame.FullscreenType != draftGame.FullscreenType)
+                || beforeGame.Fullscreen != draftGame.Fullscreen)
                 Screen.RequestApply();
             if (beforeGame.VSync != draftGame.VSync || beforeGame.TargetFps != draftGame.TargetFps)
                 Screen.ApplyFrameSettings();
@@ -543,19 +543,11 @@ namespace TaikoSim.Overlays
             }
             if (!game.Fullscreen) DescRows(SettingTexts.Window); // オフのとき(ウィンドウ)の説明
 
-            // フルスクリーン方式
-            int typeIndex = (int)game.FullscreenType;
-            int newTypeIndex = DropdownRow("fullscreenType", "フルスクリーン方式", SettingTexts.FullscreenTypeNames, typeIndex);
-            if (newTypeIndex != typeIndex)
+            // フルスクリーンの説明（方式はえらべない。OpenTaiko と同じ本物のフルスクリーンだけ）
+            if (game.Fullscreen)
             {
-                game.FullscreenType = (FullscreenType)newTypeIndex;
-                windowChanged = true;
-            }
-
-            // 選んでいる方式の説明
-            foreach (string text in SettingTexts.GetFullscreenTypeTexts(game.FullscreenType))
-            {
-                DescRows(text);
+                DescRows(SettingTexts.Fullscreen);
+                DescRows(SettingTexts.FullscreenNote);
             }
 
             // 垂直同期
