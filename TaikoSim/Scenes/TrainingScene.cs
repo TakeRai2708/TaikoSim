@@ -85,9 +85,12 @@ public partial class PlayScene
         {
             if (trainingPaused)
             {
+                // 小節の先頭で突然叩かせず、ひとつ前の小節から流し直す。
+                int measure = trainingTimeline.At(nowMs - AudioOffsetMs);
+                if (measure == 0) Restart(); // OFFSETと通常の開始前の空白をそのまま使う
+                else SeekTraining(trainingTimeline[measure - 1]);
                 trainingPaused = false;
-                // 停止位置を動かさず1秒待つ。小節の先頭の音符にも準備して叩ける。
-                trainingCountdown = 1f;
+                trainingNotice = "1小節前から再生しています";
                 ClearTrainingInput();
             }
             else PauseTraining();
@@ -192,10 +195,16 @@ public partial class PlayScene
         DrawBalloonAnime(gameMs);
         // レーン以外は専用の落ち着いた画面。スキンのパネルや背景でUIが隠れないようにする。
         Raylib.DrawRectangle(0, (int)LaneY, (int)LaneX + 5, (int)LaneHeight, panel);
-        Text("COMBO", 48, 310, 28, Color.LightGray);
-        Text(combo.ToString(), 48, 355, 72, Color.White, 390);
+        effects.DrawHitEffects();
+        effects.DrawPanel();
         DrawJudgeText();
-        Text($"連打数  {totalRollHits}", 1320, 664, 28, Color.LightGray);
+        // 扇子と数字は通常演奏のまま。タイトルと重ならないように下段へ移す。
+        Rlgl.PushMatrix();
+        Rlgl.Translatef(700, 570, 0);
+        DrawRollPopup();
+        DrawBalloonPopup(gameMs);
+        Rlgl.PopMatrix();
+        Text($"連打数  {totalRollHits}", 1510, 745, 28, Color.LightGray);
 
         int measure = (trainingTimeline?.At(gameMs) ?? 0) + 1;
         Text($"小節  {measure} / {trainingTimeline?.Count ?? 1}", 690, 600, 42, Color.White);
