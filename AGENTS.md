@@ -288,12 +288,19 @@ In A-Style they look like **sideways taiko drums** (Don-chan = red face, light-b
   - Position: the 820×599 frame's top-left at `ensoGameX/Y[0]` = (-83, -111), scale 0.81. **Checked on video b (11/5) at 26 s: mean pixel diff 2.3** (match)
   - Drawn after the background, before the lane (the lane's top border hides the feet, as in the video). Balloon motions at (213, -8) ×0.95, drawn after the balloon
   - One loop = `motionBeat` beats at the current BPM. `balloon_breaking` has no beat key → plays at the source 60 fps
-  - Loop choice (every frame, counter kept): balloon → `failed_loop` (after a failed song end) → `gogo` → `miss_loop` (after a 不可; a 良/可 ends it) → `clear` (norma or max) → `normal`
+  - Loop choice (every frame, counter kept): balloon → `failed_loop` (after a failed song end) → `gogo` → misses (`failed_loop` from the 6th 不可 in a row, else `miss_loop`; a 良/可 ends it) → `clear` (norma or max) → `normal`
   - One-shots (counter from 0, back to the loop at the end): every 10 combo outside GoGo `10combo` (`10combomax` when maxed),
     GoGo start `gogostart`, becoming clear `clearin`, becoming max `soulin`, balloon popped `balloon_broke` / ended unpopped (with hits) `balloon_miss`
-  - `combocut` / `failed_down` timing is not in the docs; decided with たけらい on 11/8 (unverified against a recording):
-    `combocut` when a combo of **10 or more** breaks (not during GoGo, like OpenTaiko's MissIn), then `miss_loop`;
-    `failed_down` when the song ends without clearing (dan: 「不合格」) → then `failed_loop` for good. `failed_down` has no beat key → plays at the source 60 fps (175 frames ≈ 2.9 s)
+  - **Checked on a TaikøNauts recording made by Claude via computer use** (11/8, `2026-11-08 00-39-05.mp4`, 「1 2 3 〜恋がはじまる〜」 かんたん, played by たけらい with misses;
+    Don-chan frames classified by masked template matching against every animation frame, judge counts read from the on-screen counter):
+    - First 不可 (even at combo 0) → `miss_loop` at once. 6th 不可 in a row → `failed_loop` (3 of 3 cases exactly the 6th). No `failed_down` in between
+    - **`combocut` is the recovery motion**: the first 良/可 after misses (from `miss_loop` or `failed_loop`) plays `combocut` once (2 beats), then `normal`. 4 of 4 cases.
+      Same as OpenTaiko's `Return` (not played during GoGo). (On 11/8 we first guessed "when a combo breaks" — wrong)
+    - During GoGo, misses don't change the motion (`gogo` stays)
+    - Gauge becoming clear and 10 combo on the same hit → `10combo` wins (OpenTaiko updates the gauge before the combo milestone). `PlayChara.OnJudge` takes the gauge state for this
+    - `clearin` also plays during GoGo, then back to `gogo`
+    - Balloon: `balloon_breaking` at (212, −8) ×0.95 (match within 1–2 px). `balloon_broke` at the same place, 1 beat. **The balloon image is drawn over Don-chan's mouth** → Don-chan is drawn before the balloon
+    - `failed_down` was not seen (the song was cleared). TaikoSim plays it when the song ends without clearing (dan: 不合格) — still a guess
 - **The Simple skin has no Don-chan** (we can't redistribute the images; with no images nothing is drawn)
 
 ### Dan dojo (`Charts/Dan.cs`, `DanJson.cs`, `DanList.cs`)

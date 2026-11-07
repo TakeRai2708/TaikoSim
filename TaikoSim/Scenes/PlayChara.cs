@@ -15,8 +15,8 @@ namespace TaikoSim.Scenes
     //   ループのアニメの選び方（OpenTaiko の ReturnDefaultAnime と同じ順）
     //     ① 風船を叩いている途中 → balloon_breaking（風船の位置に出す）
     //     ② 曲の終わりでクリア失敗になった → failed_loop（そのあとはずっとこれ）
-    //     ③ ゴーゴータイム       → gogo
-    //     ④ 不可のあと           → miss_loop（良か可を1つ出すと元に戻る）
+    //     ③ ゴーゴータイム       → gogo（不可が出ていても、ゴーゴー中はこっち）
+    //     ④ 不可のあと           → 6回続けて不可なら failed_loop、それより少なければ miss_loop
     //     ⑤ ノルマクリア（魂ゲージMAXもふくむ）→ clear
     //     ⑥ それ以外             → normal
     //
@@ -25,10 +25,18 @@ namespace TaikoSim.Scenes
     //     ・ゴーゴー開始               → gogostart
     //     ・ノルマクリアになった瞬間    → clearin、魂ゲージMAXになった瞬間 → soulin
     //     ・風船が割れた → balloon_broke、割れないで終わった → balloon_miss（どちらも風船の位置）
-    //     ・10コンボ以上が不可で切れた → combocut（ゴーゴー中は出さない。OpenTaiko の MissIn と同じ）
+    //     ・不可のあと（miss_loop・failed_loop）に良か可を出した → combocut（立ち直る。OpenTaiko の Return と同じ。ゴーゴー中は出さない）
     //     ・曲の終わりでクリア失敗（段位は不合格）→ failed_down → そのまま failed_loop
-    //   combocut と failed_down は、TaikøNauts のドキュメントに「いつ出すか」が書いていない。
-    //   11/8 たけらいと相談して決めた（combocut＝コンボが切れたとき、failed_down＝演奏画面でクリア失敗になったとき）。
+    //
+    //   ★ 11/8 の TaikøNauts の録画（2026-11-08 00-39-05.mp4、123〜恋がはじまる〜 かんたん）で確かめたこと
+    //     ・不可を1つ出す → すぐ miss_loop（1回目の不可でも。コンボが0でも）
+    //     ・不可が6回続く → 6回目で failed_loop（3回とも、不可の数を数えたらぴったり6回目）。あいだに failed_down は出ない
+    //     ・そのあと良を出す → その瞬間に combocut（寝そべって手足をばたばた）→ normal。4回とも同じ
+    //       （最初は「コンボが切れたとき」と思っていたけど、ちがった）
+    //     ・ゴーゴー中は不可を出しても gogo のまま（OpenTaiko と同じ）
+    //     ・ゲージがクリアになった瞬間と10コンボが同時のときは、10combo が勝つ（OpenTaiko もゲージ → コンボの順）
+    //     ・風船：叩いている間は (212, -8) ×0.95、割れたら balloon_broke も同じ場所（1拍で終わる）
+    //   failed_down は、この録画ではクリアしたので出なかった。曲の終わりのクリア失敗で出す、はまだ推測。
     //   Simple スキンにはどんちゃんがいないので、何も描かない。
     public sealed class PlayChara : IDisposable
     {
@@ -45,10 +53,11 @@ namespace TaikoSim.Scenes
         private bool goGo;
         private bool cleared, maxed;
         private bool missing;            // 不可のあと、まだ良・可を出していない
+        private int missStreak;          // 続けて出した不可の数
         private bool failed;             // 曲の終わりでクリア失敗になった
         private bool balloon;            // 風船を叩いている途中
 
-        private const int ComboCutFrom = 10;   // このコンボ以上が切れたら combocut を出す（たけらいの案 B）
+        private const int MissDownCount = 6;   // 不可がこれだけ続いたら failed_loop（録画で確かめた。OpenTaiko の MissDown も 6）
 
         /// <summary>演奏画面に入るときに呼ぶ（焼けているアニメを読む）</summary>
         public void Load()
@@ -73,6 +82,7 @@ namespace TaikoSim.Scenes
             cleared = isClear;
             maxed = isMax;
             missing = false;
+            missStreak = 0;
             failed = false;
             balloon = false;
             oneShot = false;
@@ -83,17 +93,25 @@ namespace TaikoSim.Scenes
 
         // ===== 演奏から呼ぶ =====
 
-        /// <summary>良・可・不可が出た（見逃しの不可もふくむ）。combo は足したあと、comboBefore は判定の前の数</summary>
-        public void OnJudge(bool bad, int combo, int comboBefore, bool noteInGoGo)
+        /// <summary>
+        /// 良・可・不可が出た（見逃しの不可もふくむ）。combo は足したあとの数。
+        /// isClear・isMax は、その音符のぶんをゲージに足したあとの状態（クリアになった → 10コンボ の順に動かすため）
+        /// </summary>
+        public void OnJudge(bool bad, int combo, bool noteInGoGo, bool isClear, bool isMax)
         {
+            UpdateGauge(isClear, isMax);
             if (bad)
             {
+                missStreak++;
                 missing = true;
-                // 10コンボ以上が切れた：寝そべるアニメを1回（そのあと miss_loop）
-                if (comboBefore >= ComboCutFrom && !noteInGoGo && !failed && !balloon) Play("combocut");
                 return;
             }
+
+            // 不可のあとの良・可：立ち直るアニメ（ゴーゴー中は出さない。OpenTaiko の Return と同じ）
+            bool recovered = missing;
             missing = false;
+            missStreak = 0;
+            if (recovered && !goGo && !failed && !balloon) Play("combocut");
 
             // 10コンボごと（OpenTaiko：ゴーゴー中の音符では出さない。同じアニメの途中なら最初からにしない）
             if (combo > 0 && combo % 10 == 0 && !noteInGoGo)
@@ -109,10 +127,7 @@ namespace TaikoSim.Scenes
             if (isGoGo && !goGo) Play("gogostart", config?.GoGoStartMotionFromBeginning ?? true);
             goGo = isGoGo;
 
-            if (isMax && !maxed) Play("soulin");
-            else if (isClear && !cleared) Play("clearin");
-            maxed = isMax;
-            cleared = isClear;
+            UpdateGauge(isClear, isMax);
 
             if (balloonHitting && !balloon)
             {
@@ -124,6 +139,15 @@ namespace TaikoSim.Scenes
                 balloon = false;
                 if (anime == "balloon_breaking") ReturnDefault(true);
             }
+        }
+
+        // ゲージがクリア・MAX になった瞬間のアニメ
+        private void UpdateGauge(bool isClear, bool isMax)
+        {
+            if (isMax && !maxed) Play("soulin");
+            else if (isClear && !cleared) Play("clearin");
+            maxed = isMax;
+            cleared = isClear;
         }
 
         /// <summary>曲の終わりでクリア失敗になった（段位は不合格）</summary>
@@ -167,7 +191,7 @@ namespace TaikoSim.Scenes
             if (balloon) anim = "balloon_breaking";
             else if (failed) anim = "failed_loop";
             else if (goGo) anim = "gogo";
-            else if (missing) anim = "miss_loop";
+            else if (missing) anim = missStreak >= MissDownCount ? "failed_loop" : "miss_loop";
             else if (cleared || maxed) anim = "clear";
             else anim = "normal";
 

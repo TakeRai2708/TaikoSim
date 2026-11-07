@@ -1579,7 +1579,6 @@ namespace TaikoSim.Scenes
         private void SetJudge(int index, Judge judge, double? delta)
         {
             judges[index] = judge;
-            int comboBefore = combo;   // どんちゃん用：切れる前のコンボ
 
             switch (judge)
             {
@@ -1599,7 +1598,7 @@ namespace TaikoSim.Scenes
             stats.ApplyJudge(note, result, branches.GaugeBranch(note));
             branches.OnJudge(note, result);
             effects.SetCombo(combo);
-            chara.OnJudge(judge == Judge.Bad, combo, comboBefore, note.IsGoGo);
+            chara.OnJudge(judge == Judge.Bad, combo, note.IsGoGo, stats.IsClear, stats.IsMax);
 
             // コンボの声(50・100…コンボになった瞬間。OpenTaiko と同じく、切れてからまた届けばまた鳴る)
             if (judge != Judge.Bad && comboVoices.TryGetValue(combo, out SoundEffect? voice))
@@ -1743,8 +1742,9 @@ namespace TaikoSim.Scenes
             }
 
             // 叩いている途中の風船(ふくらむ絵。音符の絵の上に描く)
+            // 風船を叩いている・割れたときのどんちゃん（レーンの上・風船の下。11/8 の録画で、風船がどんちゃんの口の前に重なっていた）
+            chara.DrawBalloon();
             DrawBalloonAnime(gameMs);
-            chara.DrawBalloon();   // 風船を叩いている・割れたときのどんちゃん（風船の上）
 
             // 音合わせのガイド(音符より手前、左のパネルより後ろ)
             if (testView > 0) DrawGuides(chart, course, viewMs);
