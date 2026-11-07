@@ -187,21 +187,20 @@ public partial class PlayScene
         Text(trainingPaused ? "ポーズ中" : "練習中", 1510, 570, 36,
             trainingPaused ? Color.Orange : blue, 360);
         Text($"再生速度  {PlaybackRate:0.0}×", 1510, 630, 32, Color.White, 360);
-        Text($"連打数  {totalRollHits}", 1510, 745, 28, Color.LightGray);
         int measure = (trainingTimeline?.At(gameMs) ?? 0) + 1;
         Text($"小節  {measure} / {trainingTimeline?.Count ?? 1}", 690, 600, 42, Color.White);
         Text($"曲の位置  {Math.Max(0, nowMs) / 1000:0.00} 秒", 690, 664, 28, Color.LightGray);
         Text("今回の判定", 48, 595, 28, Color.LightGray);
-        string[] labels = { "良", "可", "不可" };
-        int[] counts = { goodCount, okCount, badCount };
-        Color[] colors = { new(255, 197, 78, 255), Color.White, new(142, 177, 255, 255) };
-        for (int i = 0; i < 3; i++)
+        string[] labels = { "良", "可", "不可", "連打数" };
+        int[] counts = { goodCount, okCount, badCount, totalRollHits };
+        Color[] colors = { new(255, 197, 78, 255), Color.White, new(142, 177, 255, 255), new(255, 197, 78, 255) };
+        for (int i = 0; i < labels.Length; i++)
         {
-            float y = 648 + 90 * i;
-            Raylib.DrawRectangle(48, (int)y, 550, 78, panel);
-            Text(labels[i], 72, y + 12, 42, colors[i]);
+            float y = 640 + 76 * i;
+            Raylib.DrawRectangle(48, (int)y, 550, 66, panel);
+            Text(labels[i], 72, y + 12, 34, colors[i]);
             string value = counts[i].ToString();
-            Text(value, 565 - FontManager.Measure(value, 52).X, y + 5, 52, Color.White);
+            Text(value, 565 - FontManager.Measure(value, 46).X, y + 5, 46, Color.White);
         }
         Text(lastDeltaMs is double delta ? $"直近のズレ  {delta / PlaybackRate:+0.0;-0.0;0.0} ms" : "直近のズレ  —", 690, 730, 32, blue);
         Text($"{TrainingKey(SystemAction.TrainingPause)}  ポーズ／再開", 690, 970, 28, Color.White, 650);
