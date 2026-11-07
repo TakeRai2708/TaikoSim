@@ -19,6 +19,10 @@
         // 毎フレーム呼ばれる(入力や動きの処理)
         public virtual void Update(float dt) { }
 
+        // 画面を切り替える途中(押しても反応しない間)に、Update のかわりに呼ばれる。見た目の動きだけ進める
+        //   例：曲を決めてから幕が閉じるまで、選曲画面のどんちゃんのジャンプを動かす
+        public virtual void UpdateBlocked(float dt) { }
+
         // 戻るキー(Esc)が押されたとき
         public virtual void OnBack() { }
 

@@ -163,7 +163,7 @@ namespace TaikoSim
             if (scene == null) return;
 
             // 画面を切り替えるために暗くしている間は、今の画面を止める(押しても反応しない)
-            if (SceneManager.IsBlocking) return;
+            if (SceneManager.IsBlocking) { scene.UpdateBlocked(dt); return; }
 
             // 設定キーで設定パネルを開く(演奏中など、開けない画面では無視)
             if (scene.CanOpenSettings && InputManager.IsSystemPressed(SystemAction.Settings))

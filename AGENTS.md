@@ -319,7 +319,11 @@ In A-Style they look like **sideways taiko drums** (Don-chan = red face, light-b
   - Mode select and song select: `songselect_loop` (236 frames / 1000 ms) at (−185, 436) ×1, drawn behind the bars. Idle never switches to `songselect_wait_loop` (that is the 2-player "waiting" motion)
   - Dan select: `songselect_loop` at (`danSelectX/Y`) = (−190, 445) ×1, **in front of** the panel, after the intro (11/8: たけらい 「どんちゃんが隠れてる」; in the original Don's rim overlaps the panel's left frame)
   - Result: `result_loop` (117 / 500 ms) at (−70, 538) ×0.75 from the fade-in; when the balloon appears (`ClearBalloonTime`) a clear switches to `result_clear_loop` (156 / 700 ms; seen). Fail → `result_failed_in` (200 ms) → `result_failed_loop` (500 ms) (not seen yet)
-  - Not done: the jump when a song is decided (`songSelectSongStartJumpIndex` 66), `dan_select_in`, `entry_loop` (unused on mode select), dan result
+  - Song decided (11/8, `2026-11-08 00-39-05.mp4` 141.53 s): `10combo` from frame 0 to source frame 66 over 360 ms, then **held** on frame 66
+    (`songSelectSongStartTime` / `songSelectSongStartJumpIndex`; the held pose matched 10combo:66 with error 0.003). `MenuChara.PlayHold`, `CharaBaker.SongStartAnim`.
+    10combo is baked at max(play scale, song-select scale) = 1.0. `Scene.UpdateBlocked` keeps Don moving while `SongLoading` blocks input
+  - Mode decide (seen, not done): 段位道場 → Don does a flip (looks like `dan_select_in` ~70–200) about 1 s after the decide, then holds an arms-out pose; 演奏ゲーム → Don just keeps `songselect_loop`
+  - Not done: `dan_select_in`, `entry_loop` (unused on mode select), dan result
   - Baked by `CharaBaker` too (`songselect_loop` first, then play, then result; `BakeScale`)
 - **The Simple skin has no Don-chan** (we can't redistribute the images; with no images nothing is drawn)
 
@@ -646,7 +650,7 @@ t = 0 when the result fades in (fade 0.07 s).
 
 - Song loading screen (`Scenes/SongLoading.cs`; between choosing a difficulty and play; called via `SceneManager.ToPlayWithLoading`)
   - Measured frame by frame on the TaikøNauts video (10/29 A.mp4, 82.4–87.9 s):
-    0.4 s wait after deciding → the curtain (left and right halves of `Background_Fade.png`) closes in 0.48 s (constant speed) →
+    wait after deciding: **2.53 s when Don is shown** (11/8 remeasured: decide 141.53 → curtain 144.07 in `2026-11-08 00-39-05.mp4`; 10/29 video 80.27 → 83.03; the old 0.4 s was measured from a later event), 0.4 s for skins without Don → the curtain (left and right halves of `Background_Fade.png`) closes in 0.48 s (constant speed) →
     hint 0.15 s, Don and Katsu drop in from the outer top 0.3 s, plate widens over 0.28 s starting 0.02 s later → when fully wide the title appears instantly →
     3.83 s after the curtain closed (if loading is long, 0.3 s after it finishes) → disappears over 0.29 s (plate squashes vertically, characters fly up) → curtain opens in 0.48 s
   - The song is loaded (`PlayScene.Enter`) once the title is shown and the picture is static (a hitch during loading doesn't change the look)

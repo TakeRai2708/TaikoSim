@@ -233,6 +233,11 @@ namespace TaikoSim.Graphics
         };
         public static bool IsResultAnim(string anim) => anim.StartsWith("result_", StringComparison.Ordinal);
 
+        // 曲を決めたときのジャンプに使うアニメ
+        //   11/8 の録画（2026-11-08 00-39-05.mp4 の 141.5 秒〜）で、止まったポーズが 10combo の 66コマめとぴったり一致した（ずれ 0.003）。
+        //   Config.json の songSelectSongStartJumpIndex（66）と songSelectSongStartTime（360ms）は「10combo を 360ms で 66コマめまで進めて止める」という意味
+        public const string SongStartAnim = "10combo";
+
         // 焼く順：選曲のどんちゃん（起動してすぐ見る）→ 演奏 → リザルト
         private static IEnumerable<string> BakeOrder =>
             new[] { "songselect_loop" }.Concat(PlayAnims).Concat(MenuAnims.Where(a => a != "songselect_loop"));
@@ -260,6 +265,8 @@ namespace TaikoSim.Graphics
         public static float BakeScale(string anim) =>
             Config == null ? 1f
             : anim == "songselect_loop" ? Config.SongSelectScale
+            // 10combo は、曲を決めたときのジャンプ（選曲・1倍）でも使うので、大きいほうで焼く（演奏画面では縮めて出す）
+            : anim == SongStartAnim ? Math.Max(PlayScale(anim), Config.SongSelectScale)
             : IsResultAnim(anim) ? Config.ResultScale
             : PlayScale(anim);
 

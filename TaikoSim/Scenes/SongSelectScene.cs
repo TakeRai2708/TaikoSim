@@ -359,6 +359,9 @@ namespace TaikoSim.Scenes
 
         // ===== 更新 =====
 
+        // 曲を決めてから幕が閉じるまで（SongLoading の Wait）も、どんちゃんのジャンプは動かす
+        public override void UpdateBlocked(float dt) => chara.Update(dt);
+
         public override void Update(float dt)
         {
             chara.Update(dt);
@@ -813,8 +816,16 @@ namespace TaikoSim.Scenes
             lastSongKey = diffSong.Key;
             SongHistory.AddPlayed(diffSong.Key);
             preview.Dispose();
+            // どんちゃんがジャンプして止まる → 2.53秒後に幕（11/8 たけらい「選択したら動いて、そのあとに移行アニメーション」。TaikøNauts の録画どおり）
+            //   どんちゃんがいないスキン（シンプルなど）は、今までどおり 0.4秒で幕
+            float? wait = null;
+            if (chara.Config is CharaConfig cc && chara.HasAnim(CharaBaker.SongStartAnim))
+            {
+                chara.PlayHold(CharaBaker.SongStartAnim, cc.SongSelectSongStartTime, cc.SongSelectSongStartJumpIndex);
+                wait = SongLoading.WaitWithCharaSeconds;
+            }
             // 曲の読み込み画面(虹色の幕)をはさんで演奏へ。読み込みは幕が閉じてから
-            SceneManager.ToPlayWithLoading(new PlayScene(diffSong.TjaPath, type, returnToSelect: true), diffSong.Title, diffSong.Subtitle);
+            SceneManager.ToPlayWithLoading(new PlayScene(diffSong.TjaPath, type, returnToSelect: true), diffSong.Title, diffSong.Subtitle, wait);
         }
 
         // ===== 検索 =====

@@ -38,7 +38,7 @@ namespace TaikoSim.Scenes
         // そのほか(クレジット・セットアップ・演奏をやめたとき)：0.3秒で暗く → 0.3秒で明るく
         public static void Simple(Scene scene) => ChangeScene(scene, 0.3f, 0f, 0.3f);
         // 選曲 → 演奏：黒くせずに、曲の読み込み画面(虹色の幕)をはさむ。動きは SongLoading にまとめた
-        public static void ToPlayWithLoading(Scene scene, string title, string subtitle) => SongLoading.Start(scene, title, subtitle);
+        public static void ToPlayWithLoading(Scene scene, string title, string subtitle, float? wait = null) => SongLoading.Start(scene, title, subtitle, wait);
         // 段位選択 → 段位の演奏：道場の絵の読み込み画面をはさむ（DanLoading）
         public static void ToDanPlay(Scene scene, Charts.DanCourse course) => DanLoading.Start(scene, course);
 

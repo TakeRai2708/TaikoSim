@@ -30,7 +30,13 @@ namespace TaikoSim.Scenes
         private static readonly string[] Images = { "Background.png", "Background_Fade.png", "Background_Light.png", "Background_Light..png", "Chara.png", "Plate.png" };
 
         // ===== TaikøNauts の動画を測った秒数 =====
-        private const float WaitSeconds = 0.40f;        // 決めてから幕が動き出すまで
+        private const float WaitSeconds = 0.40f;        // 決めてから幕が動き出すまで（どんちゃんがいないとき）
+        // どんちゃんがいるとき：決めてから幕が動き出すまで
+        //   11/8 測りなおし：TaikøNauts は「決める → どんちゃんがジャンプして止まる → 2.53秒後に幕」（2026-11-08 00-39-05.mp4 の 141.53→144.07 秒。
+        //   10/29 の動画でも 80.27→83.03 秒で 2.76秒。こっちは途中でシステムメニューを触っていた）。
+        //   前の 0.40秒は、決めた瞬間ではなく、そのあとの別の動きから測っていた
+        public const float WaitWithCharaSeconds = 2.53f;
+        private static float waitSeconds = WaitSeconds;
         private const float CurtainSeconds = 0.48f;     // 幕が閉じる・開く時間(一定の速さ)
         private const float LightInSeconds = 0.15f;     // ヒントとキラキラが出てくる時間
         private const float CharaInSeconds = 0.30f;     // ドンとカツが飛びこむ時間
@@ -70,8 +76,9 @@ namespace TaikoSim.Scenes
         // 先に画像を読んでおく(選曲画面に入ったとき。決めた瞬間に止まらないように)
         public static void Preload() => MenuSkin.Preload(Folder, Images);
 
-        public static void Start(Scene scene, string songTitle, string songSubtitle)
+        public static void Start(Scene scene, string songTitle, string songSubtitle, float? wait = null)
         {
+            waitSeconds = wait ?? WaitSeconds;
             target = scene;
             title = songTitle;
             subtitle = songSubtitle;
@@ -89,7 +96,7 @@ namespace TaikoSim.Scenes
             switch (phase)
             {
                 case Phase.Wait:
-                    if (timer >= WaitSeconds) Next(Phase.Close);
+                    if (timer >= waitSeconds) Next(Phase.Close);
                     break;
                 case Phase.Close:
                     if (timer >= CurtainSeconds) Next(Phase.In);
