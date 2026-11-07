@@ -1679,7 +1679,13 @@ namespace TaikoSim.Scenes
 
         public override void Draw()
         {
-            if (isTraining) { DrawTraining(); return; }
+            if (isTraining) DrawTraining();
+            else DrawPlayScreen();
+        }
+
+        // 通常演奏と特訓で配置・重なり順まで共用する。
+        private void DrawPlayScreen()
+        {
             // 段位道場のときは、文字の縁を本家に合わせて細くする（MenuDraw.DanOutlineRatio）
             using MenuDraw.OutlineRatioScope outlineScope = dan != null ? MenuDraw.UseOutlineRatio(MenuDraw.DanOutlineRatio) : default;
             Raylib.ClearBackground(new Color(24, 26, 36, 255));
@@ -1796,8 +1802,8 @@ namespace TaikoSim.Scenes
             branchLane.DrawPopup();  // 「レベルアップ／レベルダウン」
             scoreboard.Set(goodCount, okCount, badCount, totalRollHits);
             if (danPanel != null) danPanel.DrawTop();   // 段位：「1曲目/3曲」・魂ゲージの札・左上のカウンター
-            else if (ConfigManager.Game.ShowScoreboard) scoreboard.Draw(); // 良・可・不可・連打数(左下。選曲画面のオプションで消せる)
-            if (dan == null) scoreRank.Draw();    // 粋・雅・極(段位では出さない)
+            else if (!isTraining && ConfigManager.Game.ShowScoreboard) scoreboard.Draw(); // 良・可・不可・連打数(左下。選曲画面のオプションで消せる)
+            if (dan == null && !isTraining) scoreRank.Draw();    // 粋・雅・極(段位では出さない)
             DebugLog.End(PerfSection.PlayHud, t);
 
             t = DebugLog.Begin();

@@ -166,8 +166,7 @@ public partial class PlayScene
     {
         Color bg = new(13, 19, 30, 255), panel = new(22, 31, 46, 255);
         Color border = new(49, 64, 84, 255), blue = new(91, 172, 255, 255);
-        Raylib.ClearBackground(bg);
-        FontManager.Draw("特訓モード", 48, 32, 32, blue);
+        DrawPlayScreen();
         if (course == null || chart == null)
         {
             FontManager.Draw(error, 48, 120, 30, Color.Orange);
@@ -181,44 +180,14 @@ public partial class PlayScene
             if (width > maxWidth) size *= maxWidth / width;
             FontManager.Draw(text, x, y, size, color);
         }
-        Text(chart.Title, 48, 88, 48, Color.White, 1400);
-        Raylib.DrawRectangle(48, 150, 650, 76, panel);
-        Text($"{Chart.GetCourseName(course.Type)}  ★{course.Level}", 68, 162, 40,
-            course.Type == CourseType.Edit ? new Color(196, 139, 255, 255) : blue, 455);
-        Text(autoPlay ? "AUTO" : "手動", 550, 176, 24, Color.LightGray);
-        string state = trainingPaused ? "ポーズ中" : trainingCountdown > 0 ? "再開まで 1" : "練習中";
-        Text(state, 1510, 55, 40, trainingPaused ? Color.Orange : blue, 360);
-        Text($"再生速度  {PlaybackRate:0.0}×", 1510, 120, 32, Color.White, 360);
-
+        // 上半分は通常演奏そのもの。特訓の情報だけ下半分に重ねる。
+        Raylib.DrawRectangle(0, 540, 1920, 540, bg);
         double gameMs = nowMs - AudioOffsetMs;
-        double viewMs = gameMs - TaikoSim.Configs.ConfigManager.Game.ChartOffsetMs;
-        DrawLane();
-        branchLane.Draw(LaneX, LaneY);
-        branchLane.DrawText();
-        effects.DrawLaneLayer();
-        DrawJudgeFrame();
-        effects.DrawBehindNotes();
-        DrawBarLines(course, viewMs);
-        for (int i = course.Notes.Count - 1; i >= 0; i--)
-            if (!IsHidden(i)) { DrawNote(course.Notes[i], viewMs); DrawSeText(course.Notes[i], viewMs); }
-        DrawBalloonAnime(gameMs);
-        // レーン以外は専用の落ち着いた画面。スキンのパネルや背景でUIが隠れないようにする。
-        Raylib.DrawRectangle(0, (int)LaneY, (int)LaneX + 5, (int)LaneHeight, panel);
-        effects.DrawHitEffects();
-        effects.DrawPanel();
-        DrawJudgeText();
-        // 扇子と数字は通常演奏のまま。タイトルと重ならないように下段へ移す。
-        Rlgl.PushMatrix();
-        Rlgl.Translatef(700, 570, 0);
-        DrawRollPopup();
-        Rlgl.PopMatrix();
-        // 風船は専用の位置へ。扇子用の移動量を使わない。
-        Rlgl.PushMatrix();
-        Rlgl.Translatef(690 - BalloonFrameX, 735 - BalloonFrameY, 0);
-        DrawBalloonPopup(gameMs);
-        Rlgl.PopMatrix();
+        Text("特訓モード", 48, 550, 28, blue);
+        Text(trainingPaused ? "ポーズ中" : "練習中", 1510, 570, 36,
+            trainingPaused ? Color.Orange : blue, 360);
+        Text($"再生速度  {PlaybackRate:0.0}×", 1510, 630, 32, Color.White, 360);
         Text($"連打数  {totalRollHits}", 1510, 745, 28, Color.LightGray);
-
         int measure = (trainingTimeline?.At(gameMs) ?? 0) + 1;
         Text($"小節  {measure} / {trainingTimeline?.Count ?? 1}", 690, 600, 42, Color.White);
         Text($"曲の位置  {Math.Max(0, nowMs) / 1000:0.00} 秒", 690, 664, 28, Color.LightGray);
