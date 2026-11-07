@@ -42,8 +42,11 @@ namespace TaikoSim.Scenes
         private const float ColumnStep = 331f;                           // 曲ごと条件の列の間隔
         private static readonly Vector2 GaugeBoxAt = new(434f, 611f);
         private static readonly Vector2 ConfirmAt = new(276f, 296f);
-        // ボタンのまんなか（Panel.png の中のボタンの場所＋ConfirmAt）：スパナ・挑戦する・挑戦しない
-        private static readonly Vector2[] ButtonCenters = { new(613.5f, 581.5f), new(858.5f, 581.5f), new(1196.5f, 581.5f) };
+        // カーソルの枠のまんなか：スパナ・挑戦する・挑戦しない
+        //   11/8 たけらい「カーソルがずれてる」：前の値は右に4px・下に2px ずれていた。
+        //   10/31 の動画の黄色い枠（挑戦する：x698〜1012・y526〜633、スパナ：x554〜673・y521〜638）と
+        //   Select_Effect.png の中の枠の場所（大：x17〜332・y21〜128、小：x115〜232・y16〜133）から出しなおした
+        private static readonly Vector2[] ButtonCenters = { new(615f, 580f), new(855.5f, 580f), new(1193.5f, 580f) };
 
         private static readonly Color Ink = new(24, 18, 16, 255);
         private static readonly string[] SlotNames =
@@ -115,10 +118,13 @@ namespace TaikoSim.Scenes
                 MenuSkin.Whole(PlateEffect, dest, MenuSkin.White(pulse));
             }
 
-            // 段位の名前を縦に（本家：黒い字・1文字36px くらい・1文字めのまんなかが札の上から100px、37px ずつ下へ）
-            float size = name.Length <= 2 ? 36f : Math.Max(20f, 74f / name.Length * 1.0f);
-            float step = name.Length <= 2 ? 37f : size * 1.02f;
-            float first = top + (name.Length <= 2 ? 100f : 100f - (name.Length - 2) * step / 2f);
+            // 段位の名前を縦に（本家：黒い字・1文字の高さ34〜35px・1文字めのまんなかが札の上から88.5px、40.5px ずつ下へ）
+            //   11/8 たけらい「文字が下すぎ」：前は 100px・37px ずつ・36px で、11px 下・少し小さかった（10/31 の動画の四段〜八段で測りなおし）
+            //   3文字以上（自分で作った段位など）は、2文字のときと同じ場所をまんなかにして、つめて並べる
+            const float TwoCenter = 88.5f + 40.5f / 2f;
+            float size = name.Length <= 2 ? 39f : Math.Max(20f, 80f / name.Length);
+            float step = name.Length <= 2 ? 40.5f : size * 1.02f;
+            float first = top + TwoCenter - (name.Length - 1) * step / 2f;
             Color ink = usable ? Ink : new Color(24, 18, 16, 200);
             for (int i = 0; i < name.Length; i++)
                 Centered(name[i].ToString(CultureInfo.InvariantCulture),
@@ -136,14 +142,24 @@ namespace TaikoSim.Scenes
             MenuSkin.Part(Stamp, new Rectangle(cell * 90f, 0, 90f, 76f), new Rectangle(cx - 45f, top + 4f, 90f, 76f), Color.White);
         }
 
-        // 選んでいる札の左右の矢印（本家：うすい青。札のまんなかから左へ85px・右へ29px の所に画像の左はし、上は +47px）
+        // 選んでいる札の左右の矢印
+        //   11/8 測りなおし（10/31 の動画の 33.4〜34.3 秒を画像と重ね合わせ）：
+        //     ・画像の左はしは、札のまんなかから左へ81px・右へ22px（前は 85px・29px で、少し外に開きすぎていた）。上は +48px
+        //     ・明るさは「パッと 100% → 1秒かけて 0% へ」をくり返す（前は 45〜60% でゆらしていたので、うすすぎた）
+        //     ・カーソルを動かすと、100% からやりなおし
+        private const float ArrowCycle = 1f;
+        private static int arrowSlot = -1;
+        private static float arrowStart;
+
         private static void DrawArrows(int slot, float clock)
         {
+            if (slot != arrowSlot || clock < arrowStart) { arrowSlot = slot; arrowStart = clock; }
             float cx = TileLeft + slot * TileStep + TileWidth / 2f;
-            float y = TileTop + SelectedDrop + 47f;
-            float alpha = 0.45f + 0.15f * MathF.Sin(clock * MathF.PI * 2f);
-            MenuSkin.Whole(PlateArrow, new Rectangle(cx - 85f, y, 56f, 72f), MenuSkin.White(alpha));
-            MenuSkin.Part(PlateArrow, new Rectangle(0, 0, -56f, 72f), new Rectangle(cx + 29f, y, 56f, 72f), MenuSkin.White(alpha));
+            float y = TileTop + SelectedDrop + 48f;
+            float phase = (clock - arrowStart) / ArrowCycle;
+            float alpha = 1f - (phase - MathF.Floor(phase));
+            MenuSkin.Whole(PlateArrow, new Rectangle(cx - 81f, y, 56f, 72f), MenuSkin.White(alpha));
+            MenuSkin.Part(PlateArrow, new Rectangle(0, 0, -56f, 72f), new Rectangle(cx + 22f, y, 56f, 72f), MenuSkin.White(alpha));
         }
 
         // ===== パネル =====

@@ -14,7 +14,7 @@ namespace TaikoSim.Scenes
     //   ② 道場の絵が 0.47秒で明るくなる → 3.2秒 見せる → 0.53秒で暗くなる
     //   ③ そのまま演奏画面が 0.5秒で明るくなる（扉は閉まったまま。ここから DanShutter が動く）
     //   ・絵（Background.png は 1920×1300）は、明るくなり始めてから 1秒に 73.5px ずつ上へ流れて、220px（下のはし）で止まる
-    //   ・右上に段位のプレート（danPlatePath）。だいたい x1638〜1783・上が y162
+    //   ・右上に段位のプレート（danPlatePath）。画像そのままの大きさ（190×371）で左上 (1620, 140)
     // 画像が無いスキン（シンプル）は、暗い背景に段位の名前とプレートだけ（オリジナルなので本家の絵はまねしない）
     public static class DanLoading
     {
@@ -23,7 +23,10 @@ namespace TaikoSim.Scenes
         private const float FadeOutSeconds = 0.47f, BlackSeconds = 0.6f, InSeconds = 0.47f;
         private const float ShowSeconds = 3.2f, OutSeconds = 0.53f, GameFadeInSeconds = 0.5f;
         private const float ScrollSpeed = 73.5f, ScrollMax = 220f;
-        private const float PlateX = 1636f, PlateY = 162f, PlateWidth = 150f, PlateHeight = 320f;
+        // 11/8 たけらい「段プレートが小さい」：前は 150×320 の箱に合わせていて、本家の 0.79 倍になっていた。
+        //   本家（10/31 の動画 59 秒）は Dan_Plate.png（190×371）をそのままの大きさで、左上 (1620, 140) に出していた
+        //   （赤いところ x1646〜1782・y170〜481 ＝ 画像の中の x26〜162・y30〜340 と1:1）。2倍の画像でも同じ大きさになるように箱で指定
+        private const float PlateX = 1620f, PlateY = 140f, PlateWidth = 190f, PlateHeight = 371f;
         private const float AfterLoadSeconds = 0.3f;   // 読み込みが長かったときも、読み終わってからこれだけは見せる
 
         private enum Phase { None, FadeOut, Black, In, Show, Out, GameIn }

@@ -317,7 +317,7 @@ In A-Style they look like **sideways taiko drums** (Don-chan = red face, light-b
 - **In dan play Don-chan never uses the clear/max motions** (11/8, 十段 on auto `2026-11-08 03-23-19.mp4`: gauge 100 % rainbow, still `normal`; 10 combo = `10combo`). `PlayChara.Load(isDan)`
 - Menu screens (`Graphics/MenuChara.cs`, 11/8) — time-based loops (`…LoopTime` ms per cycle), all checked by template matching on the 11/8 recordings (error ≈ 0):
   - Mode select and song select: `songselect_loop` (236 frames / 1000 ms) at (−185, 436) ×1, drawn behind the bars. Idle never switches to `songselect_wait_loop` (that is the 2-player "waiting" motion)
-  - Dan select: `songselect_loop` at (`danSelectX/Y`) = (−190, 445) ×1, behind the panel, after the intro
+  - Dan select: `songselect_loop` at (`danSelectX/Y`) = (−190, 445) ×1, **in front of** the panel, after the intro (11/8: たけらい 「どんちゃんが隠れてる」; in the original Don's rim overlaps the panel's left frame)
   - Result: `result_loop` (117 / 500 ms) at (−70, 538) ×0.75 from the fade-in; when the balloon appears (`ClearBalloonTime`) a clear switches to `result_clear_loop` (156 / 700 ms; seen). Fail → `result_failed_in` (200 ms) → `result_failed_loop` (500 ms) (not seen yet)
   - Not done: the jump when a song is decided (`songSelectSongStartJumpIndex` 66), `dan_select_in`, `entry_loop` (unused on mode select), dan result
   - Baked by `CharaBaker` too (`songselect_loop` first, then play, then result; `BakeScale`)
@@ -459,15 +459,15 @@ In A-Style they look like **sideways taiko drums** (Don-chan = red face, light-b
 #### Dan loading screen (11/5; `Scenes/DanLoading.cs`)
 Measured on the 11/5 六段 video (`2026-11-05_09-32-24.mp4`, 17.8–23.6 s). Replaces the song-loading curtain after 「挑戦する」
 - Dan select fades out 0.47 s → black 0.6 s → dojo picture fades in 0.47 s → shown 3.2 s (longer if loading is slow; at least 0.3 s after loading) → fades out 0.53 s → play screen fades in 0.5 s (doors closed)
-- A-Style: `07.DanLoading/Background.png` (1920×1300) scrolls up at **73.5 px/s** from the start of the fade-in and stops at 220 px (bottom edge). Dan plate (`danPlatePath`) at top right, about x1638–1783, top y162
+- A-Style: `07.DanLoading/Background.png` (1920×1300) scrolls up at **73.5 px/s** from the start of the fade-in and stops at 220 px (bottom edge). Dan plate at top right at native size: `Dan_Plate.png` 190×371 with top-left (1620, 140) (11/8: たけらい 「段プレートが小さい」; the old 150×320 box made it 0.79×)
 - Simple: dark gradient, 「段位道場」 and the dan name, plus the plate. Nothing copied from the original picture
 - F2 retry still uses the normal song-loading curtain (5 s of dojo picture on every retry felt too long; ask たけらい if he wants otherwise)
 
 #### Dan select drawn with A-Style images (11/1; `Scenes/DanSelectAStyle.cs`)
 Positions found by template-matching the images onto frames 34 s (初段) and 50 s (confirm) of video 01-44-20 (OpenCV matchTemplate). Skins without the images keep the code-drawn look
 - Plates `MiniPlate.png` (six 80×168 colors: kyu / 初–五段 / 六–十段 / 玄人–超人 / 達人 = gold / 外伝): top-left (190 + danIndex×68 − 8, 26).
-  **Empty slots also show the name, with color ×0.5** (the original's 五級–一級 and 玄人–外伝 are exactly half brightness). Names in black 36 px; first character centered 100 px below the plate top, 37 px per character
-  - Selected plate: 22 px lower with `Plate_Effect.png` (white edge + 29% white inside) on top. Faint `Plate_Arrow.png` on both sides (−85 / +29 px from the plate center, +47 px from the top; right one mirrored)
+  **Empty slots also show the name, with color ×0.5** (the original's 五級–一級 and 玄人–外伝 are exactly half brightness). Names in black 39 px; first character centered 88.5 px below the plate top, 40.5 px per character (11/8 remeasured: たけらい 「文字が下すぎ」; before 36 px / 100 / 37 was 11 px too low)
+  - Selected plate: 22 px lower with `Plate_Effect.png` (white edge + 29% white inside) on top. `Plate_Arrow.png` on both sides (image left edge −81 / +22 px from the plate center, +48 px from the top; right one mirrored). Alpha jumps to 100 % and fades linearly to 0 over 1 s, repeating; restarts when the cursor moves (11/8, video 01-44-20 at 33.4–34.3 s)
   - Passed dans get `Stamp.png` (six 90×76; order is a guess: (combo type − 1)×2 + 1 if gold)
 - Panel `Panel.png` at (346,192) (shadow bottom-right; 合格条件 tab and frame included); side patterns `Panel_Side.png` (six 40×806) at (364,215) and (1800,215, mirrored)
 - Song bars `SongBar.png` (three 1380×110) at (412, 231 + 110×row). Difficulty mark `Song_CourseSymbol.png` (five 78×52) at (529, 245 + 110×row);
@@ -476,7 +476,7 @@ Positions found by template-matching the images onto frames 34 s (初段) and 50
   contents `Condition_Content.png` (50 px each: coin / 1st / 2nd / 3rd / white bar): coin row (768, 654 + 132×row), white bar (775, 690 + 132×row), per-song columns 331 px apart.
   「814 以上」 right edge x1085, center y679 (soul gauge: right 735, y693). **The gold value is not shown** (the original doesn't either)
 - Confirm popup `Challenge_Check/Panel_Base.png` (blue box with the question baked in) and `Panel.png` (buttons), both 1368×488 at native size at (276,296).
-  Three buttons: wrench (play options), 挑戦する, 挑戦しない; centers (613.5 / 858.5 / 1196.5, 581.5).
+  Three buttons: wrench (play options), 挑戦する, 挑戦しない; cursor centers (615 / 855.5 / 1193.5, 580) (11/8: たけらい 「カーソルがずれてる」; old values were 4 px right / 2 px low).
   Cursor `Select_Effect.png` (seven 350×150: large = yellow frame / glow / white frame / white fill; small = yellow frame / glow / white frame). Appearance: dims over 0.2 s → box from 0.75× over 0.13 s → buttons 0.2 s later
 - Plate area: `PlateX 145, PlateY 205, W 230, H 485`, fitted with `DanPanel.FitPlate`
 - Mini plates always show the slot's standard name (五級…外伝, `DanSelectAStyle.SlotName`), not the dan.json title (11/7: 2026段位道場's 玄人/名人 titles start with 「2026段位道場」)

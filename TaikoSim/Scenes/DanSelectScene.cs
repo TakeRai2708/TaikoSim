@@ -384,9 +384,6 @@ namespace TaikoSim.Scenes
             DrawTiles();
             if (tiles < 1f) Raylib.EndScissorMode();
 
-            // どんちゃん：入りの演出が終わってから、パネルより奥に（11/8 の録画：右側はパネルに隠れる）
-            if (IntroDone && CharaBaker.Config is CharaConfig dc) chara.Draw(dc.DanSelectX, dc.DanSelectY, dc.DanSelectScale);
-
             // パネルとプレート：入りでは右からすべりこむ。段位を切りかえたら横へ入れかわる
             if (frame >= PanelFrom)
             {
@@ -403,6 +400,10 @@ namespace TaikoSim.Scenes
                     DrawCourseShifted(current, introOffset + slideDirection * SlideDistance * (1f - EaseOut(into)));
                 }
             }
+            // どんちゃん：入りの演出が終わってから、パネルより手前に
+            //   11/8 たけらい「どんちゃんが隠れてる」。本家（10/31 の録画）は、どんちゃんの右のふちがパネルの左の枠にかぶっていた
+            if (IntroDone && CharaBaker.Config is CharaConfig dc) chara.Draw(dc.DanSelectX, dc.DanSelectY, dc.DanSelectScale);
+
             // 下の操作説明と、右下のカテゴリ名は出さない（11/7 たけらい「いらない」）
 
             if (confirming != null)
