@@ -414,7 +414,7 @@ namespace TaikoSim.Scenes
             LoadSong();
             LoadHitSounds();
             PrepareJudge();
-            chara.Load();
+            chara.Load(IsDan);
             Restart();
 
             // 段位：1曲目も、閉じた扉から始めて、開くと曲名を出す（本家・OpenTaiko と同じ）

@@ -59,10 +59,16 @@ namespace TaikoSim.Scenes
 
         private const int MissDownCount = 6;   // 不可がこれだけ続いたら failed_loop（録画で確かめた。OpenTaiko の MissDown も 6）
 
-        /// <summary>演奏画面に入るときに呼ぶ（焼けているアニメを読む）</summary>
-        public void Load()
+        // 段位道場：ゲージがクリア・MAX になっても clear・clearin・soulin・10combomax は出さない
+        //   11/8 の TaikøNauts の録画（十段をオート、2026-11-08 03-23-19.mp4）で、魂ゲージが 100%（虹）になっても
+        //   最後まで normal のままで、10コンボも 10combo（MAX 用ではない）だった
+        private bool dan;
+
+        /// <summary>演奏画面に入るときに呼ぶ（焼けているアニメを読む）。isDan は段位道場のとき true</summary>
+        public void Load(bool isDan = false)
         {
             Dispose();
+            dan = isDan;
             config = CharaBaker.Config;
             if (config == null || CharaBaker.CacheFolder == null) return;
             stream = new CharaStream(CharaBaker.CacheFolder);
@@ -79,8 +85,8 @@ namespace TaikoSim.Scenes
         public void Reset(bool isClear, bool isMax)
         {
             goGo = false;
-            cleared = isClear;
-            maxed = isMax;
+            cleared = isClear && !dan;
+            maxed = isMax && !dan;
             missing = false;
             missStreak = 0;
             failed = false;
@@ -144,6 +150,7 @@ namespace TaikoSim.Scenes
         // ゲージがクリア・MAX になった瞬間のアニメ
         private void UpdateGauge(bool isClear, bool isMax)
         {
+            if (dan) { isClear = false; isMax = false; }
             if (isMax && !maxed) Play("soulin");
             else if (isClear && !cleared) Play("clearin");
             maxed = isMax;

@@ -559,9 +559,13 @@ namespace TaikoSim.Scenes
                     break;
 
                 case Kind.Back:
+                    // 「とじる」も、ジャンルを開くときと同じ「めくれる」動きでジャンルの一覧に戻る
+                    //   11/8 の TaikøNauts の録画（2026-11-08 03-14-18.mp4 の 148.55秒〜）を1/30秒ずつ見た：
+                    //   点滅 → 白 → ポンッ → まわりの板が上下へ逃げる → 「とじる」の板が横につぶれて細い線 → 空のジャンルの色の板が横に広がる
+                    //   → J-POP の板（開いた形）に入れ替わって中身とまわりが出る → 0.3秒あとに黄色い枠。時間もジャンルを開くときとほぼ同じ（ずれは 0.05秒以内）
                     MenuSounds.Don();
                     list.StartDecide();
-                    afterBlink = CloseGenre;
+                    flipOpen = CloseGenreNow;
                     break;
 
                 case Kind.Random:
@@ -705,18 +709,17 @@ namespace TaikoSim.Scenes
             diffCursor = 2 + Array.IndexOf(PanelCourses, start);
         }
 
-        // 難易度の板を閉じて、曲の一覧へ(選んでいた曲の板は開いたまま、曲も流したまま)
+        // 難易度の板を閉じて、曲の一覧へ(曲は流したまま)
         private void CloseDifficulty()
         {
+            // 11/8 の TaikøNauts の録画：難易度の板は一瞬で消えて、選んでいた曲の板は閉じた形にもどる。
+            //   そこから 0.43秒で黄色い枠、0.45秒で開く（BarList.CollapseAfterDifficulty）。フェードはしない
             MenuSounds.Ka();
             options.CloseNow();
-            BeginReturn(() =>
-            {
-                diffOpen = false;
-                diffSong = null;
-                list.EndDecide();
-                list.OpenNow();
-            });
+            diffOpen = false;
+            diffSong = null;
+            list.EndDecide();
+            list.CollapseAfterDifficulty();
         }
 
         private void UpdateDifficulty()

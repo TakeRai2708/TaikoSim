@@ -47,10 +47,18 @@ namespace TaikoSim.UI
         public float OpenSeconds => Math.Max(0f, idle - ExpandDelay);
 
         // 黄色い枠が出ているか(止まってから0.33秒。板が開くより0.1秒早い)
-        public bool FrameShown => idle >= FrameDelay;
+        public bool FrameShown => idle >= frameDelay;
 
         // 黄色い枠が出てからの時間(出ていないときは 0)
-        public float FrameSeconds => Math.Max(0f, idle - FrameDelay);
+        public float FrameSeconds => Math.Max(0f, idle - frameDelay);
+
+        // 黄色い枠が出るまで(ふつうは FrameDelay。難易度から戻ったときだけ、板が開くのとほぼ同時)
+        private float frameDelay = FrameDelay;
+
+        // 難易度の板から戻ったとき（11/8 の TaikøNauts の録画 2026-11-08 03-14-18.mp4 の 135.48秒〜を1/60秒ずつ見た）
+        //   戻ると、難易度の板は一瞬で消えて、曲の一覧（選んでいた曲の板は閉じた形）になる。フェードはなし
+        //   → 0.43秒で黄色い枠 → 0.45秒から板が開く（ふつうにカーソルが止まったときより 0.1秒おそく、枠と開くのがほぼ同時）
+        public const float BackFrameSeconds = 0.43f, BackExpandSeconds = 0.45f;
 
         // pos に置き直す(動きのアニメなし。板は閉じる)
         public void Reset(int pos)
@@ -65,6 +73,15 @@ namespace TaikoSim.UI
         {
             idle = 0f;
             Expand = 0f;
+            frameDelay = FrameDelay;
+        }
+
+        // 難易度の板から戻ったときの閉じ方(上の BackFrameSeconds・BackExpandSeconds で枠が出て開く)
+        public void CollapseAfterDifficulty()
+        {
+            Collapse();
+            idle = ExpandDelay - BackExpandSeconds;
+            frameDelay = idle + BackFrameSeconds;
         }
 
         // 板を開いた状態にする(難易度の板から戻ったときなど)
@@ -72,6 +89,7 @@ namespace TaikoSim.UI
         {
             idle = ExpandDelay;
             Expand = 1f;
+            frameDelay = FrameDelay;
         }
 
         // 板は開いた形のまま、黄色い枠だけ 0.33秒(FrameDelay)あとに出す(ジャンルを決めて、曲の一覧に入れ替わったとき)
@@ -79,6 +97,7 @@ namespace TaikoSim.UI
         {
             idle = 0f;
             Expand = 1f;
+            frameDelay = FrameDelay;
         }
 
         // 決定した(枠の点滅を始める。まだ開いていなかったら、すぐ開く)
