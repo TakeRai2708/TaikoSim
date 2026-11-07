@@ -222,7 +222,7 @@ namespace TaikoSim.Graphics
         public static readonly string[] PlayAnims =
         {
             "normal", "10combo", "gogostart", "gogo", "clearin", "clear", "soulin", "10combomax",
-            "miss_loop", "failed_loop", "balloon_breaking", "balloon_broke", "balloon_miss",
+            "combocut", "miss_loop", "failed_down", "failed_loop", "balloon_breaking", "balloon_broke", "balloon_miss",
         };
         public static bool IsBalloonAnim(string anim) => anim.StartsWith("balloon_", StringComparison.Ordinal);
 

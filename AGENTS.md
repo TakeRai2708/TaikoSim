@@ -267,7 +267,7 @@ python dan.py         # dan dojo images (20 dan plates)
   The bars themselves show which genre you're in. The top-right "F3：検索" and "○曲" stay
 - When there are no songs, the folder path uses pale yellow (255, 236, 160) because light grey (`Gui.SubTextColor`) was unreadable
 
-### Don-chan / Katsu-chan (`Image/99.Common/Chara/`; `Graphics/CharaConfig.cs`, `Graphics/CharaAtlas.cs`)
+### Don-chan / Katsu-chan (`Image/99.Common/Chara/`; `Graphics/CharaConfig.cs`, `CharaCache.cs`, `CharaStream.cs`)
 In A-Style they look like **sideways taiko drums** (Don-chan = red face, light-blue body; Katsu-chan = the reverse).
 - Assets: `01.DonChan` / `02.KatsuChan`, **23 animations, 4456 frames each**. One frame is **820×599**; 435 MB total
 - `Config.json` contains **all** positions, scales, loop times (ms) and motion beat counts. Keys are camelCase
@@ -288,10 +288,12 @@ In A-Style they look like **sideways taiko drums** (Don-chan = red face, light-b
   - Position: the 820×599 frame's top-left at `ensoGameX/Y[0]` = (-83, -111), scale 0.81. **Checked on video b (11/5) at 26 s: mean pixel diff 2.3** (match)
   - Drawn after the background, before the lane (the lane's top border hides the feet, as in the video). Balloon motions at (213, -8) ×0.95, drawn after the balloon
   - One loop = `motionBeat` beats at the current BPM. `balloon_breaking` has no beat key → plays at the source 60 fps
-  - Loop choice (every frame, counter kept): balloon → `gogo` → misses (`failed_loop` at 6+ in a row, else `miss_loop`; a 良/可 ends it) → `clear` (norma or max) → `normal`
+  - Loop choice (every frame, counter kept): balloon → `failed_loop` (after a failed song end) → `gogo` → `miss_loop` (after a 不可; a 良/可 ends it) → `clear` (norma or max) → `normal`
   - One-shots (counter from 0, back to the loop at the end): every 10 combo outside GoGo `10combo` (`10combomax` when maxed),
     GoGo start `gogostart`, becoming clear `clearin`, becoming max `soulin`, balloon popped `balloon_broke` / ended unpopped (with hits) `balloon_miss`
-  - **`combocut` and `failed_down` are not used yet**: the docs don't say when they play (need a recording with misses)
+  - `combocut` / `failed_down` timing is not in the docs; decided with たけらい on 11/8 (unverified against a recording):
+    `combocut` when a combo of **10 or more** breaks (not during GoGo, like OpenTaiko's MissIn), then `miss_loop`;
+    `failed_down` when the song ends without clearing (dan: 「不合格」) → then `failed_loop` for good. `failed_down` has no beat key → plays at the source 60 fps (175 frames ≈ 2.9 s)
 - **The Simple skin has no Don-chan** (we can't redistribute the images; with no images nothing is drawn)
 
 ### Dan dojo (`Charts/Dan.cs`, `DanJson.cs`, `DanList.cs`)

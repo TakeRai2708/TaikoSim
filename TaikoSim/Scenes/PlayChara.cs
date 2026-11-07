@@ -15,18 +15,20 @@ namespace TaikoSim.Scenes
     //   ループのアニメの選び方（OpenTaiko の ReturnDefaultAnime と同じ順）
     //     ① 風船を叩いている途中 → balloon_breaking（風船の位置に出す）
     //     ② ゴーゴータイム       → gogo
-    //     ③ 不可が続いている     → 6回以上続いたら failed_loop、それより少なければ miss_loop
-    //                              （良か可を1つ出すと元に戻る）
-    //     ④ ノルマクリア（魂ゲージMAXもふくむ）→ clear
-    //     ⑤ それ以外             → normal
+    //     ③ 曲の終わりでクリア失敗になった → failed_loop（そのあとはずっとこれ）
+    //     ④ 不可のあと           → miss_loop（良か可を1つ出すと元に戻る）
+    //     ⑤ ノルマクリア（魂ゲージMAXもふくむ）→ clear
+    //     ⑥ それ以外             → normal
     //
     //   1回だけのアニメ（OpenTaiko で呼んでいるところと同じタイミング）
     //     ・10コンボごと（ゴーゴー中は出さない）→ 10combo、魂ゲージMAXなら 10combomax
     //     ・ゴーゴー開始               → gogostart
     //     ・ノルマクリアになった瞬間    → clearin、魂ゲージMAXになった瞬間 → soulin
     //     ・風船が割れた → balloon_broke、割れないで終わった → balloon_miss（どちらも風船の位置）
-    //
-    //   A-Style にある combocut と failed_down は、ドキュメントに「いつ出すか」が書いていないので、まだ使っていない。
+    //     ・10コンボ以上が不可で切れた → combocut（ゴーゴー中は出さない。OpenTaiko の MissIn と同じ）
+    //     ・曲の終わりでクリア失敗（段位は不合格）→ failed_down → そのまま failed_loop
+    //   combocut と failed_down は、TaikøNauts のドキュメントに「いつ出すか」が書いていない。
+    //   11/8 たけらいと相談して決めた（combocut＝コンボが切れたとき、failed_down＝演奏画面でクリア失敗になったとき）。
     //   Simple スキンにはどんちゃんがいないので、何も描かない。
     public sealed class PlayChara : IDisposable
     {
@@ -36,17 +38,17 @@ namespace TaikoSim.Scenes
         private string anime = "normal";
         private bool oneShot;            // 1回だけのアニメの途中
         private double counter;          // 0〜1 でアニメ1周
-        private float beat = 4f;         // アニメ1周の拍数（風船の割れている途中だけは秒）
-        private bool timeBased;          // 拍ではなく秒で進める（風船を叩いている途中）
+        private float beat = 4f;         // アニメ1周の拍数
+        private bool timeBased;          // 拍ではなく秒で進める（拍数の設定が無いアニメ：balloon_breaking・failed_down）
 
         // 状態
         private bool goGo;
         private bool cleared, maxed;
         private bool missing;            // 不可のあと、まだ良・可を出していない
-        private int missStreak;          // 続けて出した不可の数
+        private bool failed;             // 曲の終わりでクリア失敗になった
         private bool balloon;            // 風船を叩いている途中
 
-        private const int MissDownCount = 6;
+        private const int ComboCutFrom = 10;   // このコンボ以上が切れたら combocut を出す（たけらいの案 B）
 
         /// <summary>演奏画面に入るときに呼ぶ（焼けているアニメを読む）</summary>
         public void Load()
@@ -71,7 +73,7 @@ namespace TaikoSim.Scenes
             cleared = isClear;
             maxed = isMax;
             missing = false;
-            missStreak = 0;
+            failed = false;
             balloon = false;
             oneShot = false;
             counter = 0;
@@ -81,16 +83,16 @@ namespace TaikoSim.Scenes
 
         // ===== 演奏から呼ぶ =====
 
-        /// <summary>良・可・不可が出た（見逃しの不可もふくむ）。combo は足したあとの数</summary>
-        public void OnJudge(bool bad, int combo, bool noteInGoGo)
+        /// <summary>良・可・不可が出た（見逃しの不可もふくむ）。combo は足したあと、comboBefore は判定の前の数</summary>
+        public void OnJudge(bool bad, int combo, int comboBefore, bool noteInGoGo)
         {
             if (bad)
             {
-                missStreak++;
                 missing = true;
+                // 10コンボ以上が切れた：寝そべるアニメを1回（そのあと miss_loop）
+                if (comboBefore >= ComboCutFrom && !noteInGoGo && !failed && !balloon) Play("combocut");
                 return;
             }
-            missStreak = 0;
             missing = false;
 
             // 10コンボごと（OpenTaiko：ゴーゴー中の音符では出さない。同じアニメの途中なら最初からにしない）
@@ -124,6 +126,16 @@ namespace TaikoSim.Scenes
             }
         }
 
+        /// <summary>曲の終わりでクリア失敗になった（段位は不合格）</summary>
+        public void OnFailed()
+        {
+            if (failed) return;
+            failed = true;
+            balloon = false;
+            if (stream != null && stream.Has("failed_down")) Play("failed_down");
+            else ReturnDefault(true);
+        }
+
         /// <summary>風船が割れた（true）・割れずに終わった（false）</summary>
         public void OnBalloonEnd(bool popped)
         {
@@ -144,7 +156,7 @@ namespace TaikoSim.Scenes
             anime = anim;
             oneShot = isOneShot;
             if (resetCounter) counter = 0;
-            timeBased = anim == "balloon_breaking";
+            timeBased = anim is "balloon_breaking" or "failed_down";
             beat = BeatOf(anim);
         }
 
@@ -153,8 +165,9 @@ namespace TaikoSim.Scenes
         {
             string anim;
             if (balloon) anim = "balloon_breaking";
+            else if (failed) anim = "failed_loop";
             else if (goGo) anim = "gogo";
-            else if (missing) anim = missStreak >= MissDownCount ? "failed_loop" : "miss_loop";
+            else if (missing) anim = "miss_loop";
             else if (cleared || maxed) anim = "clear";
             else anim = "normal";
 
@@ -195,8 +208,9 @@ namespace TaikoSim.Scenes
 
             if (timeBased)
             {
-                // 風船を叩いている途中は BPM と関係なく、元の 60fps のまま回す（拍数の設定が無いので）
-                //   OpenTaiko は 0.2秒で1周だけど、OpenTaiko のキャラはコマが少ないので、A-Style の 39コマだと速すぎる
+                // 拍数の設定が無いアニメは BPM と関係なく、元の 60fps のまま回す
+                //   balloon_breaking：OpenTaiko は 0.2秒で1周だけど、OpenTaiko のキャラはコマが少ないので、A-Style の 39コマだと速すぎる
+                //   failed_down：175コマ → 約2.9秒
                 int source = Math.Max(1, stream.SourceFrameCount(anime));
                 counter += dt / (source / 60.0);
             }

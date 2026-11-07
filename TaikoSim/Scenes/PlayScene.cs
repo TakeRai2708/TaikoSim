@@ -801,6 +801,7 @@ namespace TaikoSim.Scenes
                 : okCount > 0 ? PlayResult.FullCombo
                 : PlayResult.DondaFullCombo;
             end.Start(result);
+            if (result == PlayResult.Failed) chara.OnFailed();   // どんちゃんが崩れてしょんぼり
 
             SoundConfig sound = ConfigManager.Sound;
             endSounds[(int)result]?.Play((float)sound.GetFinalVolume(sound.SeVolume));
@@ -898,6 +899,7 @@ namespace TaikoSim.Scenes
                 // 最後：合否を出す（ここで魂ゲージの条件も決まる）
                 DanResultType result = dan.Overall();
                 danEnd.Start(result);
+                if (result == DanResultType.Failed) chara.OnFailed();
                 bool passed = result is DanResultType.Red or DanResultType.Gold;
                 danCombo = !passed || dan.Total(DanExamType.Miss) > 0 ? null
                     : dan.Total(DanExamType.Good) > 0 ? PlayResult.FullCombo : PlayResult.DondaFullCombo;
@@ -1577,6 +1579,7 @@ namespace TaikoSim.Scenes
         private void SetJudge(int index, Judge judge, double? delta)
         {
             judges[index] = judge;
+            int comboBefore = combo;   // どんちゃん用：切れる前のコンボ
 
             switch (judge)
             {
@@ -1596,7 +1599,7 @@ namespace TaikoSim.Scenes
             stats.ApplyJudge(note, result, branches.GaugeBranch(note));
             branches.OnJudge(note, result);
             effects.SetCombo(combo);
-            chara.OnJudge(judge == Judge.Bad, combo, note.IsGoGo);
+            chara.OnJudge(judge == Judge.Bad, combo, comboBefore, note.IsGoGo);
 
             // コンボの声(50・100…コンボになった瞬間。OpenTaiko と同じく、切れてからまた届けばまた鳴る)
             if (judge != Judge.Bad && comboVoices.TryGetValue(combo, out SoundEffect? voice))
