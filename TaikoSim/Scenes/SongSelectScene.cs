@@ -29,6 +29,9 @@ namespace TaikoSim.Scenes
     // 選んでいた場所は static に覚えておくので、演奏から戻ってきても同じ曲を選んだまま
     public class SongSelectScene : Scene
     {
+        private readonly bool training;
+        public SongSelectScene(bool training = false) => this.training = training;
+
         // ===== 一覧の項目 =====
 
         private enum Special { None, Recent, Added, Favorites, Search }
@@ -663,7 +666,7 @@ namespace TaikoSim.Scenes
         public override void OnFilesDropped(string[] paths)
         {
             string? tja = paths.FirstOrDefault(PlayScene.IsTja);
-            if (tja != null) SceneManager.ChangeScene(new PlayScene(tja));
+            if (tja != null) SceneManager.ChangeScene(training ? new TrainingScene(tja) : new PlayScene(tja));
         }
 
         private void ToggleFavorite(SongEntry song)
@@ -825,7 +828,9 @@ namespace TaikoSim.Scenes
                 wait = SongLoading.WaitWithCharaSeconds;
             }
             // 曲の読み込み画面(虹色の幕)をはさんで演奏へ。読み込みは幕が閉じてから
-            SceneManager.ToPlayWithLoading(new PlayScene(diffSong.TjaPath, type, returnToSelect: true), diffSong.Title, diffSong.Subtitle, wait);
+            Scene target = training ? new TrainingScene(diffSong.TjaPath, type)
+                : new PlayScene(diffSong.TjaPath, type, returnToSelect: true);
+            SceneManager.ToPlayWithLoading(target, diffSong.Title, diffSong.Subtitle, wait);
         }
 
         // ===== 検索 =====
@@ -1058,6 +1063,11 @@ namespace TaikoSim.Scenes
 
         private void DrawHeader()
         {
+            if (training)
+            {
+                Raylib.DrawRectangle(1490, 120, 370, 52, new Color(18, 25, 38, 235));
+                Text("特訓モード", 1530, 128, 28, Color.SkyBlue);
+            }
             // 左上の「演奏ゲーム」「ジャンルをえらぶ」は出さない(スキンの画像とかぶって、じゃまになる)。
             // どのジャンルにいるかは一覧の板そのもので分かるので、文字は要らない
             if (searchFocused || searchText.Length > 0 && openSpecial == Special.Search && !diffOpen) DrawSearchBox();

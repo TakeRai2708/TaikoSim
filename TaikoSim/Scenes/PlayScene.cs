@@ -13,7 +13,7 @@ namespace TaikoSim.Scenes
 {
     // テスト用：.tja の譜面を読み込んで、曲に合わせて音符を流す画面
     // ドン・カッ(大音符も片手でOK)、連打・風船に対応。選曲オプションからオート演奏も選べる。
-    public class PlayScene : Scene
+    public partial class PlayScene : Scene
     {
         // ===== 配置(1920×1080) ※動画とスキン画像の大きさから測った値 =====
         private const float LaneX = 494;          // レーンの左端
@@ -356,8 +356,9 @@ namespace TaikoSim.Scenes
         // 演奏中は設定パネルを開かない
         public override bool CanOpenSettings => false;
 
-        public PlayScene(string path, CourseType? courseType = null, bool returnToSelect = false)
+        public PlayScene(string path, CourseType? courseType = null, bool returnToSelect = false, bool training = false)
         {
+            isTraining = training;
             this.path = path;
             this.courseType = courseType;
             this.returnToSelect = returnToSelect;
@@ -418,6 +419,7 @@ namespace TaikoSim.Scenes
             PrepareJudge();
             chara.Load(IsDan);
             Restart();
+            if (isTraining && course != null) trainingTimeline = new TrainingTimeline(course);
 
             // 段位：1曲目も、閉じた扉から始めて、開くと曲名を出す（本家・OpenTaiko と同じ）
             if (dan != null && SkinManager.CurrentPath is string skinPath)
@@ -676,6 +678,7 @@ namespace TaikoSim.Scenes
 
         public override void Update(float dt)
         {
+            if (isTraining && UpdateTrainingControls(dt)) return;
             danPanel?.Update(dt);
             danShutter?.Update(dt);
             danBackgroundTime += dt;
@@ -683,7 +686,11 @@ namespace TaikoSim.Scenes
             if (InputManager.IsSystemPressed(SystemAction.QuickRestart))
             {
                 if (dan != null) RetryDan();
-                else Restart();
+                else
+                {
+                    Restart();
+                    if (isTraining) { trainingPaused = false; trainingCountdown = 0; }
+                }
                 return;
             }
 
@@ -692,7 +699,7 @@ namespace TaikoSim.Scenes
 
             // 元の時計と補正はそのまま。診断中だけ補正量とフレーム時間を調べる。
             //   段位でも時間は止めない（OpenTaiko と同じ。曲と曲のあいだは OnDanSwap で次の曲の時計に付けかえる）
-            nowMs += dt * 1000.0;
+            nowMs += dt * 1000.0 * PlaybackRate;
             double beforeSync = nowMs;
             UpdateSongSync();
             UpdateDiagnosticsRecording(); // デバッグ記録を途中で ON・OFF しても、すぐ合わせる
@@ -718,8 +725,9 @@ namespace TaikoSim.Scenes
             if (course != null) effects.SetGoGo(goGoNow);
             UpdateChara(dt, goGoNow);
             background.Update(dt, stats.IsClear);
-            if (dan == null) scoreRank.Update(dt, stats);   // 段位は粋・雅・極を出さない（スコアが曲をまたいで続くため）
+            if (dan == null && !isTraining) scoreRank.Update(dt, stats);   // 段位は粋・雅・極を出さない（スコアが曲をまたいで続くため）
             if (dan != null) UpdateDanEnd(dt);
+            else if (isTraining) UpdateTrainingEnd();
             else UpdateEnd(dt);
         }
 
@@ -1085,6 +1093,7 @@ namespace TaikoSim.Scenes
                     SaveInputTimingSettings(settings.LimitDrumHitsTo60PerSecond
                         ? "60打/秒制限：ON" : "60打/秒制限：OFF");
                 }
+                else if (isTraining && IsTrainingKey(pressed)) { }
                 else if (!autoPlay && TryGetDrumPart(pressed, out DrumPart part))
                 {
                     long collectedAt = Stopwatch.GetTimestamp();
@@ -1092,11 +1101,11 @@ namespace TaikoSim.Scenes
                     long pressedAt = native?.CapturedAt ?? collectedAt;
                     double elapsedMs = Stopwatch.GetElapsedTime(pressedAt, frameClockAt).TotalMilliseconds;
                     // 同じフレームのうち少し後に採れた時刻は未来にしない。
-                    double eventGameMs = gameMs - Math.Max(0, elapsedMs);
+                    double eventGameMs = gameMs - Math.Max(0, elapsedMs) * PlaybackRate;
                     // 音符に対する入力時刻を計算してから、必要なら60Hzへ量子化する。
                     inputScheduler.Enqueue(new DrumInputEvent(part, pressed, eventGameMs,
                         collectedAt, native), ConfigManager.Game.InputTiming,
-                        ConfigManager.Game.LimitDrumHitsTo60PerSecond);
+                        ConfigManager.Game.LimitDrumHitsTo60PerSecond, PlaybackRate);
                 }
                 key = Raylib.GetKeyPressed();
             }
@@ -1652,7 +1661,7 @@ namespace TaikoSim.Scenes
                 dan.Quit = true;
                 SceneManager.Simple(new DanSelectScene());
             }
-            else if (returnToSelect) SceneManager.Simple(new SongSelectScene());
+            else if (returnToSelect) SceneManager.Simple(new SongSelectScene(training: isTraining));
             else SceneManager.Simple(new ModeSelectScene());
         }
 
@@ -1663,13 +1672,14 @@ namespace TaikoSim.Scenes
             if (tja == null) return;
 
             StopSong(); // 念のため、すぐ止める
-            SceneManager.ChangeScene(new PlayScene(tja));
+            SceneManager.ChangeScene(isTraining ? new TrainingScene(tja) : new PlayScene(tja));
         }
 
         // ===== 描画 =====
 
         public override void Draw()
         {
+            if (isTraining) { DrawTraining(); return; }
             // 段位道場のときは、文字の縁を本家に合わせて細くする（MenuDraw.DanOutlineRatio）
             using MenuDraw.OutlineRatioScope outlineScope = dan != null ? MenuDraw.UseOutlineRatio(MenuDraw.DanOutlineRatio) : default;
             Raylib.ClearBackground(new Color(24, 26, 36, 255));

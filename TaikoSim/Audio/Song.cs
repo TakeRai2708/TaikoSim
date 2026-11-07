@@ -15,6 +15,8 @@ namespace TaikoSim.Audio
     {
         // BASSが曲を区別するための番号(0 なら読み込めていない)
         private int handle;
+        private readonly double originalFrequency;
+        private double playbackRate = 1.0;
 
         // ミキサーに入れて鳴らしているか(読み込んだときに決まる)
         private readonly bool inMixer;
@@ -29,6 +31,8 @@ namespace TaikoSim.Audio
         {
             this.handle = handle;
             this.inMixer = inMixer;
+            Bass.ChannelGetAttribute(handle, ChannelAttribute.Frequency, out float frequency);
+            originalFrequency = frequency;
             LengthMs = Bass.ChannelBytes2Seconds(handle, Bass.ChannelGetLength(handle)) * 1000.0;
         }
 
@@ -106,7 +110,7 @@ namespace TaikoSim.Audio
                 if (!inMixer) return Bass.ChannelBytes2Seconds(handle, Bass.ChannelGetPosition(handle)) * 1000.0;
 
                 double mixedMs = Bass.ChannelBytes2Seconds(handle, BassMix.ChannelGetPosition(handle)) * 1000.0;
-                return mixerPlaying ? mixedMs - AudioManager.OutputLatencyMs : mixedMs;
+                return mixerPlaying ? mixedMs - AudioManager.OutputLatencyMs * playbackRate : mixedMs;
             }
         }
 
@@ -122,6 +126,16 @@ namespace TaikoSim.Audio
                 double mixedMs = Bass.ChannelBytes2Seconds(handle, BassMix.ChannelGetPosition(handle)) * 1000.0;
                 return mixerPlaying && mixedMs < LengthMs;
             }
+        }
+
+        // 特訓用。再生周波数を変えるので、速度と一緒に音程も下がる。
+        public bool SetPlaybackRate(double rate)
+        {
+            rate = Math.Clamp(rate, 0.5, 1.0);
+            if (handle == 0 || originalFrequency <= 0) return false;
+            if (!Bass.ChannelSetAttribute(handle, ChannelAttribute.Frequency, originalFrequency * rate)) return false;
+            playbackRate = rate;
+            return true;
         }
 
         // 音量(0〜1)。ミキサーの中の曲も、この設定で混ぜてくれる

@@ -11,7 +11,7 @@ namespace TaikoSim.Scenes
 {
     // モード選択(起動したら最初に出る画面。前のホーム画面のかわり)
     //   演奏ゲーム → 選曲画面
-    //   段位道場 → 段位選択画面／特訓モード → まだ無い(準備中)
+    //   段位道場 → 段位選択画面／特訓モード → 共通の選曲から専用の演奏画面
     //   設定 → 設定パネル、クレジット → クレジット画面
     // 見た目と動きは選曲画面と同じ(UI/BarList。TaikøNauts の選曲画面を測った値)
     //   ・板は斜めに並ぶ。先頭と末尾で止まる
@@ -27,7 +27,7 @@ namespace TaikoSim.Scenes
             new("演奏ゲーム", "すきな曲・むずかしさをえらんであそぶ", new Color(225, 70, 80, 255), true),
             // 説明は TaikøNauts と同じ3行（10/31 の動画 2026-10-31_01-44-20.mp4 の16秒あたり）
             new("段位道場", "3曲連続して演奏しながら、\nお題の合格を目指そう!\n合格すると腕前が認定されるよ!", new Color(70, 90, 170, 255), true),
-            new("特訓モード", "準備中", new Color(60, 150, 110, 255), false),
+            new("特訓モード", "小節をえらんで、ゆっくり練習する", new Color(60, 150, 110, 255), true),
             new("設定", "音・キー・画面・スキンなどの設定", new Color(90, 100, 125, 255), true),
             new("クレジット", "使っているソフト・フォント・ライセンス", new Color(60, 130, 150, 255), true),
         };
@@ -238,6 +238,7 @@ namespace TaikoSim.Scenes
             switch (item.Title)
             {
                 case "演奏ゲーム": SceneManager.ToSongSelectFromMode(new SongSelectScene()); break;
+                case "特訓モード": SceneManager.ToSongSelectFromMode(new SongSelectScene(training: true)); break;
                 case "段位道場": SceneManager.ToDanSelectFromMode(new DanSelectScene(intro: true)); break;
                 case "設定": Game.OpenSettings(); break;
                 case "クレジット": SceneManager.Simple(new CreditsScene()); break;

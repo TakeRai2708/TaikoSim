@@ -796,3 +796,11 @@ Order:
 - Code comments are in Japanese, in plain, easy words (same style as the existing code)
 - Never commit other people's skins or song files
 - Raylib scissor mode can't be nested — re-scissor per element (see `DanShutter.Clip`)
+
+
+### Training mode (Codex local branch, 2026-11-08)
+- Shared song/difficulty selection; dedicated TrainingScene drawing, sharing PlayScene judging.
+- Space pauses/resumes (1 second preparation at the frozen position); paused Left/Right moves one bar. Up/Down changes speed by 0.1, clamped 0.5–1.0. Frequency-based playback also lowers pitch.
+- Seeking resets session counts, rolls, balloons and input queues; earlier notes do not count as misses. Past branches are reevaluated with zero stats. Bar navigation uses common/Normal branch bar times, including invisible bars.
+- Song end pauses instead of saving scores or opening results. Esc returns to training song selection.
+- Linux source compile: 0 errors (existing dependency/platform warnings); 36 parser/navigation/scheduler checks passed. Actual Windows visuals, audio seeking/sync and Native AOT publish remain unverified. Not pushed or merged.
