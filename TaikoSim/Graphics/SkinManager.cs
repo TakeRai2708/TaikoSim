@@ -197,6 +197,8 @@ namespace TaikoSim.Graphics
             PlayBackground.ReloadSkin();
 
             Generation++;
+            // どんちゃんのコマを裏で焼きはじめる（初回だけ時間がかかる。焼けたものから演奏画面に出る）
+            CharaBaker.Start(SystemSkin ? null : CurrentPath, CurrentName);
             Console.WriteLine($"[Skin] {CurrentName} を使います");
             DebugLog.Event("スキン", $"{CurrentName} を読み直した（画像 {TextureCount}枚）",
                 System.Diagnostics.Stopwatch.GetElapsedTime(started).TotalMilliseconds);

@@ -276,14 +276,22 @@ In A-Style they look like **sideways taiko drums** (Don-chan = red face, light-b
   - Beats: `normalMotionBeat 4` `combo10MotionBeat 2` `goGoMotionMotionBeat 4` (**note the doubled "Motion" in the key name**)
   - Position arrays are [1P, 2P]. TaikoSim is single player, so [0] is used
 - **Loading them as-is doesn't fit in memory**: 1.87 MB per frame → `normal` (471 frames) alone is 883 MB; the whole play screen is 4.7 GB
-- So on first use we bake atlases into `Cache/Chara/<skin>/<chara>/` (`CharaAtlas.BuildIfNeeded`)
-  - ① Trim margins (actual content is about 346×284 of 820×599. **Scan all frames and take the union**, or parts get cut)
-  - ② Downscale by the on-screen scale (play 0.81)   ③ Drop every other frame (≈30 fps; unnoticeable for a mascot)
-  - → `normal` 883 MB → **71 MB**, `gogo` 896 MB → 102 MB
-  - One atlas page is **at most 4096×4096** (modern GPUs allow 16384, older ones 4096; stay safe). Overflow goes to more pages
-  - `Image` operations (LoadImage/ImageCrop/ImageResize/ImageDraw) are CPU-only and **can run on a worker thread**.
-    Only texture creation (`LoadTextureFromImage`/`LoadTexture`) must be on the main thread
-  - Verified: atlas frame 5 = original frame 10 (decimation 2), pixel difference 0.00
+- Even trimmed + scaled to 0.81 + every other frame, the 13 play animations are **627 MB of GPU memory** → too much. So (11/7):
+  - `Graphics/CharaCache.cs` `CharaBaker`: after every skin (re)load, a **background thread bakes** each animation into
+    `Cache/Chara/<skin>/<chara>/<anim>/<n>.png` + `<anim>.json` (trim to the union of all kept frames' alpha box, scale, keep every 2nd frame).
+    First run takes about a minute; animations become usable one by one (`CharaBaker.IsReady`). Meta is written last, so an interrupted bake is redone
+  - `Graphics/CharaStream.cs`: **one texture per animation**. A worker thread decodes the PNGs for the current frame and the next 6
+    (plus the first 4 frames of every animation, kept permanently so one-shots start instantly); the main thread only `UpdateTexture`s (≈300 KB).
+    A frame that isn't decoded yet keeps showing the previous one
+  - `Image` operations (LoadImage/ImageCrop/ImageResize/ExportImage/LoadImageFromMemory) are CPU-only and run on worker threads. Textures only on the main thread
+- Play screen (`Scenes/PlayChara.cs`, 11/7) — port of OpenTaiko `CActImplCharacter` with TaikøNauts motion names:
+  - Position: the 820×599 frame's top-left at `ensoGameX/Y[0]` = (-83, -111), scale 0.81. **Checked on video b (11/5) at 26 s: mean pixel diff 2.3** (match)
+  - Drawn after the background, before the lane (the lane's top border hides the feet, as in the video). Balloon motions at (213, -8) ×0.95, drawn after the balloon
+  - One loop = `motionBeat` beats at the current BPM. `balloon_breaking` has no beat key → plays at the source 60 fps
+  - Loop choice (every frame, counter kept): balloon → `gogo` → misses (`failed_loop` at 6+ in a row, else `miss_loop`; a 良/可 ends it) → `clear` (norma or max) → `normal`
+  - One-shots (counter from 0, back to the loop at the end): every 10 combo outside GoGo `10combo` (`10combomax` when maxed),
+    GoGo start `gogostart`, becoming clear `clearin`, becoming max `soulin`, balloon popped `balloon_broke` / ended unpopped (with hits) `balloon_miss`
+  - **`combocut` and `failed_down` are not used yet**: the docs don't say when they play (need a recording with misses)
 - **The Simple skin has no Don-chan** (we can't redistribute the images; with no images nothing is drawn)
 
 ### Dan dojo (`Charts/Dan.cs`, `DanJson.cs`, `DanList.cs`)

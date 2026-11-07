@@ -85,6 +85,7 @@ namespace TaikoSim
             WindowsIme.Shutdown(); // ウィンドウを閉じる前に、横取りしていたメッセージを元に戻す
             SceneManager.Current?.Exit(); // 曲もここで片付く
             AudioManager.Free();
+            CharaBaker.Stop();
             SkinManager.Unload();
             FontManager.Unload();
             Screen.Unload();

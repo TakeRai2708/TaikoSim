@@ -100,6 +100,8 @@ namespace TaikoSim.Scenes
         private readonly PlayStats stats = new();
         private readonly PlayHUD hud = new();
         private readonly PlayBackground background = new();
+        private readonly PlayChara chara = new();   // 左上のどんちゃん（A-Style だけ）
+        private int charaBalloon = -1;              // どんちゃん用：叩いている途中の風船（割れた・終わったを見る）
 
         // 譜面分岐(決まり)と、分岐したときのレーンの色
         private readonly BranchTracker branches = new();
@@ -412,6 +414,7 @@ namespace TaikoSim.Scenes
             LoadSong();
             LoadHitSounds();
             PrepareJudge();
+            chara.Load();
             Restart();
 
             // 段位：1曲目も、閉じた扉から始めて、開くと曲名を出す（本家・OpenTaiko と同じ）
@@ -465,6 +468,7 @@ namespace TaikoSim.Scenes
             // 演奏画面から離れたら必ずWindowsフックを解除する。
             windowsInput.Dispose();
             StopSong();
+            chara.Dispose();
             danPanel?.Unload();
             danShutter?.Unload();
             foreach (Aup2 anime in danBackground) anime.Unload();
@@ -662,6 +666,10 @@ namespace TaikoSim.Scenes
             foreach (SoundEffect? sound in endSounds) sound?.Stop();
             scoreRank.Reset();
             ApplyMusicVolume(1f);
+
+            // どんちゃん（段位の次の曲はゲージが続くので、今のゲージの状態から）
+            chara.Reset(stats.IsClear, stats.IsMax);
+            charaBalloon = -1;
         }
 
         public override void Update(float dt)
@@ -704,12 +712,29 @@ namespace TaikoSim.Scenes
 
             // ゴーゴーの演出は見た目なので、音符と同じ時間(譜面オフセット込み)で見る
             // 分岐のある譜面は、今の分岐のゴーゴーだけを見る
-            if (course != null) effects.SetGoGo(course.IsGoGoAt(nowMs - ViewAudioOffsetMs - ConfigManager.Game.ChartOffsetMs,
-                branches.IsActive));
+            bool goGoNow = course != null && course.IsGoGoAt(nowMs - ViewAudioOffsetMs - ConfigManager.Game.ChartOffsetMs, branches.IsActive);
+            if (course != null) effects.SetGoGo(goGoNow);
+            UpdateChara(dt, goGoNow);
             background.Update(dt, stats.IsClear);
             if (dan == null) scoreRank.Update(dt, stats);   // 段位は粋・雅・極を出さない（スコアが曲をまたいで続くため）
             if (dan != null) UpdateDanEnd(dt);
             else UpdateEnd(dt);
+        }
+
+        // どんちゃん：ゴーゴー・ゲージ・風船の様子を渡して、BPM に合わせて進める
+        private void UpdateChara(float dt, bool goGoNow)
+        {
+            if (chart == null || course == null) return;
+            int hitting = FindHittingBalloon(nowMs - AudioOffsetMs);
+            if (charaBalloon >= 0 && hitting != charaBalloon)
+            {
+                // 叩いていた風船が終わった：割れたか、割れないまま時間が過ぎたか
+                bool popped = charaBalloon < balloonPopped.Length && balloonPopped[charaBalloon];
+                chara.OnBalloonEnd(popped);
+            }
+            charaBalloon = hitting;
+            chara.SetState(goGoNow, stats.IsClear, stats.IsMax, hitting >= 0);
+            chara.Update(dt, GetCurrentBpm(chart, course));
         }
 
         // ===== 演奏の終わり =====
@@ -1571,6 +1596,7 @@ namespace TaikoSim.Scenes
             stats.ApplyJudge(note, result, branches.GaugeBranch(note));
             branches.OnJudge(note, result);
             effects.SetCombo(combo);
+            chara.OnJudge(judge == Judge.Bad, combo, note.IsGoGo);
 
             // コンボの声(50・100…コンボになった瞬間。OpenTaiko と同じく、切れてからまた届けばまた鳴る)
             if (judge != Judge.Bad && comboVoices.TryGetValue(combo, out SoundEffect? voice))
@@ -1665,6 +1691,7 @@ namespace TaikoSim.Scenes
                     foreach (Aup2 anime in danBackground) anime.Draw(anime.LoopedFrameAt(danBackgroundTime));
                 else background.Draw();
             }
+            chara.DrawNormal();   // どんちゃん（背景の上・レーンの下。足がレーンの枠に少し隠れる）
             // 段位のときは、下半分を条件パネルにする(下の背景・ダンサーの上に描く)
             if (dan != null && danPanel != null)
             {
@@ -1714,6 +1741,7 @@ namespace TaikoSim.Scenes
 
             // 叩いている途中の風船(ふくらむ絵。音符の絵の上に描く)
             DrawBalloonAnime(gameMs);
+            chara.DrawBalloon();   // 風船を叩いている・割れたときのどんちゃん（風船の上）
 
             // 音合わせのガイド(音符より手前、左のパネルより後ろ)
             if (testView > 0) DrawGuides(chart, course, viewMs);
