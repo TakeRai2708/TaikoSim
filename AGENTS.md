@@ -99,6 +99,11 @@ This file (AGENTS.md) is where we record **values we actually measured** from vi
 - **Not yet verified**: whether the Raylib-cs 8.1.0 and ManagedBass NuGet packages work under AOT (たけらい must publish and check on his PC).
   If publish emits IL warnings or fails, those library types may need to be preserved with `[DynamicDependency]` etc.
 
+### KeyProbe (Debug builds only, 11/8)
+- `Diagnostics/KeyProbe.cs` writes `Logs/KeyProbe_<date>_<time>.txt` next to the exe: Windows key/char/focus messages seen by a WH_GETMESSAGE hook on the main thread,
+  Raylib `IsKeyDown` changes for DFJK / ERUI / Enter / Esc / Space / arrows, and focus / foreground-window / fullscreen changes.
+- Added because keys sent by Claude's computer use reached TaikøNauts but not TaikoSim; the log shows where they stop
+
 ### Debug log (CSV) — for investigating slowness, input, audio drift
 - Turn on via Settings "一般 → デバッグ → デバッグ記録（CSV）" or the song-select option 「デバッグ記録(CSV)」
 - While on, three CSVs are written to `Logs/Debug_<date>_<time>/` (on a background thread so the game doesn't stall; the 10 newest folders are kept)

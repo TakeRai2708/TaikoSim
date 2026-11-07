@@ -55,6 +55,7 @@ namespace TaikoSim
             FontManager.Init();
             AudioManager.Init();          // 音の準備(bass.dll が無くても落ちない)
             WindowsIme.Init();            // 日本語入力の準備(検索の箱の中に変換中の文字を出すため)
+            KeyProbe.Start();             // Debug ビルドだけ：キーがどこまで届いているかを Logs/KeyProbe_*.txt に書く(11/8 の調べもの)
 
             // デバッグ記録(設定で ON のときだけ記録する)に、数を教える係を渡す
             DebugLog.FontPageCounter = () => FontManager.TotalPageCount;
@@ -72,6 +73,7 @@ namespace TaikoSim
                 float dt = Raylib.GetFrameTime(); // 前のフレームからの経過時間(秒)
                 MeasureFrame(dt);
 
+                KeyProbe.Update();
                 Screen.ApplyIfRequested(); // 設定でウィンドウの大きさなどが変わっていたら反映
                 SceneManager.Update(dt);   // 画面の切り替えの、暗くする・明るくする
                 SceneManager.ApplyChange();
@@ -86,6 +88,7 @@ namespace TaikoSim
             SceneManager.Current?.Exit(); // 曲もここで片付く
             AudioManager.Free();
             CharaBaker.Stop();
+            KeyProbe.Stop();
             SkinManager.Unload();
             FontManager.Unload();
             Screen.Unload();
