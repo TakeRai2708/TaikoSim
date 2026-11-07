@@ -778,6 +778,8 @@ Order:
   - 「とじる」 → genre list: the same flip animation as opening a genre (timings within 0.05 s) → `flipOpen = CloseGenreNow`
   - Song select → mode select (Esc): 0.5 s out, ~0.77 s black, then in — matches `ToModeFromSongSelect`
   - Esc inside a genre still uses the old 0.18+0.18 s crossfade (not recorded)
+  - Checked on TaikoSim itself (11/8 `2026-11-08 04-40-58.mp4`): difficulty → song matches (frame/open 0.45–0.53 s after the switch)
+  - 「とじる」/「ランダム」 keep the open genre's background (TaikoSim used to switch to background 0 = rainbow). During the 「とじる」 flip the bar that widens back from the thin line is the destination genre's color (TaikøNauts showed J-POP's light blue)
 - Phase 2 of A-Style song select: search, options panel, Oni→Ura transition animation (`Oni_Transition.png`), personal best, crowns
 - Older leftovers: logs for the exclusive-fullscreen crash, checking skin coordinates
 

@@ -91,6 +91,7 @@ namespace TaikoSim.Scenes
         private float flipTime = -1f;      // めくれ始めてからの時間(-1 ならめくっていない)
         private Action? flipOpen;          // 0.70秒で開くジャンル
         private bool flipOpened;
+        private bool flipFromBack;         // 「とじる」でめくっている(細い線から広がるときは、戻り先のジャンルの色の板にする)
         private float uraClock;                        // 板が開いてからの時間(おにと裏おにの札を入れ替えるのに使う)
         private Color backColor = new Color(30, 40, 70, 255);
 
@@ -462,6 +463,7 @@ namespace TaikoSim.Scenes
                 {
                     flipTime = -1f;
                     flipOpen = null;
+                    flipFromBack = false;
                 }
                 return;
             }
@@ -556,6 +558,7 @@ namespace TaikoSim.Scenes
                     MenuSounds.Don();
                     list.StartDecide();
                     // 点滅 → 白 → ポンッ → めくれる → 曲の一覧(Update の flipTime で進める)
+                    flipFromBack = false;
                     flipOpen = () =>
                     {
                         // 曲をえらんでいるときに、ほかのジャンルを決定したら、そのジャンルに開き直す
@@ -572,6 +575,7 @@ namespace TaikoSim.Scenes
                     MenuSounds.Don();
                     list.StartDecide();
                     flipOpen = CloseGenreNow;
+                    flipFromBack = true;
                     break;
 
                 case Kind.Random:
@@ -916,6 +920,9 @@ namespace TaikoSim.Scenes
         private int StarsOf(CourseType type) => Math.Clamp(LevelOf(type), 0, 10);
 
         // 板の番号(-1：決まらない)
+        // 開いているジャンルの板（ジャンルの一覧の genrePos の板）
+        private Item? GenreItemOpen => genres.Count > 0 ? genres[Mod(genrePos, genres.Count)] : null;
+
         private static int BarType(Item item)
         {
             if (item.Kind == Kind.Genre && item.Category == null)
@@ -975,6 +982,10 @@ namespace TaikoSim.Scenes
         {
             bgScroll = (bgScroll + BgScrollSpeed * dt) % 3840f; // 960 の倍数で戻す(数が大きくなりすぎないように)
             Item? item = diffOpen ? diffItem : CurrentItem;
+            // 「とじる」「ランダム」には自分の背景が無いので、開いているジャンルの背景のまま
+            //   （11/8 の TaikøNauts の録画：「とじる」にカーソルを合わせても背景は J-POP の水色のままだった。
+            //    前は番号0（虹色）の背景に切りかわっていた）
+            if (item?.Kind is Kind.Back or Kind.Random && inSongs && GenreItemOpen is Item open) item = open;
             int target = BackgroundType(item);
             if (target != bgShown)
             {
@@ -1103,7 +1114,9 @@ namespace TaikoSim.Scenes
                     // めくれている間：枠は出さない。板は真ん中を中心に大きく・細くする。中身はだんだん消す・出す
                     Rectangle box = new Rectangle(sel.X + sel.Width * (1f - flip.ScaleX) / 2f, sel.Y + sel.Height * (1f - flip.ScaleY) / 2f,
                         sel.Width * flip.ScaleX, sel.Height * flip.ScaleY);
-                    DrawBar(selectedItem, box, list.Expand, alpha, framed: !flipOpened || list.FrameShown, contentAlpha: flip.Content);
+                    // 「とじる」：細い線から広がるところは、戻り先のジャンルの色の空の板（11/8 の TaikøNauts の録画では J-POP の水色だった）
+                    Item flipItem = flipFromBack && !flipOpened && flipTime >= FlipThinEnd && GenreItemOpen is Item back ? back : selectedItem;
+                    DrawBar(flipItem, box, list.Expand, alpha, framed: !flipOpened || list.FrameShown, contentAlpha: flip.Content);
                     if (selectedItem.Kind == Kind.Genre && !flipOpened) DrawGenrePop(selectedItem, sel, alpha * flip.Content, force: true);
                     return;
                 }
