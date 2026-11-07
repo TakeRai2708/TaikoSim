@@ -394,7 +394,7 @@ namespace TaikoSim.Scenes
                     DrawCourseShifted(current, introOffset + slideDirection * SlideDistance * (1f - EaseOut(into)));
                 }
             }
-            DrawFooter();
+            // 下の操作説明と、右下のカテゴリ名は出さない（11/7 たけらい「いらない」）
 
             if (confirming != null)
             {
@@ -523,8 +523,8 @@ namespace TaikoSim.Scenes
             Raylib.DrawRectangleRoundedLinesEx(area, round, 8, selected ? 4f : 2f,
                 selected ? Color.White : Raylib.ColorBrightness(fill, -0.5f));
 
-            // 段位名を縦書き（1文字ずつ下に並べる）
-            string name = course.Title;
+            // 段位名を縦書き（1文字ずつ下に並べる。枠の場所で決まった名前）
+            string name = DanSelectAStyle.SlotName(course.DanIndex, course.Title);
             float charSize = Math.Min(30f, (area.Height - 24f) / Math.Max(1, name.Length));
             float cy = area.Y + (area.Height - charSize * name.Length) / 2f;
             Color text = usable ? Color.White : new Color(205, 205, 215, 255);
@@ -774,22 +774,6 @@ namespace TaikoSim.Scenes
             }
         }
 
-        private void DrawFooter()
-        {
-            string hint = confirming != null
-                ? "カッ・←→：えらぶ　ドン・Enter：決定　Esc：やめる"
-                : Categories.Count > 1
-                    ? "カッ・←→：えらぶ　↑↓：カテゴリ　ドン・Enter：決定　Esc：モード選択へ　F2：読み込み直す"
-                    : "カッ・←→：えらぶ　ドン・Enter：決定　Esc：モード選択へ　F2：読み込み直す";
-            var measured = Measure(hint, 24);
-            Raylib.DrawRectangleRounded(new Rectangle(28, 1023, measured.X + 32, measured.Y + 14), 0.5f, 8, new Color(0, 0, 0, 150));
-            Text(hint, 44, 1030, 24, new Color(220, 224, 236, 255));
-
-            if (Category != null && Categories.Count > 1)
-                Text($"{Category.Title}（{categoryCursor + 1}/{Categories.Count}）", Screen.Width - 360f, 1030f, 24,
-                    new Color(220, 224, 236, 255));
-        }
-
         private static void DrawBanner(string text)
         {
             float width = Measure(text, 26).X;
@@ -805,7 +789,6 @@ namespace TaikoSim.Scenes
             Text("段位をまとめるフォルダに dan.def（中に #TITLE:名前）を置き、", 160, 540, 28, Color.White);
             Text("その下の段位ごとのフォルダに dan.json と譜面・音源を入れます。", 160, 582, 28, Color.White);
             Text("入れたら F2 で読み込み直してください。", 160, 640, 28, Color.White);
-            DrawFooter();
         }
 
         private Texture2D? Plate(DanCourse course)

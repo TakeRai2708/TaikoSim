@@ -162,7 +162,10 @@ namespace TaikoSim.Scenes
 
         public void DrawPanel(Course course, bool dan = false)
         {
-            if (!dan || !SkinManager.Draw(DanScoreBackground, 0, 276)) SkinManager.Draw(ScoreBackground, 0, 276);
+            // 段位は段位用のパネルの絵（08.DanGame）。スコアのうしろの暗い板（Background_Score）はどちらでも上に重ねる
+            //   11/7 たけらい「スコアのバックグラウンドがない」：段位用の絵には板が入っていなかった（本家の六段の動画には (0,284)〜(303,339) にある）
+            if (dan) SkinManager.Draw(DanScoreBackground, 0, 276);
+            SkinManager.Draw(ScoreBackground, 0, 276);
             // 7桁まで元の大きさ。桁が増えても太鼓やパネルの外へはみ出さない。
             float scale = Math.Min(1f, 7f / scoreText.Length);
             float bounce = 0.15f * MathF.Sin(MathF.PI * scoreBounceElapsed / ScoreBounceSeconds);

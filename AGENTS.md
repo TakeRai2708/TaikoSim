@@ -442,6 +442,8 @@ Positions found by template-matching the images onto frames 34 s (初段) and 50
   Three buttons: wrench (play options), 挑戦する, 挑戦しない; centers (613.5 / 858.5 / 1196.5, 581.5).
   Cursor `Select_Effect.png` (seven 350×150: large = yellow frame / glow / white frame / white fill; small = yellow frame / glow / white frame). Appearance: dims over 0.2 s → box from 0.75× over 0.13 s → buttons 0.2 s later
 - Plate area: `PlateX 145, PlateY 205, W 230, H 485`, fitted with `DanPanel.FitPlate`
+- Mini plates always show the slot's standard name (五級…外伝, `DanSelectAStyle.SlotName`), not the dan.json title (11/7: 2026段位道場's 玄人/名人 titles start with 「2026段位道場」)
+- No control hints and no category name at the bottom of dan select (たけらい, 11/7)
 
 #### Dan play drawn with A-Style images (11/1; `Scenes/DanPanelAStyle.cs` and others)
 Measured by overlaying images on frames of the 九段 video (03-04-03 at 20 s, 250 s, 164 s, 311 s). Rows are 159 px apart
@@ -534,7 +536,9 @@ t = 0 when the result fades in (fade 0.07 s).
 - TaikoSim uses **F4**; TaikøNauts uses F8. **Kept at F4 at たけらい's request** (not matching the original)
 
 ### Play screen
-- Judge circle center: (620, 389)
+- Judge circle center: (620, 389) for notes/judging. The judge-frame image (`Notes/JudgementFrame.png`, 195×195) is drawn with its top-left at **(522, 291)**
+  (11/7: best pixel match against the TaikøNauts 六段 video at 26 s; before it was 2 px right and 1 px low)
+- The score's dark rounded backing `MiniTaiko/Background_Score.png` is drawn on top of the panel in dan mode too (the dan panel `08.DanGame/MiniTaiko/Background.png` has no backing; 11/7)
 - Balloon (`Notes/Normal/*/10.png`, 390×195): shape measured pixel by pixel from A-Style 0/10.png. Center y = 95.5
   - Head circle radius 52 (black 4 px outside → cream rim 9 px → orange (255,120,0)). Center (96, 95.5)
   - Neck band flat at x146–164 (height 24). Same orange as the head; 2 px black on its right edge separates it from the body

@@ -53,6 +53,14 @@ namespace TaikoSim.Scenes
         };
         public const int SlotCount = 20;
 
+        /// <summary>
+        /// 札に書く名前。枠の場所（danIndex）で決まった名前を使う。
+        ///   11/7 たけらい：2026段位道場の玄人・名人の札に「2026段位道場…」と出ていた（dan.json の名前をそのまま縦書きにしていた）。
+        ///   枠の外（自分で作った段位など）は dan.json の名前
+        /// </summary>
+        public static string SlotName(int danIndex, string fallback) =>
+            danIndex is >= 0 and < SlotCount ? SlotNames[danIndex] : fallback;
+
         public static bool Available => MenuSkin.Has(MiniPlate, Panel, SongBar);
 
         // 札の色（MiniPlate・Panel_Side のコマ）：級＝0・初〜五段＝1・六〜十段＝2・玄人〜超人＝3・達人＝4・外伝＝5
@@ -80,7 +88,7 @@ namespace TaikoSim.Scenes
                 if (index == cursor) continue;
                 DanCourse? course = index >= 0 ? courses[index] : null;
                 bool usable = course != null && course.Playable && DanUnlock.IsUnlocked(course, out _);
-                DrawTile(slot, course?.Title ?? SlotNames[slot], TileTop, usable, false, clock);
+                DrawTile(slot, SlotNames[slot], TileTop, usable, false, clock);
                 if (course != null) DrawStamp(course, slot, TileTop);
             }
 
@@ -88,7 +96,7 @@ namespace TaikoSim.Scenes
             {
                 DanCourse course = courses[cursor];
                 bool usable = course.Playable && DanUnlock.IsUnlocked(course, out _);
-                DrawTile(course.DanIndex, course.Title, TileTop + SelectedDrop, usable, true, clock);
+                DrawTile(course.DanIndex, SlotNames[course.DanIndex], TileTop + SelectedDrop, usable, true, clock);
                 DrawStamp(course, course.DanIndex, TileTop + SelectedDrop);
                 DrawArrows(course.DanIndex, clock);
             }

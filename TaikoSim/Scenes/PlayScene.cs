@@ -2048,9 +2048,11 @@ namespace TaikoSim.Scenes
         // 判定枠(レーンの光より上に描く。光っていても判定枠が見えるように)
         private static void DrawJudgeFrame()
         {
-            // 枠の画像だけ右へ1px。音符の流れ・判定時刻・花火の原点は変えない。
-            const float frameX = JudgeX + 1f;
-            if (!SkinManager.Draw(JudgeFrameImage, frameX - NoteHalf, NoteY - NoteHalf))
+            // 枠の画像の左上は (522, 291)。音符の流れ・判定時刻・花火の原点は変えない。
+            //   11/7：本家（TaikøNauts の六段の動画 26秒）と1pxずつずらして重ねたら、ここがいちばん合った
+            //   （前は (JudgeX + 1 − 97.5, NoteY − 97.5) で、本家より右に2px・下に1px ずれていた）
+            const float frameLeft = 522f, frameTop = 291f;
+            if (!SkinManager.Draw(JudgeFrameImage, frameLeft, frameTop))
             {
                 // 画像が無いとき(システムのスキン)は、本当の判定の場所(JudgeX)に描く
                 Raylib.DrawRing(new Vector2(JudgeX, NoteY), 44, 50, 0, 360, 48, Color.LightGray);
