@@ -36,6 +36,10 @@ namespace TaikoSim.Scenes
     //     ・ゴーゴー中は不可を出しても gogo のまま（OpenTaiko と同じ）
     //     ・ゲージがクリアになった瞬間と10コンボが同時のときは、10combo が勝つ（OpenTaiko もゲージ → コンボの順）
     //     ・風船：叩いている間は (212, -8) ×0.95、割れたら balloon_broke も同じ場所（1拍で終わる）
+    //   ★ 11/9 風船の叩いている途中（balloon_breaking）を OpenTaiko と同じにした（たけらい「叩くたびに左右に動くのがいい」→ A）
+    //     ・1回叩くたびに最初のコマからやりなおして、0.2秒で最後のコマまで進めて、最後のコマで止まる（ループしない）
+    //       （OpenTaiko：CStage演奏画面共通 の風船を叩いたところで ChangeAnime(Balloon_Breaking, true)、nCharaBeat = 0.2、getNowCharaFrame は最後で止まる）
+    //     ・前は叩くのと関係なく 0.65秒でループしていたので、ずっと左右にゆれていた
     //   failed_down は、この録画ではクリアしたので出なかった。曲の終わりのクリア失敗で出す、はまだ推測。
     //   Simple スキンにはどんちゃんがいないので、何も描かない。
     public sealed class PlayChara : IDisposable
@@ -47,7 +51,9 @@ namespace TaikoSim.Scenes
         private bool oneShot;            // 1回だけのアニメの途中
         private double counter;          // 0〜1 でアニメ1周
         private float beat = 4f;         // アニメ1周の拍数
-        private bool timeBased;          // 拍ではなく秒で進める（拍数の設定が無いアニメ：balloon_breaking・failed_down）
+        private bool timeBased;          // 拍ではなく秒で進める（拍数の設定が無いアニメ：failed_down）
+
+        private const float BalloonBreakSeconds = 0.2f;   // 風船を1回叩いたときの動き（OpenTaiko の nCharaBeat 0.2）
 
         // 状態
         private bool goGo;
@@ -167,6 +173,12 @@ namespace TaikoSim.Scenes
             else ReturnDefault(true);
         }
 
+        /// <summary>風船を1回叩いた（どんちゃんの「吹く」動きを最初からやりなおす）</summary>
+        public void OnBalloonHit()
+        {
+            if (balloon && anime == "balloon_breaking") counter = 0;
+        }
+
         /// <summary>風船が割れた（true）・割れずに終わった（false）</summary>
         public void OnBalloonEnd(bool popped)
         {
@@ -187,7 +199,7 @@ namespace TaikoSim.Scenes
             anime = anim;
             oneShot = isOneShot;
             if (resetCounter) counter = 0;
-            timeBased = anim is "balloon_breaking" or "failed_down";
+            timeBased = anim is "failed_down";
             beat = BeatOf(anim);
         }
 
@@ -237,10 +249,17 @@ namespace TaikoSim.Scenes
         {
             if (stream == null) return;
 
+            if (anime == "balloon_breaking")
+            {
+                // 叩いてから 0.2秒で最後のコマまで進めて、そこで止まる（次に叩いたら OnBalloonHit で 0 から）
+                counter = Math.Min(1.0, counter + dt / BalloonBreakSeconds);
+                if (!oneShot) ReturnDefault(false);
+                return;
+            }
+
             if (timeBased)
             {
                 // 拍数の設定が無いアニメは BPM と関係なく、元の 60fps のまま回す
-                //   balloon_breaking：OpenTaiko は 0.2秒で1周だけど、OpenTaiko のキャラはコマが少ないので、A-Style の 39コマだと速すぎる
                 //   failed_down：175コマ → 約2.9秒
                 int source = Math.Max(1, stream.SourceFrameCount(anime));
                 counter += dt / (source / 60.0);

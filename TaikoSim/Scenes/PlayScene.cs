@@ -1492,6 +1492,7 @@ namespace TaikoSim.Scenes
             string text;
             if (IsBalloonNote(note))
             {
+                chara.OnBalloonHit();
                 int left = Math.Max(0, note.BalloonCount - rollHits[index]);
                 if (left == 0)
                 {

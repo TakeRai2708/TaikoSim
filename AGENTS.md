@@ -300,7 +300,7 @@ In A-Style they look like **sideways taiko drums** (Don-chan = red face, light-b
 - Play screen (`Scenes/PlayChara.cs`, 11/7) — port of OpenTaiko `CActImplCharacter` with TaikøNauts motion names:
   - Position: the 820×599 frame's top-left at `ensoGameX/Y[0]` = (-83, -111), scale 0.81. **Checked on video b (11/5) at 26 s: mean pixel diff 2.3** (match)
   - Drawn after the background, before the lane (the lane's top border hides the feet, as in the video). Balloon motions at (213, -8) ×0.95, drawn after the balloon
-  - One loop = `motionBeat` beats at the current BPM. `balloon_breaking` has no beat key → plays at the source 60 fps
+  - One loop = `motionBeat` beats at the current BPM. `balloon_breaking` (11/9, as OpenTaiko): **restarts from frame 0 on every balloon hit** (`PlayChara.OnBalloonHit`), reaches the last frame in 0.2 s and holds it (no loop). Before, it looped every 0.65 s regardless of hits (たけらい 「叩くたびに左右に動く」 → A)
   - Loop choice (every frame, counter kept): balloon → `failed_loop` (after a failed song end) → `gogo` → misses (`failed_loop` from the 6th 不可 in a row, else `miss_loop`; a 良/可 ends it) → `clear` (norma or max) → `normal`
   - One-shots (counter from 0, back to the loop at the end): every 10 combo outside GoGo `10combo` (`10combomax` when maxed),
     GoGo start `gogostart`, becoming clear `clearin`, becoming max `soulin`, balloon popped `balloon_broke` / ended unpopped (with hits) `balloon_miss`
