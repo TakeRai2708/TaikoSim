@@ -174,10 +174,42 @@ namespace TaikoSim.Scenes
 
         private readonly MenuChara chara = new();   // 左下のどんちゃん（A-Style だけ。MenuChara.cs）
 
+        // ===== どんちゃんの声（11/9 の TaikøNauts の録画 2026-11-09 02-23-14.mp4・02-25-14.mp4 などで確かめた） =====
+        //   ・画面に入る → 「曲を選ぼう」系の声（SelectStart）を、何か操作するまでくり返す（3.9秒ごと）
+        //   ・ジャンルの板にカーソルが乗る → 0.95秒あとに、そのジャンルの声（Genre/板の番号.ogg）。
+        //     板の番号は BarType（J-POP=1・アニメ=3・ボーカロイド=4。どうよう・バラエティーは 0 で声なし。本家も鳴らなかった）
+        //     「とじる」でジャンルの一覧に戻ったときも鳴る
+        //   ・曲を決めて難易度の板が出る → 0.5秒あとに DecideSong
+        //   ・難易度を決める → すぐ DecideDifficulty（どんちゃんのジャンプと同時）
+        //   ・「とじる」を決める → Cancel.ogg（効果音）
+        private const string SelectStartVoice = "Sound/SongSelect/SelectStart.ogg";
+        private const string DecideSongVoice = "Sound/SongSelect/DecideSong.ogg";
+        private const string DecideDifficultyVoice = "Sound/SongSelect/DecideDifficulty.ogg";
+        private const string CancelSe = "Sound/Cancel.ogg";
+        private const double GenreVoiceDelay = 0.95, DecideSongVoiceDelay = 0.5;
+        private bool selectPrompt;   // SelectStart をくり返している途中
+
+        // カーソルが動いた：最初の声のくり返しをやめて、ジャンルの板なら少しあとにジャンルの声
+        private void OnCursorMoved()
+        {
+            if (selectPrompt) { MenuVoice.StopLoop(); selectPrompt = false; }
+            ScheduleGenreVoice();
+        }
+
+        private void ScheduleGenreVoice()
+        {
+            if (!inSongs && CurrentItem is { Kind: Kind.Genre } item && BarType(item) is int type and >= 1)
+                MenuVoice.PlayAfter($"Sound/SongSelect/Genre/{type}.ogg", GenreVoiceDelay);
+            else
+                MenuVoice.CancelPending();
+        }
+
         public override void Enter()
         {
             chara.Load();
             if (CharaBaker.Config is CharaConfig cc) chara.Loop("songselect_loop", cc.SongSelectLoopTime);
+            MenuVoice.Loop(SelectStartVoice);
+            selectPrompt = true;
             returnTime = -1f;
             returnSwap = null;
             if (!SongList.IsScanned && !SongList.IsScanning) SongList.StartScan();
@@ -208,6 +240,8 @@ namespace TaikoSim.Scenes
         public override void Exit()
         {
             chara.Dispose();
+            MenuVoice.StopLoop();
+            MenuVoice.CancelPending();
             preview.Dispose();
             smallControlGuide?.Unload();
             smallControlGuide = null;
@@ -546,6 +580,7 @@ namespace TaikoSim.Scenes
             List<Item> list = CurrentList;
             if (inSongs && list.Count > 0 && list[Mod(pos, list.Count)] is { Kind: Kind.Song } s) lastSongKey = s.Song!.Key;
             this.list.Collapse();
+            OnCursorMoved();
         }
 
         // 決定
@@ -562,6 +597,8 @@ namespace TaikoSim.Scenes
                         return;
                     }
                     MenuSounds.Don();
+                    if (selectPrompt) { MenuVoice.StopLoop(); selectPrompt = false; }
+                    MenuVoice.CancelPending();
                     list.StartDecide();
                     // 点滅 → 白 → ポンッ → めくれる → 曲の一覧(Update の flipTime で進める)
                     flipFromBack = false;
@@ -579,6 +616,7 @@ namespace TaikoSim.Scenes
                     //   点滅 → 白 → ポンッ → まわりの板が上下へ逃げる → 「とじる」の板が横につぶれて細い線 → 空のジャンルの色の板が横に広がる
                     //   → J-POP の板（開いた形）に入れ替わって中身とまわりが出る → 0.3秒あとに黄色い枠。時間もジャンルを開くときとほぼ同じ（ずれは 0.05秒以内）
                     MenuSounds.Don();
+                    MenuVoice.PlaySe(CancelSe);
                     list.StartDecide();
                     flipOpen = CloseGenreNow;
                     flipFromBack = true;
@@ -636,6 +674,7 @@ namespace TaikoSim.Scenes
             }
             BuildGenres(); // 最近遊んだ曲・お気に入りの数が変わっているかもしれない
             list.Reset(genrePos);
+            ScheduleGenreVoice();   // 戻った先のジャンルの声（本家：「とじる」のあと J-POP の声）
         }
 
         // Esc：オプション → 難易度 → 曲の一覧 → ジャンルの一覧 → モード選択 の順に1つ戻る
@@ -711,6 +750,8 @@ namespace TaikoSim.Scenes
             diffOpen = true;
             diffTime = 0f;
             uraCount = 0;
+            if (selectPrompt) { MenuVoice.StopLoop(); selectPrompt = false; }
+            MenuVoice.PlayAfter(DecideSongVoice, DecideSongVoiceDelay);
             list.StartDecide(); // 枠の点滅(まだ開いていなかったら、すぐ開く)
             bool hasOni = HasCourse(CourseType.Oni), hasUra = HasCourse(CourseType.Edit);
             // おにが無くて裏だけある曲は、最初から裏(OpenTaiko と同じ)
@@ -815,6 +856,7 @@ namespace TaikoSim.Scenes
             }
 
             MenuSounds.Don();
+            MenuVoice.Play(DecideDifficultyVoice);
             lastCourse = type;
             lastSongKey = diffSong.Key;
             SongHistory.AddPlayed(diffSong.Key);

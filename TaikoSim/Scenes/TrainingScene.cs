@@ -1,4 +1,5 @@
 using Raylib_cs;
+using TaikoSim.Audio;
 using TaikoSim.Charts;
 using TaikoSim.Configs;
 using TaikoSim.Graphics;
@@ -48,6 +49,9 @@ public partial class PlayScene
         donSound?.Stop();
         kaSound?.Stop();
         balloonSound?.Stop();
+        // 止めたときの音（A-Style の Sound/EnsoGame/Pause.ogg。OpenTaiko も特訓で止めたときに Pause.ogg を鳴らす。
+        //   TaikøNauts もポーズメニューを開いたときに鳴っていた：11/9 の録画 2026-11-09 02-25-14.mp4 の 64.7秒）
+        MenuVoice.PlaySe("Sound/EnsoGame/Pause.ogg");
         foreach (var voice in comboVoices.Values) voice.Stop();
         ClearTrainingInput();
     }

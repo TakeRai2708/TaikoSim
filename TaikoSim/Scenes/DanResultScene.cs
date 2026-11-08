@@ -2,6 +2,7 @@ using System.Globalization;
 using Raylib_cs;
 using TaikoSim.Audio;
 using TaikoSim.Charts;
+using TaikoSim.Configs;
 using TaikoSim.Diagnostics;
 using TaikoSim.Graphics;
 using TaikoSim.Input;
@@ -57,6 +58,20 @@ namespace TaikoSim.Scenes
             new(150, 214, 108, 255), new(118, 198, 234, 255), new(246, 160, 184, 255),
         };
 
+        // ===== 音（11/9 の TaikøNauts の録画 2026-11-09 02-21-14.mp4、名人・金合格で確かめた） =====
+        //   画面が出る → 0.3秒で Intro.ogg → 1.6秒あとから BGM（BGM/DanResult.ogg をくり返す）
+        //   まとめのパネルが入る → PanelIn.ogg、ゲージが伸び始める → Gauge.ogg、
+        //   数字が数え上がる条件の行 → ConditionGaugeCountUp.ogg、スタンプ → ClearGold / ClearRed / Failed
+        //   （本家はパネルを出すのにボタンを押すけど、TaikoSim は今までどおり自動で進む。音はパネルに合わせる）
+        //   演出を飛ばしたときは、途中の音は鳴らさずにスタンプの音だけ
+        private const string IntroSe = "Sound/DanResult/Intro.ogg";
+        private const string BgmFile = "Sound/BGM/DanResult.ogg";
+        private const float IntroSeAt = 0.3f, BgmAt = 1.9f;
+        private readonly List<(float At, string File, bool Voice)> soundEvents = new();
+        private int nextSound;
+        private Song? bgm;
+        private bool bgmStarted;
+
         private readonly List<Texture2D> shodanTextures = new();
         private Texture2D plate;
         private DanResultAStyle? aStyle;   // スキンに 09.DanResult の画像があるとき
@@ -77,6 +92,13 @@ namespace TaikoSim.Scenes
                 aStyle.Load();
             }
             FontManager.PreloadSkinMain(dan.Course.Songs.Select(s => s.Title).Append("???").Append(dan.Course.Title).ToArray());
+            BuildSoundEvents();
+            string? skin = SkinManager.CurrentPath;
+            if (skin != null && aStyle != null)
+            {
+                bgm = Song.Load(Path.Combine(skin, BgmFile), out _);
+                bgm?.SetLoop(true);
+            }
             DebugLog.Event("段位", $"{dan.Course.Title}：{Verdict(result)}　ゲージ {dan.Gauge:0.#}%");
         }
 
@@ -87,6 +109,49 @@ namespace TaikoSim.Scenes
             if (plate.Id != 0) { Raylib.UnloadTexture(plate); plate = default; }
             aStyle?.Unload();
             aStyle = null;
+            bgm?.Dispose();
+            bgm = null;
+        }
+
+        private void BuildSoundEvents()
+        {
+            soundEvents.Clear();
+            nextSound = 0;
+            if (aStyle == null) return;   // 本家の画像が無いスキン（シンプル）は鳴らさない
+            soundEvents.Add((IntroSeAt, IntroSe, false));
+            soundEvents.Add((DanResultAStyle.PanelInAt, "Sound/DanResult/PanelIn.ogg", false));
+            soundEvents.Add((aStyle.GaugeStartAt, "Sound/DanResult/Gauge.ogg", false));
+            foreach (float t in aStyle.CountStartTimes) soundEvents.Add((t, "Sound/DanResult/ConditionGaugeCountUp.ogg", false));
+            string clear = result switch
+            {
+                DanResultType.Gold => "Sound/DanResult/ClearGold.ogg",
+                DanResultType.Red => "Sound/DanResult/ClearRed.ogg",
+                _ => "Sound/DanResult/Failed.ogg",
+            };
+            soundEvents.Add((StampAt, clear, true));
+            soundEvents.Sort((a, b) => a.At.CompareTo(b.At));
+        }
+
+        private void UpdateSounds()
+        {
+            while (nextSound < soundEvents.Count && soundEvents[nextSound].At <= age)
+            {
+                var (_, file, voice) = soundEvents[nextSound++];
+                if (voice) MenuVoice.Play(file);
+                else MenuVoice.PlaySe(file);
+            }
+            if (!bgmStarted && bgm != null && age >= BgmAt)
+            {
+                bgmStarted = true;
+                bgm.SetVolume((float)ConfigManager.Sound.GetFinalVolume(ConfigManager.Sound.BgmVolume));
+                bgm.Play(0);
+            }
+        }
+
+        // 演出を飛ばした：スタンプより前の音は鳴らさない
+        private void SkipSounds()
+        {
+            while (nextSound < soundEvents.Count && soundEvents[nextSound].At < StampAt) nextSound++;
         }
 
         private void LoadImages()
@@ -126,6 +191,7 @@ namespace TaikoSim.Scenes
         public override void Update(float dt)
         {
             age += dt;
+            UpdateSounds();
             if (age >= Math.Max(AutoBackSeconds, FullyShownAt + 10f)) { Back(); return; }
 
             bool pressed = InputManager.IsDonPressed()
@@ -134,6 +200,7 @@ namespace TaikoSim.Scenes
 
             if (age < FullyShownAt)
             {
+                SkipSounds();
                 age = FullyShownAt;
                 MenuSounds.Ka();
             }

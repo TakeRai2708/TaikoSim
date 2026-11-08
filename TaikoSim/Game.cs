@@ -149,6 +149,9 @@ namespace TaikoSim
             // お知らせの残り時間を減らす
             if (toastTimer > 0f) toastTimer -= dt;
 
+            // どんちゃんの声のくり返し（設定パネル中・画面の切り替え中も進める）
+            MenuVoice.Update(dt);
+
             // 設定パネルが開いているときは、後ろの画面は操作させない
             if (settings.IsOpen)
             {

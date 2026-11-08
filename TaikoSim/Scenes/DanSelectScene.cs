@@ -104,6 +104,19 @@ namespace TaikoSim.Scenes
         private Song? bgm;
         private bool bgmStarted;
 
+        // どんちゃんの声と札の音（11/9 の TaikøNauts の録画 2026-11-09 02-11-13.mp4・02-13-14.mp4・02-23-14.mp4 で確かめた）
+        //   ・入りの音（Intro.ogg）から 3.43秒 → 札が出る音（Plate.ogg）、4.33秒 → 「段位を選ぶ」系の声（DanSelectIn.ogg）
+        //     入りの演出が無いとき（段位から戻ってきたとき）は、0.5秒で声だけ
+        //   ・段位を決めて「このお題に挑戦するのカッ？」が出る → Select.ogg（声）
+        //   ・「挑戦する」を決める → Decide.ogg（声）
+        private const string PlateSe = "Sound/DanSelect/Plate.ogg";
+        private const string DanSelectInVoice = "Sound/DanSelect/DanSelectIn.ogg";
+        private const string ConfirmVoice = "Sound/DanSelect/Select.ogg";
+        private const string ChallengeVoice = "Sound/DanSelect/Decide.ogg";
+        private const float PlateSeAt = 3.43f, DanSelectInAt = 4.33f, DanSelectInAtNoIntro = 0.5f;
+        private bool plateSePlayed, danSelectInPlayed;
+        private float sceneTime;
+
         // 段位を切りかえたときのパネルの動き（前のパネルが横へ出ていって、次のパネルが反対から入る。動画：合わせて約0.2秒）
         private const float SlideOut = 0.1f, SlideIn = 0.1f, SlideDistance = 1700f;
         private DanCourse? slidingFrom;
@@ -165,6 +178,8 @@ namespace TaikoSim.Scenes
             }
             // 戻ってきたとき（演出なし）は、最後の絵（道場）から始める
             introTime = withIntro ? 0f : 9999f;
+            sceneTime = 0f;
+            plateSePlayed = danSelectInPlayed = false;
         }
 
         public override void Exit()
@@ -195,6 +210,8 @@ namespace TaikoSim.Scenes
             DanList.Update();
             if (toastTimer > 0f) toastTimer -= dt;
             introTime += dt;
+            sceneTime += dt;
+            UpdateIntroSounds();
             slideTime += dt;
             options.Update(dt);
             if (!IntroDone) return;   // 入りの演出の間は操作できない
@@ -294,6 +311,7 @@ namespace TaikoSim.Scenes
             }
 
             MenuSounds.Don();
+            MenuVoice.Play(ConfirmVoice);
             confirming = course;
             confirmChoice = 1;
             confirmAge = 0f;
@@ -339,10 +357,26 @@ namespace TaikoSim.Scenes
             if (choice == 1)
             {
                 MenuSounds.Don();
+                MenuVoice.Play(ChallengeVoice);
                 deciding = course;
                 decideTimer = 0f;
             }
             else MenuSounds.Ka();
+        }
+
+        private void UpdateIntroSounds()
+        {
+            bool withSound = withIntro && intro != null;
+            if (withSound && !plateSePlayed && sceneTime >= PlateSeAt)
+            {
+                plateSePlayed = true;
+                MenuVoice.PlaySe(PlateSe);
+            }
+            if (!danSelectInPlayed && sceneTime >= (withSound ? DanSelectInAt : DanSelectInAtNoIntro))
+            {
+                danSelectInPlayed = true;
+                MenuVoice.Play(DanSelectInVoice);
+            }
         }
 
         private static void Start(DanCourse course)

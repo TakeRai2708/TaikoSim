@@ -106,6 +106,12 @@ namespace TaikoSim.Scenes
 
         public float StampAt { get; }
         public float FullyShownAt => StampAt + 0.6f;
+
+        // 音を鳴らす時間（DanResultScene が使う。11/9 の TaikøNauts の録画で、どれもこの時間に鳴っていた）
+        public static float PanelInAt => SummaryAt;
+        public float GaugeStartAt => gaugeStart;
+        /// <summary>数字が数え上がる条件の行の、数え始める時間</summary>
+        public IEnumerable<float> CountStartTimes => rows.Where(r => r.CountSeconds > 0f).Select(r => r.CountStart);
         public bool HasStampAnime => stamp != null;
 
         private sealed class RowTiming

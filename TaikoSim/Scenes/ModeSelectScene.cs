@@ -60,11 +60,31 @@ namespace TaikoSim.Scenes
         private const string CategoryPopup = EntryFolder + "DanCategorySelect/Popup.png";
         private const string CategoryCursor = EntryFolder + "DanCategorySelect/Cursor.png";
         private static readonly Rectangle PopupArea = new(525f, 258f, 870f, 122f);
-        private const string DanEntrySound = "Sound/Entry/DaniDojo.ogg";
         private bool choosingCategory;
         private int categoryChoice;
         private float popupAge;
-        private SoundEffect? danEntrySound;
+
+        // どんちゃんの声（11/9 の TaikøNauts の録画 2026-11-09 02-11-13.mp4・02-23-14.mp4 で確かめた）
+        //   ・画面に入る → 「モードを選んでね」（SelectMode）→ 鳴り終わったら、カーソルの項目の声をくり返す
+        //     （「演奏ゲーム」は 2.31秒ごと、「段位道場」は 4.35秒ごとに、何もしなければずっと）
+        //   ・カーソルを動かす → すぐにその項目の声に切りかえてくり返す（声の無い項目なら止める）
+        //   ・決める → くり返しをやめて「ModeSelected」（段位道場はカテゴリを決めたとき）
+        //   前は段位道場の声を「決めたとき」に鳴らしていたけど、本家はカーソルが乗っている間の声だった
+        private const string SelectModeVoice = "Sound/Entry/SelectMode.ogg";
+        private const string ModeSelectedVoice = "Sound/Entry/ModeSelected.ogg";
+
+        private static string? VoiceOf(Item item) => item.Title switch
+        {
+            "演奏ゲーム" => "Sound/Entry/EnsoGame.ogg",
+            "段位道場" => "Sound/Entry/DaniDojo.ogg",
+            _ => null,
+        };
+
+        private static void LoopItemVoice()
+        {
+            if (VoiceOf(Current) is string voice) MenuVoice.Loop(voice);
+            else MenuVoice.Stop();
+        }
 
         private static Item Current => Items[cursor];
 
@@ -84,6 +104,8 @@ namespace TaikoSim.Scenes
             MenuSkin.Preload(EntryBarFolder, new[] { "Bar/0.png", "Bar/1.png", "Title/0.png", "Title/1.png",
                 "Overlay.png", "Selected.png", "Pop/0.png", "1POnly.png" });
             choosingCategory = false;
+            if (VoiceOf(Current) is string itemVoice) MenuVoice.PlayThenLoop(SelectModeVoice, itemVoice);
+            else MenuVoice.Play(SelectModeVoice);
             // 段位のカテゴリを、決める前に読んでおく（裏で読むので止まらない）
             if (!DanList.IsScanned && !DanList.IsScanning) DanList.StartScan();
         }
@@ -91,8 +113,7 @@ namespace TaikoSim.Scenes
         public override void Exit()
         {
             chara.Dispose();
-            danEntrySound?.Dispose();
-            danEntrySound = null;
+            MenuVoice.StopLoop();
         }
 
         // Esc：1回目は確認を出す、確認中(3秒以内)にもう1回押したら終了。点滅中なら決定をやめる
@@ -102,12 +123,14 @@ namespace TaikoSim.Scenes
             {
                 choosingCategory = false;
                 MenuSounds.Ka();
+                LoopItemVoice();
                 return;
             }
             if (deciding != null)
             {
                 deciding = null;
                 list.EndDecide();
+                LoopItemVoice();
                 return;
             }
             if (exitTimer > 0f)
@@ -168,6 +191,7 @@ namespace TaikoSim.Scenes
             list.Collapse();
             exitTimer = 0f;
             MenuSounds.Ka();
+            LoopItemVoice();
         }
 
         private void Decide()
@@ -188,6 +212,7 @@ namespace TaikoSim.Scenes
                 choosingCategory = true;
                 categoryChoice = Math.Clamp(DanSelectScene.CategoryIndex, 0, DanList.Categories.Count - 1);
                 popupAge = 0f;
+                MenuVoice.StopLoop();   // 本家：カテゴリの吹き出しが出たら、段位道場の声のくり返しが止まった
                 return;
             }
             StartDecide(item);
@@ -198,6 +223,7 @@ namespace TaikoSim.Scenes
             hideDecidedList = false;
             deciding = item;
             list.StartDecide();
+            MenuVoice.Play(ModeSelectedVoice);
         }
 
         // カテゴリの吹き出し：カッ・←→で選ぶ、ドンで決める（決めると板が光って段位道場へ）
@@ -221,13 +247,6 @@ namespace TaikoSim.Scenes
                 MenuSounds.Don();
                 DanSelectScene.CategoryIndex = categoryChoice;
                 choosingCategory = false;
-                // 「段位道場」の声（A-Style の Sound/Entry/DaniDojo.ogg。推測なんだけど、決めたときに鳴るもの）
-                string? skin = SkinManager.CurrentPath;
-                if (skin != null)
-                {
-                    danEntrySound ??= SoundEffect.Load(Path.Combine(skin, DanEntrySound), out _, 1);
-                    danEntrySound?.Play((float)ConfigManager.Sound.GetFinalVolume(ConfigManager.Sound.VoiceVolume));
-                }
                 StartDecide(Current);
             }
         }

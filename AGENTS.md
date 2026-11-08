@@ -634,6 +634,17 @@ t = 0 when the result fades in (fade 0.07 s).
 
 ---
 
+### Don-chan voices and menu sounds (11/9, `Audio/MenuVoice.cs`)
+Found by cross-correlating every A-Style `Sound/*.ogg` against the audio of TaikøNauts recordings
+(`2026-11-08 00-39-05 / 03-14-18`, `2026-11-09 02-11-13 … 02-25-14`; match 0.65–1.00).
+- `MenuVoice`: one voice at a time (a new voice cuts the old one), `Loop` repeats right after the end, `PlayThenLoop`, `PlayAfter(delay)`, `PlaySe` (SE volume, does not cut the voice). `Game` calls `MenuVoice.Update` every frame. Missing files → silent (Simple skin)
+- Mode select: enter → `Entry/SelectMode` then **loop** the hovered item's voice (`Entry/EnsoGame` every 2.31 s, `Entry/DaniDojo` every 4.35 s, forever while idle); cursor move → switch immediately; dan category popup → stop the loop; decide → `Entry/ModeSelected`. (Before 11/9 DaniDojo was played on decide — wrong)
+- Song select: enter → **loop** `SongSelect/SelectStart` (3.9 s) until the first input; genre bar hovered → `SongSelect/Genre/{BarType}.ogg` 0.95 s later (J-POP 1, アニメ 3, ボーカロイド 4; どうよう/バラエティー are 0 → silent, same in TaikøNauts), also after 「とじる」; song decided (difficulty panel) → `DecideSong` 0.5 s later; difficulty decided → `DecideDifficulty` at once; 「とじる」 → `Cancel.ogg` (SE)
+- Dan select: `DanSelect/Intro` at 0 → `Plate.ogg` (SE) at 3.43 s → `DanSelectIn` voice at 4.33 s (0.5 s when returning without intro); confirm popup → `Select.ogg`; 挑戦する → `Decide.ogg`
+- Dan result (A-Style only): `Intro.ogg` 0.3 s, `BGM/DanResult.ogg` loop from 1.9 s, `PanelIn` at the summary, `Gauge` at gauge start, `ConditionGaugeCountUp` at each counting row, `ClearGold`/`ClearRed`/`Failed` at the stamp (all matched within 0.1 s on the 名人 gold pass). Skipping plays only the stamp sound. TaikøNauts waits for a key before the summary; TaikoSim still advances by itself
+- Training pause → `EnsoGame/Pause.ogg` (TaikøNauts plays it when the pause menu opens)
+- Not used yet: `Entry/DataLoadSuccess`, `SelectPlaySide`, `Join`, `Start` (entry screens TaikoSim doesn't have), `Result/BestScore_1P` (auto-play results are not saved, so it could not be recorded), `DanSelect/Stamp`, `DanResult/SongResultPlateIn`, `BGM/SongSelect.ogg` (loops on the genre list every 4.06 s in TaikøNauts; TaikoSim plays previews instead), `BGM/Entry.ogg`
+
 ## 9. Work in progress and what's next
 
 ### In master but not yet confirmed by たけらい on his PC
