@@ -33,18 +33,20 @@ namespace TaikoSim.Input
             lastScheduledMs = double.NegativeInfinity;
         }
 
-        public void Enqueue(DrumInputEvent item, InputTimingMode mode, bool limitTo60)
+        public void Enqueue(DrumInputEvent item, InputTimingMode mode, bool limitTo60, double clockRate = 1.0)
         {
+            // 低速再生でも、実時間での60Hz・60打/秒は変えない。
+            double tick = TickMs * Math.Clamp(clockRate, 0.5, 1.0);
             double judgeMs = mode == InputTimingMode.Compatible60Hz
                 // 最も近い次の60Hz境界にそろえる。遅延は理論上0〜16.67ms。
-                ? Math.Ceiling(item.EventGameMs / TickMs) * TickMs
+                ? Math.Ceiling(item.EventGameMs / tick) * tick
                 : item.EventGameMs;
 
             if (limitTo60)
             {
                 // 4つのキーで共有する枠を作る。余った打鍵は捨てず次の枠へ。
                 judgeMs = Math.Max(judgeMs, nextLimitedMs);
-                nextLimitedMs = judgeMs + TickMs;
+                nextLimitedMs = judgeMs + tick;
             }
             // 切替直前の入力が待機している場合も、キューの順番は逆転させない。
             judgeMs = Math.Max(judgeMs, lastScheduledMs);
