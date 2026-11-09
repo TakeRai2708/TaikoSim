@@ -117,6 +117,7 @@ namespace TaikoSim.Scenes
         }
         private int diffCursor;                        // 0 戻る、1 オプション、2〜5 かんたん〜おに
         private bool ura;
+        private CourseType recordCourse = lastCourse;
         private SongEntry? diffSong;
         private Color diffColor;                       // 難易度の板の色(選んだ曲のカテゴリの色)
         private int diffType;
@@ -218,7 +219,7 @@ namespace TaikoSim.Scenes
             if (!SongList.IsScanning) Rebuild(keepPlace: true);
             list.Reset(CurrentPos);
             afterBlink = null;
-            MenuSkin.Preload(MenuSkin.SongFolder, MenuSkin.BarImages.Concat(MenuSkin.SongImages).Concat(MenuSkin.TnSongImages));
+            MenuSkin.Preload(MenuSkin.SongFolder, MenuSkin.BarImages.Concat(MenuSkin.SongImages).Concat(MenuSkin.TnSongImages).Concat(SongRecordPanel.Images));
             SongLoading.Preload(); // 曲の読み込み画面の画像(決めた瞬間に止まらないように)
             smallControlGuide?.Unload();
             smallControlGuide = null;
@@ -942,7 +943,7 @@ namespace TaikoSim.Scenes
 
             IEnumerable<string> Texts()
             {
-                yield return "演奏ゲーム難易度ジャンルを最近遊んだ曲最近追加された曲お気に入りカテゴリをえらぶとじるランダムにえらぶ全曲もどるオプション易普難鬼裏表なし★♥◀0123456789えらぶ決定1P検索読み込み中件一覧更新設定開閉入外当";
+                yield return "演奏ゲーム難易度ジャンルを最近遊んだ曲最近追加された曲お気に入りカテゴリをえらぶとじるランダムにえらぶ全曲もどるオプション易普難鬼裏表なし★♥◀0123456789えらぶ決定1P検索読み込み中件一覧更新設定開閉入外当自己ベスト粋雅極かんたんふつうむずかしいおに";
                 foreach (SongCategory category in categories)
                 {
                     yield return category.Title;
@@ -1092,6 +1093,7 @@ namespace TaikoSim.Scenes
             }
 
             if (diffOpen) DrawDifficulty();
+            DrawSavedSongRecords();
             DrawHeader();
 
             Gui.ResetClip();
@@ -1465,6 +1467,7 @@ namespace TaikoSim.Scenes
                 bool selected = i == diffCursor;
                 if (selected) DrawDiffCursor(box, alpha);
                 DrawDiffBox(i, box, alpha, scale);
+                if (i >= 2 && HasCourse(CourseAt(i))) SongRecordPanel.DrawCard(diffSong.Key, CourseAt(i), box, alpha);
                 if (ready && Gui.Clicked(box))
                 {
                     if (i == diffCursor) DecideDifficulty();
@@ -1476,35 +1479,23 @@ namespace TaikoSim.Scenes
             if (diffTime >= MarkerAt)
                 DrawPlayerMarker(DiffBoxArea(diffCursor), ReturnAlpha * Math.Clamp((diffTime - MarkerAt) / 0.1f, 0f, 1f));
 
-            DrawSavedSongRecord(alpha);
 
             // 下のまんなか：えらぶ・決定
             DrawDiffHint(alpha);
         }
 
-        private void DrawSavedSongRecord(float alpha)
+        private void DrawSavedSongRecords()
         {
-            if (diffSong == null || diffCursor < 2) return;
-            CourseType type = CourseAt(diffCursor);
-            if (!HasCourse(type)) return;
-            var record = SongHistory.GetRecord(diffSong.Key, type);
-            bool played = SongHistory.HasRecord(diffSong.Key, type);
-            Raylib.DrawRectangle(1595, 365, 285, 270, Fade(new Color(16, 24, 38, 245), alpha));
-            void Line(string text, float y, float size, Color color)
-            {
-                float width = FontManager.Measure(text, size).X;
-                if (width > 245) size *= 245 / width;
-                FontManager.Draw(text, 1615, y, size, Fade(color, alpha));
-            }
-            Line(Chart.GetCourseName(type), 385, 26, Color.SkyBlue);
-            Line("自己ベスト", 432, 28, Color.White);
-            Line(played ? record.Score.ToString("N0") + " 点" : "未プレイ", 480, 34, Color.White);
-            Line(played ? SongBestRecord.ClearName(record.Clear) : "記録なし", 540, 26, Color.Gold);
-            Line(record.Rank > 0 ? $"最高スコアランク {record.Rank}/7" : "スコアランクなし", 590, 22, Color.LightGray);
-            SongRecordSummary summary = SongHistory.GetSummary();
-            Line($"クリア {summary.Cleared}", 680, 24, Color.White);
-            Line($"フルコン {summary.FullCombo}", 717, 24, Color.Gold);
-            Line($"ドンダフル {summary.DondaFullCombo}", 754, 24, Color.SkyBlue);
+            if (SongList.IsScanning || SongList.Categories.Count == 0) return;
+            if (diffOpen && diffCursor >= 2) recordCourse = CourseAt(diffCursor);
+            SongRecordPanel.DrawSummary(recordCourse, ReturnAlpha);
+            SongEntry? song = diffOpen ? diffSong : CurrentItem?.Song;
+            if (song == null) return;
+            CourseType course = recordCourse;
+            // その難易度が無い曲では、存在する一番むずかしい難易度の記録を見せる。
+            if (!song.Courses.Any(c => c.Type == course))
+                course = song.Courses.Where(c => c.Type <= CourseType.Edit).Select(c => c.Type).DefaultIfEmpty(CourseType.Oni).Max();
+            SongRecordPanel.DrawBest(song, course, ReturnAlpha);
         }
 
         // 難易度の箱の場所(0 戻る、1 オプション、2〜5 かんたん〜おに)
@@ -1777,3 +1768,4 @@ namespace TaikoSim.Scenes
         }
     }
 }
+

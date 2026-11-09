@@ -824,3 +824,12 @@ Order:
 - Difficulty selection shows score/state and global clear-state totals. Result shows a static new-best notice (no new animation).
 - Three player profiles, entry screen, 2P and play-count tracking are separate subsequent work. Existing records stay in the current single SongHistory.json.
 - Build/runtime are NOT verified for this change: command launch fails with invalid-directory errors before the compiler starts. Record regression checks are supplied in tools/record-check.
+
+
+### Song-select record display (Codex, 2026-11-09)
+- Replaced the provisional right-side text list with `UI/SongRecordPanel.cs`, using the supplied A-Style `02.SongSelect` images. Never commit those reference images.
+- Measured against `2026-10-29 09-28-06.mp4` at 60/70/78 s: summary sheet at (16,306), 340x200, five rows in `ScorePanel.png`; rank-count centers (110/204/298,388/428), highest rank (300,348), crown counts at y=470. Oni and Ura share the sheet's final row and combine both independent chart records. Other difficulties have separate totals.
+- Best-score panel is left above Don, compact while browsing. It shows the saved score and difficulty/rank symbol; detailed good/ok/bad/roll breakdown is not stored or fabricated here.
+- Difficulty-card records use `Difficulty_Select/Crown.png` (4 horizontal cells, first blank; clear/FC/DFC) and `ScoreRank.png` (7 horizontal cells); top-left/top-right placements. Native gray empty crowns are already drawn in A-Style's card image.
+- Summary caches invalidate after saving. Highest crown/rank categories remain mutually exclusive. No result-animation changes.
+- Validation: Linux source compile succeeded (0 errors, 253 existing dependency/platform warnings), and 16 record checks passed, including per-difficulty totals and cache invalidation after promotion. Windows rendering/audio and Native AOT publish still need the user's PC.

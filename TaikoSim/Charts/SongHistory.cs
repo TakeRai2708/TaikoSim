@@ -14,6 +14,7 @@ namespace TaikoSim.Charts
 
         private static SongHistoryFile? data;
         private static SongRecordSummary? summary;
+        private static readonly Dictionary<int, SongRecordSummary> courseSummaries = new();
 
         private static string FilePath => Path.Combine(ConfigManager.ConfigFolder, FileName);
 
@@ -93,6 +94,7 @@ namespace TaikoSim.Charts
             e.Rank = update.After.Rank;
             bool saved = Save();
             summary = null;
+            courseSummaries.Clear();
             if (!saved)
             {
                 // 保存できなかったときは、次に遊んだとき再挑戦できるようにメモリ上も戻す。
@@ -107,6 +109,20 @@ namespace TaikoSim.Charts
         // 保存済みの最高記録から数え直すので、昇格時に旧状態が残ったり重複加算されたりしない。
         public static SongRecordSummary GetSummary() => summary ??= SongRecordSummary.From(
             Data.Records.Select(e => new SongBestRecord((SongClearType)e.Clear, e.Score, e.Rank)));
+
+        // おに・裏おには、お手本の2つの印が付いたパネルでまとめて数える。
+        public static SongRecordSummary GetSummary(CourseType course)
+        {
+            int group = Math.Clamp((int)course, 0, 3);
+            if (!courseSummaries.TryGetValue(group, out SongRecordSummary? result))
+            {
+                result = SongRecordSummary.From(Data.Records
+                    .Where(e => group == 3 ? e.Course == 3 || e.Course == 4 : e.Course == group)
+                    .Select(e => new SongBestRecord((SongClearType)e.Clear, e.Score, e.Rank)));
+                courseSummaries[group] = result;
+            }
+            return result;
+        }
 
         /// <summary>段位1つの記録。挑戦したことがなければ「不合格でも何でもない」が返る</summary>
         public static DanClearRecord GetDanRecord(string key)
@@ -196,3 +212,4 @@ namespace TaikoSim.Charts
         public int Combo { get; set; }          // SongClearType(クリア／フルコン／全良)
     }
 }
+
