@@ -21,6 +21,10 @@ public partial class PlayScene
     private TrainingTimeline? trainingTimeline;
     private bool trainingPaused;
     private float trainingCountdown;
+    private readonly TrainingScrollMotion trainingScroll = new();
+    private Judge?[] trainingHistory = Array.Empty<Judge?>();
+    private double?[] trainingDeltas = Array.Empty<double?>();
+    private int trainingEarlyOk, trainingLateOk;
     private string trainingNotice = "";
     private double PlaybackRate => isTraining ? trainingTimeline?.Rate ?? 1.0 : 1.0;
 
@@ -32,7 +36,7 @@ public partial class PlayScene
     private static string TrainingKey(SystemAction action) => ConfigManager.Key.SystemKeys
         .GetValueOrDefault(action, KeyboardKey.Null).ToString();
 
-    // ポーズ中の入力を再開後の打鍵にしない。小節移動と速度変更でも時刻の基準を切り直す。
+    // 一時停止中の入力を再開後の打鍵にしない。小節移動と速度変更でも時刻の基準を切り直す。
     private void ClearTrainingInput()
     {
         while (Raylib.GetKeyPressed() != 0) { }
@@ -45,12 +49,13 @@ public partial class PlayScene
         song?.Stop();
         songStarted = false;
         trainingPaused = true;
+        trainingScroll.Reset(nowMs);
         trainingCountdown = 0;
         donSound?.Stop();
         kaSound?.Stop();
         balloonSound?.Stop();
         // 止めたときの音（A-Style の Sound/EnsoGame/Pause.ogg。OpenTaiko も特訓で止めたときに Pause.ogg を鳴らす。
-        //   TaikøNauts もポーズメニューを開いたときに鳴っていた：11/9 の録画 2026-11-09 02-25-14.mp4 の 64.7秒）
+        //   TaikøNauts も一時停止メニューを開いたときに鳴っていた：11/9 の録画 2026-11-09 02-25-14.mp4 の 64.7秒）
         MenuVoice.PlaySe("Sound/EnsoGame/Pause.ogg");
         foreach (var voice in comboVoices.Values) voice.Stop();
         ClearTrainingInput();
@@ -66,9 +71,11 @@ public partial class PlayScene
             return true;
         }
 
+        trainingScroll.Update(dt);
         bool space = InputManager.IsSystemPressed(SystemAction.TrainingPause);
-        int move = (InputManager.IsSystemPressed(SystemAction.TrainingNextBar) ? 1 : 0)
-            - (InputManager.IsSystemPressed(SystemAction.TrainingPreviousBar) ? 1 : 0);
+        int direction = (TrainingHeld(SystemAction.TrainingNextBar) ? 1 : 0)
+            - (TrainingHeld(SystemAction.TrainingPreviousBar) ? 1 : 0);
+        int move = trainingPaused ? trainingScroll.Repeat(direction, dt) : 0;
         int speed = (InputManager.IsSystemPressed(SystemAction.TrainingFaster) ? 1 : 0)
             - (InputManager.IsSystemPressed(SystemAction.TrainingSlower) ? 1 : 0);
 
@@ -98,7 +105,8 @@ public partial class PlayScene
                 // 小節の先頭で突然叩かせず、ひとつ前の小節から流し直す。
                 int measure = trainingTimeline.At(nowMs - AudioOffsetMs);
                 if (measure == 0) Restart(); // OFFSETと通常の開始前の空白をそのまま使う
-                else SeekTraining(trainingTimeline[measure - 1]);
+                else SeekTraining(trainingTimeline[measure - 1], keepReview: false);
+                trainingScroll.Reset(nowMs);
                 trainingPaused = false;
                 trainingNotice = "1小節前から再生しています";
                 ClearTrainingInput();
@@ -109,7 +117,17 @@ public partial class PlayScene
 
         if (trainingPaused)
         {
-            if (move != 0) SeekTraining(trainingTimeline[trainingTimeline.Move(nowMs - AudioOffsetMs, move)]);
+            if (move != 0)
+            {
+                int current = trainingTimeline.At(nowMs - AudioOffsetMs);
+                int target = Math.Clamp(current + move, 0, trainingTimeline.Count - 1);
+                if (target != current)
+                {
+                    double shown = trainingScroll.Position;
+                    SeekTraining(trainingTimeline[target]);
+                    trainingScroll.MoveFrom(shown, nowMs);
+                }
+            }
             ClearTrainingInput();
             return true;
         }
@@ -122,10 +140,21 @@ public partial class PlayScene
         return false;
     }
 
-    private void SeekTraining(double chartMs)
+    private void SeekTraining(double chartMs, bool keepReview = true)
     {
         if (course == null) return;
+        var history = trainingHistory;
+        var deltas = trainingDeltas;
+        int early = trainingEarlyOk, late = trainingLateOk;
+        int good = goodCount, ok = okCount, bad = badCount, roll = totalRollHits;
         Restart();
+        if (keepReview)
+        {
+            trainingHistory = history;
+            trainingDeltas = deltas;
+            trainingEarlyOk = early; trainingLateOk = late;
+            goodCount = good; okCount = ok; badCount = bad; totalRollHits = roll;
+        }
         nowMs = chartMs + AudioOffsetMs;
         trainingPaused = true;
         trainingCountdown = 0;
@@ -152,7 +181,7 @@ public partial class PlayScene
                 if (at < note.EndTimeMs) autoHits.Enqueue((i, tick), at);
             }
         }
-        trainingNotice = "移動先からの判定を数え直します";
+        trainingNotice = "一時停止中は判定履歴を確認できます。再開時に集計をリセットします";
         ClearTrainingInput();
     }
 
@@ -170,7 +199,10 @@ public partial class PlayScene
     {
         Color bg = new(13, 19, 30, 255), panel = new(22, 31, 46, 255);
         Color border = new(49, 64, 84, 255), blue = new(91, 172, 255, 255);
-        DrawPlayScreen();
+        double logicalTime = nowMs;
+        if (trainingPaused) nowMs = trainingScroll.Position;
+        try { DrawPlayScreen(); }
+        finally { nowMs = logicalTime; }
         if (course == null || chart == null)
         {
             FontManager.Draw(error, 48, 120, 30, Color.Orange);
@@ -188,7 +220,7 @@ public partial class PlayScene
         Raylib.DrawRectangle(0, 540, 1920, 540, bg);
         double gameMs = nowMs - AudioOffsetMs;
         Text("特訓モード", 48, 550, 28, blue);
-        Text(trainingPaused ? "ポーズ中" : "練習中", 1510, 570, 36,
+        Text(trainingPaused ? "一時停止中" : "練習中", 1510, 570, 36,
             trainingPaused ? Color.Orange : blue, 360);
         Text($"再生速度  {PlaybackRate:0.0}×", 1510, 630, 32, Color.White, 360);
         int measure = (trainingTimeline?.At(gameMs) ?? 0) + 1;
@@ -202,17 +234,69 @@ public partial class PlayScene
         {
             float y = 640 + 76 * i;
             Raylib.DrawRectangle(48, (int)y, 550, 66, panel);
+            if (i == 1)
+            {
+                Text($"−可 {trainingEarlyOk}", 65, y + 16, 26, new Color(120, 197, 255, 255), 155);
+                Text($"可 {okCount}", 245, y + 16, 26, Color.White, 155);
+                Text($"+可 {trainingLateOk}", 425, y + 16, 26, new Color(255, 168, 130, 255), 155);
+                continue;
+            }
             Text(labels[i], 72, y + 12, 34, colors[i]);
             string value = counts[i].ToString();
             Text(value, 565 - FontManager.Measure(value, 46).X, y + 5, 46, Color.White);
         }
-        Text(lastDeltaMs is double delta ? $"直近のズレ  {delta / PlaybackRate:+0.0;-0.0;0.0} ms" : "直近のズレ  —", 690, 730, 32, blue);
-        Text($"{TrainingKey(SystemAction.TrainingPause)}  ポーズ／再開", 690, 970, 28, Color.White, 650);
-        Text($"{TrainingKey(SystemAction.TrainingPreviousBar)} / {TrainingKey(SystemAction.TrainingNextBar)}  小節移動（ポーズ中）", 1200, 970, 22, Color.LightGray, 660);
+        Text($"早可 −可 {trainingEarlyOk}    遅可 +可 {trainingLateOk}", 690, 730, 32, blue);
+        Text($"{TrainingKey(SystemAction.TrainingPause)}  一時停止／再開", 690, 970, 28, Color.White, 650);
+        Text($"{TrainingKey(SystemAction.TrainingPreviousBar)} / {TrainingKey(SystemAction.TrainingNextBar)}  小節移動（一時停止中）", 1200, 970, 22, Color.LightGray, 660);
         Text($"{TrainingKey(SystemAction.TrainingSlower)} / {TrainingKey(SystemAction.TrainingFaster)}  速度変更", 1200, 1006, 22, Color.LightGray, 660);
         Raylib.DrawLine(48, 950, 1872, 950, border);
         Text("Esc  選曲へ戻る", 48, 978, 28, Color.White);
         Text(trainingNotice.Length > 0 ? trainingNotice : "練習の成績は保存されません。低速再生では音程も下がります。", 48, 1035, 20, Color.LightGray, 1800);
         if (audioMessage.Length > 0) Text(audioMessage, 690, 918, 20, Color.Orange, 1160);
     }
+    private static bool TrainingHeld(SystemAction action) =>
+        ConfigManager.Key.SystemKeys.TryGetValue(action, out KeyboardKey key) && Raylib.IsKeyDown(key);
+
+    private void ResetTrainingReview()
+    {
+        if (!isTraining) return;
+        trainingHistory = new Judge?[course?.Notes.Count ?? 0];
+        trainingDeltas = new double?[trainingHistory.Length];
+        trainingEarlyOk = trainingLateOk = 0;
+    }
+
+    private void RecordTrainingJudge(int index, Judge judge, double? delta)
+    {
+        if (!isTraining || index < 0 || index >= trainingHistory.Length || delta == null) return;
+        trainingHistory[index] = judge;
+        trainingDeltas[index] = delta;
+        if (judge == Judge.Ok)
+        {
+            if (delta < 0) trainingEarlyOk++;
+            else trainingLateOk++;
+        }
+    }
+
+    // ノーツの上端からすぐ上。判定枠の150px画像とは別に、小さい文字を置く。
+    private void DrawTrainingReview(double viewMs)
+    {
+        if (!isTraining || !trainingPaused || course == null) return;
+        for (int i = 0; i < trainingHistory.Length && i < course.Notes.Count; i++)
+        {
+            if (trainingHistory[i] is not Judge judge) continue;
+            Note note = course.Notes[i];
+            float x = GetX(note.TimeMs, note.Bpm, note.Scroll, viewMs);
+            if (x < LaneX + 30 || x > Screen.Width - 30) continue;
+            string text = judge == Judge.Good ? "良" : judge == Judge.Bad ? "不可"
+                : trainingDeltas[i] < 0 ? "−可" : "+可";
+            Color color = judge == Judge.Good ? new Color(255, 197, 78, 255)
+                : judge == Judge.Bad ? Color.LightGray
+                : trainingDeltas[i] < 0 ? new Color(120, 197, 255, 255) : new Color(255, 168, 130, 255);
+            const float size = 26;
+            float width = FontManager.Measure(text, size).X;
+            FontManager.DrawOutlined(text, x - width / 2, NoteY - NoteHalf - size - 3,
+                size, color, Color.Black, 2);
+        }
+    }
+
 }

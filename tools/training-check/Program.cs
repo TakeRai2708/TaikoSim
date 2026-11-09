@@ -82,21 +82,39 @@ foreach (double rate in new[] { 0.5, 0.7, 1.0 })
     Near(results[0].JudgeGameMs, 1000.0 / 60 * rate, "60Hz互換の譜面時刻");
     scheduler.Enqueue(input, InputTimingMode.HighPrecision, true, rate);
     scheduler.Reset();
-    Check(scheduler.PendingCount == 0, "ポーズ時に待機打鍵を消せる");
+    Check(scheduler.PendingCount == 0, "一時停止時に待機打鍵を消せる");
 }
 Console.WriteLine($"PASS: {passed} checks (TJA measures, boundaries, speed, input timing)");
 
 var keys = new KeyConfig();
 keys.SystemKeys.Remove(SystemAction.TrainingPause);
 keys.Fix();
-Check(keys.SystemKeys[SystemAction.TrainingPause] == KeyboardKey.Space, "旧設定にポーズの初期値を補う");
-Check(keys.TrySetSystemKey(SystemAction.TrainingPause, KeyboardKey.P, out _), "ポーズを変更できる");
+Check(keys.SystemKeys[SystemAction.TrainingPause] == KeyboardKey.Space, "旧設定に一時停止の初期値を補う");
+Check(keys.TrySetSystemKey(SystemAction.TrainingPause, KeyboardKey.P, out _), "一時停止を変更できる");
 Check(!keys.TrySetSystemKey(SystemAction.TrainingNextBar, KeyboardKey.P, out _), "重複キーを拒否する");
 Check(!keys.TrySetSystemKey(SystemAction.TrainingPause, KeyboardKey.Escape, out _), "Escを予約する");
 var json = System.Text.Json.JsonSerializer.Serialize(keys, TrainingJsonContext.Default.KeyConfig);
 var restored = System.Text.Json.JsonSerializer.Deserialize(json, TrainingJsonContext.Default.KeyConfig)!;
 Check(restored.SystemKeys[SystemAction.TrainingPause] == KeyboardKey.P, "変更したキーがJSON保存・復元できる");
 Console.WriteLine($"PASS: {passed} checks including training key configuration");
+
+var motion = new TrainingScrollMotion();
+motion.Reset(0);
+motion.MoveFrom(0, 2000);
+motion.Update(0.12f);
+Check(motion.Position > 1500 && motion.Position < 2000, "前半で大きく進むイージング");
+motion.Update(0.12f);
+Near(motion.Position, 2000, "移動先に止まる");
+Check(motion.Repeat(1, 0) == 1, "押し始めに1小節");
+Check(motion.Repeat(1, 0.3f) == 0, "長押し開始前は連続移動しない");
+Check(motion.Repeat(1, 0.2f) == 1, "低速の連続移動");
+motion.Repeat(1, 1.0f);
+Check(motion.Repeat(1, 0.21f) >= 2, "1.5秒以降は加速");
+Check(motion.Repeat(0, 0) == 0, "離すと停止");
+Check(motion.Repeat(-1, 0) == -1, "反対方向は押し始めから");
+motion.Reset(12);
+Near(motion.Position, 12, "再開前に表示と論理位置をそろえる");
+Console.WriteLine($"PASS: {passed} checks including eased scrolling and hold repeat");
 
 [System.Text.Json.Serialization.JsonSerializable(typeof(KeyConfig))]
 internal partial class TrainingJsonContext : System.Text.Json.Serialization.JsonSerializerContext { }

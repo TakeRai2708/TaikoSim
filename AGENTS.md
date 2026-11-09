@@ -810,9 +810,10 @@ Order:
 - Raylib scissor mode can't be nested — re-scissor per element (see `DanShutter.Clip`)
 
 
-### Training mode (Codex local branch, 2026-11-08)
-- Shared song/difficulty selection; dedicated TrainingScene drawing, sharing PlayScene judging.
-- Space pauses/resumes (1 second preparation at the frozen position); paused Left/Right moves one bar. Up/Down changes speed by 0.1, clamped 0.5–1.0. Frequency-based playback also lowers pitch.
-- Seeking resets session counts, rolls, balloons and input queues; earlier notes do not count as misses. Past branches are reevaluated with zero stats. Bar navigation uses common/Normal branch bar times, including invisible bars.
-- Song end pauses instead of saving scores or opening results. Esc returns to training song selection.
-- Linux source compile: 0 errors (existing dependency/platform warnings); 36 parser/navigation/scheduler checks passed. Actual Windows visuals, audio seeking/sync and Native AOT publish remain unverified. Not pushed or merged.
+### Training mode (updated 2026-11-09)
+- Training base was merged; normal play rendering is shared. Controls are configurable. Resume plays from the preceding measure; the first measure uses the normal OFFSET/pre-roll.
+- User wording is 一時停止 (not ポーズ).
+- Paused navigation: 0.24s ease-out cubic, first repeat after 0.42s then every 0.30s; held 1.5s accelerates to 0.10s repeat/motion. These are implementation choices, not measured reference timings.
+- Paused hit review shows hit notes and small labels immediately above them. Only actual hits are labeled; early OK is −可 and late OK is +可. History survives browsing, resets on resuming/restarting.
+- Left OK row is split into early / total / late. Millisecond delta readout removed from training UI.
+- Current enhancement has NOT been compiled or run: execution service fails before starting commands (invalid directory). Prior 41-test result applies to the preceding implementation only.

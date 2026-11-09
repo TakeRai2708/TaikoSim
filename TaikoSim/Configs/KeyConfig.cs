@@ -117,7 +117,7 @@ namespace TaikoSim.Configs
             SystemAction.Screenshot => "スクリーンショット",
             SystemAction.Search => "検索",
             SystemAction.Favorite => "お気に入り",
-            SystemAction.TrainingPause => "特訓：ポーズ／再開",
+            SystemAction.TrainingPause => "特訓：一時停止／再開",
             SystemAction.TrainingPreviousBar => "特訓：前の小節",
             SystemAction.TrainingNextBar => "特訓：次の小節",
             SystemAction.TrainingFaster => "特訓：速度を上げる",

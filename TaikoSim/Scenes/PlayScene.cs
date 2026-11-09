@@ -602,6 +602,7 @@ namespace TaikoSim.Scenes
             song?.Stop();
             songStarted = false;
 
+            ResetTrainingReview();
             // 判定も最初から
             if (course != null) judges = new Judge?[course.Notes.Count];
             nextHittable = 0;
@@ -1591,6 +1592,7 @@ namespace TaikoSim.Scenes
         private void SetJudge(int index, Judge judge, double? delta)
         {
             judges[index] = judge;
+            RecordTrainingJudge(index, judge, delta);
 
             switch (judge)
             {
@@ -1635,7 +1637,9 @@ namespace TaikoSim.Scenes
         // 割れた風船も消す
         private bool IsHidden(int index)
         {
+            if (isTraining && trainingPaused && index < trainingHistory.Length && trainingHistory[index] != null) return false;
             if (course != null && index < course.Notes.Count && !branches.IsActive(course.Notes[index])) return true; // ほかの分岐
+            if (isTraining && trainingPaused && IsHittable(course!.Notes[index])) return false;
             if (index < balloonPopped.Length && balloonPopped[index]) return true;
             if (IsInflating(index)) return true; // ふくらむ絵の方を出す
             return index < judges.Length && judges[index] is Judge.Good or Judge.Ok;
@@ -1759,6 +1763,8 @@ namespace TaikoSim.Scenes
             {
                 if (!IsHidden(i)) DrawSeText(course.Notes[i], viewMs);
             }
+
+            DrawTrainingReview(viewMs);
 
             // 叩いている途中の風船(ふくらむ絵。音符の絵の上に描く)
             // 風船を叩いている・割れたときのどんちゃん（レーンの上・風船の下。11/8 の録画で、風船がどんちゃんの口の前に重なっていた）
