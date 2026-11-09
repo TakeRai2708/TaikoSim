@@ -13,6 +13,7 @@ namespace TaikoSim.Charts
         public const int RecentMax = 30;
 
         private static SongHistoryFile? data;
+        private static SongRecordSummary? summary;
 
         private static string FilePath => Path.Combine(ConfigManager.ConfigFolder, FileName);
 
@@ -75,20 +76,37 @@ namespace TaikoSim.Charts
         }
 
         /// <summary>曲1つの記録を残す。前の記録より良いところだけ上書きする</summary>
-        public static void SaveRecord(string key, CourseType course, SongClearType clear, long score, int rank)
+        public static SongRecordUpdate SaveRecord(string key, CourseType course, SongClearType clear, long score, int rank)
         {
-            if (key.Length == 0) return;
+            if (string.IsNullOrWhiteSpace(key)) return default;
             SongRecordEntry? e = FindRecord(key, course);
+            bool created = e == null;
             if (e == null)
             {
                 e = new SongRecordEntry { Key = key, Course = (int)course };
                 Data.Records.Add(e);
             }
-            e.Clear = Math.Max(e.Clear, (int)clear);
-            e.Score = Math.Max(e.Score, score);
-            e.Rank = Math.Max(e.Rank, rank);
-            Save();
+            var before = new SongBestRecord((SongClearType)e.Clear, e.Score, e.Rank);
+            SongRecordUpdate update = before.Improve(clear, score, rank);
+            e.Clear = (int)update.After.Clear;
+            e.Score = update.After.Score;
+            e.Rank = update.After.Rank;
+            bool saved = Save();
+            summary = null;
+            if (!saved)
+            {
+                // 保存できなかったときは、次に遊んだとき再挑戦できるようにメモリ上も戻す。
+                if (created) Data.Records.Remove(e);
+                else { e.Clear = (int)before.Clear; e.Score = before.Score; e.Rank = before.Rank; }
+            }
+            return update with { Saved = saved };
         }
+
+        public static bool HasRecord(string key, CourseType course) => FindRecord(key, course) != null;
+
+        // 保存済みの最高記録から数え直すので、昇格時に旧状態が残ったり重複加算されたりしない。
+        public static SongRecordSummary GetSummary() => summary ??= SongRecordSummary.From(
+            Data.Records.Select(e => new SongBestRecord((SongClearType)e.Clear, e.Score, e.Rank)));
 
         /// <summary>段位1つの記録。挑戦したことがなければ「不合格でも何でもない」が返る</summary>
         public static DanClearRecord GetDanRecord(string key)
@@ -133,7 +151,7 @@ namespace TaikoSim.Charts
             return new SongHistoryFile();
         }
 
-        private static void Save()
+        private static bool Save()
         {
             try
             {
@@ -141,10 +159,12 @@ namespace TaikoSim.Charts
                 string temp = FilePath + ".tmp";
                 File.WriteAllText(temp, JsonSerializer.Serialize(Data, AppJsonContext.Default.SongHistoryFile));
                 File.Move(temp, FilePath, overwrite: true);
+                return true;
             }
             catch (Exception ex) when (ex is IOException || ex is UnauthorizedAccessException)
             {
                 Console.WriteLine($"[History] 保存できませんでした: {ex.Message}");
+                return false;
             }
         }
     }

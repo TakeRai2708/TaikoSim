@@ -17,6 +17,7 @@ namespace TaikoSim.Scenes
         public PlayResult Result;
         public PlayStats Stats = new();   // スコア・魂ゲージ・ノルマ(演奏画面のものをそのまま使う)
         public int Good, Ok, Bad, RollHits, MaxCombo;
+        public SongRecordUpdate? RecordUpdate;
     }
 
     // リザルト画面
@@ -289,6 +290,7 @@ namespace TaikoSim.Scenes
                 DrawGauge();
                 DrawScore();
                 DrawJudgeNumbers();
+                DrawBestRecord();
             }
             if (Rank >= 0 && elapsed >= RankTime) DrawRank();
             if (IsClear && elapsed >= CrownTime) DrawCrown();
@@ -300,6 +302,20 @@ namespace TaikoSim.Scenes
             float black = elapsed < FadeInStart ? 1f : 1f - Math.Clamp((elapsed - FadeInStart) / (FadeInEnd - FadeInStart), 0f, 1f);
             if (exitElapsed >= 0f) black = Math.Max(black, Math.Clamp(exitElapsed / ExitFadeSeconds, 0f, 1f));
             if (black > 0f) Raylib.DrawRectangle(0, 0, Screen.Width, Screen.Height, Raylib.ColorAlpha(Color.Black, black));
+        }
+
+        // 自己ベスト更新のアニメは後日。今回は確定した記録を文字で知らせる。
+        private void DrawBestRecord()
+        {
+            if (data.RecordUpdate is not SongRecordUpdate update) return;
+            Raylib.DrawRectangle(1100, 340, 700, 230, new Color(16, 24, 38, 235));
+            string title = !update.Saved ? "記録を保存できませんでした"
+                : update.IsNewBest ? "自己ベスト更新！" : "自己ベスト";
+            FontManager.Draw(title, 1130, 365, 32, update.IsNewBest && update.Saved ? Color.Gold : Color.White);
+            long score = update.Saved ? update.After.Score : update.Before.Score;
+            SongClearType clear = update.Saved ? update.After.Clear : update.Before.Clear;
+            FontManager.Draw(score.ToString("N0") + " 点", 1130, 418, 44, Color.White);
+            FontManager.Draw(SongBestRecord.ClearName(clear), 1130, 492, 30, Color.SkyBlue);
         }
 
         private void DrawBackground()
