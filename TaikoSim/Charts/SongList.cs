@@ -214,7 +214,7 @@ namespace TaikoSim.Charts
         }
 
         // 全部読む(裏の係から呼ばれる)
-        //   1. フォルダを見て回って、.tja の場所だけ集める(すぐ終わる) → 総数が決まる
+        //   1. フォルダを一度ずつ列挙し、.tja の場所と更新情報を集める → 総数が決まる
         //   2. 1曲ずつ：キャッシュと「更新日時・大きさ」が同じならそのまま使う。違えば .tja を読み直す
         //   3. カテゴリに入れて、キャッシュを保存する
         private static List<SongCategory> Scan(out int errorCount)
@@ -223,7 +223,8 @@ namespace TaikoSim.Charts
 
             List<SongCategory> categories = new();
             SongCategory others = new SongCategory { Title = OthersTitle }; // Songs のすぐ下に直接置いた曲
-            List<(SongCategory Category, string Tja)> found = new();
+            List<(SongCategory Category, string Tja, FileInfo Info)> found = new();
+            int searchedFolders = 0;
             string root = SongsFolder;
 
             // ----- 1. .tja を探す -----
@@ -231,18 +232,17 @@ namespace TaikoSim.Charts
             {
                 Directory.CreateDirectory(root); // 無ければ作っておく
 
-                // Songs のすぐ下の .tja は「その他」へ
-                foreach (string tja in Directory.GetFiles(root, "*.tja").OrderBy(p => p, StringComparer.OrdinalIgnoreCase))
+                // 1回の列挙でTJAと子フォルダを同時に取得する。
+                List<DirectoryInfo> topFolders = new();
+                ReadSongFolder(new DirectoryInfo(root),
+                    file => found.Add((others, file.FullName, file)),
+                    folder => topFolders.Add(folder), ref searchedFolders);
+                topFolders.Sort((x, y) => StringComparer.OrdinalIgnoreCase.Compare(x.FullName, y.FullName));
+                foreach (DirectoryInfo folder in topFolders)
                 {
-                    found.Add((others, tja));
-                }
-
-                // Songs のすぐ下のフォルダは、1つずつカテゴリにする(名前順。「01 J-Pop」「02 アニメ」みたいな番号の順になる)
-                foreach (string folder in Directory.GetDirectories(root).OrderBy(p => p, StringComparer.OrdinalIgnoreCase))
-                {
-                    SongCategory category = CreateCategory(folder);
+                    SongCategory category = CreateCategory(folder.FullName);
                     categories.Add(category);
-                    Walk(folder, category, found);
+                    Walk(folder, category, found, ref searchedFolders);
                 }
             }
             catch (Exception ex) when (ex is IOException || ex is UnauthorizedAccessException)
@@ -250,6 +250,8 @@ namespace TaikoSim.Charts
                 Console.WriteLine($"[Songs] 探せませんでした: {ex.Message}");
             }
 
+            double searchMs = watch.Elapsed.TotalMilliseconds;
+            Console.WriteLine($"[Songs] 探索：{searchedFolders}フォルダ・{found.Count}曲、{searchMs / 1000:F2}秒");
             Volatile.Write(ref scanTotal, found.Count);
 
             // ----- 2. 1曲ずつ読む(CPU のコアを使って何曲か同時に読む。1コアは画面用に残す) -----
@@ -261,11 +263,13 @@ namespace TaikoSim.Charts
             ParallelOptions options = new() { MaxDegreeOfParallelism = Math.Max(1, Environment.ProcessorCount - 1) };
             Parallel.For(0, found.Count, options, i =>
             {
-                entries[i] = LoadEntry(root, found[i].Tja, cache, out newCache[i], out bool fromCache);
+                entries[i] = LoadEntry(root, found[i].Tja, cache, out newCache[i], out bool fromCache, found[i].Info);
                 if (fromCache) Interlocked.Increment(ref cachedCount);
                 Interlocked.Increment(ref scanDone);
             });
 
+            double loadMs = watch.Elapsed.TotalMilliseconds - searchMs;
+            Console.WriteLine($"[Songs] 譜面情報の読み込み：{loadMs / 1000:F2}秒");
             // ----- 3. カテゴリに入れる(見つけた順＝フォルダの名前順) -----
             for (int i = 0; i < found.Count; i++)
             {
@@ -300,27 +304,38 @@ namespace TaikoSim.Charts
             return new SongCategory { Title = name, Color = UncategorizedColor };
         }
 
-        // フォルダを1つ見て、中の曲を category に入れる(奥のフォルダも順番に見る)
-        // ※ここでは .tja を読まない。場所を found に集めるだけ(数を先に知るため)
-        private static void Walk(string folder, SongCategory category, List<(SongCategory Category, string Tja)> found)
+        // 深いフォルダでも呼び出しを積み重ねずに探索する。曲の表示順は最後に一度だけ整える。
+        private static void Walk(DirectoryInfo folder, SongCategory category,
+            List<(SongCategory Category, string Tja, FileInfo Info)> found, ref int searchedFolders)
         {
-            // このフォルダの .tja
+            Stack<DirectoryInfo> pending = new();
+            pending.Push(folder);
+            while (pending.Count > 0)
+            {
+                DirectoryInfo current = pending.Pop();
+                ReadSongFolder(current, file => found.Add((category, file.FullName, file)),
+                    child => pending.Push(child), ref searchedFolders);
+            }
+        }
+
+        // 名前と種類、サイズ、更新日時を同じ列挙結果から使う。
+        // 権限のないフォルダで止まらず、ほかのフォルダの探索は続ける。
+        private static void ReadSongFolder(DirectoryInfo folder, Action<FileInfo> addSong,
+            Action<DirectoryInfo> addFolder, ref int searchedFolders)
+        {
+            searchedFolders++;
             try
             {
-                foreach (string tja in Directory.GetFiles(folder, "*.tja").OrderBy(p => p, StringComparer.OrdinalIgnoreCase))
+                foreach (FileSystemInfo entry in folder.EnumerateFileSystemInfos())
                 {
-                    found.Add((category, tja));
-                }
-
-                // 奥のフォルダ(名前順。「01 ポップス」「02 アニメ」みたいな番号の順になる)
-                foreach (string sub in Directory.GetDirectories(folder).OrderBy(p => p, StringComparer.OrdinalIgnoreCase))
-                {
-                    Walk(sub, category, found);
+                    if (entry is DirectoryInfo child) addFolder(child);
+                    else if (entry is FileInfo file &&
+                        string.Equals(file.Extension, ".tja", StringComparison.OrdinalIgnoreCase)) addSong(file);
                 }
             }
             catch (Exception ex) when (ex is IOException || ex is UnauthorizedAccessException)
             {
-                Console.WriteLine($"[Songs] {folder} を開けませんでした: {ex.Message}");
+                Console.WriteLine($"[Songs] {folder.FullName} を開けませんでした: {ex.Message}");
             }
         }
 
@@ -373,7 +388,7 @@ namespace TaikoSim.Charts
         //   newItem   … 次に保存するキャッシュ(保存しないときは null)
         //   fromCache … キャッシュから作ったか
         private static SongEntry LoadEntry(string root, string tja, Dictionary<string, SongCacheItem> cache,
-            out SongCacheItem? newItem, out bool fromCache)
+            out SongCacheItem? newItem, out bool fromCache, FileInfo? metadata = null)
         {
             string key = Path.GetRelativePath(root, tja); // キャッシュの見出し(Songs から見た場所)
             string relativeFolder = Path.GetRelativePath(root, Path.GetDirectoryName(tja) ?? root);
@@ -385,7 +400,7 @@ namespace TaikoSim.Charts
             long size = -1;
             try
             {
-                FileInfo info = new FileInfo(tja);
+                FileInfo info = metadata ?? new FileInfo(tja);
                 writeTime = info.LastWriteTimeUtc.Ticks;
                 size = info.Length;
             }
