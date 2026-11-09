@@ -593,7 +593,7 @@ namespace TaikoSim.Scenes
         }
 
         // 最初から(最初の小節の3秒前から始める)
-        private void Restart()
+        private void Restart(bool keepBackground = false)
         {
             double first = (course != null && course.BarLines.Count > 0) ? course.BarLines[0].TimeMs : 0;
             nowMs = Math.Min(0, first) - 3000;
@@ -660,7 +660,7 @@ namespace TaikoSim.Scenes
 
             effects.Reset();
             if (combo > 0) effects.SetCombo(combo);   // 段位：前の曲から続くコンボ
-            background.Reset();
+            if (!keepBackground) background.Reset();
             ResetAutoPlay();
 
             // 演奏の終わり・スコアランクも最初から
@@ -679,7 +679,19 @@ namespace TaikoSim.Scenes
 
         public override void Update(float dt)
         {
-            if (isTraining && UpdateTrainingControls(dt)) return;
+            if (isTraining && UpdateTrainingControls(dt))
+            {
+                // 一時停止・曲末では時計と判定を進めず、見た目だけ通常演奏と同じ処理で動かす。
+                if (trainingPaused)
+                {
+                    hud.Update(dt, stats.Score);
+                    effects.Update(dt);
+                    branchLane.Update(dt);
+                    UpdatePlayAmbience(dt);
+                    judgeTimer = Math.Max(0, judgeTimer - dt);
+                }
+                return;
+            }
             danPanel?.Update(dt);
             danShutter?.Update(dt);
             danBackgroundTime += dt;
@@ -720,16 +732,22 @@ namespace TaikoSim.Scenes
             UpdateJudge(dt);
             UpdateLatencyAverage();
 
+            UpdatePlayAmbience(dt);
+            if (dan == null && !isTraining) scoreRank.Update(dt, stats);   // 段位は粋・雅・極を出さない（スコアが曲をまたいで続くため）
+            if (dan != null) UpdateDanEnd(dt);
+            else if (isTraining) UpdateTrainingEnd();
+            else UpdateEnd(dt);
+        }
+
+        // 通常演奏・特訓・一時停止後で背景のクリア切り替えとキャラの更新を共用する。
+        private void UpdatePlayAmbience(float dt)
+        {
             // ゴーゴーの演出は見た目なので、音符と同じ時間(譜面オフセット込み)で見る
             // 分岐のある譜面は、今の分岐のゴーゴーだけを見る
             bool goGoNow = course != null && course.IsGoGoAt(nowMs - ViewAudioOffsetMs - ConfigManager.Game.ChartOffsetMs, branches.IsActive);
             if (course != null) effects.SetGoGo(goGoNow);
             UpdateChara(dt, goGoNow);
             background.Update(dt, stats.IsClear);
-            if (dan == null && !isTraining) scoreRank.Update(dt, stats);   // 段位は粋・雅・極を出さない（スコアが曲をまたいで続くため）
-            if (dan != null) UpdateDanEnd(dt);
-            else if (isTraining) UpdateTrainingEnd();
-            else UpdateEnd(dt);
         }
 
         // どんちゃん：ゴーゴー・ゲージ・風船の様子を渡して、BPM に合わせて進める
