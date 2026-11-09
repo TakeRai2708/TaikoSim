@@ -1476,8 +1476,35 @@ namespace TaikoSim.Scenes
             if (diffTime >= MarkerAt)
                 DrawPlayerMarker(DiffBoxArea(diffCursor), ReturnAlpha * Math.Clamp((diffTime - MarkerAt) / 0.1f, 0f, 1f));
 
+            DrawSavedSongRecord(alpha);
+
             // 下のまんなか：えらぶ・決定
             DrawDiffHint(alpha);
+        }
+
+        private void DrawSavedSongRecord(float alpha)
+        {
+            if (diffSong == null || diffCursor < 2) return;
+            CourseType type = CourseAt(diffCursor);
+            if (!HasCourse(type)) return;
+            var record = SongHistory.GetRecord(diffSong.Key, type);
+            bool played = SongHistory.HasRecord(diffSong.Key, type);
+            Raylib.DrawRectangle(1595, 365, 285, 270, Fade(new Color(16, 24, 38, 245), alpha));
+            void Line(string text, float y, float size, Color color)
+            {
+                float width = FontManager.Measure(text, size).X;
+                if (width > 245) size *= 245 / width;
+                FontManager.Draw(text, 1615, y, size, Fade(color, alpha));
+            }
+            Line(Chart.GetCourseName(type), 385, 26, Color.SkyBlue);
+            Line("自己ベスト", 432, 28, Color.White);
+            Line(played ? record.Score.ToString("N0") + " 点" : "未プレイ", 480, 34, Color.White);
+            Line(played ? SongBestRecord.ClearName(record.Clear) : "記録なし", 540, 26, Color.Gold);
+            Line(record.Rank > 0 ? $"最高スコアランク {record.Rank}/7" : "スコアランクなし", 590, 22, Color.LightGray);
+            SongRecordSummary summary = SongHistory.GetSummary();
+            Line($"クリア {summary.Cleared}", 680, 24, Color.White);
+            Line($"フルコン {summary.FullCombo}", 717, 24, Color.Gold);
+            Line($"ドンダフル {summary.DondaFullCombo}", 754, 24, Color.SkyBlue);
         }
 
         // 難易度の箱の場所(0 戻る、1 オプション、2〜5 かんたん〜おに)

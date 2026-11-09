@@ -816,3 +816,11 @@ Order:
 - Seeking resets session counts, rolls, balloons and input queues; earlier notes do not count as misses. Past branches are reevaluated with zero stats. Bar navigation uses common/Normal branch bar times, including invisible bars.
 - Song end pauses instead of saving scores or opening results. Esc returns to training song selection.
 - Linux source compile: 0 errors (existing dependency/platform warnings); 36 parser/navigation/scheduler checks passed. Actual Windows visuals, audio seeking/sync and Native AOT publish remain unverified. Not pushed or merged.
+
+### Song best records (Codex, 2026-11-09)
+- Normal manual play saves per TJA path + difficulty at FinishPlay, using the existing SongHistory.json Records and AOT source generation. Auto, training, aborted play and dan course runs do not enter this normal-play update.
+- Score, clear state and rank improve independently. Equal/lower results never downgrade records.
+- Each chart belongs to exactly one best clear category: Cleared, FullCombo or AllPerfect (DondaFullCombo). GetSummary derives mutually exclusive counts from best records; promotions replace the old category. Highest score rank is similarly counted only once.
+- Difficulty selection shows score/state and global clear-state totals. Result shows a static new-best notice (no new animation).
+- Three player profiles, entry screen, 2P and play-count tracking are separate subsequent work. Existing records stay in the current single SongHistory.json.
+- Build/runtime are NOT verified for this change: command launch fails with invalid-directory errors before the compiler starts. Record regression checks are supplied in tools/record-check.

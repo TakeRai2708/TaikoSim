@@ -839,6 +839,18 @@ namespace TaikoSim.Scenes
                 RollHits = totalRollHits,
                 MaxCombo = maxCombo,
             };
+            if (!autoPlay && !isTraining && course != null)
+            {
+                SongClearType clear = end.Result switch
+                {
+                    PlayResult.DondaFullCombo => SongClearType.AllPerfect,
+                    PlayResult.FullCombo => SongClearType.FullCombo,
+                    PlayResult.Clear => SongClearType.Cleared,
+                    _ => SongClearType.None,
+                };
+                data.RecordUpdate = SongHistory.SaveRecord(SongHistory.KeyFor(path), course.Type,
+                    clear, stats.Score, stats.ScoreRank + 1);
+            }
             SceneManager.ChangeScene(new ResultScene(data, returnToSelect));
         }
 
