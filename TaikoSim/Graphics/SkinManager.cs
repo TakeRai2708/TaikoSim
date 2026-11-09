@@ -179,29 +179,54 @@ namespace TaikoSim.Graphics
         // 設定に合わせてスキンを読み直す(スキンやフォルダを変えたときに呼ぶ)
         public static void Reload()
         {
-            long started = System.Diagnostics.Stopwatch.GetTimestamp();
-            UnloadTextures();
+            // 設定からの適用は、これまでどおり最後まで読み終えてから戻る。
+            foreach (var progress in ReloadSteps()) { }
+        }
 
+        // 起動時は1工程ずつ進め、間にロード画面を描けるようにする。
+        // GPUを扱う処理も含むので、MoveNextは必ず描画と同じスレッドから呼ぶ。
+        // 進捗は処理済み工程の数。所要時間やファイル容量の割合ではない。
+        public static IEnumerable<(int Done, int Total, string Stage)> ReloadSteps()
+        {
+            long started = Stopwatch.GetTimestamp();
+            int done = 0;
+            int total = PlayTexturePaths.Length + PlayWhiteTexturePaths.Length + 8;
+            yield return (done, total, "スキンを準備しています");
+            UnloadTextures();
             SkinNames = ConfigManager.Skin.GetSkinList();
             CurrentPath = ConfigManager.Skin.GetCurrentSkinPath();
             ReadSkinInfo();
+            yield return (++done, total, "画像を読み込んでいます");
 
-            // 起動時もスキン変更時も、演奏用画像の準備が終わってから戻る。
-            // GPUに画像を送るので、これまでどおり画面と同じスレッドで実行する。
-            PreloadPlayTextures();
-            foreach (string path in PlayWhiteTexturePaths) GetWhiteTexture(path);
+            int loaded = 0;
+            foreach (string path in PlayTexturePaths)
+            {
+                if (GetTexture(path) is Texture2D) loaded++;
+                yield return (++done, total, "画像を読み込んでいます");
+            }
+            Console.WriteLine($"[Skin] 演奏用画像の事前読み込み：{loaded}/{PlayTexturePaths.Length}枚");
+            foreach (string path in PlayWhiteTexturePaths)
+            {
+                GetWhiteTexture(path);
+                yield return (++done, total, "演出用の画像を準備しています");
+            }
             PrepareSoulExplosionDot();
+            yield return (++done, total, "判定の演出を準備しています");
             PrepareGaugeGlowCells();
+            yield return (++done, total, "ゲージを準備しています");
             PrepareRollHeatShader();
+            yield return (++done, total, "連打の演出を準備しています");
             FontManager.ReloadSkinMainFont(CurrentPath);
+            yield return (++done, total, "背景を準備しています");
             PlayBackground.ReloadSkin();
-
+            yield return (++done, total, "キャラクターを準備しています");
             Generation++;
-            // どんちゃんのコマを裏で焼きはじめる（初回だけ時間がかかる。焼けたものから演奏画面に出る）
             CharaBaker.Start(SystemSkin ? null : CurrentPath, CurrentName);
+            yield return (++done, total, "スキンの準備を仕上げています");
             Console.WriteLine($"[Skin] {CurrentName} を使います");
             DebugLog.Event("スキン", $"{CurrentName} を読み直した（画像 {TextureCount}枚）",
-                System.Diagnostics.Stopwatch.GetElapsedTime(started).TotalMilliseconds);
+                Stopwatch.GetElapsedTime(started).TotalMilliseconds);
+            yield return (++done, total, "完了");
         }
 
         // 読み込んである画像の数(デバッグ記録用。無かった画像は数えない)

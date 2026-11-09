@@ -1,4 +1,5 @@
 ﻿using Raylib_cs;
+using System.Diagnostics;
 using TaikoSim.Charts;
 using TaikoSim.Configs;
 using TaikoSim.Graphics;
@@ -20,6 +21,9 @@ namespace TaikoSim.Scenes
         private Step step = Step.Skin;
         private int skinFrames = 0;     // スキンを読む前に、画面を何回描いたか
         private bool skinDone = false;
+        private IEnumerator<(int Done, int Total, string Stage)>? skinLoader;
+        private int skinLoaded, skinTotal;
+        private string skinStage = "スキンを準備しています";
         private float doneTimer = 0f;
 
         // 読み終わってから次へ進むまでの時間(秒)
@@ -56,12 +60,25 @@ namespace TaikoSim.Scenes
             switch (step)
             {
                 case Step.Skin:
-                    // スキンの画像は GPU に送る都合で、裏では読めない(読んでいる間は画面が止まる)
-                    // なので、先に1回「読み込み中…」を画面に出してから、次のフレームで読む
+                    // GPUへの転送はメインスレッドで少しずつ行い、合間に進捗を描く。
                     skinFrames++;
                     if (skinFrames < 2) return;
 
-                    SkinManager.Init();
+                    skinLoader ??= SkinManager.ReloadSteps().GetEnumerator();
+                    // 1フレームの処理は約8msを目安に区切る。画像1枚やフォントなどの
+                    // 単独工程に8ms以上かかる場合は、その工程が終わってから画面を描く。
+                    long started = Stopwatch.GetTimestamp();
+                    bool finished = false;
+                    do
+                    {
+                        if (!skinLoader.MoveNext()) { finished = true; break; }
+                        (skinLoaded, skinTotal, skinStage) = skinLoader.Current;
+                        if (skinLoaded == skinTotal) break; // 100%の画面を1フレーム見せる
+                    }
+                    while (Stopwatch.GetElapsedTime(started).TotalMilliseconds < 8);
+                    if (!finished) return;
+                    skinLoader.Dispose();
+                    skinLoader = null;
                     skinDone = true;
 
                     SongList.StartScan(); // ここから先は裏で読むので、画面は止まらない
@@ -80,6 +97,12 @@ namespace TaikoSim.Scenes
                     if (doneTimer >= wait || skip) GoNext();
                     break;
             }
+        }
+
+        public override void Exit()
+        {
+            skinLoader?.Dispose();
+            skinLoader = null;
         }
 
         // 次の画面へ(叩くキーが決まっていなければ初回起動セットアップ)
@@ -105,14 +128,17 @@ namespace TaikoSim.Scenes
 
             FontManager.Draw("TaikoSim", Left, 260, 80, Color.White);
 
-            DrawSkinLine(460);
-            DrawSongLine(540);
-            DrawBar(620);
+            DrawSkinLine(420);
+            float skinProgress = skinDone ? 1f : skinTotal > 0 ? (float)skinLoaded / skinTotal : 0f;
+            DrawProgressBar(480, skinProgress, skinDone);
+            FontManager.Draw(skinStage, Left, 525, 24, SubColor);
+            DrawSongLine(600);
+            DrawBar(660);
 
             // 読めなかった曲があれば、数を出す
             if (step >= Step.Done && SongList.ErrorCount > 0)
             {
-                FontManager.Draw($"読めなかった曲：{SongList.ErrorCount}曲（選曲画面に赤い字で出ます）", Left, 680, 30, ErrorColor);
+                FontManager.Draw($"読めなかった曲：{SongList.ErrorCount}曲（選曲画面に赤い字で出ます）", Left, 740, 30, ErrorColor);
                 FontManager.Draw("Enter：次へ", Left, 1000, 26, SubColor);
             }
         }
@@ -131,6 +157,7 @@ namespace TaikoSim.Scenes
             else
             {
                 FontManager.Draw("読み込み中…", StatusX, y, 40, SubColor);
+                if (skinTotal > 0) FontManager.Draw($"{skinLoaded} / {skinTotal} 工程", ValueX, y, 32, Color.White);
             }
         }
 
@@ -168,9 +195,15 @@ namespace TaikoSim.Scenes
             else if (step == Step.Skin || SongList.ScanTotal <= 0) progress = 0f;
             else progress = Math.Clamp((float)SongList.ScanDone / SongList.ScanTotal, 0f, 1f);
 
+            DrawProgressBar(y, progress, step >= Step.Done);
+        }
+
+        private static void DrawProgressBar(float y, float progress, bool complete)
+        {
+            progress = Math.Clamp(progress, 0f, 1f);
             Rectangle bar = new Rectangle(Left, y, Right - Left, 20);
             Raylib.DrawRectangleRec(bar, BarBackColor);
-            Raylib.DrawRectangleRec(new Rectangle(bar.X, bar.Y, bar.Width * progress, bar.Height), step >= Step.Done ? DoneColor : BarColor);
+            Raylib.DrawRectangleRec(new Rectangle(bar.X, bar.Y, bar.Width * progress, bar.Height), complete ? DoneColor : BarColor);
 
             string percent = $"{(int)(progress * 100)}%";
             FontManager.Draw(percent, Right - FontManager.Measure(percent, 26).X, y + 30, 26, SubColor);
