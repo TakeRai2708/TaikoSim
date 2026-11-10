@@ -196,7 +196,6 @@ public sealed class EntryScene : Scene
         else DrawProfiles(interactive);
         MenuSkin.Whole(Folder + "Header.png", new(0, 0, 1920, 1080), Color.White);
         Outlined("フリープレイ", new(730, 1012, 460, 56), 48, Color.White, Color.Black);
-        Outlined(naming ? "Esc：データ選択へ" : "F1：設定　Esc：戻る", new(24, 1030, 390, 40), 22, Color.White, Color.Black);
     }
 
     private void DrawBackdrop()
