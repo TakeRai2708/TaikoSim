@@ -1,4 +1,5 @@
 ﻿using System.Diagnostics;
+using System.Numerics;
 using Raylib_cs;
 using TaikoSim.Charts;
 using TaikoSim.Audio;
@@ -28,7 +29,13 @@ namespace TaikoSim.Overlays
 
         // ===== 開く・閉じる動き =====
         private const float OpenSeconds = 0.30f, CloseSeconds = 0.22f;
-        private const float SwitchSeconds = 0.22f, SwitchShift = 18f;
+        // カテゴリの切りかえ（Motion Prompt #057 タブ。11/10）
+        // Motion Prompt #057 · MIT License (c) 2026 Shohei Ohtaki · https://showheyohtaki.github.io/motion-prompt/#057
+        //   選んでいる帯：前の場所から次の場所へ 0.25秒（easeInOutCubic）で滑る（前は「だんだん近づく」動きで約0.1秒）
+        //   中身：0.1秒待ってから 0.2秒で出てくる（下から 8px 上がりながら）。#057 では古い中身が 0.2秒で消えるけど、
+        //   TaikoSim は古い中身を描き直せないので、そこは「すぐ消える」にした
+        private const float SwitchDelay = 0.1f, SwitchSeconds = 0.2f, SwitchShift = 8f, IndicatorSeconds = 0.25f;
+        private float indicatorFrom = -1f, indicatorTo = -1f, indicatorTime = 99f;
         private float animTime;          // 開き始め・閉じ始めてからの時間
         private bool closing;            // 閉じる動きの途中
         private float switchTime = 99f;  // カテゴリを変えてからの時間
@@ -398,12 +405,14 @@ namespace TaikoSim.Overlays
             Raylib.BeginScissorMode((int)(content.X + slideX), (int)content.Y, (int)content.Width, (int)content.Height);
             Gui.SetClip(confirmOpen || unsavedOpen ? NoClickArea : content);
 
-            // カテゴリを変えた直後：中身を 18px ずらしたところから戻す(ToScreenY が switchShift を足す)
-            float sw = Math.Clamp(switchTime / SwitchSeconds, 0f, 1f);
-            float swEase = 1f - (1f - sw) * (1f - sw) * (1f - sw);
-            switchShift = SwitchShift * switchDir * (1f - swEase);
+            // カテゴリを変えた直後：中身を 8px 下から戻す(ToScreenY が switchShift を足す。#057)
+            float swEase = Math.Clamp((switchTime - SwitchDelay) / SwitchSeconds, 0f, 1f);   // #057：中身は等速でじわっと
+            switchShift = SwitchShift * (1f - swEase);   // 下から上がる
 
             cursorY = 18;
+            tips.Clear();
+            hoveredTip = -1;
+            rowValid = false;
             if (fullScreen)
             {
                 switch (selectedCategory)
@@ -441,6 +450,7 @@ namespace TaikoSim.Overlays
             DrawSidebar();
             DrawHint();
             Gui.ResetClip();
+            if (!confirmOpen && !unsavedOpen) DrawTips();
 
             DrawMessage();
 
@@ -541,13 +551,13 @@ namespace TaikoSim.Overlays
                 game.Fullscreen = fullscreen;
                 windowChanged = true;
             }
-            if (!game.Fullscreen) DescRows(SettingTexts.Window); // オフのとき(ウィンドウ)の説明
+            if (!game.Fullscreen) HelpTip(SettingTexts.Window); // オフのとき(ウィンドウ)の説明
 
             // フルスクリーンの説明（方式はえらべない。OpenTaiko と同じ本物のフルスクリーンだけ）
             if (game.Fullscreen)
             {
-                DescRows(SettingTexts.Fullscreen);
-                DescRows(SettingTexts.FullscreenNote);
+                HelpTip(SettingTexts.Fullscreen);
+                HelpTip(SettingTexts.FullscreenNote);
             }
 
             // 垂直同期
@@ -557,7 +567,7 @@ namespace TaikoSim.Overlays
                 game.VSync = vsync;
                 if (!fullScreen) Screen.ApplyFrameSettings();
             }
-            DescRows(SettingTexts.VSync);
+            HelpTip(SettingTexts.VSync);
 
             // 目標フレームレート
             int fps = SliderRow("targetFps", "目標フレームレート", game.TargetFps, 0, 360);
@@ -567,7 +577,7 @@ namespace TaikoSim.Overlays
                 game.Fix(); // 1〜29 は 30 にする
                 if (!fullScreen) Screen.ApplyFrameSettings();
             }
-            DescRows(SettingTexts.TargetFps);
+            HelpTip(SettingTexts.TargetFps);
 
             // ウィンドウの大きさやフルスクリーンは、次のフレームの最初に反映する
             if (windowChanged && !fullScreen)
@@ -665,7 +675,7 @@ namespace TaikoSim.Overlays
             // ----- 出力方式 -----
             int selected = Math.Clamp((int)sound.OutputType, 0, OutputTypeNames.Length - 1);
             sound.OutputType = (AudioOutputType)DropdownRow("outputType", "出力方式", OutputTypeNames, selected);
-            DescRows(GetOutputDescription(sound.OutputType));
+            HelpTip(GetOutputDescription(sound.OutputType));
 
             // ----- バッファ(方式ごと) -----
             switch (sound.OutputType)
@@ -673,13 +683,13 @@ namespace TaikoSim.Overlays
                 case AudioOutputType.Bass:
                 case AudioOutputType.DirectSound:
                     sound.BassBufferMs = SliderRow("bassBuffer", "バッファ[ms]", sound.BassBufferMs, AudioManager.BufferMin, AudioManager.BufferMax);
-                    NoteRow("0 で自動。小さいほど遅れが減りますが、小さすぎると音がブツブツ切れます");
+                    HelpTip("0 で自動。小さいほど遅れが減りますが、小さすぎると音がブツブツ切れます");
                     break;
 
                 case AudioOutputType.WasapiShared:
                 case AudioOutputType.WasapiExclusive:
                     sound.WasapiBufferMs = SliderRow("wasapiBuffer", "バッファ[ms]", sound.WasapiBufferMs, AudioManager.BufferMin, AudioManager.BufferMax);
-                    NoteRow("0 で自動。小さいほど遅れが減りますが、小さすぎると音がブツブツ切れます");
+                    HelpTip("0 で自動。小さいほど遅れが減りますが、小さすぎると音がブツブツ切れます");
                     break;
 
                 case AudioOutputType.Asio:
@@ -694,12 +704,12 @@ namespace TaikoSim.Overlays
                         int device = Math.Clamp(sound.AsioDevice, 0, devices.Count - 1);
                         sound.AsioDevice = DropdownRow("asioDevice", "ASIO 機器", devices.ToArray(), device);
                     }
-                    NoteRow("バッファの長さは、ASIO の機器の設定画面で変えてください");
+                    HelpTip("バッファの長さは、ASIO の機器の設定画面で変えてください");
                     break;
             }
 
             // ----- 今の状態 -----
-            DescRows($"今の出力：{AudioManager.Status}");
+            NoteRow($"今の出力：{AudioManager.Status}");   // 状態の表示は行の下のまま
 
             // ----- 適用 -----
             // 設定を変えただけでは切り替わらない。［適用］を押したときに、音を準備し直す
@@ -736,13 +746,13 @@ namespace TaikoSim.Overlays
 
             // 音オフセット(判定ごとずらす)
             game.AudioOffsetMs = SliderRow("audioOffset", "音オフセット[ms]", game.AudioOffsetMs, GameConfig.OffsetMin, GameConfig.OffsetMax);
-            NoteRow("判定のタイミングごとずらします（判定が合わないとき）");
+            HelpTip("判定のタイミングごとずらします（判定が合わないとき）");
 
             // 譜面オフセット(見た目だけずらす)
             game.ChartOffsetMs = SliderRow("chartOffset", "譜面オフセット[ms]", game.ChartOffsetMs, GameConfig.OffsetMin, GameConfig.OffsetMax);
-            NoteRow("音符の見た目だけずらします（判定は変わりません）");
+            HelpTip("音符の見た目だけずらします（判定は変わりません）");
 
-            NoteRow("どちらもマイナスで早く、プラスで遅くなります");
+            HelpTip("どちらもマイナスで早く、プラスで遅くなります");
 
             // ----- オート演奏の精度(前は選曲画面の演奏オプションにあった) -----
             cursorY += 10;
@@ -750,7 +760,7 @@ namespace TaikoSim.Overlays
             game.AutoGoodPercent = SliderRow("autoGood", "良[%]", game.AutoGoodPercent, GameConfig.AutoPercentMin, GameConfig.AutoPercentMax);
             game.AutoOkPercent = SliderRow("autoOk", "可[%]", game.AutoOkPercent, GameConfig.AutoPercentMin, GameConfig.AutoPercentMax);
             game.AutoBadPercent = SliderRow("autoBad", "不可[%]", game.AutoBadPercent, GameConfig.AutoPercentMin, GameConfig.AutoPercentMax);
-            NoteRow("オートで叩くときの、良・可・不可の割合です。合計が100でなくても割合で使います（全部0なら全部良）");
+            HelpTip("オートで叩くときの、良・可・不可の割合です。合計が100でなくても割合で使います（全部0なら全部良）");
         }
 
         private void DrawKeySection()
@@ -893,6 +903,7 @@ namespace TaikoSim.Overlays
         {
             float y = ToScreenY(cursorY);
             bool result = Gui.Checkbox(new Rectangle(LabelX, y, RightEdge - LabelX, 40), label, value);
+            RememberRow(label, y);
             Raylib.DrawLine((int)LabelX, (int)(y + RowHeight - 6), (int)RightEdge, (int)(y + RowHeight - 6), Gui.BorderColor);
             cursorY += RowHeight;
             return result;
@@ -903,6 +914,7 @@ namespace TaikoSim.Overlays
         {
             float y = ToScreenY(cursorY);
             Gui.Label(label, LabelX, y + 4, 26);
+            RememberRow(label, y);
 
             Rectangle bar = new Rectangle(ControlX, y + 6, BoxX - ControlX - 12, 30);
             Rectangle box = new Rectangle(BoxX, y + 3, RightEdge - BoxX, 36);
@@ -918,12 +930,113 @@ namespace TaikoSim.Overlays
         {
             float y = ToScreenY(cursorY);
             Gui.Label(label, LabelX, y + 4, 26);
+            RememberRow(label, y);
 
             int result = Gui.Dropdown(id, new Rectangle(ControlX, y + 3, RightEdge - ControlX, 36), options, selected);
 
             Raylib.DrawLine((int)LabelX, (int)(y + RowHeight - 6), (int)RightEdge, (int)(y + RowHeight - 6), Gui.BorderColor);
             cursorY += RowHeight;
             return result;
+        }
+
+        // ===== ツールチップ（Motion Prompt #054。11/10 たけらい「説明書きは #054 のツールチップがいい」） =====
+        // Motion Prompt #054 · MIT License (c) 2026 Shohei Ohtaki · https://showheyohtaki.github.io/motion-prompt/#054
+        //   行の下にずらっと並べていた説明文を、項目名の横の「?」に乗せたときだけ黒い吹き出しで出す。
+        //   動きは #054 のまま：乗せて 0.1秒 → 0.2秒で出る（easeOutCubic・下から 6px 上がる）、離して 0.1秒 → 0.2秒で消える（等速）。
+        //   吹き出し #26282c・角の丸み 8・下向きの三角 16×8・白い字。「?」は青い輪（半径13・太さ2.2）
+        //   大きさは 1920×1080 の画面に合わせて、字を 15px → 22px にした（そのぶん吹き出しも広い）
+        private const float TipShowDelay = 0.1f, TipShowSeconds = 0.2f, TipHideDelay = 0.1f, TipHideSeconds = 0.2f;
+        private const float TipRise = 6f, TipFont = 22f, TipLine = 30f, TipMaxWidth = 520f;
+        private static readonly Color TipColor = new(0x26, 0x28, 0x2c, 255);
+        private float rowLabelRight, rowY;
+        private bool rowValid;
+        private readonly List<(Rectangle Icon, string Text)> tips = new();
+        private int hoveredTip = -1;           // このフレームでカーソルが乗っている「?」
+        private string? tipText;               // 出している（出しかけ・消しかけの）説明
+        private Rectangle tipIcon;
+        private bool tipHovering;
+        private float tipTime, tipAlphaAtLeave;
+
+        // 項目の行を描いたら、そのラベルの右はしを覚える（このあとの HelpTip の「?」を置く場所）
+        private void RememberRow(string label, float y)
+        {
+            rowLabelRight = LabelX + FontManager.Measure(label, 26).X;
+            rowY = y;
+            rowValid = true;
+        }
+
+        // 説明文：直前の項目の横に「?」を出して、乗せたら吹き出し。同じ行に2つ以上なら1つの吹き出しにまとめる
+        private void HelpTip(string text)
+        {
+            if (!rowValid) { NoteRow(text); return; }
+            Rectangle icon = new(rowLabelRight + 10f, rowY + 4f, 30f, 30f);
+            if (tips.Count > 0 && tips[^1].Icon.Y == icon.Y && tips[^1].Icon.X == icon.X)
+            {
+                tips[^1] = (icon, tips[^1].Text + "\n" + text);
+                return;
+            }
+            tips.Add((icon, text));
+            bool hover = Gui.IsMouseOver(icon) && !Gui.IsPopupOpen;
+            if (hover) hoveredTip = tips.Count - 1;
+            Vector2 center = new(icon.X + 15f, icon.Y + 15f);
+            if (hover) Raylib.DrawCircleV(center, 14f, Gui.WithAlpha(Gui.AccentColor, 0.25f));
+            Raylib.DrawRing(center, 11.9f, 14.1f, 0f, 360f, 36, Gui.AccentColor);
+            Gui.DrawCentered("?", icon, 18f, Gui.AccentColor);
+        }
+
+        // 吹き出しを描く（中身を全部描いたあと、いちばん上に）
+        private void DrawTips()
+        {
+            float dt = Gui.FrameDt;
+            if (hoveredTip >= 0)
+            {
+                var (icon, text) = tips[hoveredTip];
+                if (!tipHovering || tipText != text) { tipHovering = true; tipTime = tipText == text ? TipShowDelay + TipShowSeconds * CurrentTipAlpha() : 0f; }
+                tipText = text;
+                tipIcon = icon;
+            }
+            else if (tipHovering)
+            {
+                tipAlphaAtLeave = CurrentTipAlpha();
+                tipHovering = false;
+                tipTime = 0f;
+            }
+            tipTime += dt;
+
+            float a = CurrentTipAlpha();
+            if (tipText == null || a <= 0f) { if (!tipHovering) tipText = null; return; }
+
+            List<string> lines = new();
+            foreach (string part in tipText.Split('\n')) lines.AddRange(SettingTexts.Wrap(part, TipMaxWidth, TipFont));
+            float width = lines.Max(l => FontManager.Measure(l, TipFont).X) + 32f;
+            float height = lines.Count * TipLine + 16f;
+            float cx = tipIcon.X + tipIcon.Width / 2f;
+            float x = Math.Clamp(cx - width / 2f, SidebarWidth + 8f, CurrentWidth - width - 8f);
+            bool below = tipIcon.Y - 8f - height < HeaderHeight;   // 上に入らないときは下に出す（三角も上向き）
+            float rise = TipRise * (1f - a);
+            float y = below ? tipIcon.Y + tipIcon.Height + 8f + rise : tipIcon.Y - 8f - height + rise;
+
+            Color bg = Gui.WithAlpha(TipColor, a);
+            Rectangle box = new(x, y, width, height);
+            Raylib.DrawRectangleRounded(box, 16f / Math.Min(width, height), 8, bg);
+            if (below)
+                Raylib.DrawTriangle(new Vector2(cx, y - 8f), new Vector2(cx - 8f, y), new Vector2(cx + 8f, y), bg);
+            else
+                Raylib.DrawTriangle(new Vector2(cx - 8f, y + height), new Vector2(cx, y + height + 8f), new Vector2(cx + 8f, y + height), bg);
+            for (int i = 0; i < lines.Count; i++)
+                FontManager.Draw(lines[i], x + 16f, y + 8f + i * TipLine + 3f, TipFont, Gui.WithAlpha(Color.White, a));
+        }
+
+        private float CurrentTipAlpha()
+        {
+            if (tipText == null) return 0f;
+            if (tipHovering)
+            {
+                float s = Math.Clamp((tipTime - TipShowDelay) / TipShowSeconds, 0f, 1f);
+                return 1f - (1f - s) * (1f - s) * (1f - s);   // easeOutCubic
+            }
+            float h = Math.Clamp((tipTime - TipHideDelay) / TipHideSeconds, 0f, 1f);
+            return tipAlphaAtLeave * (1f - h);
         }
 
         // 小さい説明文の行
@@ -1381,9 +1494,12 @@ namespace TaikoSim.Overlays
                 ? new Rectangle(18, HeaderHeight + 62 + i * 68, SidebarWidth - 36, 58)
                 : new Rectangle(12, HeaderHeight + 58 + i * 62, SidebarWidth - 24, 54);
             Rectangle target = CategoryArea((int)current);
-            if (indicatorY < 0f) indicatorY = target.Y;
-            indicatorY += (target.Y - indicatorY) * (1f - MathF.Exp(-20f * Gui.FrameDt));
-            if (Math.Abs(target.Y - indicatorY) < 0.3f) indicatorY = target.Y;
+            if (indicatorY < 0f) { indicatorY = indicatorFrom = indicatorTo = target.Y; indicatorTime = 99f; }
+            if (target.Y != indicatorTo) { indicatorFrom = indicatorY; indicatorTo = target.Y; indicatorTime = 0f; }
+            indicatorTime += Gui.FrameDt;
+            float k = Math.Clamp(indicatorTime / IndicatorSeconds, 0f, 1f);
+            float e = k < 0.5f ? 4f * k * k * k : 1f - MathF.Pow(-2f * k + 2f, 3f) / 2f;   // easeInOutCubic
+            indicatorY = indicatorFrom + (indicatorTo - indicatorFrom) * e;
 
             for (int i = 0; i < categories.Length; i++)
             {

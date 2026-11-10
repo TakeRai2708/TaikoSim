@@ -1,4 +1,5 @@
-﻿using Raylib_cs;
+﻿using System.Numerics;
+using Raylib_cs;
 using TaikoSim.Configs;
 using TaikoSim.Graphics;
 using TaikoSim.UI;
@@ -231,9 +232,6 @@ namespace TaikoSim.Scenes
             FontManager.Draw(isFirstRun ? "初期設定" : "キーの設定", Left, 32, 38, Color.White);
             if (isFirstRun)
             {
-                string pageText = $"{(int)step + 1} / {StepCount}";
-                float pageWidth = FontManager.Measure(pageText, 30).X;
-                FontManager.Draw(pageText, Right - pageWidth, 42, 28, Gui.SubTextColor);
                 DrawProgress();
             }
 
@@ -253,18 +251,59 @@ namespace TaikoSim.Scenes
             Gui.DrawPopups();
         }
 
+        // ===== どこまで進んだか（Motion Prompt #068 ステップインジケーター。11/10） =====
+        // Motion Prompt #068 · MIT License (c) 2026 Shohei Ohtaki · https://showheyohtaki.github.io/motion-prompt/#068
+        //   5つの丸を灰色の線でつなぐ。終わったページは青い丸に白いチェック、今のページは青い丸に白い番号、まだのページは輪だけ。
+        //   次へ進むと、青い線が次の丸まで 0.3秒（easeInOutCubic）で伸びる（戻るときは縮む）。最後のページは全部チェック。
+        //   前は「01 ようこそ」の文字と細い線、右上に「1 / 5」だった
+        private const float StepLineSeconds = 0.3f, StepRadius = 22f, StepY = 100f;
+        private float progressFrom, progressTo, progressTime = 99f;
+
         private void DrawProgress()
         {
             string[] names = { "ようこそ", "画面", "音量", "キー", "完了" };
+            float first = Left + 60f, last = Right - 60f, gap = (last - first) / (names.Length - 1);
+            int current = (int)step;
+
+            // 青い線の伸び（ページが変わったら、今の長さから次の長さへ）
+            float target = current;
+            float shown = progressFrom + (progressTo - progressFrom) * EaseInOutCubic(Math.Clamp(progressTime / StepLineSeconds, 0f, 1f));
+            if (target != progressTo) { progressFrom = shown; progressTo = target; progressTime = 0f; }
+            progressTime += Gui.FrameDt;
+            shown = progressFrom + (progressTo - progressFrom) * EaseInOutCubic(Math.Clamp(progressTime / StepLineSeconds, 0f, 1f));
+
+            Raylib.DrawRectangleRounded(new Rectangle(first, StepY - 2f, last - first, 4f), 1f, 4, Gui.BorderColor);
+            if (shown > 0f) Raylib.DrawRectangleRounded(new Rectangle(first, StepY - 2f, gap * shown, 4f), 1f, 4, Gui.AccentColor);
+
+            bool allDone = step == Step.Done;
             for (int i = 0; i < names.Length; i++)
             {
-                int x = 160 + i * 325;
-                Color color = i <= (int)step ? Gui.AccentColor : Gui.BorderColor;
-                FontManager.Draw($"{i + 1:00}  {names[i]}", x, 98, 21,
-                    i == (int)step ? Color.White : Gui.SubTextColor);
-                Raylib.DrawRectangle(x, 139, 300, 4, color);
+                float x = first + gap * i;
+                bool done = i < current || allDone, now = i == current && !allDone;
+                Vector2 c = new(x, StepY);
+                if (done || now) Raylib.DrawCircleV(c, StepRadius, Gui.AccentColor);
+                else
+                {
+                    Raylib.DrawCircleV(c, StepRadius, Gui.PanelColor);
+                    Raylib.DrawRing(c, StepRadius - 2.5f, StepRadius, 0f, 360f, 40, Gui.BorderColor);
+                }
+                if (done)
+                {
+                    // 白いチェック
+                    Raylib.DrawLineEx(new Vector2(x - 9f, StepY + 1f), new Vector2(x - 3f, StepY + 7f), 3.6f, Color.White);
+                    Raylib.DrawLineEx(new Vector2(x - 3f, StepY + 7f), new Vector2(x + 9f, StepY - 6f), 3.6f, Color.White);
+                }
+                else
+                {
+                    Gui.DrawCentered((i + 1).ToString(), new Rectangle(x - StepRadius, StepY - StepRadius, StepRadius * 2f, StepRadius * 2f),
+                        22f, now ? Color.White : Gui.SubTextColor);
+                }
+                float w = FontManager.Measure(names[i], 21f).X;
+                FontManager.Draw(names[i], x - w / 2f, StepY + 32f, 21f, done || now ? Gui.AccentColor : Gui.SubTextColor);
             }
         }
+
+        private static float EaseInOutCubic(float k) => k < 0.5f ? 4f * k * k * k : 1f - MathF.Pow(-2f * k + 2f, 3f) / 2f;
 
         // 1ページ目：ようこそ
         private void DrawWelcome()

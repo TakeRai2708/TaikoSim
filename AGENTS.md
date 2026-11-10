@@ -678,6 +678,11 @@ Found by cross-correlating every A-Style `Sound/*.ogg` against the audio of Taik
 - On choosing a song: frame turns white over 0.53 s → **disappears at 0.65 s** → list fades out 0.70–0.93 s (A.mp4 from 69.15 s, frame by frame)
 
 - Settings screen motion (`SettingsOverlay`, `Gui`; modeled on transitions.dev, reui.io, shadcn/ui. たけらい chose: slider plan A, slide in from the right, everything included)
+- 11/10 Motion Prompt (https://github.com/showheyohtaki/motion-prompt, MIT; listed in THIRD-PARTY-NOTICES) — たけらい let Claude choose, liked #054:
+  - Settings explanations → **#054 tooltip**: `HelpTip(text)` puts a blue "?" ring after the previous row's label; hovering shows a #26282c bubble (0.1 s wait → 0.2 s easeOutCubic in, rises 6 px; leave: 0.1 s → 0.2 s linear out). Status lines (今の出力 etc.) stay inline with `NoteRow`
+  - Settings category switch → **#057 tabs**: band slides old→new in 0.25 s easeInOutCubic; content appears after 0.1 s over 0.2 s rising 8 px
+  - Setup → **#068 step indicator**: 5 circles joined by a line (done = blue + check, current = blue + number, later = ring); the blue line grows 0.3 s easeInOutCubic; the 「1 / 5」 text is gone
+  - Boot (`LoadScene.cs`, class `LoadingScene`) → **#089 preloader**: logo, big %, 640×8 bar centered; % follows real progress (skin 50 % + songs 50 %); when done the whole screen lifts up in 0.55 s (`LoadingScene.DrawLift` from `SceneManager.DrawFade`) while the next scene fades in over 0.6 s
   - Open: full screen slides from the right, the F1 panel from the left, 0.3 s (ease-out quint). Close: 0.22 s (ease-in cubic). Input is ignored while moving
   - Sliding uses `Rlgl.PushMatrix` + `Translatef` (`BeginScissorMode` clipping isn't affected by Translatef, so add the offset manually)
   - Categories: the blue bar on the left glides to the new spot. Content on the right starts 18 px off and returns over 0.22 s while a background-colored overlay fades out

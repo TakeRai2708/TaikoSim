@@ -206,4 +206,33 @@ SOFTWARE.
 ほかのスキン(A-Style など)の絵や音は入っていません。
 ゲージの棒の画像だけは、プログラムの位置の計算に合わせるため、A-Style の棒の「形(どこが不透明か)」に合わせて、色をこちらで塗りました。
 
+--------------------------------------------------------------------------
+9. Motion Prompt（設定画面のツールチップ・カテゴリの切りかえ、初期設定の進み具合、起動画面の動きを参考にした）
+   https://github.com/showheyohtaki/motion-prompt
+   使った番号：#054 ツールチップ・#057 タブ・#068 ステップインジケーター・#089 ローディング画面
+   （動きの時間・イージングをそのまま C# に書き直した。コードのコメントにも元の行を入れてある）
+--------------------------------------------------------------------------
+MIT License
+
+Copyright (c) 2026 Shohei Ohtaki
+
+Permission is hereby granted, free of charge, to any person obtaining a copy
+of this software and associated documentation files (the "Software"), to deal
+in the Software without restriction, including without limitation the rights
+to use, copy, modify, merge, publish, distribute, sublicense, and/or sell
+copies of the Software, and to permit persons to whom the Software is
+furnished to do so, subject to the following conditions:
+
+The above copyright notice and this permission notice shall be included in all
+copies or substantial portions of the Software.
+
+THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR
+IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY,
+FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT. IN NO EVENT SHALL THE
+AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER
+LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM,
+OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
+SOFTWARE.
+
+
 「太鼓の達人」は株式会社バンダイナムコエンターテインメントの商標です。TaikoSim は公式のものではなく、関係もありません。
