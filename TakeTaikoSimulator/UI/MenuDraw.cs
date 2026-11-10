@@ -16,6 +16,16 @@ namespace TakeTaikoSimulator.UI
 
         public static Vector2 Measure(string text, float size) => FontManager.MeasureSkinMain(text, size);
 
+        // フリープレイはメニュー見出しの太い縁を流用しない。文字の位置も実際の字形で揃える。
+        public static void FreePlay()
+        {
+            const string text = "フリープレイ";
+            const float size = 48, outline = 3;
+            Rectangle ink = FontManager.MeasureSkinMainInk(text, size);
+            FontManager.DrawSkinMainOutlined(text, 960 - ink.X - ink.Width / 2, 1052 - ink.Y - ink.Height / 2,
+                size, Color.White, Color.Black, outline);
+        }
+
         // 左から、はみ出さない大きさで書く
         public static void TextFit(string text, float x, float y, float maxWidth, float size, Color color)
         {

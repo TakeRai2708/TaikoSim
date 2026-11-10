@@ -5,7 +5,7 @@ using System.Text.Json.Serialization;
 
 namespace TakeTaikoSimulator.Configs;
 
-// TaikøNautsと同じ6項目。段位の3項目は画面から編集させない。
+// TaikøNautsと同じ6項目。着せ替えで選べる段位は合格記録にあるものだけ。
 public sealed class NamePlateConfig
 {
     [JsonPropertyName("name")] public string Name { get; set; } = "プレイヤー";

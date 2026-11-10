@@ -189,8 +189,11 @@ namespace TakeTaikoSimulator.UI
         // 四角の真ん中に文字を書く
         public static void DrawCentered(string text, Rectangle area, float size, Color color)
         {
-            Vector2 measured = FontManager.Measure(text, size);
-            FontManager.Draw(text, area.X + (area.Width - measured.X) / 2f, area.Y + (area.Height - measured.Y) / 2f, size, color);
+            Rectangle ink = FontManager.MeasureInk(text, size);
+            float fit = Math.Min(1, Math.Min(Math.Max(1, area.Width - 12) / Math.Max(1, ink.Width), Math.Max(1, area.Height - 8) / Math.Max(1, ink.Height)));
+            size *= fit;
+            ink = FontManager.MeasureInk(text, size);
+            FontManager.Draw(text, area.X + (area.Width - ink.Width) / 2f - ink.X, area.Y + (area.Height - ink.Height) / 2f - ink.Y, size, color);
         }
 
         // マウスを乗せたときの色の変わり具合(0→1。約0.1秒でじわっと)

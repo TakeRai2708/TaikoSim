@@ -70,6 +70,7 @@ public static class PlayerDataStore
     }
 
     private static readonly string[] Ranks = { "五級", "四級", "三級", "二級", "一級", "初段", "二段", "三段", "四段", "五段", "六段", "七段", "八段", "九段", "十段", "玄人", "名人", "超人", "達人" };
+    public static string RankName(int index) => index >= 0 && index < Ranks.Length ? Ranks[index] : "";
     public static int RankIndex(string rank)
     {
         int found = Array.IndexOf(Ranks, rank);

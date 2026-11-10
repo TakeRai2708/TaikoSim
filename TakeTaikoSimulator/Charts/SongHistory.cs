@@ -207,8 +207,37 @@ namespace TakeTaikoSimulator.Charts
             return e == null ? new DanClearRecord(false, SongClearType.None) : new DanClearRecord(e.Gold, (SongClearType)e.Combo);
         }
 
+        // 表示用のコンフィグではなく、そのプレイヤーが合格した記録だけを選択肢にする。
+        public static IReadOnlyList<EarnedDanRank> GetEarnedDanRanks(int profile)
+        {
+            var ranks = new Dictionary<int, EarnedDanRank>();
+            foreach (var entry in ProfileView(profile).DanRecords)
+            {
+                if (entry.Combo < (int)SongClearType.Cleared || entry.Combo > (int)SongClearType.AllPerfect) continue;
+                int index = entry.DanIndex;
+                // 古い記録には番号が無い。同じdan.jsonが残っていれば、その番号だけを読む。
+                if (index == -1)
+                {
+                    try
+                    {
+                        string path = Path.IsPathRooted(entry.Key) ? entry.Key : Path.Combine(SongList.SongsFolder, entry.Key);
+                        using var doc = JsonDocument.Parse(File.ReadAllText(path));
+                        if (doc.RootElement.ValueKind != JsonValueKind.Object || !doc.RootElement.TryGetProperty("danIndex", out var value)
+                            || value.ValueKind != JsonValueKind.Number || !value.TryGetInt32(out index)) continue;
+                    }
+                    catch (Exception ex) when (ex is IOException or UnauthorizedAccessException or JsonException or ArgumentException)
+                    { continue; }
+                }
+                if (index is < 0 or > 18) continue;
+                int type = entry.Combo == (int)SongClearType.AllPerfect ? 2 : entry.Combo == (int)SongClearType.FullCombo ? 1 : 0;
+                if (ranks.TryGetValue(index, out var old)) ranks[index] = new(index, old.Gold || entry.Gold, Math.Max(old.RankType, type));
+                else ranks[index] = new(index, entry.Gold, type);
+            }
+            return ranks.Values.OrderBy(r => r.Index).ToArray();
+        }
+
         /// <summary>段位1つの記録を残す。金かどうかとコンボの種別を、それぞれ良い方で上書きする</summary>
-        public static void SaveDanRecord(string key, DanClearRecord record)
+        public static void SaveDanRecord(string key, DanClearRecord record, int danIndex = -1)
         {
             if (key.Length == 0) return;
             DanRecordEntry? e = Data.DanRecords.FirstOrDefault(r => string.Equals(r.Key, key, StringComparison.OrdinalIgnoreCase));
@@ -219,6 +248,7 @@ namespace TakeTaikoSimulator.Charts
             }
             e.Gold |= record.Gold;
             e.Combo = Math.Max(e.Combo, (int)record.Combo);
+            if (danIndex is >= 0 and <= 19) e.DanIndex = danIndex;
             Save();
         }
 
@@ -286,7 +316,10 @@ namespace TakeTaikoSimulator.Charts
         public string Key { get; set; } = "";   // Songs フォルダから見た dan.json の場所
         public bool Gold { get; set; }          // 金合格したことがあるか
         public int Combo { get; set; }          // SongClearType(クリア／フルコン／全良)
+        public int DanIndex { get; set; } = -1; // 新しい合格記録は譜面を移動しても段位を選べるようにする
     }
+
+    public readonly record struct EarnedDanRank(int Index, bool Gold, int RankType);
 }
 
 

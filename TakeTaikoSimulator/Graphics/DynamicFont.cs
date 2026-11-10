@@ -10,7 +10,7 @@ namespace TakeTaikoSimulator.Graphics
     //
     // しくみ(SDF フォント)：
     //   ・文字の絵ではなく「文字のふちまでの距離」を画像にしておく(SDF = Signed Distance Field)
-    //     描くときにシェーダーが「ふちの内側か外側か」を1ピクセルずつ決めるので、どの大きさで描いてもくっきりする
+    //     描くときにシェーダーが「ふちの内側か外側か」を1ピクセルずつ決める。大きい通常UI文字はCoverageFontで別に作る
     //     (前は 96px の絵を縮めて描いていて、小さい文字がにじんでいた)
     //   ・縁取りは、同じ距離の画像を「太らせて」描くだけ。縁 → 文字 の2回で描ける(前は 25回ずらして描いていた)
     //     太らせた形は、角が自然に丸くなる
@@ -35,6 +35,11 @@ namespace TakeTaikoSimulator.Graphics
 
         public string FilePath { get; }
         private readonly byte[] fileData;
+        private CoverageFont? coverage;
+        public void DrawSharp(string text, Vector2 position, float size, Color color) =>
+            (coverage ??= new(fileData)).Draw(text, position, size, color);
+        public Vector2 MeasureSharp(string text, float size) => (coverage ??= new(fileData)).Measure(text, size);
+        public Rectangle InkBoundsSharp(string text, float size) => (coverage ??= new(fileData)).InkBounds(text, size);
 
         // ページ(画像)と、まだ GPU に送っていない中身
         private sealed class Page
@@ -53,7 +58,7 @@ namespace TakeTaikoSimulator.Graphics
         private readonly Dictionary<int, Glyph> glyphs = new();
 
         // ページの数(重さの確認用)
-        public int PageCount => pages.Count;
+        public int PageCount => pages.Count + (coverage?.PageCount ?? 0);
 
         private DynamicFont(string path, byte[] data)
         {
@@ -173,6 +178,29 @@ namespace TakeTaikoSimulator.Graphics
             return new Vector2(maxWidth, lines * size + (lines - 1) * LineGap);
         }
 
+        // 文字の送り幅だけでなく、実際に絵がある範囲を返す。小さいプレートの上下揃えに使う。
+        public Rectangle InkBounds(string text, float size)
+        {
+            EnsureGlyphs(text);
+            float scale = size / BaseSize, x = 0, y = 0;
+            float left = float.PositiveInfinity, top = left, right = float.NegativeInfinity, bottom = right;
+            foreach (Rune rune in text.EnumerateRunes())
+            {
+                if (rune.Value == '\n') { x = 0; y += size + LineGap; continue; }
+                if (rune.Value < 0x20) continue;
+                if (!glyphs.TryGetValue(rune.Value, out var glyph) || glyph.Page == -1) { x += size * .5f; continue; }
+                if (glyph.Page >= 0)
+                {
+                    left = Math.Min(left, x + (glyph.OffsetX + Spread) * scale);
+                    top = Math.Min(top, y + (glyph.OffsetY + Spread) * scale);
+                    right = Math.Max(right, x + (glyph.OffsetX + glyph.Source.Width - Spread) * scale);
+                    bottom = Math.Max(bottom, y + (glyph.OffsetY + glyph.Source.Height - Spread) * scale);
+                }
+                x += glyph.Advance * scale;
+            }
+            return float.IsFinite(left) ? new(left, top, right - left, bottom - top) : new(0, 0, 0, 0);
+        }
+
         // ===== 文字を足す =====
 
         // たくさんの文字列の文字を、まとめて先に読み込んでおく(選曲画面の曲名など)
@@ -283,7 +311,7 @@ namespace TakeTaikoSimulator.Graphics
         }
 
         // Raylib の画像から、1ピクセル1バイトの濃さだけを写す
-        private static unsafe byte[] CopyGray(Image image)
+        internal static unsafe byte[] CopyGray(Image image)
         {
             int w = image.Width, h = image.Height;
             if (w <= 0 || h <= 0 || image.Data == null) return Array.Empty<byte>();
@@ -482,6 +510,7 @@ namespace TakeTaikoSimulator.Graphics
         // 後片付け
         public void Dispose()
         {
+            coverage?.Dispose(); coverage = null;
             foreach (Page page in pages)
                 if (page.HasTexture) Raylib.UnloadTexture(page.Texture);
             pages.Clear();

@@ -13,10 +13,12 @@ public sealed class PlayerNameInput
     private static readonly Rectangle Box = new(520, 480, 880, 96);
     public string Value { get; private set; } = "";
     public string Error { get; set; } = "";
+    private bool editing;
     private int confirmGuard;
-    public void Open()
+    public void Open(string? initialValue = null)
     {
-        Value = ""; Error = ""; confirmGuard = 2;
+        editing = initialValue != null;
+        Value = initialValue ?? ""; Error = ""; confirmGuard = 2;
         while (Raylib.GetCharPressed() != 0) { }
         WindowsIme.TakeResultText();
     }
@@ -45,13 +47,13 @@ public sealed class PlayerNameInput
         Raylib.DrawRectangle(0, 0, 1920, 1080, new Color(0, 0, 0, 165));
         Raylib.DrawRectangleRounded(new(440, 250, 1040, 570), .02f, 8, new Color(13, 23, 38, 255));
         FontManager.Draw("プレイヤー名を入力", 520, 300, 48, Color.White);
-        FontManager.Draw("24文字まで。あとからNamePlateConfig.jsonでも変更できます", 520, 390, 25, Color.LightGray);
+        FontManager.Draw("24文字まで。着せ替えやNamePlateConfig.jsonで変更できます", 520, 390, 25, Color.LightGray);
         Raylib.DrawRectangleRounded(Box, .06f, 8, new Color(26, 40, 59, 255));
         string text = Value + WindowsIme.CompositionText;
         float size = FittedSize(text);
         FontManager.Draw(text, Box.X + 25, Box.Y + 18, size, Color.White);
         Raylib.DrawRectangle((int)(Box.X + 25 + FontManager.Measure(text, size).X), (int)Box.Y + 20, 2, 52, Color.SkyBlue);
-        FontManager.Draw("Enter：作成　Esc：データ選択へ", 520, 660, 30, Color.SkyBlue);
+        FontManager.Draw(editing ? "Enter：変更をプレビュー　Esc：キャンセル" : "Enter：作成　Esc：データ選択へ", 520, 660, 30, Color.SkyBlue);
         if (Error.Length > 0) FontManager.Draw(Error, 520, 730, 27, Color.Orange);
     }
 }

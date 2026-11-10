@@ -62,10 +62,12 @@ public static class NamePlate
             { Console.WriteLine($"[NamePlate] データ{slot}：{ex.Message}"); }
         }
     }
-    public static void DrawPlayers(float y = 900, float alpha = 1)
+    // 参考のモード画面では、どんちゃんの足元にプレートがある。左右の余白を揃える。
+    public static Rectangle MenuArea(int side) => new(side == 0 ? 60 : 1522, 920, 338, 80);
+    public static void DrawPlayers(float y = 920, float alpha = 1)
     {
         for (int side = 0; side < 2; side++)
-            if (LocalSession.Joined[side]) Draw(LocalSession.Profiles[side], side, side == 0 ? 16 : 1566, y, 1, alpha);
+            if (LocalSession.Joined[side]) Draw(LocalSession.Profiles[side], side, MenuArea(side).X, y, 1, alpha);
     }
     public static void Draw(int slot, int side, float x, float y, float scale = 1, float alpha = 1, NamePlateConfig? preview = null)
     {
@@ -96,9 +98,9 @@ public static class NamePlate
             {
                 Raylib.DrawRectangleRounded(new(0, 0, 338, 80), .12f, 8, Raylib.ColorAlpha(new Color(21, 32, 50, 255), alpha));
                 Raylib.DrawRectangle(0, 0, 6, 80, Raylib.ColorAlpha(side == 0 ? Color.Red : Color.SkyBlue, alpha));
-                Text($"{side + 1}P", 13, 25, 43, 36, white, Color.Black);
+                Text($"{side + 1}P", new(10, 19, 48, 44), 36, white, Raylib.ColorAlpha(Color.Black, alpha));
             }
-            Text(data.Title, 70, 4, 252, 26, Raylib.ColorAlpha(Color.Black, alpha), Raylib.ColorAlpha(Color.White, alpha));
+            Text(data.Title, new(75, 6, 248, 28), 26, Raylib.ColorAlpha(Color.Black, alpha), Raylib.ColorAlpha(Color.White, alpha));
             bool rank = data.Rank.Length > 0;
             if (rank)
             {
@@ -106,18 +108,22 @@ public static class NamePlate
                     Raylib.DrawTexturePro(gold, new(0, 0, gold.Width, gold.Height), new(73, 45, 72, 25), Vector2.Zero, 0, white);
                 Color rankColor = data.RankType == 1 ? new Color(255, 218, 85, 255) : data.RankType == 2
                     ? Raylib.ColorFromHSV((float)(Raylib.GetTime() * 70 % 360), .55f, 1) : new Color(225, 233, 240, 255);
-                Text(data.Rank, 73, 44, 72, 24, Raylib.ColorAlpha(rankColor, alpha), Raylib.ColorAlpha(Color.Black, alpha));
+                Text(data.Rank, new(76, 44, 69, 28), 24, Raylib.ColorAlpha(rankColor, alpha), Raylib.ColorAlpha(Color.Black, alpha));
             }
-            Text(data.Name, rank ? 151 : 73, 36, rank ? 171 : 249, 35, white, Raylib.ColorAlpha(Color.Black, alpha));
+            Text(data.Name, new(rank ? 151 : 76, 43, rank ? 174 : 249, 29), 35, white, Raylib.ColorAlpha(Color.Black, alpha));
         }
         finally { Rlgl.PopMatrix(); }
     }
-    private static void Text(string text, float x, float y, float width, float size, Color fill, Color outline)
+    private static void Text(string text, Rectangle area, float size, Color fill, Color outline)
     {
         if (text.Length == 0) return;
-        float measure = FontManager.MeasureSkinMain(text, size).X;
-        float fitted = measure > width ? size * width / measure : size;
-        FontManager.DrawSkinMainOutlined(text, x + (width - FontManager.MeasureSkinMain(text, fitted).X) / 2, y + (size - fitted) / 2,
-            fitted, fill, outline, 2);
+        const float edge = 2, padding = 2;
+        Rectangle ink = FontManager.MeasureSkinMainInk(text, size);
+        float factor = Math.Min(1, Math.Min((area.Width - 2 * (edge + padding)) / Math.Max(1, ink.Width),
+            (area.Height - 2 * edge) / Math.Max(1, ink.Height)));
+        float fitted = size * factor;
+        ink = FontManager.MeasureSkinMainInk(text, fitted);
+        FontManager.DrawSkinMainOutlined(text, area.X + (area.Width - ink.Width) / 2 - ink.X,
+            area.Y + (area.Height - ink.Height) / 2 - ink.Y, fitted, fill, outline, edge);
     }
 }

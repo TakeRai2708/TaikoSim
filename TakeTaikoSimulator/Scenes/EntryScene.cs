@@ -195,7 +195,7 @@ public sealed class EntryScene : Scene
         else if (!choosing) DrawStart(interactive);
         else DrawProfiles(interactive);
         MenuSkin.Whole(Folder + "Header.png", new(0, 0, 1920, 1080), Color.White);
-        Outlined("フリープレイ", new(730, 1012, 460, 56), 48, Color.White, Color.Black);
+        FreePlay();
     }
 
     private void DrawBackdrop()
@@ -233,7 +233,13 @@ public sealed class EntryScene : Scene
             string message = LocalSession.Count == 0 ? "太鼓をたたいてスタート!"
                 : i == 0 ? LocalSession.Count == 1 ? $"{LocalSession.Controller + 1}P参加中　もう一度ドンで決定" : "2人プレイを選択中"
                 : LocalSession.Count == 1 ? $"{2 - LocalSession.Controller}Pのドンで2人プレイ" : "もう一度ドンで決定";
-            Outlined(message, new(row.X + 470, row.Y + 36, 630, 100), 54, Fade(Color.White, fade), Fade(Color.Black, fade));
+            // 左の焼き込み文字と、描画した文字の見た目の中心を揃える。
+            Rectangle area = new(row.X + 470, row.Y + 61, 630, 77);
+            Rectangle ink = FontManager.MeasureSkinMainInk(message, 54);
+            float size = 54 * Math.Min(1, (area.Width - 12) / Math.Max(1, ink.Width));
+            ink = FontManager.MeasureSkinMainInk(message, size);
+            FontManager.DrawSkinMainOutlined(message, area.X + (area.Width - ink.Width) / 2 - ink.X,
+                area.Y + (area.Height - ink.Height) / 2 - ink.Y, size, Fade(Color.White, fade), Fade(Color.Black, fade), 5);
             if (interactive && enabled && Gui.Clicked(row)) { ClickStart(i + 1); interactive = false; }
         }
         if (joiningTransition >= 0) Raylib.DrawRectangle(0, 0, 1920, 1080, new Color(0, 0, 0, (int)(150 * (1 - fade))));

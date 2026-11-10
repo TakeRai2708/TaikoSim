@@ -44,15 +44,7 @@ namespace TakeTaikoSimulator.Scenes
         private const string EntryBackground = EntryFolder + "Background.png";
         private float backgroundTime;
 
-        // 画面の下の「フリープレイ」の文字。30px だと小さすぎたので 48px にした
-        //   A-Style の CreditBar.png(「1人プレイ」の黄色いバー)はここでは使わない。
-        //   あれは一番最初のエントリー画面(コインを入れる画面)のものなので、エントリー画面を作るときに使う
-        private static readonly Rectangle FreePlayArea = new(730f, 1012f, 460f, 56f);
-        private const float FreePlaySize = 48f;
-
-        // 終了の確認・お知らせ
-        private const float ExitConfirmSeconds = 3f;
-        private float exitTimer = 0f;
+        // お知らせ
         private string toast = "";
         private float toastTimer = 0f;
 
@@ -120,13 +112,12 @@ namespace TakeTaikoSimulator.Scenes
             MenuVoice.StopLoop();
         }
 
-        // Esc：1回目は確認を出す、確認中(3秒以内)にもう1回押したら終了。点滅中なら決定をやめる
+        // Escでエントリーへ戻る。この戻り方では効果音を鳴らさない。
         public override void OnBack()
         {
             if (choosingCategory)
             {
                 choosingCategory = false;
-                MenuSounds.Ka();
                 LoopItemVoice();
                 return;
             }
@@ -137,19 +128,13 @@ namespace TakeTaikoSimulator.Scenes
                 LoopItemVoice();
                 return;
             }
-            if (exitTimer > 0f)
-            {
-                Game.ShouldExit = true;
-                return;
-            }
-            exitTimer = ExitConfirmSeconds;
+            SceneManager.Simple(new EntryScene());
         }
 
         public override void Update(float dt)
         {
             backgroundTime = (backgroundTime + dt) % 3.2f;
             chara.Update(dt);
-            if (exitTimer > 0f) exitTimer -= dt;
             if (toastTimer > 0f) toastTimer -= dt;
             list.Update(dt, cursor);
             DanList.Update();
@@ -198,7 +183,6 @@ namespace TakeTaikoSimulator.Scenes
             if (next == cursor) return;
             cursor = next;
             list.Collapse();
-            exitTimer = 0f;
             MenuSounds.Ka();
             LoopItemVoice();
         }
@@ -219,7 +203,6 @@ namespace TakeTaikoSimulator.Scenes
                 return;
             }
             MenuSounds.Don();
-            exitTimer = 0f;
 
             // 段位道場：段位のカテゴリが読めていれば、先にカテゴリを選ぶ
             if (item.Title == "段位道場" && DanList.IsScanned && DanList.Categories.Count > 0)
@@ -318,25 +301,22 @@ namespace TakeTaikoSimulator.Scenes
             {
                 // 上のプレイ情報は板より手前に出す（板が上へ流れても隠さない）
                 MenuSkin.Whole(EntryFolder + "Header.png", new Rectangle(0, 0, Screen.Width, Screen.Height), Color.White);
-                Outlined("フリープレイ", FreePlayArea, FreePlaySize, Color.White, new Color(12, 12, 16, 255));
+                FreePlay();
             }
             else
             {
                 Text("モードをえらぶ", 40, 26, 44, Color.White);
-                DrawHint("カッ・↑↓：えらぶ　ドン・Enter：決定　Esc：終了（2回）", 1030);
+                DrawHint("カッ・↑↓：えらぶ　ドン・Enter：決定　Esc：エントリーへ", 1030);
                 DrawHint("テスト：.tja ファイルをウィンドウにドラッグ＆ドロップすると譜面が流れます", 984, new Color(240, 205, 120, 255), 20);
             }
 
-            Rectangle profileButton = new(32, 900, 390, 64);
-            Raylib.DrawRectangleRounded(profileButton, .15f, 8, new Color(14, 22, 35, 225));
             NamePlate.DrawPlayers();
             PuchiChara.DrawPlayers("entry");
-            Text("データ変更 F5", 36, 866, 23, Color.White);
-            if (!Game.IsSettingsOpen && deciding == null && !choosingCategory && Gui.Clicked(profileButton))
-                SceneManager.Simple(new EntryScene(selectData: true));
+            foreach (int side in LocalSession.Players)
+                if (!Game.IsSettingsOpen && deciding == null && !choosingCategory && Gui.Clicked(NamePlate.MenuArea(side)))
+                { SceneManager.Simple(new EntryScene(selectData: true)); break; }
             if (choosingCategory) DrawCategoryPopup();
             if (toastTimer > 0f) DrawBanner(toast, new Color(255, 200, 60, 255));
-            else if (exitTimer > 0f) DrawBanner("3秒以内にもう一度 Esc を押すと終了します", new Color(255, 200, 60, 255));
         }
 
         // カテゴリの吹き出し（まわりは暗くする）
@@ -438,7 +418,6 @@ namespace TakeTaikoSimulator.Scenes
                     {
                         cursor = pos;
                         list.Collapse();
-                        exitTimer = 0f;
                         MenuSounds.Ka();
                     }
                 }

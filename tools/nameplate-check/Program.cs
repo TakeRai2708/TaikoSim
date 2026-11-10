@@ -1,4 +1,5 @@
 using System.Text.Json;
+using TakeTaikoSimulator;
 using TakeTaikoSimulator.Charts;
 using TakeTaikoSimulator.Configs;
 using TakeTaikoSimulator.Graphics;
@@ -161,6 +162,71 @@ try
         entry.Update(.6f);
         Check((bool)Field("choosing").GetValue(entry)! && !(bool)Field("naming").GetValue(entry)!, "人数確定後は名前入力ではなくデータ選択へ");
     }
+    // コンフィグの表示段位だけでは解禁しない。合格記録から、プレイヤー別に選ぶ。
+    SongHistory.SelectProfile(1);
+    Check(SongHistory.GetEarnedDanRanks(1).Count == 0, "コンフィグで付けた段位は獲得済みにしない");
+    SongHistory.SaveDanRecord("earned-new/dan.json", new(true, SongClearType.FullCombo), 10);
+    var earned = SongHistory.GetEarnedDanRanks(1);
+    Check(earned.Count == 1 && earned[0] == new EarnedDanRank(10, true, 1), "金合格・フルコンの獲得状態を読む");
+    SongHistory.SaveDanRecord("earned-new/dan.json", new(false, SongClearType.Cleared), 10);
+    Check(SongHistory.GetEarnedDanRanks(1)[0] == earned[0], "低い合格で獲得状態を失わない");
+    SongHistory.SaveDanRecord("another-year/dan.json", new(false, SongClearType.AllPerfect), 10);
+    Check(SongHistory.GetEarnedDanRanks(1).Single() == new EarnedDanRank(10, true, 2), "同じ段位の別年度の記録は良い状態を集める");
+    SongHistory.SaveDanRecord("failed/dan.json", new(true, SongClearType.None), 18);
+    SongHistory.SaveDanRecord("gaiden/dan.json", new(true, SongClearType.AllPerfect), 19);
+    Check(SongHistory.GetEarnedDanRanks(1).Count == 1, "未合格と外伝は通常段位の選択肢にしない");
+    string legacyDan = Path.Combine(folder, "legacy-dan.json");
+    File.WriteAllText(legacyDan, "{\"danIndex\":5}");
+    SongHistory.SaveDanRecord(legacyDan, new(false, SongClearType.Cleared));
+    Check(SongHistory.GetEarnedDanRanks(1).Any(r => r.Index == 5), "旧記録は残っているdan.jsonから番号を引き継ぐ");
+    File.WriteAllText(legacyDan, "{\"danIndex\":\"bad\"}");
+    Check(SongHistory.GetEarnedDanRanks(1).Count == 1, "不正な旧段位番号から五級を捏造しない");
+    SongHistory.SelectProfile(2);
+    Check(SongHistory.GetEarnedDanRanks(2).Count == 0, "他プレイヤーの段位を解禁しない");
+    Check(SongHistory.GetEarnedDanRanks(1).Single().RankType == 2 && SongHistory.ActiveProfile == 2, "参照だけで使用中のデータを変えない");
+    SongHistory.SelectProfile(1);
+    Check(SongHistory.GetEarnedDanRanks(1).Single().Gold, "新しい段位番号は保存・再読込後も残る");
+
+    SongHistory.SelectProfile(2);
+    var courseForUnlock = new DanCourse { JsonPath = Path.Combine(folder, "removed-after-play/dan.json"), DanIndex = 5, Gauge = new(80, 100) };
+    var resultForUnlock = new DanPlay(courseForUnlock) { Gauge = 90, AutoPlayed = true };
+    resultForUnlock.Current.Great = 100; resultForUnlock.Current.Miss = 1;
+    resultForUnlock.SaveRecord();
+    Check(SongHistory.GetEarnedDanRanks(2).Count == 0, "オートでは段位を解禁しない");
+    resultForUnlock.AutoPlayed = false; resultForUnlock.Quit = true; resultForUnlock.SaveRecord();
+    Check(SongHistory.GetEarnedDanRanks(2).Count == 0, "途中終了では段位を解禁しない");
+    resultForUnlock.Quit = false; resultForUnlock.Gauge = 0; resultForUnlock.SaveRecord();
+    Check(SongHistory.GetEarnedDanRanks(2).Count == 0, "不合格では段位を解禁しない");
+    resultForUnlock.Gauge = 90; resultForUnlock.SaveRecord();
+    Check(SongHistory.GetEarnedDanRanks(2).Single() == new EarnedDanRank(5, false, 0), "実際の手動合格の保存経路から解禁");
+    SongHistory.SelectProfile(1);
+
+    LocalSession.Reset(); LocalSession.Don(0); LocalSession.Profiles[0] = 1;
+    var dressing = new DressingScene(); dressing.Enter();
+    var choices = (System.Collections.IDictionary)typeof(DressingScene).GetField("rankChoices", BindingFlags.NonPublic | BindingFlags.Instance)!.GetValue(dressing)!;
+    Check(((Array)choices[1]!).Length == 7, "獲得した金合格・虹までと非表示だけを選択肢にする");
+    var draftType = typeof(DressingScene).GetNestedType("Draft", BindingFlags.NonPublic)!;
+    var draft = Activator.CreateInstance(draftType, new object[] { 1 })!;
+    var plateField = draftType.GetField("Plate")!;
+    var dirty = draftType.GetProperty("Dirty")!;
+    var draftPlate = (NamePlateConfig)plateField.GetValue(draft)!;
+    string originalName = PlayerDataStore.DisplayName(1);
+    draftPlate.Name = "着せ替えで変更";
+    Check((bool)dirty.GetValue(draft)! && PlayerDataStore.DisplayName(1) == originalName, "名前変更は未保存として追跡、適用までは反映しない");
+    draftType.GetMethod("Saved")!.Invoke(draft, null);
+    draftPlate.Rank = "六段"; draftPlate.IsRankGold = true; draftPlate.RankType = 2;
+    Check((bool)dirty.GetValue(draft)!, "段位・金合格・色の変更も未保存として追跡");
+    var drafts = (System.Collections.IDictionary)typeof(DressingScene).GetField("drafts", BindingFlags.NonPublic | BindingFlags.Instance)!.GetValue(dressing)!;
+    drafts[1] = draft;
+    var apply = typeof(DressingScene).GetMethod("Apply", BindingFlags.NonPublic | BindingFlags.Instance)!;
+    Check((bool)apply.Invoke(dressing, null)!, "着せ替えの適用に成功");
+    var applied = PlayerDataStore.NamePlate(1);
+    Check(applied.Name == "着せ替えで変更" && applied.Rank == "六段" && applied.IsRankGold && applied.RankType == 2, "名前と獲得状態を適用時に保存");
+    Check(applied.Title == "称号テスト" && applied.Extra!["futureSetting"].GetInt32() == 123, "名前変更でも称号・未知の設定は保持");
+    Check(!(bool)dirty.GetValue(draft)! && (float)typeof(DressingScene).GetField("appliedAge", BindingFlags.NonPublic | BindingFlags.Instance)!.GetValue(dressing)! == 0, "保存成功時だけ未保存を解除して通知を開始");
+    var mode = new ModeSelectScene(); Game.ShouldExit = false; mode.OnBack();
+    var waiting = typeof(SceneManager).GetField("waiting", BindingFlags.NonPublic | BindingFlags.Static)!.GetValue(null);
+    Check(waiting is EntryScene && !Game.ShouldExit, "モードのEscは終了せずエントリーへ戻す");
     Console.WriteLine($"PASS: {passed} nameplate/profile/cosmetic/rank checks");
 }
 finally

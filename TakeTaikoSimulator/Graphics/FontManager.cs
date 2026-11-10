@@ -49,7 +49,7 @@ namespace TakeTaikoSimulator.Graphics
         {
             if (systemFont != null)
             {
-                systemFont.Draw(text, new Vector2(x, y), size, color);
+                systemFont.DrawSharp(text, new Vector2(x, y), size, color);
                 return;
             }
             // 標準フォントは Raylib の DrawText と同じ間隔
@@ -84,9 +84,12 @@ namespace TakeTaikoSimulator.Graphics
         // 文字の幅と高さを測る(中央寄せとかで使う)
         public static Vector2 Measure(string text, float size)
         {
-            if (systemFont != null) return systemFont.Measure(text, size);
+            if (systemFont != null) return systemFont.MeasureSharp(text, size);
             return Raylib.MeasureTextEx(Raylib.GetFontDefault(), text, size, size / 10f);
         }
+
+        public static Rectangle MeasureInk(string text, float size) =>
+            systemFont?.InkBoundsSharp(text, size) ?? new(0, 0, Measure(text, size).X, size);
 
         // 起動時とスキン適用時に読む。現在の曲名の漢字もここで準備しておく。
         public static void ReloadSkinMainFont(string? skinPath)
@@ -129,6 +132,9 @@ namespace TakeTaikoSimulator.Graphics
 
         public static Vector2 MeasureSkinMain(string text, float size) =>
             skinMainFont?.Measure(text, size) ?? Measure(text, size);
+
+        public static Rectangle MeasureSkinMainInk(string text, float size) =>
+            skinMainFont?.InkBounds(text, size) ?? systemFont?.InkBounds(text, size) ?? new(0, 0, Measure(text, size).X, size);
 
         // スキンの太字フォントに、たくさんの文字列の文字をまとめて先に読み込む(選曲画面の曲名など)
         //   スキンにフォントが無いときは、代わりに使うシステム用のフォントに読み込む
