@@ -9,8 +9,10 @@ namespace TaikoSim.Input
     public static class InputManager
     {
         // 叩く場所が押された瞬間か(登録されたキーのどれか1つでもOK)
-        public static bool IsDrumPressed(DrumPart part)
+        public static bool IsDrumPressed(DrumPart part) => IsDrumPressed(part, TaikoSim.Scenes.LocalSession.MenuPlayer);
+        public static bool IsDrumPressed(DrumPart part, int player)
         {
+            part = (DrumPart)((int)part % 4 + player * 4);
             if (!ConfigManager.Key.DrumKeys.TryGetValue(part, out List<KeyboardKey>? keys)) return false;
 
             foreach (KeyboardKey key in keys)
@@ -25,6 +27,8 @@ namespace TaikoSim.Input
         {
             return IsDrumPressed(DrumPart.LeftDon) || IsDrumPressed(DrumPart.RightDon);
         }
+
+        public static bool IsDonPressed(int player) => IsDrumPressed(DrumPart.LeftDon, player) || IsDrumPressed(DrumPart.RightDon, player);
 
         // カッ(左縁か右縁)が押された瞬間か
         public static bool IsKaPressed()

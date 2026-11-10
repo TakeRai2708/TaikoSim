@@ -482,6 +482,9 @@ namespace TaikoSim.Overlays
 
             GameConfig game = ActiveGame;
             game.ShowFps = CheckboxRow("FPS表示", game.ShowFps);
+            SubHeader("記録表示");
+            game.RecordGroup = (RecordGroup)DropdownRow("recordGroup", "王冠・ランクの集計", new[] { "かんたん", "ふつう", "むずかしい", "おに", "おに＋裏" }, (int)game.RecordGroup);
+            NoteRow("表示する獲得数の難易度です。曲ごとの記録は難易度別に保存します。");
 
             // ----- デバッグ(重さ・入力・音のズレを CSV に記録する) -----
             SubHeader("デバッグ");
@@ -1547,3 +1550,4 @@ namespace TaikoSim.Overlays
         }
     }
 }
+

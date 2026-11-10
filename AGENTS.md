@@ -3,6 +3,8 @@
 This file is for any AI (Claude, ChatGPT / Codex, etc.) that picks up work on TaikoSim.
 Read all of it before you start.
 
+**Also read `KNOWN-ISSUES.txt` before working; update it when investigation or verification changes.**
+
 **Also read `TAIKONAUTS-SPEC.md`.**
 That file is a digest of the official TaikøNauts documentation (50 pages): "how the original is built".
 The **correct file formats** live there: dan-dojo `dan.json`, Don-chan `Config.json`, `category.def` / `order.def`, `SONGGENREID`, etc.
@@ -815,12 +817,13 @@ Order:
 - Raylib scissor mode can't be nested — re-scissor per element (see `DanShutter.Clip`)
 
 
-### Training mode (Codex local branch, 2026-11-08)
-- Shared song/difficulty selection; dedicated TrainingScene drawing, sharing PlayScene judging.
-- Space pauses/resumes (1 second preparation at the frozen position); paused Left/Right moves one bar. Up/Down changes speed by 0.1, clamped 0.5–1.0. Frequency-based playback also lowers pitch.
-- Seeking resets session counts, rolls, balloons and input queues; earlier notes do not count as misses. Past branches are reevaluated with zero stats. Bar navigation uses common/Normal branch bar times, including invisible bars.
-- Song end pauses instead of saving scores or opening results. Esc returns to training song selection.
-- Linux source compile: 0 errors (existing dependency/platform warnings); 36 parser/navigation/scheduler checks passed. Actual Windows visuals, audio seeking/sync and Native AOT publish remain unverified. Not pushed or merged.
+### Training mode (updated 2026-11-09)
+- Training base was merged; normal play rendering is shared. Controls are configurable. Resume plays from the preceding measure; the first measure uses the normal OFFSET/pre-roll.
+- User wording is 一時停止 (not ポーズ).
+- Paused navigation: 0.24s ease-out cubic, first repeat after 0.42s then every 0.30s; held 1.5s accelerates to 0.10s repeat/motion. These are implementation choices, not measured reference timings.
+- Paused hit review shows hit notes and small labels immediately above them. Only actual hits are labeled; early OK is −可 and late OK is +可. History survives browsing, resets on resuming/restarting.
+- Left OK row is split into early / total / late. Millisecond delta readout removed from training UI.
+- Current enhancement has NOT been compiled or run: execution service fails before starting commands (invalid directory). Prior 41-test result applies to the preceding implementation only.
 
 ### Song best records (Codex, 2026-11-09)
 - Normal manual play saves per TJA path + difficulty at FinishPlay, using the existing SongHistory.json Records and AOT source generation. Auto, training, aborted play and dan course runs do not enter this normal-play update.
@@ -848,3 +851,54 @@ Order:
 - Mode select shows the active profile and a change button (F5 also returns to the data selector). Restart always starts through entry; slot selection is not silently bypassed.
 - Linux source compile: 0 errors, 253 existing dependency/platform warnings. All 25 record checks passed, including profile isolation, preview, unreadable-data rejection, favorites/recent reload and legacy slot-1 preservation. Windows visual/input/audio verification and Native AOT publish remain pending.
 
+
+## Local two-player test (11/10)
+
+- User-approved entry flow: the first Don on either physical side joins that side. A first Don on the other side joins it without advancing. A second Don from an already joined side fixes the player count, plays a 0.5s fade, then opens profile selection for each participant in physical-side order. After all profiles are confirmed, go to mode select. Never move profile selection before count confirmation. Reject using the same profile twice.
+- `LocalSession` separates physical 1P/2P from the three history slots; the first joining side controls shared menus. 2P-only solo entry is supported. Existing drum enum values 0–3 remain unchanged; new 2P keys are 4–7. User-set defaults are left Ka=C, left Don=V, right Don=N, right Ka=M. Missing entries in older files get these defaults, but existing 1P keys take priority if they overlap. F1 settings exposes all eight key parts. First-run setup still requires only 1P's four parts, but displays/editable key rows for both sides in two columns. Clicking Change starts replacement; Esc cancels without deleting the old key. Completion also shows both sides. Deliberately unassigned 2P parts do not force startup setup; keys cannot overlap across sides or system actions.
+- Normal song selection stays shared. With two participants, `LocalDifficultyScene` provides independent difficulty/readiness and the existing six-item play-options panel for each side. Left/right Ka selects, Don confirms. Tab changes the arrow/Enter/F2 keyboard focus. Only one options panel opens at a time; both players must confirm difficulty before starting. Opening options or moving a cursor cancels that side's readiness. Esc first closes options, then cancels readiness, then returns to shared song selection.
+- Two-player options last for the entry session and are not written over shared `GameConfig.json`. `LocalSession.WithOptions` temporarily applies only the six per-player play options and restores them in `finally`; common offsets and other settings remain live. This is synchronous main-thread scope, never await or run background work inside it.
+- `LocalPlayScene` owns two ordinary `PlayScene` engines. Only physical 1P's engine loads music, and the other reads its synchronized clock. Both use the same input timestamp anchor; Raylib's consumable key queue is read once and fanned out, with each engine filtering its own bindings. Judging, branches, rolls/balloons, score, mini taiko and effects are reused. Quick restart restarts both engines at the earliest first bar minus 3s. A finished side waits while the other continues; music stops only when both finish or the whole scene exits. Esc abort does not save results.
+- This is deliberately a **test layout**: two complete ordinary play screens scaled uniformly to 960×540, side by side. Background scissors are translated/scaled to match each viewport. No mirrored text or reference-perfect two-lane A-Style layout is claimed. Combined results are system text for now. On completion, each non-auto result updates only its selected profile; auto does not update score/crown. Recent songs are recorded separately. 2P dan and training are blocked in mode selection; existing solo modes remain available.
+- `tools/record-check` now also checks entry order, 2P-only participation, simultaneous joining, scoped/nested options, exception restoration, live common offsets, old key-file migration, key conflicts and JSON round trips. Native game rendering, physical keyboard rollover, shared music synchronization/audio, 2P effects and Windows Native AOT publishing still need Windows verification. Do not describe the source checks as successful gameplay testing.
+- Current validation: Linux source compile 0 errors / 253 existing warnings; **48 checks passed**. Windows manual checks are in `tools/local-player-check/README.md` (not executed here). The earlier 11/9 entry-only notes above describe the historical single-player implementation and are superseded by this section.
+
+### Difficulty-group display and 2P menu placement (11/10 follow-up)
+
+- Settings > General > Record display now selects **Easy / Normal / Hard / Oni only / Oni + Ura** (`GameConfig.RecordGroup`, default combined for old files). This changes the summary display; existing per-file/per-course records stay separate. The five groups use rows 0–4 of `ScorePanel.png`. Difficulty-card hover does not change this selected summary group. While browsing, the best-score panel follows the configured group (combined defaults to the last Oni/Ura choice); hovering an actual difficulty shows that course's best. If a song lacks the preferred course, best-score display falls back to its hardest available course and shows that course symbol.
+- `SongHistory.GetSummary(RecordGroup, profile)` caches by profile and group. Profile reads for non-active-side rendering are cached, never call SelectProfile from Draw. Selecting/reloading a profile or saving a score invalidates that profile's group summaries. Existing CourseType summary overload remains for compatibility with older callers; menu display uses the explicit RecordGroup overload.
+- Normal selection and the 2P difficulty scene show participating sides' own summary and best-score panels. 1P stays left; 2P panel coordinates shift +1548px (the panel rectangles land symmetrically at the right edge), keeping all text and digits upright. Two-player difficulty columns moved inward to leave the side panels clear; each course row also shows that profile's crown/rank.
+- Mode select, song select and 2P difficulty select draw only joined sides' menu characters. Use separate 2P positions in skin Config.json when supplied; otherwise mirror the 1P position using the original animation image width. 2P artwork faces inward. Mirroring uses SourceWidth and trim offsets, rather than just flipping the cropped cell. The same animation stream is shared by both draws.
+- Fixed first save to a new data slot: create the parent of that slot's history file before the temporary file write. The previous generic Config-only directory creation was insufficient for PlayerData/2 or /3.
+- Linux source compile: 0 errors / 253 existing warnings. **64 checks pass**, including all five groups, Oni-only vs combined, profile-independent reads, cache refresh after save, initial save without a profile directory, and settings JSON round trips. Windows rendering/input/audio and Native AOT publish remain unverified here.
+
+### Entry/mode and song-select BGM (11/10)
+
+- `Audio/MenuBgm.cs` owns one menu stream. `Scene.MenuBgmFile/Muted/LoopMs` declares what each scene needs; Game updates it after scene input every frame, including settings and blocked transitions, then shuts it down before freeing audio. EntryScene and ModeSelectScene both request `Sound/BGM/Entry.ogg`, so the same stream/position continues across their transition. No per-scene Exit disposes this shared BGM. Other scenes default to no shared menu BGM so it does not overlap their music.
+- Waveform evidence from `TaikoNauts_エントリー画面_1109.mp4` and the previously supplied `BGM.zip`: video 26s matches Entry.ogg 9.0028s, 47s matches 29.9827s, 53s (mode select) matches 35.9828s, 55s matches 37.9828s. Mono normalized correlation is ~0.98 without voice; stereo difference (L-R) suppresses centered voice and gives 0.907 at 53s and 0.930 at 55s. This identifies continuous Entry BGM, not a new start at mode select. Analysis: 8kHz, 150–3300Hz bandpass, 2s windows. Do not describe correlation as a percentage confidence score.
+- Song selection requests `Sound/BGM/SongSelect.ogg`. On genres and Back/Close rows it plays; selecting the difficulty panel's Back button explicitly removes the preview request. Returning to a difficulty resumes its preview. While a preview is requested/loading or playing, stop the BGM (keep its stream loaded); on returning to BGM restart it at zero. A failed preview load releases this suppression so it does not leave permanent silence.
+- The existing recorded reference cadence for SongSelect.ogg is ~4.06s (§8 voices). The supplied audio is ~3.079s long, so the shared player leaves the remaining gap rather than continuously looping the short sound. Entry uses the stream's native full-track loop. No new video cadence measurement was possible in this follow-up; 4.06s is retained from the earlier handoff measurement.
+- Two-player difficulty selection now has its own song preview and the same BGM fallback; entering it or starting play must not briefly resume the menu BGM. Starting play stops/disposes the preview; shared BGM remains suppressed throughout SongLoading. Volume uses Master × BGM, previews use Master × Music, and voice/SE remain separate.
+- Skin or audio generation changes cause a reload. Never dispose a handle from the old audio generation after output restart, as its ID may have been reused. Missing music is silent and attempted only once per file/skin/audio generation. A-Style audio assets remain private/local and are not committed; skins without these files work silently.
+- `BGM.zip` actually includes BGM plus most of the Sound tree. In that supplied copy `EnsoGame/Combo/2P/` is empty; do not request nonexistent separate 2P combo voices without checking that first. The older §8 "BGM Entry/SongSelect not used" statement is superseded by this section.
+- Linux source compile 0 errors / 253 existing warnings. **82 checks passed**: actual BGM controller exercised with fake streams for continuity, source changes, stop/restart on Back, loop cadence, live volume, generation invalidation, no assets/retry loops, plus preview loading/cancel/failure state. Real Windows playback, mixing balance, native looping and device switching remain unverified.
+
+### Back/cancel sound consistency (11/10)
+
+- `MenuSounds.Cancel()` loads `Sound/Cancel.ogg` and uses SE volume. A skin without it falls back to the ordinary Ka sound. It follows the same skin/audio-generation reload and safe disposal as the other menu effects.
+- Song-list Close confirmation keeps its existing Don plus cancel effect. Esc from the song list to genres, genres to mode select, and difficulty Back/ESC now use the same cancel effect (difficulty previously played only Ka). Both button confirmation and Esc route through CloseDifficulty so the cancel effect is not doubled.
+- Two-player difficulty Esc now plays cancel when clearing readiness or returning to song select; closing the options popup retains its separate behavior. No new sounds were added to menu music or preview cursor movement.
+- Compile check and the existing 82 checks cover source/integration regressions; native audio playback of this change still needs Windows verification.
+
+### Play-options opening click (11/10)
+
+- Fixed the panel opening and immediately closing from one mouse click. SongSelectScene and LocalDifficultyScene may call Open while drawing a clicked options row, then call PlayOptionsPanel.Draw later in the same frame. Raylib's IsMouseButtonPressed remains true, and the opening panel is still below the screen, so its old outside-click handler called Close immediately.
+- Mouse interaction in PlayOptionsPanel.Draw now requires Opened, matching the existing Don gate. The initial click and clicks while the panel rises/settles cannot edit values or trigger outside-close. Once settled, controls and outside-click close work normally; Esc/F2 close is unchanged. This applies to both normal and 2P options panels. Native mouse verification remains pending.
+
+
+### Branch integration (2026-11-10, user explicitly requested master push)
+- Checked all 20 remote branches against master 8cdae106. The only unmerged heads were codex/local-two-player-test (cbd057c5), codex/training-review-scroll (438b0205), and codex/known-issues (ff442a29). All three are integrated with their history preserved; all other branch heads were already ancestors of master or identical. This supersedes the historical branch-status section above.
+- Preserved latest master's settings tooltips/category motion, setup stepper and boot preloader. Source changes merged automatically; resolved AGENTS conflicts by keeping the latest English guide and all newer handoff sections.
+- Integrated source build: 0 errors / 253 existing warnings. Record/local-player/BGM checks: 82 passed. Training checks: 50 passed. These are compile/headless checks, not native gameplay testing.
+- The training enhancement's earlier no-build note is historical: it now compiles and its scroll/hold checks pass. Windows visuals, keyboard rollover and audio remain unverified.
+- KNOWN-ISSUES.txt contains historical audio hypotheses from 2026-11-05; they are not newly verified findings against today's sources. Its TEST-001 records the existing dan requirement-test failure, reproduced before these merges and after the rename.

@@ -31,7 +31,7 @@ namespace TaikoSim.Graphics
             wasClear = isClear;
         }
 
-        public void Draw()
+        public void Draw(int viewportX = 0, int viewportY = 0, float scale = 1)
         {
             // 通常のAlpha合成は描画先のAにもSRC_ALPHAを掛け、半透明の重ね描きで
             // キャンバス自体が透けてしまう。RGBは通常のまま、Aだけ正しく積み重ねる。
@@ -41,21 +41,23 @@ namespace TaikoSim.Graphics
             Raylib.BeginBlendMode(BlendMode.CustomSeparate);
 
             // キャンバスの外へ出るアニメ素材が、レーンや別の背景を覆わないようにする。
-            Raylib.BeginScissorMode(0, 0, 1920, 276);
+            Raylib.BeginScissorMode(viewportX, viewportY, (int)(1920 * scale), (int)(276 * scale));
             DrawParts(skin.UpperNormal, elapsed, 0);
             if (wasClear) DrawParts(skin.UpperClear, elapsed, 0);
             Raylib.EndScissorMode();
 
-            Raylib.BeginScissorMode(0, 540, 1920, 540);
+            Raylib.BeginScissorMode(viewportX, viewportY + (int)(540 * scale), (int)(1920 * scale), (int)(540 * scale));
             DrawParts(skin.LowerNormal, elapsed, 540);
             if (wasClear) DrawParts(skin.LowerClear, clearElapsed, 540);
             Raylib.EndScissorMode();
 
+            if (scale != 1) Raylib.BeginScissorMode(viewportX, viewportY, (int)(1920 * scale), (int)(1080 * scale));
             bool useFooter = wasClear && skin.LowerClear.Length > 0
                 ? skin.ClearUseFooter : skin.NormalUseFooter;
             if (useFooter && skin.Footer is Texture2D footer)
                 Raylib.DrawTextureEx(footer, new Vector2(skin.FooterX, 1080 - footer.Height + skin.FooterY),
                     0f, 1f, Color.White);
+            if (scale != 1) Raylib.EndScissorMode();
             Raylib.EndBlendMode();
         }
 

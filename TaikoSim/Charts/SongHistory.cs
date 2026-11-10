@@ -16,6 +16,21 @@ namespace TaikoSim.Charts
         private static SongRecordSummary? summary;
         private static readonly Dictionary<int, SongRecordSummary> courseSummaries = new();
 
+        private static readonly Dictionary<int, SongHistoryFile> profileViews = new();
+        private static readonly Dictionary<(int Profile, RecordGroup Group), SongRecordSummary> groupSummaries = new();
+
+        private static void InvalidateGroups(int slot)
+        {
+            foreach (var key in groupSummaries.Keys.Where(k => k.Profile == slot).ToArray()) groupSummaries.Remove(key);
+        }
+
+        private static SongHistoryFile ProfileView(int slot)
+        {
+            if (slot == ActiveProfile) return Data;
+            if (!profileViews.TryGetValue(slot, out var file)) profileViews[slot] = file = ReadProfile(slot);
+            return file;
+        }
+
         public static int ActiveProfile { get; private set; } = 1;
         public static string ProfileName(int slot) => $"プレイヤー{slot}";
         public static string ProfilePath(int slot)
@@ -45,13 +60,38 @@ namespace TaikoSim.Charts
             SongHistoryFile loaded = ReadProfile(slot);
             ActiveProfile = slot;
             data = loaded;
+            profileViews[slot] = loaded;
+            InvalidateGroups(slot);
             summary = null;
             courseSummaries.Clear();
         }
 
-        public static SongRecordSummary PreviewProfile(int slot) => SongRecordSummary.From(ReadProfile(slot).Records
-            .Where(e => e.Course == (int)CourseType.Oni || e.Course == (int)CourseType.Edit)
-            .Select(e => new SongBestRecord((SongClearType)e.Clear, e.Score, e.Rank)));
+        public static SongRecordSummary PreviewProfile(int slot, RecordGroup group = RecordGroup.OniAndUra)
+        {
+            var file = ReadProfile(slot);
+            profileViews[slot] = file;
+            InvalidateGroups(slot);
+            return Summarize(file, group);
+        }
+
+        private static SongRecordSummary Summarize(SongHistoryFile file, RecordGroup group) => SongRecordSummary.From(
+            file.Records.Where(e => group == RecordGroup.OniAndUra ? e.Course is 3 or 4 : e.Course == (int)group)
+                .Select(e => new SongBestRecord((SongClearType)e.Clear, e.Score, e.Rank)));
+
+        public static SongRecordSummary GetSummary(RecordGroup group, int? profile = null)
+        {
+            int slot = profile ?? ActiveProfile;
+            if (!groupSummaries.TryGetValue((slot, group), out var result))
+                groupSummaries[(slot, group)] = result = Summarize(ProfileView(slot), group);
+            return result;
+        }
+
+        public static (SongClearType Clear, long Score, int Rank) GetRecord(int profile, string key, CourseType course)
+        {
+            var entry = ProfileView(profile).Records.FirstOrDefault(r => r.Course == (int)course
+                && string.Equals(r.Key, key, StringComparison.OrdinalIgnoreCase));
+            return entry == null ? (SongClearType.None, 0L, 0) : ((SongClearType)entry.Clear, entry.Score, entry.Rank);
+        }
 
         private static SongHistoryFile Data => data ??= Load();
 
@@ -130,6 +170,7 @@ namespace TaikoSim.Charts
             bool saved = Save();
             summary = null;
             courseSummaries.Clear();
+            InvalidateGroups(ActiveProfile);
             if (!saved)
             {
                 // 保存できなかったときは、次に遊んだとき再挑戦できるようにメモリ上も戻す。
@@ -206,7 +247,7 @@ namespace TaikoSim.Charts
         {
             try
             {
-                Directory.CreateDirectory(ConfigManager.ConfigFolder);
+                Directory.CreateDirectory(Path.GetDirectoryName(FilePath)!);
                 string temp = FilePath + ".tmp";
                 File.WriteAllText(temp, JsonSerializer.Serialize(Data, AppJsonContext.Default.SongHistoryFile));
                 File.Move(temp, FilePath, overwrite: true);

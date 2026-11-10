@@ -23,8 +23,14 @@ namespace TaikoSim.Audio
 
         private Song? song;            // 読み込んだ曲(wanted の曲)
         private int songAudio;
+        private int observedAudio = AudioManager.Generation;
         private double songStartMs;
         private bool playing;
+
+        // プレビューの再生状態と読み込み待ち。失敗した曲ではBGMに戻せる。
+        public bool IsPlaying => playing && song != null && songAudio == AudioManager.Generation;
+        public bool HasPlaybackRequest => playWanted && (song != null || loading != null
+            || !string.Equals(wanted, attempted, StringComparison.OrdinalIgnoreCase));
 
         // 流したい曲と、今流してよいかを伝える(毎フレーム呼んでよい)
         //   tja が同じなら読み込み直さない。play が false なら、読み込みだけして待つ
@@ -49,7 +55,14 @@ namespace TaikoSim.Audio
         public void Update(float dt)
         {
             // 音を準備し直したあとは、前の曲はもう使えない(片付けもしない)
-            if (song != null && songAudio != AudioManager.Generation) { song = null; playing = false; }
+            if (observedAudio != AudioManager.Generation)
+            {
+                observedAudio = AudioManager.Generation;
+                song = null;
+                playing = false;
+                attempted = null; // 同じ曲のままでも、新しい出力へ読み直す。
+                wait = 0;
+            }
 
             // 読み込んである曲を、流す・止める
             if (song != null)
@@ -140,3 +153,4 @@ namespace TaikoSim.Audio
         }
     }
 }
+

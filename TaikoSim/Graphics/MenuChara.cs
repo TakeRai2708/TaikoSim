@@ -87,8 +87,23 @@ namespace TaikoSim.Graphics
             }
         }
 
+        public void DrawPlayers(float[] xs, float[] ys, float scale, IReadOnlyList<int> players)
+        {
+            foreach (int side in players)
+            {
+                float x = xs[0], y = ys[0];
+                if (side == 1)
+                {
+                    // スキンに別の2P座標があればそちらを使い、なければ画面の反対側へ。
+                    x = xs.Length > 1 && xs[1] != xs[0] ? xs[1] : 1920 - xs[0] - (stream?.SourceWidth(anim) ?? 820) * scale;
+                    y = ys.Length > 1 ? ys[1] : ys[0];
+                }
+                Draw(x, y, scale, side == 1);
+            }
+        }
+
         /// <summary>(x, y) は元の絵（820×599）の左上、scale は倍率（Config.json の値）</summary>
-        public void Draw(float x, float y, float scale)
+        public void Draw(float x, float y, float scale, bool flip = false)
         {
             if (stream == null || SkinManager.SystemSkin || anim.Length == 0) return;
             int count = stream.FrameCount(anim);
@@ -99,12 +114,13 @@ namespace TaikoSim.Graphics
                 int source = Math.Max(1, stream.SourceFrameCount(anim));
                 double at = Math.Min(holdAt, clock / loopSeconds * holdAt);
                 int held = Math.Clamp((int)(at * count / source), 0, count - 1);
-                stream.Draw(anim, held, x, y, scale, Color.White);
+                stream.Draw(anim, held, x, y, scale, Color.White, flip);
                 return;
             }
             double phase = next != null ? Math.Min(clock / loopSeconds, 0.9999) : clock / loopSeconds % 1.0;
             int frame = Math.Clamp((int)(phase * count), 0, count - 1);
-            stream.Draw(anim, frame, x, y, scale, Color.White);
+            stream.Draw(anim, frame, x, y, scale, Color.White, flip);
         }
     }
 }
+

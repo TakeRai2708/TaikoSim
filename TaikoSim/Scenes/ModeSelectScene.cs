@@ -20,6 +20,8 @@ namespace TaikoSim.Scenes
     // 操作：カッ・↑↓・ホイールで選ぶ、ドン・Enter・クリックで決定、Esc を2回で終了
     public class ModeSelectScene : Scene
     {
+        public override string? MenuBgmFile => MenuBgm.EntryFile;
+
         private sealed record Item(string Title, string Description, Color Color, bool Ready);
 
         private static readonly Item[] Items =
@@ -202,6 +204,12 @@ namespace TaikoSim.Scenes
         private void Decide()
         {
             Item item = Current;
+            if (LocalSession.Count == 2 && item.Title is "段位道場" or "特訓モード")
+            {
+                ShowToast("このモードは1人プレイ専用です");
+                MenuSounds.Ka();
+                return;
+            }
             if (!item.Ready)
             {
                 MenuSounds.Ka();
@@ -299,7 +307,7 @@ namespace TaikoSim.Scenes
             }
 
             // どんちゃん：モード選択も選曲と同じ songselect_loop（11/8 の録画で確かめた。板より奥）
-            if (CharaBaker.Config is CharaConfig ec) chara.Draw(ec.EntryX[0], ec.EntryY[0], ec.EntryScale);
+            if (CharaBaker.Config is CharaConfig ec) chara.DrawPlayers(ec.EntryX, ec.EntryY, ec.EntryScale, LocalSession.Players);
 
             DrawList();
 

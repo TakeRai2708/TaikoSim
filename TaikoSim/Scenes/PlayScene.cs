@@ -414,7 +414,7 @@ namespace TaikoSim.Scenes
             }
 
             LoadChart();
-            LoadSong();
+            if (!localPlay || localLeader) LoadSong();
             LoadHitSounds();
             PrepareJudge();
             chara.Load(IsDan);
@@ -456,7 +456,7 @@ namespace TaikoSim.Scenes
 
                 // 選曲画面で選んだ難易度。無ければいつもの順で自動で選ぶ
                 course = courseType is CourseType type
-                    ? chart.Courses.FirstOrDefault(c => c.Type == type) ?? chart.GetPreferredCourse()
+                    ? chart.Courses.FirstOrDefault(c => c.Type == type) ?? (localPlay ? null : chart.GetPreferredCourse())
                     : chart.GetPreferredCourse();
                 if (course == null) error = "譜面（#START〜#END）が見つかりませんでした";
             }
@@ -593,7 +593,7 @@ namespace TaikoSim.Scenes
         }
 
         // 最初から(最初の小節の3秒前から始める)
-        private void Restart()
+        private void Restart(bool keepBackground = false)
         {
             double first = (course != null && course.BarLines.Count > 0) ? course.BarLines[0].TimeMs : 0;
             nowMs = Math.Min(0, first) - 3000;
@@ -602,6 +602,7 @@ namespace TaikoSim.Scenes
             song?.Stop();
             songStarted = false;
 
+            ResetTrainingReview();
             // 判定も最初から
             if (course != null) judges = new Judge?[course.Notes.Count];
             nextHittable = 0;
@@ -659,7 +660,7 @@ namespace TaikoSim.Scenes
 
             effects.Reset();
             if (combo > 0) effects.SetCombo(combo);   // 段位：前の曲から続くコンボ
-            background.Reset();
+            if (!keepBackground) background.Reset();
             ResetAutoPlay();
 
             // 演奏の終わり・スコアランクも最初から
@@ -678,12 +679,24 @@ namespace TaikoSim.Scenes
 
         public override void Update(float dt)
         {
-            if (isTraining && UpdateTrainingControls(dt)) return;
+            if (isTraining && UpdateTrainingControls(dt))
+            {
+                // 一時停止・曲末では時計と判定を進めず、見た目だけ通常演奏と同じ処理で動かす。
+                if (trainingPaused)
+                {
+                    hud.Update(dt, stats.Score);
+                    effects.Update(dt);
+                    branchLane.Update(dt);
+                    UpdatePlayAmbience(dt);
+                    judgeTimer = Math.Max(0, judgeTimer - dt);
+                }
+                return;
+            }
             danPanel?.Update(dt);
             danShutter?.Update(dt);
             danBackgroundTime += dt;
             // クイックリスタート(F5)で最初から（段位道場のときは、段位の1曲目から）
-            if (InputManager.IsSystemPressed(SystemAction.QuickRestart))
+            if (!localPlay && InputManager.IsSystemPressed(SystemAction.QuickRestart))
             {
                 if (dan != null) RetryDan();
                 else
@@ -701,7 +714,8 @@ namespace TaikoSim.Scenes
             //   段位でも時間は止めない（OpenTaiko と同じ。曲と曲のあいだは OnDanSwap で次の曲の時計に付けかえる）
             nowMs += dt * 1000.0 * PlaybackRate;
             double beforeSync = nowMs;
-            UpdateSongSync();
+            if (localClock != null) nowMs = localClock();
+            else UpdateSongSync();
             UpdateDiagnosticsRecording(); // デバッグ記録を途中で ON・OFF しても、すぐ合わせる
             if (DebugLog.Active)
                 DebugLog.SetAudio(song is { IsPlaying: true } ? song.PositionMs - nowMs : null,
@@ -713,22 +727,29 @@ namespace TaikoSim.Scenes
                 double? outputEstimate = AudioManager.Mixer != 0 ? AudioManager.OutputLatencyMs : null;
                 diagnostics.RecordFrame(frameCount, nowMs, syncError, outputEstimate);
             }
+            LocalInputClock = localInputClock?.Invoke() ?? Stopwatch.GetTimestamp();
             hud.Update(dt, stats.Score);
             effects.Update(dt); // 新しい打撃の演出を、そのフレームのdtで先に進めない。
             branchLane.Update(dt);
-            UpdateJudge(dt);
+            if (LocalResult == null) UpdateJudge(dt);
             UpdateLatencyAverage();
 
+            UpdatePlayAmbience(dt);
+            if (dan == null && !isTraining) scoreRank.Update(dt, stats);   // 段位は粋・雅・極を出さない（スコアが曲をまたいで続くため）
+            if (dan != null) UpdateDanEnd(dt);
+            else if (isTraining) UpdateTrainingEnd();
+            else UpdateEnd(dt);
+        }
+
+        // 通常演奏・特訓・一時停止後で背景のクリア切り替えとキャラの更新を共用する。
+        private void UpdatePlayAmbience(float dt)
+        {
             // ゴーゴーの演出は見た目なので、音符と同じ時間(譜面オフセット込み)で見る
             // 分岐のある譜面は、今の分岐のゴーゴーだけを見る
             bool goGoNow = course != null && course.IsGoGoAt(nowMs - ViewAudioOffsetMs - ConfigManager.Game.ChartOffsetMs, branches.IsActive);
             if (course != null) effects.SetGoGo(goGoNow);
             UpdateChara(dt, goGoNow);
             background.Update(dt, stats.IsClear);
-            if (dan == null && !isTraining) scoreRank.Update(dt, stats);   // 段位は粋・雅・極を出さない（スコアが曲をまたいで続くため）
-            if (dan != null) UpdateDanEnd(dt);
-            else if (isTraining) UpdateTrainingEnd();
-            else UpdateEnd(dt);
         }
 
         // どんちゃん：ゴーゴー・ゲージ・風船の様子を渡して、BPM に合わせて進める
@@ -769,7 +790,7 @@ namespace TaikoSim.Scenes
             }
 
             endFadeElapsed += dt;
-            ApplyMusicVolume(1f - Math.Clamp(endFadeElapsed / EndFadeSeconds, 0f, 1f)); // 曲もだんだん小さく
+            if (!localPlay) ApplyMusicVolume(1f - Math.Clamp(endFadeElapsed / EndFadeSeconds, 0f, 1f)); // 曲もだんだん小さく
             if (endFadeElapsed >= EndFadeSeconds + EndBlackSeconds) FinishPlay();
         }
 
@@ -820,6 +841,7 @@ namespace TaikoSim.Scenes
         // 演奏を終えてリザルト画面へ（段位道場のときは次の課題曲、または段位リザルトへ）
         private void FinishPlay()
         {
+            if (localPlay) { FinishLocal(); return; }
             StopSong();
             if (dan != null)
             {
@@ -1047,18 +1069,19 @@ namespace TaikoSim.Scenes
             double gameMs = nowMs - AudioOffsetMs;
             // ここで基準時刻をとる。Windows側のコールバック発生からの経過を引いて、
             // 「押下した時点の譜面時刻」を推定する（物理スイッチの瞬間ではない）。
-            long frameClockAt = Stopwatch.GetTimestamp();
+            long frameClockAt = localPlay ? LocalInputClock : Stopwatch.GetTimestamp();
 
             // 診断OFFでも一致候補をキープする。Windows入力の監視に失敗した場合は
             // Raylibから取得した瞬間を入力時刻として使う。
             windowsInput.Drain(diagnostics.Enabled ? diagnostics : null, frameCount, gameMs);
 
             // そのフレームまでに押されたキーをすべて取得。判定は下のキューで行う。
-            int key = Raylib.GetKeyPressed();
+            int key = NextLocalKey();
             while (key != 0)
             {
                 KeyboardKey pressed = (KeyboardKey)key;
-                if (dan != null && pressed == KeyboardKey.F3 && IsFreeInPlay(KeyboardKey.F3))
+                if (localPlay && !localLeader && (pressed is KeyboardKey.F3 or KeyboardKey.F6 or KeyboardKey.F7 or KeyboardKey.F8 or KeyboardKey.F10) && IsFreeInPlay(pressed)) { }
+                else if (dan != null && pressed == KeyboardKey.F3 && IsFreeInPlay(KeyboardKey.F3))
                 {
                     // 段位道場の F3 は「強制終了」（TaikøNauts と同じ）。デバッグ表示は段位のときは出せない
                     QuitDan();
@@ -1119,7 +1142,7 @@ namespace TaikoSim.Scenes
                         collectedAt, native), ConfigManager.Game.InputTiming,
                         ConfigManager.Game.LimitDrumHitsTo60PerSecond, PlaybackRate);
                 }
-                key = Raylib.GetKeyPressed();
+                key = NextLocalKey();
             }
 
             if (autoPlay)
@@ -1340,6 +1363,7 @@ namespace TaikoSim.Scenes
 
         private void SaveInputTimingSettings(string message)
         {
+            if (localPlay) { SetDiagnosticMessage(message); return; }
             try
             {
                 ConfigManager.SaveAll();
@@ -1366,11 +1390,11 @@ namespace TaikoSim.Scenes
 
         // キー → 叩く場所。叩くキーに登録されていなければ false
         // 同じキーが2か所に登録されていたら、DrumPart の並びが上の方を使う(KeyConfig の決まりと同じ)
-        private static bool TryGetDrumPart(KeyboardKey key, out DrumPart part)
+        private bool TryGetDrumPart(KeyboardKey key, out DrumPart part)
         {
-            foreach (DrumPart candidate in Enum.GetValues<DrumPart>())
+            foreach (DrumPart candidate in Enum.GetValues<DrumPart>().Take(4))
             {
-                if (ConfigManager.Key.DrumKeys.TryGetValue(candidate, out List<KeyboardKey>? keys) && keys.Contains(key))
+                if (ConfigManager.Key.DrumKeys.TryGetValue((DrumPart)((int)candidate + (localPlay ? localPlayer : LocalSession.MenuPlayer) * 4), out List<KeyboardKey>? keys) && keys.Contains(key))
                 {
                     part = candidate;
                     return true;
@@ -1603,6 +1627,7 @@ namespace TaikoSim.Scenes
         private void SetJudge(int index, Judge judge, double? delta)
         {
             judges[index] = judge;
+            RecordTrainingJudge(index, judge, delta);
 
             switch (judge)
             {
@@ -1647,7 +1672,9 @@ namespace TaikoSim.Scenes
         // 割れた風船も消す
         private bool IsHidden(int index)
         {
+            if (isTraining && trainingPaused && index < trainingHistory.Length && trainingHistory[index] != null) return false;
             if (course != null && index < course.Notes.Count && !branches.IsActive(course.Notes[index])) return true; // ほかの分岐
+            if (isTraining && trainingPaused && IsHittable(course!.Notes[index])) return false;
             if (index < balloonPopped.Length && balloonPopped[index]) return true;
             if (IsInflating(index)) return true; // ふくらむ絵の方を出す
             return index < judges.Length && judges[index] is Judge.Good or Judge.Ok;
@@ -1701,7 +1728,8 @@ namespace TaikoSim.Scenes
         {
             // 段位道場のときは、文字の縁を本家に合わせて細くする（MenuDraw.DanOutlineRatio）
             using MenuDraw.OutlineRatioScope outlineScope = dan != null ? MenuDraw.UseOutlineRatio(MenuDraw.DanOutlineRatio) : default;
-            Raylib.ClearBackground(new Color(24, 26, 36, 255));
+            if (localPlay) Raylib.DrawRectangle(0, 0, 1920, 1080, new Color(24, 26, 36, 255));
+            else Raylib.ClearBackground(new Color(24, 26, 36, 255));
 
             if (chart == null || course == null)
             {
@@ -1722,8 +1750,9 @@ namespace TaikoSim.Scenes
             {
                 if (danBackground.Count > 0)
                     foreach (Aup2 anime in danBackground) anime.Draw(anime.LoopedFrameAt(danBackgroundTime));
-                else background.Draw();
+                else background.Draw(localPlay ? localPlayer * 960 : 0, localPlay ? 270 : 0, localPlay ? .5f : 1);
             }
+            if (localPlay) Raylib.BeginScissorMode(localPlayer * 960, 270, 960, 540);
             chara.DrawNormal();   // どんちゃん（背景の上・レーンの下。足がレーンの枠に少し隠れる）
             // 段位のときは、下半分を条件パネルにする(下の背景・ダンサーの上に描く)
             if (dan != null && danPanel != null)
@@ -1771,6 +1800,8 @@ namespace TaikoSim.Scenes
             {
                 if (!IsHidden(i)) DrawSeText(course.Notes[i], viewMs);
             }
+
+            DrawTrainingReview(viewMs);
 
             // 叩いている途中の風船(ふくらむ絵。音符の絵の上に描く)
             // 風船を叩いている・割れたときのどんちゃん（レーンの上・風船の下。11/8 の録画で、風船がどんちゃんの口の前に重なっていた）
@@ -1834,7 +1865,7 @@ namespace TaikoSim.Scenes
                 FontManager.Draw(diagnosticMessage, InfoX, InfoTop - 34, 22, Color.SkyBlue);
 
             // 演奏が終わって次の画面へ行く前に、だんだん暗くする
-            if (endFadeElapsed > 0f)
+            if (!localPlay && endFadeElapsed > 0f)
             {
                 float alpha = Math.Clamp(endFadeElapsed / EndFadeSeconds, 0f, 1f);
                 Raylib.DrawRectangle(0, 0, Screen.Width, Screen.Height, Raylib.ColorAlpha(Color.Black, alpha));
@@ -2395,3 +2426,4 @@ namespace TaikoSim.Scenes
         }
     }
 }
+

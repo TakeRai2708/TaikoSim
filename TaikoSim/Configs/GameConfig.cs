@@ -14,6 +14,8 @@
         Compatible60Hz,
     }
 
+    public enum RecordGroup { Easy, Normal, Hard, Oni, OniAndUra }
+
     // ゲーム全体の設定
     public class GameConfig
     {
@@ -94,6 +96,9 @@
         // 演奏画面の左下に、良・可・不可・連打数の板を出すか
         public bool ShowScoreboard { get; set; } = true;
 
+        // 王冠・スコアランクの獲得数で表示する難易度。曲ごとの記録はそのまま。
+        public RecordGroup RecordGroup { get; set; } = RecordGroup.OniAndUra;
+
         // デバッグ記録(CSV)を取るか。ON の間、Logs/Debug_日付_時間/ に frames.csv・events.csv・input.csv を書く
         //   (前の「入力診断CSV保存」はこれに入った。入力の記録は input.csv)
         public bool DebugLog { get; set; } = false;
@@ -107,6 +112,7 @@
         // おかしな値を直す
         public void Fix()
         {
+            if (!Enum.IsDefined(RecordGroup)) RecordGroup = RecordGroup.OniAndUra;
             // 未知の値なら高精度に戻す（JSONを直接編集した場合など）。
             if (!Enum.IsDefined(InputTiming)) InputTiming = InputTimingMode.HighPrecision;
             if (!float.IsFinite(HiSpeed) || HiSpeed < 0f) HiSpeed = 0f;

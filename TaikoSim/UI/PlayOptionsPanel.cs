@@ -83,7 +83,7 @@ namespace TaikoSim.UI
             public Action<int> SetInt = _ => { };
         }
 
-        private static GameConfig Cfg => ConfigManager.Game;
+        private static GameConfig Cfg => TaikoSim.Scenes.LocalSession.OptionsContext ?? ConfigManager.Game;
 
         private readonly Item[] items =
         {
@@ -206,9 +206,10 @@ namespace TaikoSim.UI
                 {
                     // 一覧をぐるっと回る。変えたら「ドン → カッ」を1回ずつ鳴らす(カッの音は鳴らさない)
                     var list = HitSounds.List;
-                    int next = ((HitSounds.SelectedIndex + dir) % list.Count + list.Count) % list.Count;
+                    int next = ((HitSounds.List.FindIndex(e => e.Key == Cfg.HitSound) + dir) % list.Count + list.Count) % list.Count;
                     Cfg.HitSound = list[next].Key;
-                    ConfigManager.SaveAll();
+                    if (TaikoSim.Scenes.LocalSession.OptionsContext == null) ConfigManager.SaveAll();
+                    ConfigManager.Game.HitSound = Cfg.HitSound;
                     HitSounds.PlayPreview();
                     return;
                 }
@@ -239,7 +240,7 @@ namespace TaikoSim.UI
                     break;
                 }
             }
-            ConfigManager.SaveAll();
+            if (TaikoSim.Scenes.LocalSession.OptionsContext == null) ConfigManager.SaveAll();
             MenuSounds.Ka();
         }
 
@@ -299,7 +300,7 @@ namespace TaikoSim.UI
                     item.SetInt(percent);
                     break;
             }
-            ConfigManager.SaveAll();
+            if (TaikoSim.Scenes.LocalSession.OptionsContext == null) ConfigManager.SaveAll();
             editInvalid = false;
             return true;
         }
@@ -313,7 +314,7 @@ namespace TaikoSim.UI
         private static string ValueText(Item item) => item.Kind switch
         {
             Kind.Toggle => item.GetBool() ? "する" : "しない",
-            Kind.HitSound => HitSounds.Selected.Name,
+            Kind.HitSound => HitSounds.List.FirstOrDefault(e => e.Key == Cfg.HitSound)?.Name ?? "スキン",
             Kind.HiSpeed => (Cfg.HiSpeed > 0f ? Cfg.HiSpeed : 1f).ToString("0.0##", CultureInfo.InvariantCulture),
             Kind.Percent => item.GetInt().ToString(CultureInfo.InvariantCulture) + "%",
             _ => item.GetInt().ToString(CultureInfo.InvariantCulture),
@@ -356,7 +357,8 @@ namespace TaikoSim.UI
         {
             if (!IsOpen) return;
             float px = PanelX, py = PanelTop + SlideY();
-            bool input = active && !Closing;
+            // 開いたクリックを「板の外を押した」と二重処理しない。移動中の板もクリックさせない。
+            bool input = active && !Closing && Opened;
             Vector2 mouse = Screen.GetMousePosition();
             bool pressed = input && Raylib.IsMouseButtonPressed(MouseButton.Left);
 
@@ -370,10 +372,11 @@ namespace TaikoSim.UI
 
             // ----- 左上の 1P の印と「演奏オプション」 -----
             Rectangle mark = Offset(SideMark, panel);
-            if (!MenuSkin.Part(Folder + "PlayerSide.png", new Rectangle(0, 0, 64, 64), mark, Color.White))
+            int side = TaikoSim.Scenes.LocalSession.MenuPlayer;
+            if (!MenuSkin.Part(Folder + "PlayerSide.png", new Rectangle(side * 64, 0, 64, 64), mark, Color.White))
             {
-                Raylib.DrawCircleV(new Vector2(mark.X + mark.Width / 2f, mark.Y + mark.Height / 2f), mark.Width / 2f - 2f, new Color(232, 72, 58, 255));
-                Gui.DrawCentered("1P", mark, 22, Color.White);
+                Raylib.DrawCircleV(new Vector2(mark.X + mark.Width / 2f, mark.Y + mark.Height / 2f), mark.Width / 2f - 2f, side == 0 ? new Color(232, 72, 58, 255) : Color.SkyBlue);
+                Gui.DrawCentered($"{side + 1}P", mark, 22, Color.White);
             }
             Outlined("演奏オプション", px + TitleX, py + TitleCenterY, TitleSize, Color.White, Ink, centerX: false);
 
@@ -485,3 +488,4 @@ namespace TaikoSim.UI
         }
     }
 }
+

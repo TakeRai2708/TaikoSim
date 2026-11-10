@@ -2,7 +2,7 @@
 
 namespace TaikoSim.Configs
 {
-    // 太鼓の叩く場所(1P)
+    // 太鼓の叩く場所。既存の1Pは0〜3の番号を維持する。
     // 並び順 = キーがかぶったときの優先順位(上ほど優先)
     public enum DrumPart
     {
@@ -10,6 +10,7 @@ namespace TaikoSim.Configs
         LeftDon,   // 左面
         RightDon,  // 右面
         RightKa,   // 右縁
+        P2LeftKa, P2LeftDon, P2RightDon, P2RightKa,
     }
 
     // システムキーの種類
@@ -41,13 +42,15 @@ namespace TaikoSim.Configs
         public Dictionary<SystemAction, KeyboardKey> SystemKeys { get; set; } = DefaultSystemKeys();
 
         // ===== 初期値 =====
-        // 叩くキーは最初は全部未割り当て(初回起動セットアップで自分で決める)
+        // 1Pは初回セットアップで登録。2Pは C/V/N/M が初期値。
         private static Dictionary<DrumPart, List<KeyboardKey>> DefaultDrumKeys() => new()
         {
             { DrumPart.LeftKa, new() },
             { DrumPart.LeftDon, new() },
             { DrumPart.RightDon, new() },
             { DrumPart.RightKa, new() },
+            { DrumPart.P2LeftKa, new() { KeyboardKey.C } }, { DrumPart.P2LeftDon, new() { KeyboardKey.V } },
+            { DrumPart.P2RightDon, new() { KeyboardKey.N } }, { DrumPart.P2RightKa, new() { KeyboardKey.M } },
         };
 
         private static Dictionary<SystemAction, KeyboardKey> DefaultSystemKeys() => new()
@@ -77,22 +80,24 @@ namespace TaikoSim.Configs
         // 叩く場所の表示名(日本語)
         public static string GetDrumPartName(DrumPart part) => part switch
         {
-            DrumPart.LeftKa => "左縁",
-            DrumPart.LeftDon => "左面",
-            DrumPart.RightDon => "右面",
-            DrumPart.RightKa => "右縁",
+            DrumPart.LeftKa => "1P 左縁",
+            DrumPart.LeftDon => "1P 左面",
+            DrumPart.RightDon => "1P 右面",
+            DrumPart.RightKa => "1P 右縁",
+            DrumPart.P2LeftKa => "2P 左縁", DrumPart.P2LeftDon => "2P 左面",
+            DrumPart.P2RightDon => "2P 右面", DrumPart.P2RightKa => "2P 右縁",
             _ => part.ToString(),
         };
 
         // ドン(面)かどうか。false ならカッ(縁)
-        public static bool IsDon(DrumPart part) => part == DrumPart.LeftDon || part == DrumPart.RightDon;
+        public static bool IsDon(DrumPart part) => part == DrumPart.LeftDon || part == DrumPart.RightDon || part == DrumPart.P2LeftDon || part == DrumPart.P2RightDon;
 
         // キーが1個も無い叩く場所の一覧
         // ※プロパティにするとJSONに保存されてしまうので、メソッドにしている
         public List<DrumPart> GetEmptyParts()
         {
             var result = new List<DrumPart>();
-            foreach (DrumPart part in Enum.GetValues<DrumPart>())
+            foreach (DrumPart part in Enum.GetValues<DrumPart>().Take(4))
             {
                 if (!DrumKeys.TryGetValue(part, out List<KeyboardKey>? list) || list.Count == 0)
                 {
@@ -117,7 +122,7 @@ namespace TaikoSim.Configs
             SystemAction.Screenshot => "スクリーンショット",
             SystemAction.Search => "検索",
             SystemAction.Favorite => "お気に入り",
-            SystemAction.TrainingPause => "特訓：ポーズ／再開",
+            SystemAction.TrainingPause => "特訓：一時停止／再開",
             SystemAction.TrainingPreviousBar => "特訓：前の小節",
             SystemAction.TrainingNextBar => "特訓：次の小節",
             SystemAction.TrainingFaster => "特訓：速度を上げる",
@@ -171,6 +176,20 @@ namespace TaikoSim.Configs
 
             list.Add(key);
             message = $"{key} を{name}に追加しました";
+            return true;
+        }
+
+        // 変更に失敗しても、前のキーを消さない。
+        public bool TryReplaceDrumKey(DrumPart part, KeyboardKey key, out string message)
+        {
+            if (DrumKeys.TryGetValue(part, out var old) && old.Contains(key))
+            {
+                DrumKeys[part] = new() { key };
+                message = $"{GetDrumPartName(part)}を{key}にしました";
+                return true;
+            }
+            if (!TryAddDrumKey(part, key, out message)) return false;
+            DrumKeys[part] = new() { key };
             return true;
         }
 
@@ -313,3 +332,4 @@ namespace TaikoSim.Configs
         }
     }
 }
+

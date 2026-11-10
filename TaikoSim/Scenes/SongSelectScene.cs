@@ -128,7 +128,6 @@ namespace TaikoSim.Scenes
         }
         private int diffCursor;                        // 0 戻る、1 オプション、2〜5 かんたん〜おに
         private bool ura;
-        private CourseType recordCourse = lastCourse;
         private SongEntry? diffSong;
         private Color diffColor;                       // 難易度の板の色(選んだ曲のカテゴリの色)
         private int diffType;
@@ -148,6 +147,10 @@ namespace TaikoSim.Scenes
 
         // ===== そのほか =====
         private readonly SongPreview preview = new();
+        public override string? MenuBgmFile => MenuBgm.SongSelectFile;
+        public override double MenuBgmLoopMs => MenuBgm.SongSelectLoopMs;
+        private bool leavingForDifficulty;
+        public override bool MenuBgmMuted => preview.HasPlaybackRequest || leavingForDifficulty || SongLoading.IsActive;
         private string toast = "";
         private float toastTimer;
         private bool wasScanning;
@@ -197,7 +200,6 @@ namespace TaikoSim.Scenes
         private const string SelectStartVoice = "Sound/SongSelect/SelectStart.ogg";
         private const string DecideSongVoice = "Sound/SongSelect/DecideSong.ogg";
         private const string DecideDifficultyVoice = "Sound/SongSelect/DecideDifficulty.ogg";
-        private const string CancelSe = "Sound/Cancel.ogg";
         private const double GenreVoiceDelay = 0.95, DecideSongVoiceDelay = 0.5;
         private bool selectPrompt;   // SelectStart をくり返している途中
 
@@ -457,8 +459,8 @@ namespace TaikoSim.Scenes
                 return;
             }
 
-            // 曲を選んでいるときはプレビューを用意して、板が開いたら流す(難易度をえらんでいる間も流しっぱなし)
-            string? previewTja = diffOpen ? diffSong?.TjaPath
+            // 曲と難易度ではプレビュー。「戻る」を選んでいる間は止め、選曲BGMへ戻す。
+            string? previewTja = diffOpen ? (diffCursor == 0 ? null : diffSong?.TjaPath)
                 : inSongs && CurrentItem is { Kind: Kind.Song } now ? now.Song!.TjaPath : null;
             preview.Request(previewTja, diffOpen || list.Expand > 0f);
             if (returnTime >= 0f) { DiscardTypedChars(); return; }
@@ -628,7 +630,7 @@ namespace TaikoSim.Scenes
                     //   点滅 → 白 → ポンッ → まわりの板が上下へ逃げる → 「とじる」の板が横につぶれて細い線 → 空のジャンルの色の板が横に広がる
                     //   → J-POP の板（開いた形）に入れ替わって中身とまわりが出る → 0.3秒あとに黄色い枠。時間もジャンルを開くときとほぼ同じ（ずれは 0.05秒以内）
                     MenuSounds.Don();
-                    MenuVoice.PlaySe(CancelSe);
+                    MenuSounds.Cancel();
                     list.StartDecide();
                     flipOpen = CloseGenreNow;
                     flipFromBack = true;
@@ -709,7 +711,8 @@ namespace TaikoSim.Scenes
                 list.EndDecide();
                 return;
             }
-            if (inSongs) { MenuSounds.Ka(); CloseGenre(); return; }
+            if (inSongs) { MenuSounds.Cancel(); CloseGenre(); return; }
+            MenuSounds.Cancel();
             SceneManager.ToModeFromSongSelect(new ModeSelectScene());
         }
 
@@ -755,6 +758,13 @@ namespace TaikoSim.Scenes
         private void OpenDifficulty(Item item)
         {
             SongEntry song = item.Song!;
+            if (!training && LocalSession.Count == 2)
+            {
+                leavingForDifficulty = true;
+                preview.Dispose();
+                SceneManager.Simple(new LocalDifficultyScene(song));
+                return;
+            }
             diffSong = song;
             diffColor = item.Color;
             diffType = BarType(item);
@@ -783,7 +793,7 @@ namespace TaikoSim.Scenes
         {
             // 11/8 の TaikøNauts の録画：難易度の板は一瞬で消えて、選んでいた曲の板は閉じた形にもどる。
             //   そこから 0.43秒で黄色い枠、0.45秒で開く（BarList.CollapseAfterDifficulty）。フェードはしない
-            MenuSounds.Ka();
+            MenuSounds.Cancel();
             options.CloseNow();
             diffOpen = false;
             diffSong = null;
@@ -1093,7 +1103,7 @@ namespace TaikoSim.Scenes
                 Raylib.ColorBrightness(backColor, -0.35f), Raylib.ColorBrightness(backColor, -0.7f));
             DrawTnBackground();
             // どんちゃん（背景の上・板より奥）
-            if (CharaBaker.Config is CharaConfig sc) chara.Draw(sc.SongSelectX[0], sc.SongSelectY[0], sc.SongSelectScale);
+            if (CharaBaker.Config is CharaConfig sc) chara.DrawPlayers(sc.SongSelectX, sc.SongSelectY, sc.SongSelectScale, LocalSession.Players);
 
             if (SongList.IsScanning) DrawScanning();
             else if (SongList.Categories.Count == 0) DrawEmpty();
@@ -1498,15 +1508,21 @@ namespace TaikoSim.Scenes
         private void DrawSavedSongRecords()
         {
             if (SongList.IsScanning || SongList.Categories.Count == 0) return;
-            if (diffOpen && diffCursor >= 2) recordCourse = CourseAt(diffCursor);
-            SongRecordPanel.DrawSummary(recordCourse, ReturnAlpha);
+            RecordGroup group = ConfigManager.Game.RecordGroup;
+            CourseType preferred = group == RecordGroup.OniAndUra
+                ? lastCourse == CourseType.Edit ? CourseType.Edit : CourseType.Oni : (CourseType)group;
+            if (diffOpen && diffCursor >= 2) preferred = CourseAt(diffCursor);
             SongEntry? song = diffOpen ? diffSong : CurrentItem?.Song;
-            if (song == null) return;
-            CourseType course = recordCourse;
-            // その難易度が無い曲では、存在する一番むずかしい難易度の記録を見せる。
-            if (!song.Courses.Any(c => c.Type == course))
-                course = song.Courses.Where(c => c.Type <= CourseType.Edit).Select(c => c.Type).DefaultIfEmpty(CourseType.Oni).Max();
-            SongRecordPanel.DrawBest(song, course, ReturnAlpha);
+            foreach (int side in LocalSession.Players)
+            {
+                int profile = LocalSession.Profiles[side];
+                SongRecordPanel.DrawSummary(group, ReturnAlpha, profile: profile, side: side);
+                if (song == null) continue;
+                CourseType course = preferred;
+                if (!song.Courses.Any(c => c.Type == course))
+                    course = song.Courses.Where(c => c.Type <= CourseType.Edit).Select(c => c.Type).DefaultIfEmpty(CourseType.Oni).Max();
+                SongRecordPanel.DrawBest(song, course, ReturnAlpha, profile, side);
+            }
         }
 
         // 難易度の箱の場所(0 戻る、1 オプション、2〜5 かんたん〜おに)

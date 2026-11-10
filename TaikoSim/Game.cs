@@ -78,6 +78,7 @@ namespace TaikoSim
                 SceneManager.Update(dt);   // 画面の切り替えの、暗くする・明るくする
                 SceneManager.ApplyChange();
                 Update(dt);
+                MenuBgm.Update(SceneManager.Current, dt);
                 WindowsIme.EndFrame(); // このフレームで文字の入力を頼まれていなければ IME を切る
                 Draw();
                 DebugLog.EndFrame(Raylib.GetFPS());
@@ -86,6 +87,7 @@ namespace TaikoSim
             // 後片付け
             WindowsIme.Shutdown(); // ウィンドウを閉じる前に、横取りしていたメッセージを元に戻す
             SceneManager.Current?.Exit(); // 曲もここで片付く
+            MenuBgm.Shutdown();
             AudioManager.Free();
             CharaBaker.Stop();
             KeyProbe.Stop();
@@ -304,3 +306,4 @@ namespace TaikoSim
         }
     }
 }
+
