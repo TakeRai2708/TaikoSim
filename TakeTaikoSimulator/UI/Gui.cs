@@ -26,6 +26,7 @@ namespace TakeTaikoSimulator.UI
         private static readonly Color PrimaryHoverColor = new Color(84, 153, 255, 255);
         private static readonly Color TrackHoverColor = new Color(52, 68, 96, 255);
         private static readonly Color BubbleTextColor = new Color(17, 24, 39, 255);
+        private const float ControlRadius = 6;
 
         // ===== 動き(じわっと変わる値) =====
         // 部品ごとに「今の値」を覚えておいて、毎フレーム目標の値に近づける
@@ -205,7 +206,7 @@ namespace TakeTaikoSimulator.UI
         {
             bool hover = !blocked && IsMouseOver(area);
             float h = HoverAnim("btn", area, text, hover);
-            Raylib.DrawRectangleRounded(area, 0.18f, 8, Lerp(BoxColor, BoxHoverColor, h));
+            SmoothShapes.Rectangle(area, ControlRadius, Lerp(BoxColor, BoxHoverColor, h));
             DrawCentered(text, area, 26, TextColor);
             return Clicked(area);
         }
@@ -215,7 +216,7 @@ namespace TakeTaikoSimulator.UI
         {
             bool hover = !blocked && IsMouseOver(area);
             float h = HoverAnim("pbtn", area, text, hover);
-            Raylib.DrawRectangleRounded(area, 0.18f, 8, Lerp(AccentColor, PrimaryHoverColor, h));
+            SmoothShapes.Rectangle(area, ControlRadius, Lerp(AccentColor, PrimaryHoverColor, h));
             DrawCentered(text, area, 26, Color.White);
             return Clicked(area);
         }
@@ -231,10 +232,10 @@ namespace TakeTaikoSimulator.UI
             float on = Approach($"chk:{text}", value ? 1f : 0f, 22f);
             float h = HoverAnim("chk", area, text, hover);
             Color off = Lerp(BoxColor, BoxHoverColor, h);
-            Raylib.DrawRectangleRounded(track, 1f, 16, Lerp(off, AccentColor, on));
+            SmoothShapes.Rounded(track, 1f, 16, Lerp(off, AccentColor, on));
             Vector2 knob = new Vector2(track.X + 18 + 30 * on, track.Y + 17);
-            Raylib.DrawCircleV(knob + new Vector2(0, 1.5f), 13.5f, new Color(0, 0, 0, 70)); // うすい影
-            Raylib.DrawCircleV(knob, 13, Color.White);
+            SmoothShapes.Circle(knob + new Vector2(0, 1.5f), 13.5f, new Color(0, 0, 0, 70)); // うすい影
+            SmoothShapes.Circle(knob, 13, Color.White);
 
             return Clicked(area) ? !value : value;
         }
@@ -292,20 +293,20 @@ namespace TakeTaikoSimulator.UI
             // ----- 細いバー(6px) -----
             float cy = bar.Y + bar.Height / 2f;
             float h = Approach($"sl:h:{id}", barHover || dragging ? 1f : 0f, 18f);
-            Raylib.DrawRectangleRounded(new Rectangle(bar.X, cy - 3, bar.Width, 6), 1f, 8, Lerp(BorderColor, TrackHoverColor, h));
+            SmoothShapes.Rounded(new Rectangle(bar.X, cy - 3, bar.Width, 6), 1f, 8, Lerp(BorderColor, TrackHoverColor, h));
             if (zeroRatio > 0f) // 0 の場所に小さい目印
-                Raylib.DrawRectangleRounded(new Rectangle(bar.X + bar.Width * zeroRatio - 1, cy - 8, 2, 16), 1f, 4, WithAlpha(SubTextColor, 0.6f));
+                SmoothShapes.Rounded(new Rectangle(bar.X + bar.Width * zeroRatio - 1, cy - 8, 2, 16), 1f, 4, WithAlpha(SubTextColor, 0.6f));
             float fillWidth = bar.Width * (fillTo - fillFrom);
             if (fillWidth > 0.5f)
-                Raylib.DrawRectangleRounded(new Rectangle(bar.X + bar.Width * fillFrom, cy - 3, fillWidth, 6), 1f, 8, FillColor);
+                SmoothShapes.Rounded(new Rectangle(bar.X + bar.Width * fillFrom, cy - 3, fillWidth, 6), 1f, 8, FillColor);
 
-            // ----- つまみ(白い丸)。さわると大きく、選択中・ドラッグ中はまわりに青い光 -----
+            // ----- つまみ(白い丸)。さわると大きく、選択中・ドラッグ中は細い青枠 -----
             Vector2 knob = new Vector2(bar.X + bar.Width * shown, cy);
             float radius = Approach($"sl:r:{id}", dragging ? 13f : barHover ? 12f : 10f, 20f);
             float glow = Approach($"sl:g:{id}", dragging || focused ? 1f : 0f, 16f);
-            if (glow > 0.01f) Raylib.DrawCircleV(knob, radius + 9f * glow, WithAlpha(AccentColor, 0.25f * glow));
-            Raylib.DrawCircleV(knob + new Vector2(0, 2f), radius + 1.5f, new Color(0, 0, 0, 90)); // うすい影
-            Raylib.DrawCircleV(knob, radius, Color.White);
+            if (glow > 0.01f) SmoothShapes.Ring(knob, radius + 3, radius + 5, WithAlpha(AccentColor, 0.5f * glow));
+            SmoothShapes.Circle(knob + new Vector2(0, 2f), radius + 1.5f, new Color(0, 0, 0, 90)); // うすい影
+            SmoothShapes.Circle(knob, radius, Color.White);
 
             // ----- 数字の吹き出し(さわっている間だけ、少し下からふわっと出る) -----
             float bubble = Approach($"sl:b:{id}", dragging || barHover ? 1f : 0f, 18f);
@@ -317,10 +318,10 @@ namespace TakeTaikoSimulator.UI
                 float by = cy - radius - 14f - bh + 6f * (1f - bubble);
                 Rectangle tip = new Rectangle(knob.X - w / 2f, by, w, bh);
                 Color white = WithAlpha(Color.White, bubble);
-                Raylib.DrawRectangleRounded(tip, 0.5f, 8, white);
+                SmoothShapes.Rectangle(tip, ControlRadius, white);
                 // 下向きの小さい三角(左回りの順に点を並べる)
-                Raylib.DrawTriangle(new Vector2(knob.X - 6, by + bh - 1), new Vector2(knob.X, by + bh + 6), new Vector2(knob.X + 6, by + bh - 1), white);
-                FontManager.Draw(text, knob.X - size.X / 2f, by + (bh - size.Y) / 2f, 20, WithAlpha(BubbleTextColor, bubble));
+                SmoothShapes.Triangle(new Vector2(knob.X - 6, by + bh - 1), new Vector2(knob.X, by + bh + 6), new Vector2(knob.X + 6, by + bh - 1), white);
+                DrawCentered(text, tip, 20, WithAlpha(BubbleTextColor, bubble));
             }
 
             // ----- 数値ボックス -----
@@ -396,8 +397,8 @@ namespace TakeTaikoSimulator.UI
             // 数字の箱は角を丸くして、細いふち
             bool boxHover = !blocked && IsMouseOver(box);
             float bhov = HoverAnim("slbox", box, id, boxHover);
-            Raylib.DrawRectangleRounded(box, 0.35f, 8, editing ? new Color(18, 22, 36, 255) : Lerp(BoxColor, BoxHoverColor, bhov));
-            Raylib.DrawRectangleRoundedLinesEx(box, 0.35f, 8, editing ? 2f : 1f, editing ? AccentColor : BorderColor);
+            SmoothShapes.Rectangle(box, ControlRadius, editing ? new Color(18, 22, 36, 255) : Lerp(BoxColor, BoxHoverColor, bhov));
+            SmoothShapes.Border(box, ControlRadius, editing ? 2f : 1f, editing ? AccentColor : BorderColor);
 
             if (editing)
             {
@@ -436,7 +437,7 @@ namespace TakeTaikoSimulator.UI
             bool open = popupId == id;
             bool hover = !blocked && IsMouseOver(area);
             float h = HoverAnim("dd", area, id, hover || open);
-            Raylib.DrawRectangleRounded(area, 0.18f, 8, Lerp(BoxColor, BoxHoverColor, h));
+            SmoothShapes.Rectangle(area, ControlRadius, Lerp(BoxColor, BoxHoverColor, h));
 
             string text = (selected >= 0 && selected < options.Length) ? options[selected] : "-";
             FontManager.Draw(FitDropdownText(text, area.Width - 58), area.X + 16,

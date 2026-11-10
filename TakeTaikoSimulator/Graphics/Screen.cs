@@ -27,11 +27,13 @@ namespace TakeTaikoSimulator.Graphics
         {
             canvas = Raylib.LoadRenderTexture(Width, Height);
             Raylib.SetTextureFilter(canvas.Texture, TextureFilter.Bilinear); // 縮小してもガタガタにしない
+            SmoothShapes.Preload(); // 設定を開いた瞬間にシェーダーを準備して止まらないようにする
         }
 
         // 後片付け
         public static void Unload()
         {
+            SmoothShapes.Unload();
             Raylib.UnloadRenderTexture(canvas);
         }
 

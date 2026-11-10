@@ -467,11 +467,11 @@ namespace TakeTaikoSimulator.Overlays
             if (contentHeight <= content.Height) return;
             float max = contentHeight - content.Height;
             Rectangle track = new Rectangle(content.X + content.Width - 12, content.Y, 10, content.Height);
-            Raylib.DrawRectangleRounded(track, 1f, 8, Gui.BorderColor);
+            SmoothShapes.Rounded(track, 1f, 8, Gui.BorderColor);
             float thumbHeight = Math.Max(64, track.Height * content.Height / contentHeight);
             Rectangle thumb = new Rectangle(track.X, track.Y + (track.Height - thumbHeight) * scroll / max,
                 track.Width, thumbHeight);
-            Raylib.DrawRectangleRounded(thumb, 1f, 8, Gui.AccentColor);
+            SmoothShapes.Rounded(thumb, 1f, 8, Gui.AccentColor);
         }
 
         // ===== 各カテゴリ =====
@@ -880,7 +880,7 @@ namespace TakeTaikoSimulator.Overlays
 
             float previewY = ToScreenY(cursorY);
             Rectangle previewBox = new Rectangle(LabelX, previewY, RightEdge - LabelX, 110);
-            Raylib.DrawRectangleRounded(previewBox, 0.12f, 8, new Color(12, 13, 17, 255));
+            SmoothShapes.Rounded(previewBox, 0.12f, 8, new Color(12, 13, 17, 255));
             if (!skinPreview.Draw(previewBox))
                 Gui.DrawCentered("画像を読み込めませんでした", previewBox, 22, ErrorColor);
             cursorY += 122;
@@ -982,8 +982,8 @@ namespace TakeTaikoSimulator.Overlays
             bool hover = Gui.IsMouseOver(icon) && !Gui.IsPopupOpen;
             if (hover) hoveredTip = tips.Count - 1;
             Vector2 center = new(icon.X + 15f, icon.Y + 15f);
-            if (hover) Raylib.DrawCircleV(center, 14f, Gui.WithAlpha(Gui.AccentColor, 0.25f));
-            Raylib.DrawRing(center, 11.9f, 14.1f, 0f, 360f, 36, Gui.AccentColor);
+            if (hover) SmoothShapes.Circle(center, 14f, Gui.WithAlpha(Gui.AccentColor, 0.25f));
+            SmoothShapes.Ring(center, 11.9f, 14.1f, Gui.AccentColor);
             Gui.DrawCentered("?", icon, 18f, Gui.AccentColor);
         }
 
@@ -1021,11 +1021,11 @@ namespace TakeTaikoSimulator.Overlays
 
             Color bg = Gui.WithAlpha(TipColor, a);
             Rectangle box = new(x, y, width, height);
-            Raylib.DrawRectangleRounded(box, 16f / Math.Min(width, height), 8, bg);
+            SmoothShapes.Rounded(box, 16f / Math.Min(width, height), 8, bg);
             if (below)
-                Raylib.DrawTriangle(new Vector2(cx, y - 8f), new Vector2(cx - 8f, y), new Vector2(cx + 8f, y), bg);
+                SmoothShapes.Triangle(new Vector2(cx, y - 8f), new Vector2(cx - 8f, y), new Vector2(cx + 8f, y), bg);
             else
-                Raylib.DrawTriangle(new Vector2(cx - 8f, y + height), new Vector2(cx, y + height + 8f), new Vector2(cx + 8f, y + height), bg);
+                SmoothShapes.Triangle(new Vector2(cx - 8f, y + height), new Vector2(cx, y + height + 8f), new Vector2(cx + 8f, y + height), bg);
             for (int i = 0; i < lines.Count; i++)
                 FontManager.Draw(lines[i], x + 16f, y + 8f + i * TipLine + 3f, TipFont, Gui.WithAlpha(Color.White, a));
         }
@@ -1073,7 +1073,7 @@ namespace TakeTaikoSimulator.Overlays
             float y = ToScreenY(cursorY);
             Rectangle header = new Rectangle(LabelX - 10, y, RightEdge - LabelX + 10, 42);
             bool hover = !Gui.IsPopupOpen && Gui.IsMouseOver(header);
-            Raylib.DrawRectangleRounded(header, 0.16f, 8, hover ? Gui.BoxHoverColor : Gui.BoxColor);
+            SmoothShapes.Rounded(header, 0.16f, 8, hover ? Gui.BoxHoverColor : Gui.BoxColor);
 
             FontManager.Draw(open ? "▼" : "▶", LabelX, y + 11, 20, Gui.SubTextColor);
             FontManager.Draw(KeyConfig.GetDrumPartName(part), LabelX + 34, y + 6, 26, Color.White);
@@ -1156,7 +1156,7 @@ namespace TakeTaikoSimulator.Overlays
             Gui.Label(label, LabelX, y + 4, 26);
 
             Rectangle box = new Rectangle(ControlX, y + 3, RightEdge - ControlX, 36);
-            Raylib.DrawRectangleRounded(box, 0.18f, 8, Gui.BoxColor);
+            SmoothShapes.Rounded(box, 0.18f, 8, Gui.BoxColor);
             Gui.DrawCentered(keyText, box, 24, Gui.SubTextColor);
 
             cursorY += RowHeight;
@@ -1165,7 +1165,7 @@ namespace TakeTaikoSimulator.Overlays
         // キー入力待ちの箱(点滅)
         private void DrawWaitingBox(Rectangle area, string text)
         {
-            Raylib.DrawRectangleRounded(area, 0.18f, 8, Gui.BoxColor);
+            SmoothShapes.Rounded(area, 0.18f, 8, Gui.BoxColor);
             Raylib.DrawRectangleLinesEx(area, 2, Gui.AccentColor);
 
             if ((blinkTimer % 1f) < 0.7f)
@@ -1219,7 +1219,7 @@ namespace TakeTaikoSimulator.Overlays
                 }
                 else
                 {
-                    Raylib.DrawRectangleRounded(apply, 0.18f, 8, Gui.BoxColor);
+                    SmoothShapes.Rounded(apply, 0.18f, 8, Gui.BoxColor);
                     Gui.DrawCentered("適用", apply, 26, Gui.SubTextColor);
                 }
             }
@@ -1230,7 +1230,7 @@ namespace TakeTaikoSimulator.Overlays
         {
             Raylib.DrawRectangle(0, 0, Screen.Width, Screen.Height, new Color(0, 0, 0, 175));
             Rectangle box = new Rectangle(530, 360, 860, 330);
-            Raylib.DrawRectangleRounded(box, 0.025f, 8, Gui.PanelColor);
+            SmoothShapes.Rounded(box, 0.025f, 8, Gui.PanelColor);
             Raylib.DrawRectangleLinesEx(box, 1, Gui.BorderColor);
 
             Rectangle close = new Rectangle(box.X + 20, box.Y + 18, 50, 48);
@@ -1256,7 +1256,7 @@ namespace TakeTaikoSimulator.Overlays
             Raylib.DrawRectangle(0, 0, Screen.Width, Screen.Height, new Color(0, 0, 0, 160));
 
             Rectangle box = new Rectangle(560, 340, 800, 400);
-            Raylib.DrawRectangleRounded(box, 0.025f, 8, Gui.PanelColor);
+            SmoothShapes.Rounded(box, 0.025f, 8, Gui.PanelColor);
             Raylib.DrawRectangleLinesEx(box, 1, Gui.BorderColor);
 
             string names = string.Join("・", confirmEmptyParts.Select(KeyConfig.GetDrumPartName));
@@ -1517,10 +1517,10 @@ namespace TakeTaikoSimulator.Overlays
                 Rectangle area = CategoryArea(i);
                 bool hover = !Gui.IsPopupOpen && Gui.IsMouseOver(area) && categories[i] != current;
                 float h = Gui.Approach($"side:{i}", hover ? 1f : 0f, 18f);
-                if (h > 0.01f) Raylib.DrawRectangleRounded(area, 0.12f, 8, Gui.WithAlpha(Gui.BoxColor, h));
+                if (h > 0.01f) SmoothShapes.Rounded(area, 0.12f, 8, Gui.WithAlpha(Gui.BoxColor, h));
             }
             Rectangle band = new Rectangle(target.X, indicatorY, target.Width, target.Height);
-            Raylib.DrawRectangleRounded(band, 0.12f, 8, new Color(24, 42, 67, 255));
+            SmoothShapes.Rounded(band, 0.12f, 8, new Color(24, 42, 67, 255));
             Raylib.DrawRectangle((int)band.X, (int)(band.Y + 10), 3, (int)band.Height - 20, Gui.AccentColor);
 
             for (int i = 0; i < categories.Length; i++)

@@ -234,7 +234,7 @@ namespace TakeTaikoSimulator.Scenes
 
             // 背景
             Raylib.DrawRectangle(0, 0, Screen.Width, Screen.Height, Gui.BackgroundColor);
-            Raylib.DrawRectangleRounded(Panel, 0.009f, 8, Gui.PanelColor);
+            SmoothShapes.Rounded(Panel, 0.009f, 8, Gui.PanelColor);
 
             // 文字と細い進行線だけで、どこまで設定したか分かるようにする
             FontManager.Draw(isFirstRun ? "初期設定" : "キーの設定", Left, 32, 38, Color.White);
@@ -280,8 +280,8 @@ namespace TakeTaikoSimulator.Scenes
             progressTime += Gui.FrameDt;
             shown = progressFrom + (progressTo - progressFrom) * EaseInOutCubic(Math.Clamp(progressTime / StepLineSeconds, 0f, 1f));
 
-            Raylib.DrawRectangleRounded(new Rectangle(first, StepY - 2f, last - first, 4f), 1f, 4, Gui.BorderColor);
-            if (shown > 0f) Raylib.DrawRectangleRounded(new Rectangle(first, StepY - 2f, gap * shown, 4f), 1f, 4, Gui.AccentColor);
+            SmoothShapes.Rounded(new Rectangle(first, StepY - 2f, last - first, 4f), 1f, 4, Gui.BorderColor);
+            if (shown > 0f) SmoothShapes.Rounded(new Rectangle(first, StepY - 2f, gap * shown, 4f), 1f, 4, Gui.AccentColor);
 
             bool allDone = step == Step.Done;
             for (int i = 0; i < names.Length; i++)
@@ -289,17 +289,17 @@ namespace TakeTaikoSimulator.Scenes
                 float x = first + gap * i;
                 bool done = i < current || allDone, now = i == current && !allDone;
                 Vector2 c = new(x, StepY);
-                if (done || now) Raylib.DrawCircleV(c, StepRadius, Gui.AccentColor);
+                if (done || now) SmoothShapes.Circle(c, StepRadius, Gui.AccentColor);
                 else
                 {
-                    Raylib.DrawCircleV(c, StepRadius, Gui.PanelColor);
-                    Raylib.DrawRing(c, StepRadius - 2.5f, StepRadius, 0f, 360f, 40, Gui.BorderColor);
+                    SmoothShapes.Circle(c, StepRadius, Gui.PanelColor);
+                    SmoothShapes.Ring(c, StepRadius - 2.5f, StepRadius, Gui.BorderColor);
                 }
                 if (done)
                 {
                     // 白いチェック
-                    Raylib.DrawLineEx(new Vector2(x - 9f, StepY + 1f), new Vector2(x - 3f, StepY + 7f), 3.6f, Color.White);
-                    Raylib.DrawLineEx(new Vector2(x - 3f, StepY + 7f), new Vector2(x + 9f, StepY - 6f), 3.6f, Color.White);
+                    SmoothShapes.Line(new Vector2(x - 9f, StepY + 1f), new Vector2(x - 3f, StepY + 7f), 3.6f, Color.White);
+                    SmoothShapes.Line(new Vector2(x - 3f, StepY + 7f), new Vector2(x + 9f, StepY - 6f), 3.6f, Color.White);
                 }
                 else
                 {
@@ -446,7 +446,7 @@ namespace TakeTaikoSimulator.Scenes
                     int askIndex = Array.IndexOf(partsToAsk, part);
                     bool current = changingPart == part || changingPart == null && askIndex >= 0 && askIndex == keyIndex;
                     var keys = ConfigManager.Key.DrumKeys.GetValueOrDefault(part, new List<KeyboardKey>());
-                    Raylib.DrawRectangleRounded(row, .1f, 8, Gui.BoxColor);
+                    SmoothShapes.Rounded(row, .1f, 8, Gui.BoxColor);
                     FontManager.Draw(KeyConfig.GetDrumPartName(part), x + 18, y + 18, 25, Color.White);
                     string value = current ? "キーを押してください" : keys.Count == 0 ? "未登録" : string.Join(", ", keys);
                     FontManager.Draw(value, x + 170, y + 18, current ? 23 : 25, current ? Gui.AccentColor : Gui.SubTextColor);
