@@ -755,6 +755,12 @@ namespace TaikoSim.Scenes
         private void OpenDifficulty(Item item)
         {
             SongEntry song = item.Song!;
+            if (!training && LocalSession.Count == 2)
+            {
+                preview.Dispose();
+                SceneManager.Simple(new LocalDifficultyScene(song));
+                return;
+            }
             diffSong = song;
             diffColor = item.Color;
             diffType = BarType(item);

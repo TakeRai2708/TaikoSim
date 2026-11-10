@@ -12,7 +12,7 @@ using static TaikoSim.UI.MenuDraw;
 namespace TaikoSim.Scenes;
 
 // 11/9のエントリー動画25秒：背景を暗くし、中央の黄色い板でデータを選ぶ。
-// 2人同時プレイは未実装なので、この画面では1人分のデータを選ぶ。
+// 人数を決めた後、参加している側のデータを順番に選ぶ。
 public sealed class EntryScene : Scene
 {
     private const string Folder = "Image/01.Entry/";
@@ -23,14 +23,18 @@ public sealed class EntryScene : Scene
     private bool leaving;
     private float elapsed;
     private float opened;
+    private float joiningTransition = -1;
+    private int dataPlayerIndex;
+    private readonly HashSet<int> chosenProfiles = new();
     private string error = "";
-    private static readonly Rectangle Start = new(374, 430, 1172, 190);
     private static readonly Rectangle DataPanel = new(248, 292, 1423, 490);
 
     public EntryScene(bool selectData = false) => choosing = selectData;
 
     public override void Enter()
     {
+        if (!choosing) LocalSession.Reset();
+        if (choosing && LocalSession.Count == 0) LocalSession.Don(0);
         cursor = SongHistory.ActiveProfile - 1;
         MenuSkin.Preload(Folder, new[] { "Background.png", "Header.png", "CreditBar.png",
             "DataLoad_Panel.png", "DataLoad_Text.png", "PlayerData_Panel.png", "Cursor_Left.png", "Cursor_Right.png" });
@@ -52,14 +56,31 @@ public sealed class EntryScene : Scene
         elapsed += dt;
         if (choosing) opened += dt;
         if (leaving || Game.IsSettingsOpen) return;
+        if (joiningTransition >= 0)
+        {
+            joiningTransition += dt;
+            if (joiningTransition >= .5f) { joiningTransition = -1; choosing = true; opened = 0; }
+            return;
+        }
+        if (!choosing)
+        {
+            bool[] don = { InputManager.IsDonPressed(0) || Raylib.IsKeyPressed(KeyboardKey.Enter), InputManager.IsDonPressed(1) };
+            bool advance = false;
+            // 同じフレームで両側が初参加しても、2回押したことにはしない。
+            for (int p = 0; p < 2; p++) if (don[p]) advance |= LocalSession.Don(p);
+            if (don.Any(x => x)) MenuSounds.Don();
+            if (advance) joiningTransition = 0;
+            return;
+        }
+        int dataPlayer = LocalSession.Players[dataPlayerIndex];
         if (choosing)
         {
             int move = 0;
-            if (Raylib.IsKeyPressed(KeyboardKey.Left) || InputManager.IsDrumPressed(DrumPart.LeftKa)) move--;
-            if (Raylib.IsKeyPressed(KeyboardKey.Right) || InputManager.IsDrumPressed(DrumPart.RightKa)) move++;
+            if (Raylib.IsKeyPressed(KeyboardKey.Left) || InputManager.IsDrumPressed(DrumPart.LeftKa, dataPlayer)) move--;
+            if (Raylib.IsKeyPressed(KeyboardKey.Right) || InputManager.IsDrumPressed(DrumPart.RightKa, dataPlayer)) move++;
             if (move != 0) Move(move);
         }
-        if (Raylib.IsKeyPressed(KeyboardKey.Enter) || Raylib.IsKeyPressed(KeyboardKey.KpEnter) || InputManager.IsDonPressed()) Decide();
+        if (Raylib.IsKeyPressed(KeyboardKey.Enter) || Raylib.IsKeyPressed(KeyboardKey.KpEnter) || InputManager.IsDonPressed(dataPlayer)) Decide();
     }
 
     private void Move(int step)
@@ -74,18 +95,23 @@ public sealed class EntryScene : Scene
     private void Decide()
     {
         if (leaving) return;
-        if (!choosing)
+        if (opened < .2f) return;
+        if (!string.IsNullOrEmpty(errors[cursor])) { error = errors[cursor]; return; }
+        if (chosenProfiles.Contains(cursor + 1)) { error = "別のプレイヤーが使用中です"; return; }
+        int physicalPlayer = LocalSession.Players[dataPlayerIndex];
+        try { SongHistory.SelectProfile(cursor + 1); }
+        catch (Exception ex) when (ex is IOException or UnauthorizedAccessException or JsonException)
+        { error = "記録が読めません"; Console.WriteLine($"[Entry] {ex.Message}"); return; }
+        LocalSession.Profiles[physicalPlayer] = cursor + 1;
+        chosenProfiles.Add(cursor + 1);
+        if (++dataPlayerIndex < LocalSession.Count)
         {
-            choosing = true;
+            cursor = Enumerable.Range(1, 3).First(s => !chosenProfiles.Contains(s)) - 1;
             opened = 0;
             MenuSounds.Don();
             return;
         }
-        if (opened < .2f) return;
-        if (!string.IsNullOrEmpty(errors[cursor])) { error = errors[cursor]; return; }
-        try { SongHistory.SelectProfile(cursor + 1); }
-        catch (Exception ex) when (ex is IOException or UnauthorizedAccessException or JsonException)
-        { error = "記録が読めません"; Console.WriteLine($"[Entry] {ex.Message}"); return; }
+        SongHistory.SelectProfile(LocalSession.Profiles[LocalSession.Controller]);
         leaving = true;
         SongSelectScene.ResetForProfile();
         MenuSounds.Don();
@@ -96,7 +122,8 @@ public sealed class EntryScene : Scene
     public override void OnBack()
     {
         if (leaving) return;
-        if (choosing) { choosing = false; error = ""; MenuSounds.Ka(); }
+        if (joiningTransition >= 0) return;
+        if (choosing) { choosing = false; dataPlayerIndex = 0; chosenProfiles.Clear(); LocalSession.Reset(); error = ""; MenuSounds.Ka(); }
         else Game.ShouldExit = true;
     }
 
@@ -109,14 +136,15 @@ public sealed class EntryScene : Scene
         bool interactive = !leaving && !Game.IsSettingsOpen;
         if (!choosing)
         {
-            if (!MenuSkin.Cell(Folder + "CreditBar.png", 0, 1, 2, Start, Color.White))
+            for (int p = 0; p < 2; p++)
             {
-                Raylib.DrawRectangleRounded(Start, .12f, 12, Color.Gold);
-                Outlined("1人プレイ", Start, 64, Color.White, Color.Black);
+                Rectangle slot = new(180 + p * 840, 400, 720, 240);
+                Raylib.DrawRectangleRounded(slot, .1f, 12, LocalSession.Joined[p] ? (p == 0 ? Color.Red : Color.SkyBlue) : new Color(24, 36, 55, 235));
+                Outlined($"{p + 1}P", new(slot.X, 420, slot.Width, 65), 55, Color.White, Color.Black);
+                Outlined(LocalSession.Joined[p] ? "参加中　もう一度ドンで次へ" : "ドンでエントリー", new(slot.X, 525, slot.Width, 65), 34, Color.White, Color.Black);
             }
-            Outlined("太鼓をたたいてスタート", new(480, 700, 960, 70), 46,
-                Fade(Color.White, .75f + .25f * MathF.Sin(elapsed * 4)), Color.Black);
-            if (interactive && Gui.Clicked(Start)) Decide();
+            Outlined("2P：ドン V / N　カッ C / M　F1：キー設定", new(380, 750, 1160, 65), 36, Color.White, Color.Black);
+            if (joiningTransition >= 0) Raylib.DrawRectangle(0, 0, 1920, 1080, Fade(Color.Black, Math.Clamp(joiningTransition / .5f, 0, 1)));
         }
         else DrawProfiles(interactive);
         Outlined(choosing ? "← →・カッ：えらぶ　ドン・Enter：決定　Esc：戻る" : "Esc：終了",
@@ -131,6 +159,7 @@ public sealed class EntryScene : Scene
             Raylib.DrawRectangleRounded(DataPanel, .08f, 12, new Color(24, 35, 53, 255));
         if (!MenuSkin.Cell(Folder + "DataLoad_Text.png", 0, 1, 3, DataPanel, Color.White))
             Outlined("使用するデータを選んでください", new(360, 385, 1200, 75), 52, Color.White, Color.Black);
+        Outlined($"{LocalSession.Players[Math.Min(dataPlayerIndex, LocalSession.Count - 1)] + 1}P のデータ", new(600, 205, 720, 65), 44, Color.White, Color.Black);
         Rectangle card = new(563, 461, 794, 288);
         if (!MenuSkin.Whole(Folder + "PlayerData_Panel.png", card, Color.White))
             Raylib.DrawRectangleRounded(card, .07f, 12, new Color(50, 72, 100, 255));
@@ -149,7 +178,7 @@ public sealed class EntryScene : Scene
         Rectangle confirm = new(780, 812, 360, 90);
         Raylib.DrawRectangleRounded(confirm, .15f, 10, Color.White);
         Outlined("決定", confirm, 42, Color.Black, Color.White);
-        if (interactive && Gui.Clicked(confirm)) Decide();
+        if (interactive && joiningTransition < 0 && Gui.Clicked(confirm)) Decide();
         if (error.Length > 0 || !string.IsNullOrEmpty(errors[cursor]))
             Outlined(error.Length > 0 ? error : errors[cursor], new(450, 760, 1020, 45), 30, Color.Red, Color.Black);
     }

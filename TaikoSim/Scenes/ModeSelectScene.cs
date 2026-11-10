@@ -202,6 +202,12 @@ namespace TaikoSim.Scenes
         private void Decide()
         {
             Item item = Current;
+            if (LocalSession.Count == 2 && item.Title is "段位道場" or "特訓モード")
+            {
+                ShowToast("このモードは1人プレイ専用です");
+                MenuSounds.Ka();
+                return;
+            }
             if (!item.Ready)
             {
                 MenuSounds.Ka();

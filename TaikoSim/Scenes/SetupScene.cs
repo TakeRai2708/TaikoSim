@@ -46,11 +46,12 @@ namespace TaikoSim.Scenes
         // 聞く必要がある叩く場所(キーが0個の場所だけ)
         private DrumPart[] partsToAsk = Parts;
 
-        // 初回起動か(4つとも空なら初回扱い。一部だけ空なら、その場所だけ聞く)
+        // 初回起動か(1Pの4つとも空なら初回扱い。2Pは初期値を表示して変更できる)
         private bool isFirstRun = true;
 
         // 叩くキーで、今何番目を聞いているか(partsToAsk.Length なら全部決まった)
         private int keyIndex = 0;
+        private DrumPart? changingPart;
 
         // 点滅用
         private float blinkTimer = 0f;
@@ -64,7 +65,7 @@ namespace TaikoSim.Scenes
         public override bool CanOpenSettings => false;
 
         // 叩くキーの入力待ち中か(Game がスクショキーを無視するのに使う)
-        public override bool IsWaitingKey => step == Step.Keys && keyIndex < partsToAsk.Length;
+        public override bool IsWaitingKey => step == Step.Keys && (changingPart != null || keyIndex < partsToAsk.Length);
 
         // ===== 入る・更新 =====
 
@@ -72,7 +73,7 @@ namespace TaikoSim.Scenes
         {
             // キーが0個の場所だけ聞く(他の場所のキーは消さない)
             partsToAsk = ConfigManager.Key.GetEmptyParts().ToArray();
-            isFirstRun = partsToAsk.Length == Parts.Length;
+            isFirstRun = partsToAsk.Length == 4;
             keyIndex = 0;
 
             // 初回はようこそ画面から。一部だけ空なら、いきなり叩くキーの画面
@@ -95,11 +96,16 @@ namespace TaikoSim.Scenes
                     // Escは「戻る」なので登録しない(戻る処理は OnBack でやる)
                     if (key != KeyConfig.BackKey)
                     {
-                        DrumPart part = partsToAsk[keyIndex];
-                        if (ConfigManager.Key.TryAddDrumKey(part, key, out string result))
+                        DrumPart part = changingPart ?? partsToAsk[keyIndex];
+                        bool changed = changingPart != null;
+                        string result;
+                        bool accepted = changed ? ConfigManager.Key.TryReplaceDrumKey(part, key, out result)
+                            : ConfigManager.Key.TryAddDrumKey(part, key, out result);
+                        if (accepted)
                         {
                             ShowMessage(result, SuccessColor);
-                            keyIndex++; // 次の場所へ
+                            if (changed) changingPart = null;
+                            while (keyIndex < partsToAsk.Length && ConfigManager.Key.DrumKeys.GetValueOrDefault(partsToAsk[keyIndex])?.Count > 0) keyIndex++;
                         }
                         else
                         {
@@ -140,6 +146,7 @@ namespace TaikoSim.Scenes
 
         private void GoNext()
         {
+            if (changingPart != null) return;
             switch (step)
             {
                 case Step.Welcome:
@@ -167,6 +174,7 @@ namespace TaikoSim.Scenes
 
         private void GoBack()
         {
+            if (changingPart != null) { changingPart = null; Gui.Reset(); return; }
             switch (step)
             {
                 case Step.Welcome:
@@ -386,60 +394,28 @@ namespace TaikoSim.Scenes
         private void DrawKeys()
         {
             Title("叩くキー");
-            string lead = isFirstRun
-                ? "太鼓のそれぞれの場所に使うキーを押してください。"
-                : "キーが設定されていない場所があります。キーを押してください。";
-            FontManager.Draw(lead, Left, 330, 28, Color.White);
-
-            float y = 400;
-            foreach (DrumPart part in Parts)
+            FontManager.Draw("1Pと2Pのキーを確認できます。変更ボタンを押してから、新しいキーを押してください。", Left, 330, 26, Color.White);
+            for (int player = 0; player < 2; player++)
             {
-                string name = KeyConfig.GetDrumPartName(part);
-                Rectangle row = new Rectangle(Left, y, Right - Left, 64);
-
-                // この場所の状態(聞かなくていい場所は「決まってる」扱い)
-                int askIndex = Array.IndexOf(partsToAsk, part);
-                bool done = askIndex < 0 || askIndex < keyIndex;
-                bool current = askIndex >= 0 && askIndex == keyIndex;
-                Raylib.DrawRectangleRounded(row, 0.1f, 8, Gui.BoxColor);
-                FontManager.Draw(name, Left + 24, y + 14, 30, Color.White);
-
-                if (done)
+                float x = Left + player * 820;
+                FontManager.Draw($"{player + 1}P", x, 380, 32, player == 0 ? Gui.AccentColor : Color.SkyBlue);
+                for (int i = 0; i < 4; i++)
                 {
-                    // 決まった場所
-                    string keys = string.Join(", ", ConfigManager.Key.DrumKeys.GetValueOrDefault(part, new List<KeyboardKey>()));
-                    Raylib.DrawRectangle((int)Left, (int)y + 10, 3, 44, SuccessColor);
-                    FontManager.Draw(keys, Left + 350, y + 17, 27, Gui.SubTextColor);
-                    FontManager.Draw("登録済み", Right - 130, y + 19, 22, SuccessColor);
+                    DrumPart part = Parts[player * 4 + i];
+                    float y = 430 + i * 76;
+                    Rectangle row = new(x, y, 780, 64);
+                    int askIndex = Array.IndexOf(partsToAsk, part);
+                    bool current = changingPart == part || changingPart == null && askIndex >= 0 && askIndex == keyIndex;
+                    var keys = ConfigManager.Key.DrumKeys.GetValueOrDefault(part, new List<KeyboardKey>());
+                    Raylib.DrawRectangleRounded(row, .1f, 8, Gui.BoxColor);
+                    FontManager.Draw(KeyConfig.GetDrumPartName(part), x + 18, y + 18, 25, Color.White);
+                    string value = current ? "キーを押してください" : keys.Count == 0 ? "未登録" : string.Join(", ", keys);
+                    FontManager.Draw(value, x + 170, y + 18, current ? 23 : 25, current ? Gui.AccentColor : Gui.SubTextColor);
+                    if (Gui.Button(new(x + 650, y + 10, 112, 44), "変更")) changingPart = part;
                 }
-                else if (current)
-                {
-                    // 今聞いている場所(点滅)
-                    Raylib.DrawRectangle((int)Left, (int)y + 10, 3, 44, Gui.AccentColor);
-                    if ((blinkTimer % 1f) < 0.7f)
-                    {
-                        FontManager.Draw("キーを押してください", Left + 350, y + 17, 27, Gui.AccentColor);
-                    }
-                    FontManager.Draw("入力中", Right - 110, y + 19, 22, Gui.AccentColor);
-                }
-                else
-                {
-                    // まだの場所
-                    FontManager.Draw("未登録", Right - 110, y + 19, 22, PendingColor);
-                }
-                y += 76;
             }
-
-            // 説明
-            if (keyIndex >= partsToAsk.Length)
-            {
-                FontManager.Draw("全部決まりました！「次へ」を押してください", Left, y + 6, 26, SuccessColor);
-            }
-            else
-            {
-                FontManager.Draw("※ Esc と、システムキー（F1 など）は使えません", Left, y + 6, 24, Gui.SubTextColor);
-            }
-            FontManager.Draw("※ 2個目以降のキーは、あとから設定（F1）で追加できます", Left, y + 44, 24, Gui.SubTextColor);
+            FontManager.Draw("2P初期値：カッ C / M　ドン V / N　※ 同じキーを両側に登録することはできません", Left, 760, 24, Gui.SubTextColor);
+            if (messageTimer <= 0) FontManager.Draw(keyIndex >= partsToAsk.Length && changingPart == null ? "設定を確認したら「次へ」を押してください" : "Esc：変更をキャンセル／1つ前をやり直す", Left, 802, 24, Gui.SubTextColor);
         }
 
         // 5ページ目：完了
@@ -468,18 +444,20 @@ namespace TaikoSim.Scenes
                 Left, y, 30, Color.White);
             y += 60;
 
-            // 叩くキー
-            foreach (DrumPart part in Parts)
+            // 8か所を左右2列にして、完了画面の下にはみ出さないようにする。
+            for (int player = 0; player < 2; player++)
             {
-                string keys = string.Join(", ", ConfigManager.Key.DrumKeys.GetValueOrDefault(part, new List<KeyboardKey>()));
-                FontManager.Draw($"{KeyConfig.GetDrumPartName(part)}：{keys}", Left, y, 30, Color.White);
-                y += 44;
+                for (int i = 0; i < 4; i++)
+                {
+                    DrumPart part = Parts[player * 4 + i];
+                    string keys = string.Join(", ", ConfigManager.Key.DrumKeys.GetValueOrDefault(part, new List<KeyboardKey>()));
+                    FontManager.Draw($"{KeyConfig.GetDrumPartName(part)}：{keys}", Left + player * 820, y + i * 44, 28, Color.White);
+                }
             }
-            y += 24;
-
+            y += 196;
             KeyboardKey settingsKey = ConfigManager.Key.SystemKeys.GetValueOrDefault(SystemAction.Settings, KeyboardKey.F1);
-            FontManager.Draw($"設定はいつでも {settingsKey} で変更できます。", Left, y, 30, Gui.AccentColor);
-            FontManager.Draw("「はじめる」を押すとモード選択の画面に進みます。", Left, y + 46, 26, Gui.SubTextColor);
+            FontManager.Draw($"設定はいつでも {settingsKey} で変更できます。", Left, y, 28, Gui.AccentColor);
+            FontManager.Draw("「はじめる」を押すとエントリー画面に進みます。", Left, y + 46, 26, Gui.SubTextColor);
         }
 
         // ページの大きいタイトル
@@ -499,7 +477,8 @@ namespace TaikoSim.Scenes
             }
             else if (IsWaitingKey)
             {
-                if (keyIndex > 0) hint = $"Esc：{KeyConfig.GetDrumPartName(partsToAsk[keyIndex - 1])}をやり直す";
+                if (changingPart != null) hint = "Esc：変更をキャンセル";
+                else if (keyIndex > 0) hint = $"Esc：{KeyConfig.GetDrumPartName(partsToAsk[keyIndex - 1])}をやり直す";
                 else if (isFirstRun) hint = "Esc：前のページに戻る";
                 else hint = ""; // 一部だけ空のときの最初の場所は戻れない
             }
@@ -530,7 +509,7 @@ namespace TaikoSim.Scenes
             }
 
             // 次へボタン(叩くキーが全部決まるまでは押せない)
-            bool canNext = step != Step.Keys || keyIndex >= partsToAsk.Length;
+            bool canNext = step != Step.Keys || changingPart == null && keyIndex >= partsToAsk.Length;
             string nextText = step == Step.Done ? "はじめる" : "次へ";
             Rectangle nextRect = new Rectangle(Right - 210, FooterY, 210, 56);
 
@@ -560,7 +539,7 @@ namespace TaikoSim.Scenes
         private void DrawMessage()
         {
             if (messageTimer <= 0f) return;
-            FontManager.Draw(message, Left, 786, 28, messageColor);
+            FontManager.Draw(message, Left, step == Step.Keys ? 802 : 786, step == Step.Keys ? 24 : 28, messageColor);
         }
     }
 }

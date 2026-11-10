@@ -101,3 +101,64 @@ finally
 Console.WriteLine($"PASS: {passed} best-record checks");
 
 
+// 画面やネイティブ音声なしで、参加・キー移行・設定の分離を確認する。
+var sharedConfig = TaikoSim.Configs.ConfigManager.Game;
+TaikoSim.Scenes.LocalSession.Reset();
+Check(!TaikoSim.Scenes.LocalSession.Don(0) && TaikoSim.Scenes.LocalSession.Count == 1, "1Pの初ドンは参加だけ");
+Check(TaikoSim.Scenes.LocalSession.Don(0) && TaikoSim.Scenes.LocalSession.Count == 1, "参加済みのドンで1人確定");
+TaikoSim.Scenes.LocalSession.Reset();
+Check(!TaikoSim.Scenes.LocalSession.Don(1) && TaikoSim.Scenes.LocalSession.Controller == 1, "2P側だけでも参加して操作できる");
+Check(!TaikoSim.Scenes.LocalSession.Don(0) && TaikoSim.Scenes.LocalSession.Count == 2, "反対側の初ドンでは人数確定しない");
+Check(TaikoSim.Scenes.LocalSession.Don(1) && TaikoSim.Scenes.LocalSession.Don(0), "2人参加後はどちらでも人数確定");
+TaikoSim.Scenes.LocalSession.Reset();
+Check(!TaikoSim.Scenes.LocalSession.Don(0) & !TaikoSim.Scenes.LocalSession.Don(1), "同時初参加で即確定しない");
+bool invalidSide = false;
+try { TaikoSim.Scenes.LocalSession.Don(2); } catch (ArgumentOutOfRangeException) { invalidSide = true; }
+Check(invalidSide && TaikoSim.Scenes.LocalSession.Count == 2, "不正な側を参加させない");
+var localOptions = TaikoSim.Scenes.LocalSession.Options;
+Check(!ReferenceEquals(localOptions[0], localOptions[1]) && !ReferenceEquals(localOptions[0], sharedConfig), "両側のオプションを共有しない");
+localOptions[0].HiSpeed = 1.5f;
+localOptions[1].HiSpeed = 2.5f;
+float sharedSpeed = sharedConfig.HiSpeed;
+TaikoSim.Scenes.LocalSession.WithOptions(1, () =>
+{
+    Check(TaikoSim.Configs.ConfigManager.Game.HiSpeed == 2.5f && TaikoSim.Scenes.LocalSession.MenuPlayer == 1, "2P更新中は2Pの設定と入力");
+    TaikoSim.Scenes.LocalSession.WithOptions(0, () => Check(TaikoSim.Configs.ConfigManager.Game.HiSpeed == 1.5f, "入れ子でも側別設定を使う"));
+    Check(TaikoSim.Configs.ConfigManager.Game.HiSpeed == 2.5f, "入れ子を抜けると外側へ戻る");
+});
+Check(sharedConfig.HiSpeed == sharedSpeed && TaikoSim.Scenes.LocalSession.OptionsContext == null, "画面更新後は共通設定へ戻す");
+try { TaikoSim.Scenes.LocalSession.WithOptions(0, () => throw new InvalidOperationException()); } catch (InvalidOperationException) { }
+Check(sharedConfig.HiSpeed == sharedSpeed && TaikoSim.Scenes.LocalSession.OptionsContext == null && TaikoSim.Scenes.LocalSession.InputOverride == null, "例外が起きても共通設定と入力を復元");
+int sharedOffset = sharedConfig.AudioOffsetMs;
+sharedConfig.AudioOffsetMs = 37;
+TaikoSim.Scenes.LocalSession.WithOptions(1, () => Check(TaikoSim.Configs.ConfigManager.Game.AudioOffsetMs == 37, "エントリー後の共通オフセット変更も反映"));
+sharedConfig.AudioOffsetMs = sharedOffset;
+var oldKeys = System.Text.Json.JsonSerializer.Deserialize("""
+{"DrumKeys":{"LeftKa":[68],"LeftDon":[70],"RightDon":[74],"RightKa":[75]}}
+""", KeyCheckContext.Default.KeyConfig)!;
+oldKeys.Fix();
+Check(!oldKeys.NeedsSetup() && oldKeys.DrumKeys.Count == 8, "旧1P設定を保ちセットアップを強制しない");
+Check(oldKeys.DrumKeys[TaikoSim.Configs.DrumPart.P2LeftKa].Single() == Raylib_cs.KeyboardKey.C, "旧ファイルにも未定義の2P初期値を補完");
+Check(!oldKeys.TryAddDrumKey(TaikoSim.Configs.DrumPart.P2LeftDon, Raylib_cs.KeyboardKey.F, out _), "両側で同じキーの登録を拒否");
+Check(oldKeys.TryReplaceDrumKey(TaikoSim.Configs.DrumPart.P2LeftDon, Raylib_cs.KeyboardKey.B, out _), "2P独立キーを登録できる");
+string keyJson = System.Text.Json.JsonSerializer.Serialize(oldKeys, KeyCheckContext.Default.KeyConfig);
+var restored = System.Text.Json.JsonSerializer.Deserialize(keyJson, KeyCheckContext.Default.KeyConfig)!;
+restored.Fix();
+Check(restored.DrumKeys[TaikoSim.Configs.DrumPart.P2LeftDon].Single() == Raylib_cs.KeyboardKey.B, "2PキーをJSONで往復保存できる");
+var defaults = new TaikoSim.Configs.KeyConfig();
+Check(defaults.DrumKeys[TaikoSim.Configs.DrumPart.P2LeftDon].Single() == Raylib_cs.KeyboardKey.V
+    && defaults.DrumKeys[TaikoSim.Configs.DrumPart.P2RightDon].Single() == Raylib_cs.KeyboardKey.N
+    && defaults.DrumKeys[TaikoSim.Configs.DrumPart.P2LeftKa].Single() == Raylib_cs.KeyboardKey.C
+    && defaults.DrumKeys[TaikoSim.Configs.DrumPart.P2RightKa].Single() == Raylib_cs.KeyboardKey.M, "2P初期値はC V N M");
+Check(!oldKeys.TryReplaceDrumKey(TaikoSim.Configs.DrumPart.P2LeftDon, Raylib_cs.KeyboardKey.F, out _)
+    && oldKeys.DrumKeys[TaikoSim.Configs.DrumPart.P2LeftDon].Single() == Raylib_cs.KeyboardKey.B, "衝突で変更を拒否しても元のキーを残す");
+Check(TaikoSim.Configs.ConfigManager.Copy(oldKeys).DrumKeys[TaikoSim.Configs.DrumPart.P2LeftDon].Single() == Raylib_cs.KeyboardKey.B, "本番AOT用JSONでも2Pキーを往復できる");
+oldKeys.DrumKeys[TaikoSim.Configs.DrumPart.LeftKa] = new() { Raylib_cs.KeyboardKey.C };
+oldKeys.Fix();
+Check(oldKeys.DrumKeys[TaikoSim.Configs.DrumPart.LeftKa].Contains(Raylib_cs.KeyboardKey.C)
+    && oldKeys.DrumKeys[TaikoSim.Configs.DrumPart.P2LeftKa].Count == 0, "旧1Pのキーを2P初期値で奪わない");
+Console.WriteLine($"PASS: {passed} total record/local-player checks");
+
+[System.Text.Json.Serialization.JsonSourceGenerationOptions(UseStringEnumConverter = true)]
+[System.Text.Json.Serialization.JsonSerializable(typeof(TaikoSim.Configs.KeyConfig))]
+internal partial class KeyCheckContext : System.Text.Json.Serialization.JsonSerializerContext { }
