@@ -50,3 +50,19 @@ restoration, including exceptions, and old/new key files. It does not simulate g
    the entry session only; they do not replace the shared GameConfig.json.
 
 Windows Native AOT publishing also remains unverified here.
+
+## Record display and mirrored menu positions
+
+- Under Settings > General > Record display, choose Easy / Normal / Hard / Oni /
+  Oni + Ura and apply. The count panel should change immediately and retain the
+  choice after restart. Hovering difficulty must not change the chosen count group.
+  Individual song records remain separate; combined counts include both charts.
+- Join both sides with different data. In song selection, the left and right panels
+  must show each side's own counts and personal best, with upright text/digits.
+  The 2P difficulty screen now also shows per-course crowns/ranks and side panels.
+- Mode and song selection should have a character for each joined side; 2P is on
+  the right, facing inward. Check 2P-only entry too. Skin-supplied 2P coordinates
+  take priority; a single shared coordinate falls back to mirroring across 1920px.
+- First save to a fresh data slot must create PlayerData/2 or /3 automatically.
+
+The current automated total is 64 checks. Windows visual checks above are pending.

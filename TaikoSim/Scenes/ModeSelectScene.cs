@@ -305,7 +305,7 @@ namespace TaikoSim.Scenes
             }
 
             // どんちゃん：モード選択も選曲と同じ songselect_loop（11/8 の録画で確かめた。板より奥）
-            if (CharaBaker.Config is CharaConfig ec) chara.Draw(ec.EntryX[0], ec.EntryY[0], ec.EntryScale);
+            if (CharaBaker.Config is CharaConfig ec) chara.DrawPlayers(ec.EntryX, ec.EntryY, ec.EntryScale, LocalSession.Players);
 
             DrawList();
 

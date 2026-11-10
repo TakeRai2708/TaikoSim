@@ -80,7 +80,13 @@ namespace TaikoSim.Graphics
         /// コマを描く。(x, y) は元の絵（820×599）の左上、scale は画面での倍率（Config.json の値）。
         /// まだ読めていなければ、前に出したコマを出す。何も出せなければ false。
         /// </summary>
-        public bool Draw(string anim, int frame, float x, float y, float scale, Color tint)
+        public int SourceWidth(string anim)
+        {
+            int width = GetClip(anim)?.Meta.SourceWidth ?? 0;
+            return width > 0 ? width : 820;
+        }
+
+        public bool Draw(string anim, int frame, float x, float y, float scale, Color tint, bool flip = false)
         {
             Clip? clip = GetClip(anim);
             if (clip == null) return false;
@@ -114,7 +120,8 @@ namespace TaikoSim.Graphics
             Rectangle dest = new(
                 MathF.Round(x + m.TrimX * scale), MathF.Round(y + m.TrimY * scale),
                 m.CellWidth * ratio, m.CellHeight * ratio);
-            Raylib.DrawTexturePro(show.Texture, new Rectangle(0, 0, m.CellWidth, m.CellHeight), dest, Vector2.Zero, 0f, tint);
+            if (flip) dest.X = MathF.Round(x + ((m.SourceWidth > 0 ? m.SourceWidth : 820) - m.TrimX) * scale - dest.Width);
+            Raylib.DrawTexturePro(show.Texture, new Rectangle(0, 0, flip ? -m.CellWidth : m.CellWidth, m.CellHeight), dest, Vector2.Zero, 0f, tint);
             return true;
         }
 
@@ -222,3 +229,4 @@ namespace TaikoSim.Graphics
         }
     }
 }
+

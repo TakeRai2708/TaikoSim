@@ -42,7 +42,7 @@ public sealed class EntryScene : Scene
         FontManager.PreloadSkinMain(new[] { "使用するデータを選んでくださいプレイヤー123記録なしおに裏譜面クリアフルコンボドンダフル記録が読めません左右カッえらぶドン決定戻る終了太鼓をたたいてスタート" });
         for (int i = 0; i < 3; i++)
         {
-            try { totals[i] = SongHistory.PreviewProfile(i + 1); }
+            try { totals[i] = SongHistory.PreviewProfile(i + 1, ConfigManager.Game.RecordGroup); }
             catch (Exception ex) when (ex is IOException or UnauthorizedAccessException or JsonException)
             { errors[i] = "記録が読めません"; Console.WriteLine($"[Entry] {i + 1}: {ex.Message}"); }
         }
@@ -165,12 +165,12 @@ public sealed class EntryScene : Scene
             Raylib.DrawRectangleRounded(card, .07f, 12, new Color(50, 72, 100, 255));
         Outlined(SongHistory.ProfileName(cursor + 1), new(620, 530, 340, 60), 38, Color.White, Color.Black);
         Outlined($"{cursor + 1} / 3", new(650, 625, 250, 55), 34, Color.White, Color.Black);
-        if (totals[cursor] is SongRecordSummary summary)
+        if (totals[cursor] != null)
         {
             // 選曲の集計パネルを、カード右側の同じ原寸で使う。
             Rlgl.PushMatrix();
             Rlgl.Translatef(946, 197, 0);
-            SongRecordPanel.DrawSummary(CourseType.Oni, 1, summary);
+            SongRecordPanel.DrawSummary(ConfigManager.Game.RecordGroup, 1, SongHistory.GetSummary(ConfigManager.Game.RecordGroup, cursor + 1));
             Rlgl.PopMatrix();
         }
         DrawArrow(false, new(464, 550, 88, 100), cursor > 0, interactive);

@@ -58,6 +58,41 @@ try
     oni = SongHistory.GetSummary(CourseType.Oni);
     Check(saved.Saved && oni.Cleared == 0 && oni.FullCombo == 1 && oni.DondaFullCombo == 1, "保存後に集計を更新し、王冠を移す");
     Check(oni.Ranks[1] == 0 && oni.Ranks[5] == 1, "前のランクの数も残さない");
+    // 表示用の5集計を、実際に保存した難易度別記録から確認する。
+    SongHistory.SaveRecord("test.tja", CourseType.Normal, SongClearType.Cleared, 1000, 1);
+    SongHistory.SaveRecord("test.tja", CourseType.Hard, SongClearType.FullCombo, 2000, 2);
+    var groupEasy = SongHistory.GetSummary(TaikoSim.Configs.RecordGroup.Easy);
+    var groupNormal = SongHistory.GetSummary(TaikoSim.Configs.RecordGroup.Normal);
+    var groupHard = SongHistory.GetSummary(TaikoSim.Configs.RecordGroup.Hard);
+    var groupOni = SongHistory.GetSummary(TaikoSim.Configs.RecordGroup.Oni);
+    var groupBoth = SongHistory.GetSummary(TaikoSim.Configs.RecordGroup.OniAndUra);
+    Check(groupEasy.Cleared == 1 && groupEasy.Ranks.Sum() == 1, "かんたんだけの集計");
+    Check(groupNormal.Cleared == 1 && groupNormal.Ranks.Sum() == 1, "ふつうだけの集計");
+    Check(groupHard.FullCombo == 1 && groupHard.Ranks.Sum() == 1, "むずかしいだけの集計");
+    Check(groupOni.DondaFullCombo == 1 && groupOni.FullCombo == 0 && groupOni.Ranks.Sum() == 1, "おにだけに裏を混ぜない");
+    Check(groupBoth.DondaFullCombo == 1 && groupBoth.FullCombo == 1 && groupBoth.Ranks.Sum() == 2, "おに＋裏は2譜面を合算");
+    SongHistory.SaveRecord("test.tja", CourseType.Normal, SongClearType.AllPerfect, 5000, 3);
+    Check(SongHistory.GetSummary(TaikoSim.Configs.RecordGroup.Normal).DondaFullCombo == 1
+        && SongHistory.GetSummary(TaikoSim.Configs.RecordGroup.Normal).Cleared == 0, "保存後は5集計のキャッシュも更新");
+    // まだフォルダの無いデータ枠の初回保存。テスト前のフォルダは丸ごと戻す。
+    string thirdFolder = Path.GetDirectoryName(SongHistory.ProfilePath(3))!;
+    string thirdBackup = thirdFolder + ".record-check-" + Guid.NewGuid().ToString("N");
+    bool hadThird = Directory.Exists(thirdFolder);
+    if (hadThird) Directory.Move(thirdFolder, thirdBackup);
+    try
+    {
+        SongHistory.SelectProfile(3);
+        var initial = SongHistory.SaveRecord("fresh.tja", CourseType.Hard, SongClearType.FullCombo, 32100, 1);
+        Check(initial.Saved && File.Exists(SongHistory.ProfilePath(3)), "新規データ枠のフォルダを作って保存");
+        SongHistory.SelectProfile(1);
+        Check(SongHistory.GetRecord(3, "fresh.tja", CourseType.Hard).Score == 32100 && SongHistory.ActiveProfile == 1, "他の枠の記録を参照しても操作中の枠を変えない");
+    }
+    finally
+    {
+        if (Directory.Exists(thirdFolder)) Directory.Delete(thirdFolder, true);
+        if (hadThird) Directory.Move(thirdBackup, thirdFolder);
+        SongHistory.SelectProfile(1);
+    }
     foreach (string path in extraBackups.Keys)
     {
         Directory.CreateDirectory(Path.GetDirectoryName(path)!);
@@ -66,6 +101,11 @@ try
     SongHistory.SelectProfile(2);
     Check(SongHistory.GetSummary().Ranks.Sum() == 0, "新しい枠に他人の記録を混ぜない");
     SongHistory.SaveRecord("test.tja", CourseType.Oni, SongClearType.FullCombo, 300000, 1);
+    Check(SongHistory.GetSummary(TaikoSim.Configs.RecordGroup.Oni, 1).DondaFullCombo == 1
+        && SongHistory.GetSummary(TaikoSim.Configs.RecordGroup.Oni, 2).FullCombo == 1
+        && SongHistory.ActiveProfile == 2, "左右の集計をデータ枠別に取得しても切り替えない");
+    Check(SongHistory.GetRecord(1, "test.tja", CourseType.Oni).Score == 900000
+        && SongHistory.GetRecord(2, "test.tja", CourseType.Oni).Score == 300000, "左右の自己ベストを混ぜない");
     SongHistory.ToggleFavorite("second.tja");
     SongHistory.AddPlayed("second.tja");
     Check(SongHistory.PreviewProfile(1).DondaFullCombo == 1 && SongHistory.ActiveProfile == 2, "プレビューしても操作中のプレイヤーは変わらない");
@@ -157,6 +197,14 @@ oldKeys.DrumKeys[TaikoSim.Configs.DrumPart.LeftKa] = new() { Raylib_cs.KeyboardK
 oldKeys.Fix();
 Check(oldKeys.DrumKeys[TaikoSim.Configs.DrumPart.LeftKa].Contains(Raylib_cs.KeyboardKey.C)
     && oldKeys.DrumKeys[TaikoSim.Configs.DrumPart.P2LeftKa].Count == 0, "旧1Pのキーを2P初期値で奪わない");
+foreach (var group in Enum.GetValues<TaikoSim.Configs.RecordGroup>())
+{
+    var settings = new TaikoSim.Configs.GameConfig { RecordGroup = group };
+    Check(TaikoSim.Configs.ConfigManager.Copy(settings).RecordGroup == group, "集計設定をAOT用JSONで往復できる：" + group);
+}
+var invalidGroupConfig = new TaikoSim.Configs.GameConfig { RecordGroup = (TaikoSim.Configs.RecordGroup)99 };
+invalidGroupConfig.Fix();
+Check(invalidGroupConfig.RecordGroup == TaikoSim.Configs.RecordGroup.OniAndUra, "未知の集計設定は従来の表裏合算へ戻す");
 Console.WriteLine($"PASS: {passed} total record/local-player checks");
 
 [System.Text.Json.Serialization.JsonSourceGenerationOptions(UseStringEnumConverter = true)]

@@ -2,6 +2,7 @@ using System.Globalization;
 using System.Numerics;
 using Raylib_cs;
 using TaikoSim.Charts;
+using TaikoSim.Configs;
 using TaikoSim.Graphics;
 
 namespace TaikoSim.UI;
@@ -17,15 +18,16 @@ public static class SongRecordPanel
         "Difficulty_Select/Crown.png", "Difficulty_Select/ScoreRank.png",
     };
 
-    public static void DrawSummary(CourseType course, float alpha, SongRecordSummary? records = null)
+    public static void DrawSummary(RecordGroup group, float alpha, SongRecordSummary? records = null, int? profile = null, int side = 0)
     {
-        SongRecordSummary totals = records ?? SongHistory.GetSummary(course);
-        int row = (int)course >= 3 ? 4 : (int)course;
+        using var placement = SidePlacement(side);
+        SongRecordSummary totals = records ?? SongHistory.GetSummary(group, profile);
+        int row = (int)group;
         Rectangle panel = new(16, 306, 340, 200);
         if (!MenuSkin.Cell(Folder + "ScorePanel.png", row, 1, 5, panel, MenuSkin.White(alpha)))
         {
             Background(panel, alpha);
-            Label(row == 4 ? "おに・裏おに" : Chart.GetCourseName(course), new(30, 320, 180, 34), 24, Color.White, alpha);
+            Label(row == 4 ? "おに・裏おに" : Chart.GetCourseName((CourseType)group), new(30, 320, 180, 34), 24, Color.White, alpha);
             int[] rankOrder = { 7, 4, 5, 6, 1, 2, 3 };
             for (int i = 0; i < rankOrder.Length; i++)
             {
@@ -47,9 +49,10 @@ public static class SongRecordPanel
         }
     }
 
-    public static void DrawBest(SongEntry song, CourseType course, float alpha)
+    public static void DrawBest(SongEntry song, CourseType course, float alpha, int? profile = null, int side = 0)
     {
-        var record = SongHistory.GetRecord(song.Key, course);
+        using var placement = SidePlacement(side);
+        var record = SongHistory.GetRecord(profile ?? SongHistory.ActiveProfile, song.Key, course);
         Rectangle panel = new(20, 575, 332, 90);
         if (!MenuSkin.Whole(Folder + "BestScorePanel/Panel.png", panel, MenuSkin.White(alpha)))
         {
@@ -75,9 +78,9 @@ public static class SongRecordPanel
             638, 24, 28, 22, 190, alpha);
     }
 
-    public static void DrawCard(string key, CourseType course, Rectangle card, float alpha)
+    public static void DrawCard(string key, CourseType course, Rectangle card, float alpha, int? profile = null)
     {
-        var record = SongHistory.GetRecord(key, course);
+        var record = SongHistory.GetRecord(profile ?? SongHistory.ActiveProfile, key, course);
         float sx = card.Width / 196, sy = card.Height / 354;
         Rectangle At(float x, float y, float w, float h) => new(card.X + x * sx, card.Y + y * sy, w * sx, h * sy);
         if (record.Clear != SongClearType.None)
@@ -92,6 +95,17 @@ public static class SongRecordPanel
             if (!MenuSkin.Cell(Folder + "Difficulty_Select/ScoreRank.png", record.Rank - 1, 7, 1, rank, MenuSkin.White(alpha)))
                 RankFallback(record.Rank, rank, alpha);
         }
+    }
+
+    private static Placement SidePlacement(int side) => new(side);
+    private readonly struct Placement : IDisposable
+    {
+        public Placement(int side)
+        {
+            Rlgl.PushMatrix();
+            if (side == 1) Rlgl.Translatef(1548, 0, 0);
+        }
+        public void Dispose() => Rlgl.PopMatrix();
     }
 
     private static void Number(string image, long value, float x, float y, float cellWidth, float height,
