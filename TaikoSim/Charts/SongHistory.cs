@@ -16,7 +16,42 @@ namespace TaikoSim.Charts
         private static SongRecordSummary? summary;
         private static readonly Dictionary<int, SongRecordSummary> courseSummaries = new();
 
-        private static string FilePath => Path.Combine(ConfigManager.ConfigFolder, FileName);
+        public static int ActiveProfile { get; private set; } = 1;
+        public static string ProfileName(int slot) => $"プレイヤー{slot}";
+        public static string ProfilePath(int slot)
+        {
+            if (slot < 1 || slot > 3) throw new ArgumentOutOfRangeException(nameof(slot));
+            // 1枠目は従来の保存先を使う。移動や上書きなしで記録を引き継ぐ。
+            return slot == 1 ? Path.Combine(ConfigManager.ConfigFolder, FileName)
+                : Path.Combine(ConfigManager.ConfigFolder, "PlayerData", slot.ToString(), FileName);
+        }
+        private static string FilePath => ProfilePath(ActiveProfile);
+
+        private static SongHistoryFile ReadProfile(int slot)
+        {
+            string path = ProfilePath(slot);
+            if (!File.Exists(path)) return new SongHistoryFile();
+            var loaded = JsonSerializer.Deserialize(File.ReadAllText(path), AppJsonContext.Default.SongHistoryFile)
+                ?? throw new JsonException("プレイヤーの記録が空です");
+            if (loaded.Records == null || loaded.DanRecords == null || loaded.Recent == null || loaded.Favorites == null
+                || loaded.Records.Any(e => e == null) || loaded.DanRecords.Any(e => e == null))
+                throw new JsonException("プレイヤーの記録の形式が不正です");
+            return loaded;
+        }
+
+        public static void SelectProfile(int slot)
+        {
+            // 読み取りに失敗したら、現在のプレイヤーも記録も変えない。
+            SongHistoryFile loaded = ReadProfile(slot);
+            ActiveProfile = slot;
+            data = loaded;
+            summary = null;
+            courseSummaries.Clear();
+        }
+
+        public static SongRecordSummary PreviewProfile(int slot) => SongRecordSummary.From(ReadProfile(slot).Records
+            .Where(e => e.Course == (int)CourseType.Oni || e.Course == (int)CourseType.Edit)
+            .Select(e => new SongBestRecord((SongClearType)e.Clear, e.Score, e.Rank)));
 
         private static SongHistoryFile Data => data ??= Load();
 
@@ -212,4 +247,5 @@ namespace TaikoSim.Charts
         public int Combo { get; set; }          // SongClearType(クリア／フルコン／全良)
     }
 }
+
 

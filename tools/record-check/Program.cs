@@ -32,6 +32,12 @@ totals = SongRecordSummary.From(new[] { bestRecord, anotherDifficulty });
 Check(totals.Cleared == 1 && totals.DondaFullCombo == 1 && totals.Ranks.Sum() == 2, "難易度ごとの独立記録");
 // テスト実行ファイルの隣だけを使い、前のテスト用ファイルがあれば最後に戻す。
 string historyPath = Path.Combine(AppContext.BaseDirectory, "Config", SongHistory.FileName);
+var extraBackups = new Dictionary<string, byte[]?>();
+foreach (int slot in new[] { 2, 3 })
+{
+    string path = SongHistory.ProfilePath(slot);
+    extraBackups[path] = File.Exists(path) ? File.ReadAllBytes(path) : null;
+}
 byte[]? previous = File.Exists(historyPath) ? File.ReadAllBytes(historyPath) : null;
 try
 {
@@ -52,11 +58,46 @@ try
     oni = SongHistory.GetSummary(CourseType.Oni);
     Check(saved.Saved && oni.Cleared == 0 && oni.FullCombo == 1 && oni.DondaFullCombo == 1, "保存後に集計を更新し、王冠を移す");
     Check(oni.Ranks[1] == 0 && oni.Ranks[5] == 1, "前のランクの数も残さない");
+    foreach (string path in extraBackups.Keys)
+    {
+        Directory.CreateDirectory(Path.GetDirectoryName(path)!);
+        File.WriteAllText(path, "{}");
+    }
+    SongHistory.SelectProfile(2);
+    Check(SongHistory.GetSummary().Ranks.Sum() == 0, "新しい枠に他人の記録を混ぜない");
+    SongHistory.SaveRecord("test.tja", CourseType.Oni, SongClearType.FullCombo, 300000, 1);
+    SongHistory.ToggleFavorite("second.tja");
+    SongHistory.AddPlayed("second.tja");
+    Check(SongHistory.PreviewProfile(1).DondaFullCombo == 1 && SongHistory.ActiveProfile == 2, "プレビューしても操作中のプレイヤーは変わらない");
+    SongHistory.SelectProfile(3);
+    Check(SongHistory.GetSummary(CourseType.Oni).Ranks.Sum() == 0 && SongHistory.Favorites.Count == 0, "3枠目も独立");
+    SongHistory.SelectProfile(2);
+    Check(SongHistory.IsFavorite("second.tja") && SongHistory.Recent.Contains("second.tja"), "お気に入りと最近の曲も枠ごとに読み戻せる");
+    SongHistory.SelectProfile(3);
+    File.WriteAllText(SongHistory.ProfilePath(2), "broken json");
+    try { SongHistory.SelectProfile(2); Check(false, "壊れた記録を選べてしまった"); }
+    catch (System.Text.Json.JsonException) { Check(SongHistory.ActiveProfile == 3, "読めない記録では現在の枠を変えない"); }
+    // 保存済みの2枠目を復元して、再読み込みも確認する。
+    File.WriteAllText(SongHistory.ProfilePath(2), "{\"Records\":[{\"Key\":\"test.tja\",\"Course\":3,\"Clear\":2,\"Score\":300000,\"Rank\":1}]}");
+    SongHistory.SelectProfile(2);
+    Check(SongHistory.GetRecord("test.tja", CourseType.Oni).Score == 300000, "プレイヤー別のスコアを読み戻せる");
+    SongHistory.SelectProfile(1);
+    Check(SongHistory.GetRecord("test.tja", CourseType.Oni).Score == 900000, "従来の記録を1枠目として維持");
+    Check(SongHistory.GetSummary(CourseType.Oni).DondaFullCombo == 1, "切り替え後の集計キャッシュも独立");
+    bool invalid = false;
+    try { SongHistory.SelectProfile(4); } catch (ArgumentOutOfRangeException) { invalid = true; }
+    Check(invalid && SongHistory.ActiveProfile == 1, "4枠目は作らない");
 }
 finally
 {
+    foreach (var pair in extraBackups)
+    {
+        if (pair.Value == null) File.Delete(pair.Key);
+        else File.WriteAllBytes(pair.Key, pair.Value);
+    }
     if (previous == null) File.Delete(historyPath);
     else File.WriteAllBytes(historyPath, previous);
 }
 Console.WriteLine($"PASS: {passed} best-record checks");
+
 

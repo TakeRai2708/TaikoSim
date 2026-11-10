@@ -17,9 +17,9 @@ public static class SongRecordPanel
         "Difficulty_Select/Crown.png", "Difficulty_Select/ScoreRank.png",
     };
 
-    public static void DrawSummary(CourseType course, float alpha)
+    public static void DrawSummary(CourseType course, float alpha, SongRecordSummary? records = null)
     {
-        SongRecordSummary totals = SongHistory.GetSummary(course);
+        SongRecordSummary totals = records ?? SongHistory.GetSummary(course);
         int row = (int)course >= 3 ? 4 : (int)course;
         Rectangle panel = new(16, 306, 340, 200);
         if (!MenuSkin.Cell(Folder + "ScorePanel.png", row, 1, 5, panel, MenuSkin.White(alpha)))
@@ -135,3 +135,4 @@ public static class SongRecordPanel
         }
     }
 }
+
