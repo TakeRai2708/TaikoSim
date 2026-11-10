@@ -2,6 +2,8 @@ using System.Text.Json;
 using TakeTaikoSimulator.Charts;
 using TakeTaikoSimulator.Configs;
 using TakeTaikoSimulator.Graphics;
+using TakeTaikoSimulator.Scenes;
+using System.Reflection;
 
 int passed = 0;
 void Check(bool value, string name) { if (!value) throw new Exception(name); passed++; }
@@ -102,6 +104,32 @@ try
     Check(CharaBaker.CacheFor(2) == CharaBaker.CacheFor(3), "同じキャラのキャッシュを共有");
     Check(CharaBaker.CacheFor(1) != CharaBaker.CacheFor(2), "異なるキャラのキャッシュを混ぜない");
     CharaBaker.Stop();
+    // 実際のデータ確定処理を呼ぶ。暗転中も元のエントリー画面は描かれる。
+    // GPU描画は呼ばず、その描画が参照する参加者番号が有効なことを確認する。
+    Directory.Delete(path);
+    PlayerDataStore.Save(2, new NamePlateConfig { Name = "2Pの人" });
+    PlayerDataStore.Save(3, new NamePlateConfig { Name = "3番目" });
+    FieldInfo Field(string name) => typeof(EntryScene).GetField(name, BindingFlags.NonPublic | BindingFlags.Instance)!;
+    var decide = typeof(EntryScene).GetMethod("Decide", BindingFlags.NonPublic | BindingFlags.Instance)!;
+    int PlatePlayer(EntryScene scene) => LocalSession.Players[(int)Field("dataPlayerIndex").GetValue(scene)!];
+    foreach (int[] order in new[] { new[] { 0 }, new[] { 1 }, new[] { 0, 1 }, new[] { 1, 0 } })
+    {
+        LocalSession.Reset();
+        foreach (int side in order) LocalSession.Don(side);
+        int[] joined = LocalSession.Players;
+        var scene = new EntryScene(selectData: true);
+        for (int i = 0; i < joined.Length; i++)
+        {
+            Field("opened").SetValue(scene, .3f);
+            Field("cursor").SetValue(scene, i);
+            decide.Invoke(scene, null);
+            Check(LocalSession.Profiles[joined[i]] == i + 1, "各参加者のデータ確定");
+            Check(PlatePlayer(scene) == joined[Math.Min(i + 1, joined.Length - 1)], "確定後の暗転中もネームプレートの参加者が範囲内");
+        }
+        Check((bool)Field("leaving").GetValue(scene)!, "最後の参加者の確定でモード選択へ移行");
+        scene.OnBack();
+        Check(PlatePlayer(scene) == joined[^1], "移行中のEscで確定済み参加者を失わない");
+    }
     Console.WriteLine($"PASS: {passed} nameplate/profile/cosmetic/rank checks");
 }
 finally

@@ -133,8 +133,10 @@ public sealed class EntryScene : Scene
         { error = "記録が読めません"; Console.WriteLine($"[Entry] {ex.Message}"); return; }
         LocalSession.Profiles[physicalPlayer] = cursor + 1;
         chosenProfiles.Add(cursor + 1);
-        if (++dataPlayerIndex < LocalSession.Count)
+        // 最後の確定後も、暗転中はこの画面を描く。参加者番号を人数の外へ進めない。
+        if (dataPlayerIndex + 1 < LocalSession.Count)
         {
+            dataPlayerIndex++;
             cursor = Enumerable.Range(1, 3).First(s => !chosenProfiles.Contains(s)) - 1;
             opened = 0;
             MenuSounds.Don();

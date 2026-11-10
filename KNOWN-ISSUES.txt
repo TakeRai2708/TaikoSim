@@ -118,3 +118,14 @@ Windows実機での描画・入力・音声、Native AOT publishは未確認。
 ぷちキャラ：09.zipには素材なし。基本4fpsループは仮実装、風船時専用位置と本家の動きは未確認。
 環境：WindowsのDocuments/taikonauts-latestはこのタスクから開けていない。過去の09.zipを参照した。
 手順：tools/nameplate-check/README.md。既存のスコアファイルは移動していない。
+
+
+[NAMEPLATE-002] データ確定後、暗転中にIndexOutOfRangeException（2026-11-10）
+状態：修正済み／Windows実機の確認待ち
+再現元：codex/nameplates-and-dressing b642d0a
+原因：EntryScene.Decideで最後の参加者を確定した後もdataPlayerIndexを加算し、
+      暗転中のネームプレート描画がPlayers[人数]を参照していた。1Pのみでも発生する。
+修正：次の参加者がいる場合だけ加算し、最後の確定後は有効な参加者番号を維持。
+検証：修正前の実際のDecide呼び出しから同じ例外を再現。
+      1Pのみ・2Pのみ・両方の参加順と確定後のEscなど20項目の回帰チェックを追加。
+注意：ユーザー報告の呼び出し履歴は未取得。この経路と異なる画面で残る場合は履歴を確認する。

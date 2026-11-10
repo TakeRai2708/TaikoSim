@@ -15,6 +15,10 @@ dotnet run --project tools/training-check/TrainingCheck.csproj
 テストはテスト実行ファイルの隣のConfigだけを使い、元の内容があれば最後に戻します。
 Raylib/BASSや実際の画面は起動しません。
 
+追加のエントリー回帰チェックでは、実際のデータ確定処理を呼び出し、1Pのみ・2Pのみ・
+2人の両参加順で、最後の確定後も暗転中のネームプレートが有効な参加者を参照することを確認します。
+最後の参加者を確定した直後のIndexOutOfRangeExceptionを修正前に再現し、修正後に検証しています。
+
 ## 保存先と設定
 
 新しい設定だけを `Config/PlayerData/1|2|3/` に保存します。
