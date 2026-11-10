@@ -49,6 +49,8 @@ public sealed class LocalDifficultyScene(SongEntry song) : Scene
         chara.Update(dt);
         preview.Update(dt);
         if (leaving || Game.IsSettingsOpen) return;
+        NamePlate.DrawPlayers();
+        PuchiChara.DrawPlayers("songSelect");
         if (optionPlayer >= 0)
         {
             LocalSession.WithOptions(optionPlayer, () => options.Update(dt));

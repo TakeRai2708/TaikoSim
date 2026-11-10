@@ -244,92 +244,77 @@ namespace TakeTaikoSimulator.Graphics
 
         private const int FrameStep = 2;
 
+        private sealed record Bake(CharaConfig Config, string Source, string Cache);
         private static Thread? worker;
-        private static volatile bool cancel;
+        private static CancellationTokenSource? cancellation;
+        private static readonly Dictionary<int, Bake> profiles = new();
         private static readonly ConcurrentDictionary<string, bool> ready = new();
+        public static int Generation { get; private set; }
+        private static int CurrentProfile => TakeTaikoSimulator.Scenes.LocalSession.Count > 0
+            ? TakeTaikoSimulator.Scenes.LocalSession.Profiles[TakeTaikoSimulator.Scenes.LocalSession.MenuPlayer]
+            : TakeTaikoSimulator.Charts.SongHistory.ActiveProfile;
+        public static CharaConfig? Config => ConfigFor(CurrentProfile);
+        public static string? SourceFolder => profiles.GetValueOrDefault(CurrentProfile)?.Source;
+        public static string? CacheFolder => CacheFor(CurrentProfile);
+        public static CharaConfig? ConfigFor(int slot) => profiles.GetValueOrDefault(slot)?.Config;
+        public static string? CacheFor(int slot) => profiles.GetValueOrDefault(slot)?.Cache;
+        public static bool IsReady(string anim) => CacheFolder is string folder && ready.ContainsKey(folder + "/" + anim);
+        public static float PlayScale(string anim) => Config == null ? 1 : IsBalloonAnim(anim) ? Config.EnsoGameBalloonScale : Config.EnsoGameNormalScale;
+        public static float BakeScale(string anim) => ScaleFor(Config, anim);
+        private static float ScaleFor(CharaConfig? config, string anim) => config == null ? 1
+            : anim == "songselect_loop" ? Math.Max(config.SongSelectScale, config.EntryScale)
+            : anim == SongStartAnim ? Math.Max(config.EnsoGameNormalScale, config.SongSelectScale)
+            : IsResultAnim(anim) ? config.ResultScale
+            : IsBalloonAnim(anim) ? config.EnsoGameBalloonScale : config.EnsoGameNormalScale;
 
-        /// <summary>今のスキンのキャラ（無ければ null）</summary>
-        public static CharaConfig? Config { get; private set; }
-        /// <summary>元のコマが入っているフォルダ（Image/99.Common/Chara/01.DonChan）</summary>
-        public static string? SourceFolder { get; private set; }
-        /// <summary>焼いたコマの置き場所</summary>
-        public static string? CacheFolder { get; private set; }
-
-        public static bool IsReady(string anim) => ready.ContainsKey(anim);
-
-        /// <summary>演奏画面での倍率（風船のアニメだけ別）</summary>
-        public static float PlayScale(string anim) =>
-            Config == null ? 1f : IsBalloonAnim(anim) ? Config.EnsoGameBalloonScale : Config.EnsoGameNormalScale;
-
-        /// <summary>そのアニメを焼く倍率（出す画面の倍率）</summary>
-        public static float BakeScale(string anim) =>
-            Config == null ? 1f
-            : anim == "songselect_loop" ? Config.SongSelectScale
-            // 10combo は、曲を決めたときのジャンプ（選曲・1倍）でも使うので、大きいほうで焼く（演奏画面では縮めて出す）
-            : anim == SongStartAnim ? Math.Max(PlayScale(anim), Config.SongSelectScale)
-            : IsResultAnim(anim) ? Config.ResultScale
-            : PlayScale(anim);
-
-        /// <summary>スキンを読み直したら呼ぶ。前の作業はやめて、新しいスキンで焼き直す</summary>
+        // 同じキャラのキャッシュは共有し、1P/2Pで異なるキャラも焼けるようにする。
         public static void Start(string? skinPath, string skinName)
         {
-            Stop();
-            ready.Clear();
-            Config = null;
-            SourceFolder = CacheFolder = null;
+            Stop(); profiles.Clear(); ready.Clear(); Generation++;
             if (skinPath == null) return;
-
-            // キャラは1人目（フォルダ名の順で最初。A-Style なら 01.DonChan）
-            //   本家は PlayerConfig.json の donchanType で選ぶけど、TakeTaikoSimulator はまだ選べない
-            string charaRoot = Path.Combine(skinPath, "Image", "99.Common", "Chara");
-            if (!Directory.Exists(charaRoot)) return;
-            string? folder = Directory.GetDirectories(charaRoot).OrderBy(d => d, StringComparer.Ordinal)
-                .FirstOrDefault(d => File.Exists(Path.Combine(d, "Config.json")));
-            if (folder == null) return;
-            CharaConfig? config = CharaConfig.Load(Path.Combine(folder, "Config.json"));
-            if (config == null) return;
-
-            Config = config;
-            SourceFolder = folder;
-            CacheFolder = CharaCache.FolderFor(skinName, Path.GetFileName(folder));
-            string source = folder, cache = CacheFolder;
-
-            cancel = false;
-            worker = new Thread(() => Run(source, cache))
+            string root = Path.Combine(skinPath, "Image", "99.Common", "Chara");
+            string[] ids = CosmeticCatalog.Folders(root, "Config.json");
+            var unique = new Dictionary<string, Bake>(StringComparer.Ordinal);
+            for (int slot = 1; slot <= 3; slot++)
             {
-                IsBackground = true,
-                Priority = ThreadPriority.BelowNormal,   // 演奏の邪魔をしないように
-                Name = "CharaBaker",
-            };
+                PlayerAppearanceConfig appearance;
+                try { appearance = PlayerDataStore.Appearance(slot); }
+                catch (Exception ex) when (ex is IOException or UnauthorizedAccessException or JsonException)
+                { Console.WriteLine($"[Chara] データ{slot}：{ex.Message}"); appearance = new(); }
+                string id = CosmeticCatalog.Choose(ids, appearance.DonchanId, appearance.DonchanType);
+                if (id.Length == 0) continue;
+                if (!unique.TryGetValue(id, out var bake))
+                {
+                    string folder = Path.Combine(root, id);
+                    if (CharaConfig.Load(Path.Combine(folder, "Config.json")) is not CharaConfig config) continue;
+                    unique[id] = bake = new(config, folder, CharaCache.FolderFor(skinName, id));
+                }
+                profiles[slot] = bake;
+            }
+            var jobs = unique.Values.ToArray();
+            cancellation = new CancellationTokenSource();
+            CancellationToken token = cancellation.Token;
+            worker = new Thread(() => Run(jobs, token)) { IsBackground = true, Priority = ThreadPriority.BelowNormal, Name = "CharaBaker" };
             worker.Start();
         }
-
         public static void Stop()
         {
-            cancel = true;
+            cancellation?.Cancel();
             worker?.Join(3000);
             worker = null;
         }
-
-        private static void Run(string source, string cache)
+        private static void Run(Bake[] jobs, CancellationToken token)
         {
             foreach (string anim in BakeOrder)
+            foreach (Bake job in jobs)
             {
-                if (cancel) return;
+                if (token.IsCancellationRequested) return;
                 try
                 {
-                    long started = System.Diagnostics.Stopwatch.GetTimestamp();
-                    if (CharaCache.BuildIfNeeded(Path.Combine(source, anim), cache, anim, BakeScale(anim), FrameStep, () => cancel))
-                    {
-                        ready[anim] = true;
-                        double ms = System.Diagnostics.Stopwatch.GetElapsedTime(started).TotalMilliseconds;
-                        if (ms > 200) Console.WriteLine($"[Chara] {anim} を焼いた（{ms / 1000:0.0} 秒）");
-                    }
+                    if (CharaCache.BuildIfNeeded(Path.Combine(job.Source, anim), job.Cache, anim,
+                        ScaleFor(job.Config, anim), FrameStep, () => token.IsCancellationRequested)) ready[job.Cache + "/" + anim] = true;
                 }
-                catch (Exception ex)
-                {
-                    Console.WriteLine($"[Chara] {anim} を焼けませんでした：{ex.Message}");
-                }
+                catch (Exception ex) { Console.WriteLine($"[Chara] {anim} を焼けませんでした：{ex.Message}"); }
             }
         }
     }

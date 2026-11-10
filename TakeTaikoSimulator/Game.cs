@@ -91,6 +91,7 @@ namespace TakeTaikoSimulator
             AudioManager.Free();
             CharaBaker.Stop();
             KeyProbe.Stop();
+            NamePlate.Clear();
             SkinManager.Unload();
             FontManager.Unload();
             Screen.Unload();

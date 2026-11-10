@@ -192,6 +192,7 @@ namespace TakeTaikoSimulator.Graphics
             int done = 0;
             int total = PlayTexturePaths.Length + PlayWhiteTexturePaths.Length + 8;
             yield return (done, total, "スキンを準備しています");
+            NamePlate.Clear();
             UnloadTextures();
             SkinNames = ConfigManager.Skin.GetSkinList();
             CurrentPath = ConfigManager.Skin.GetCurrentSkinPath();

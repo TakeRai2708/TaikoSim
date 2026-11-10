@@ -27,6 +27,10 @@ public sealed class EntryScene : Scene
     private int dataPlayerIndex;
     private readonly HashSet<int> chosenProfiles = new();
     private string error = "";
+    private readonly PlayerNameInput nameInput = new();
+    private bool naming;
+    public override bool IsWaitingKey => naming;
+    public override bool CanOpenSettings => !naming;
     private static readonly Rectangle DataPanel = new(248, 292, 1423, 490);
 
     public override string? MenuBgmFile => MenuBgm.EntryFile;
@@ -37,6 +41,8 @@ public sealed class EntryScene : Scene
     {
         if (!choosing) LocalSession.Reset();
         if (choosing && LocalSession.Count == 0) LocalSession.Don(0);
+        PlayerDataStore.Reload();
+        NamePlate.Preload();
         cursor = SongHistory.ActiveProfile - 1;
         MenuSkin.Preload(Folder, new[] { "Background.png", "Header.png", "CreditBar.png",
             "DataLoad_Panel.png", "DataLoad_Text.png", "PlayerData_Panel.png", "Cursor_Left.png", "Cursor_Right.png" });
@@ -58,6 +64,23 @@ public sealed class EntryScene : Scene
         elapsed += dt;
         if (choosing) opened += dt;
         if (leaving || Game.IsSettingsOpen) return;
+        if (naming)
+        {
+            if (nameInput.Update())
+            {
+                try
+                {
+                    var plate = PlayerDataStore.Copy(PlayerDataStore.NamePlate(cursor + 1));
+                    plate.Name = nameInput.Value;
+                    PlayerDataStore.Save(cursor + 1, plate);
+                    naming = false;
+                    Decide();
+                }
+                catch (Exception ex) when (ex is IOException or UnauthorizedAccessException or JsonException)
+                { nameInput.Error = "保存できませんでした：" + ex.Message; }
+            }
+            return;
+        }
         if (joiningTransition >= 0)
         {
             joiningTransition += dt;
@@ -100,6 +123,10 @@ public sealed class EntryScene : Scene
         if (opened < .2f) return;
         if (!string.IsNullOrEmpty(errors[cursor])) { error = errors[cursor]; return; }
         if (chosenProfiles.Contains(cursor + 1)) { error = "別のプレイヤーが使用中です"; return; }
+        if (!PlayerDataStore.HasName(cursor + 1)) { naming = true; nameInput.Open(); return; }
+        try { PlayerDataStore.NamePlate(cursor + 1); }
+        catch (Exception ex) when (ex is IOException or UnauthorizedAccessException or JsonException)
+        { error = "名前の設定が読めません：" + ex.Message; return; }
         int physicalPlayer = LocalSession.Players[dataPlayerIndex];
         try { SongHistory.SelectProfile(cursor + 1); }
         catch (Exception ex) when (ex is IOException or UnauthorizedAccessException or JsonException)
@@ -123,6 +150,7 @@ public sealed class EntryScene : Scene
 
     public override void OnBack()
     {
+        if (naming) { if (!WindowsIme.IsComposing) naming = false; return; }
         if (leaving) return;
         if (joiningTransition >= 0) return;
         if (choosing) { choosing = false; dataPlayerIndex = 0; chosenProfiles.Clear(); LocalSession.Reset(); error = ""; MenuSounds.Ka(); }
@@ -132,6 +160,7 @@ public sealed class EntryScene : Scene
     public override void Draw()
     {
         Gui.BeginFrame();
+        if (naming) { nameInput.Draw(); return; }
         if (!MenuSkin.Whole(Folder + "Background.png", new(0, 0, 1920, 1080), Color.White))
             Raylib.DrawRectangleGradientV(0, 0, 1920, 1080, new(22, 32, 52, 255), new(8, 13, 24, 255));
         MenuSkin.Whole(Folder + "Header.png", new(0, 0, 1920, 1080), Color.White);
@@ -165,7 +194,7 @@ public sealed class EntryScene : Scene
         Rectangle card = new(563, 461, 794, 288);
         if (!MenuSkin.Whole(Folder + "PlayerData_Panel.png", card, Color.White))
             Raylib.DrawRectangleRounded(card, .07f, 12, new Color(50, 72, 100, 255));
-        Outlined(SongHistory.ProfileName(cursor + 1), new(620, 530, 340, 60), 38, Color.White, Color.Black);
+        NamePlate.Draw(cursor + 1, LocalSession.Players[dataPlayerIndex], 620, 526);
         Outlined($"{cursor + 1} / 3", new(650, 625, 250, 55), 34, Color.White, Color.Black);
         if (totals[cursor] != null)
         {

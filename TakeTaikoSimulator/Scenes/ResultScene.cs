@@ -297,6 +297,8 @@ namespace TakeTaikoSimulator.Scenes
             // どんちゃん（スコアの板の左下。吹き出しより奥。録画では最初のフェードから出ていた）
             if (CharaBaker.Config is CharaConfig dc) chara.Draw(dc.ResultX[0], dc.ResultY[0], dc.ResultScale);
             if (elapsed >= BalloonTime) DrawBalloon();
+            NamePlate.Draw(SongHistory.ActiveProfile, LocalSession.Controller, 16, 950);
+            PuchiChara.Draw(SongHistory.ActiveProfile, LocalSession.Controller, "result");
 
             // 最初は真っ暗からだんだん明るく。戻るときはだんだん暗く
             float black = elapsed < FadeInStart ? 1f : 1f - Math.Clamp((elapsed - FadeInStart) / (FadeInEnd - FadeInStart), 0f, 1f);

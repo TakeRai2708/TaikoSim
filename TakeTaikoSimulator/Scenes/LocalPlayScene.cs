@@ -2,6 +2,7 @@ using Raylib_cs;
 using TakeTaikoSimulator.Audio;
 using TakeTaikoSimulator.Charts;
 using TakeTaikoSimulator.Configs;
+using TakeTaikoSimulator.Graphics;
 using TakeTaikoSimulator.Input;
 using TakeTaikoSimulator.UI;
 using static TakeTaikoSimulator.UI.MenuDraw;
@@ -111,6 +112,7 @@ public sealed class LocalPlayScene : Scene
                 p == 0 ? Color.Red : Color.SkyBlue, Color.Black);
             if (finished && players[p].LocalResult is PlayResultData result)
             {
+                NamePlate.Draw(LocalSession.Profiles[p], p, p * 960 + 40, 825, 1.1f);
                 string[] lines = { Chart.GetCourseName(result.Course), result.Result switch { PlayResult.DondaFullCombo => "ドンダフルコンボ", PlayResult.FullCombo => "フルコンボ", PlayResult.Clear => "クリア", _ => "クリア失敗" }, $"{result.Stats.Score:N0} 点",
                     $"良 {result.Good}　可 {result.Ok}　不可 {result.Bad}", $"連打 {result.RollHits}　最大コンボ {result.MaxCombo}" };
                 for (int i = 0; i < lines.Length; i++) Outlined(lines[i], new(p * 960 + 40, 320 + i * 100, 880, 75), 38, Color.White, Color.Black);

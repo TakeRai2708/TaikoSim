@@ -17,6 +17,8 @@ namespace TakeTaikoSimulator.Graphics
     public sealed class MenuChara : IDisposable
     {
         private CharaStream? stream;
+        private readonly Dictionary<int, CharaStream> otherStreams = new();
+        private int generation = -1;
         private string anim = "";
         private double loopSeconds = 1;
         private double clock;
@@ -29,6 +31,7 @@ namespace TakeTaikoSimulator.Graphics
         public void Load()
         {
             Dispose();
+            generation = CharaBaker.Generation;
             if (CharaBaker.Config == null || CharaBaker.CacheFolder == null) return;
             stream = new CharaStream(CharaBaker.CacheFolder);
         }
@@ -40,6 +43,8 @@ namespace TakeTaikoSimulator.Graphics
         {
             stream?.Dispose();
             stream = null;
+            foreach (var other in otherStreams.Values) other.Dispose();
+            otherStreams.Clear();
         }
 
         /// <summary>くり返すアニメにする（同じアニメなら続きから）</summary>
@@ -89,35 +94,56 @@ namespace TakeTaikoSimulator.Graphics
 
         public void DrawPlayers(float[] xs, float[] ys, float scale, IReadOnlyList<int> players)
         {
+            if (generation != CharaBaker.Generation) Load();
+            bool entry = ReferenceEquals(xs, Config?.EntryX);
             foreach (int side in players)
             {
-                float x = xs[0], y = ys[0];
+                int slot = TakeTaikoSimulator.Scenes.LocalSession.Profiles[side];
+                CharaConfig? config = CharaBaker.ConfigFor(slot);
+                if (config == null || CharaBaker.CacheFor(slot) is not string cache) continue;
+                CharaStream? own = stream;
+                if (slot != TakeTaikoSimulator.Scenes.LocalSession.Profiles[TakeTaikoSimulator.Scenes.LocalSession.Controller])
+                {
+                    if (!otherStreams.TryGetValue(slot, out own)) otherStreams[slot] = own = new CharaStream(cache);
+                }
+                if (own == null) continue;
+                float[] px = entry ? config.EntryX : config.SongSelectX;
+                float[] py = entry ? config.EntryY : config.SongSelectY;
+                float ownScale = entry ? config.EntryScale : config.SongSelectScale;
+                float x = px[0], y = py[0];
                 if (side == 1)
                 {
-                    // スキンに別の2P座標があればそちらを使い、なければ画面の反対側へ。
-                    x = xs.Length > 1 && xs[1] != xs[0] ? xs[1] : 1920 - xs[0] - (stream?.SourceWidth(anim) ?? 820) * scale;
-                    y = ys.Length > 1 ? ys[1] : ys[0];
+                    x = px.Length > 1 && px[1] != px[0] ? px[1] : 1920 - px[0] - own.SourceWidth(anim) * ownScale;
+                    y = py.Length > 1 ? py[1] : py[0];
                 }
-                Draw(x, y, scale, side == 1);
+                DrawStream(own, x, y, ownScale, side == 1, config);
             }
         }
 
         /// <summary>(x, y) は元の絵（820×599）の左上、scale は倍率（Config.json の値）</summary>
         public void Draw(float x, float y, float scale, bool flip = false)
         {
-            if (stream == null || SkinManager.SystemSkin || anim.Length == 0) return;
+            if (generation != CharaBaker.Generation) Load();
+            if (stream != null) DrawStream(stream, x, y, scale, flip);
+        }
+
+        private void DrawStream(CharaStream stream, float x, float y, float scale, bool flip, CharaConfig? timing = null)
+        {
+            if (SkinManager.SystemSkin || anim.Length == 0) return;
             int count = stream.FrameCount(anim);
             if (count <= 0) return;
-            if (holdAt >= 0)
+            double duration = timing != null && anim == "songselect_loop" ? Math.Max(.05, timing.SongSelectLoopTime / 1000.0) : loopSeconds;
+            int hold = timing != null && holdAt >= 0 ? timing.SongSelectSongStartJumpIndex : holdAt;
+            if (hold >= 0)
             {
                 // 焼いたコマは間引いてあるので、元のコマ番号を焼いたコマの番号に直す
                 int source = Math.Max(1, stream.SourceFrameCount(anim));
-                double at = Math.Min(holdAt, clock / loopSeconds * holdAt);
+                double at = Math.Min(hold, clock / Math.Max(.05, timing?.SongSelectSongStartTime / 1000.0 ?? loopSeconds) * hold);
                 int held = Math.Clamp((int)(at * count / source), 0, count - 1);
                 stream.Draw(anim, held, x, y, scale, Color.White, flip);
                 return;
             }
-            double phase = next != null ? Math.Min(clock / loopSeconds, 0.9999) : clock / loopSeconds % 1.0;
+            double phase = next != null ? Math.Min(clock / duration, 0.9999) : clock / duration % 1.0;
             int frame = Math.Clamp((int)(phase * count), 0, count - 1);
             stream.Draw(anim, frame, x, y, scale, Color.White, flip);
         }

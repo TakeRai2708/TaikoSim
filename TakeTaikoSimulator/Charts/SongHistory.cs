@@ -32,7 +32,7 @@ namespace TakeTaikoSimulator.Charts
         }
 
         public static int ActiveProfile { get; private set; } = 1;
-        public static string ProfileName(int slot) => $"プレイヤー{slot}";
+        public static string ProfileName(int slot) => PlayerDataStore.DisplayName(slot);
         public static string ProfilePath(int slot)
         {
             if (slot < 1 || slot > 3) throw new ArgumentOutOfRangeException(nameof(slot));

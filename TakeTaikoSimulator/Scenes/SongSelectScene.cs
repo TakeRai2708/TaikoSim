@@ -1115,6 +1115,8 @@ namespace TakeTaikoSimulator.Scenes
 
             if (diffOpen) DrawDifficulty();
             DrawSavedSongRecords();
+            NamePlate.DrawPlayers(900, ReturnAlpha);
+            PuchiChara.DrawPlayers("songSelect");
             DrawHeader();
 
             Gui.ResetClip();

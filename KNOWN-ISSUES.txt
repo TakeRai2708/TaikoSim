@@ -108,3 +108,13 @@ ChangeEffectは任意。送付された段位フォルダ一覧には存在せ�
 対応：既存仕様を変えないため今回は維持。段位条件を直す別作業で確認する。
 その他：記録・2P・BGM82項目、特訓50項目、改名互換性22項目は成功。
 Windows実機での描画・入力・音声、Native AOT publishは未確認。
+
+
+[NAMEPLATE-001] 名前入力・着せ替えのWindows実機確認待ち（2026-11-10）
+状態：実装・コンパイルと自動チェック済み／実機と参考比較は未確認
+ブランチ：codex/nameplates-and-dressing（元master 8e91bcc8）
+確認：Windows IMEの変換Enterと名前確定Enter、Esc、2P別名・別キャラ、スキン切替、aup2表示、保存失敗時の再試行。
+見た目：複数画面のネームプレート座標・段位文字の処理は仮配置を含む。全画面を参考動画と一致確認したとは扱わない。
+ぷちキャラ：09.zipには素材なし。基本4fpsループは仮実装、風船時専用位置と本家の動きは未確認。
+環境：WindowsのDocuments/taikonauts-latestはこのタスクから開けていない。過去の09.zipを参照した。
+手順：tools/nameplate-check/README.md。既存のスコアファイルは移動していない。

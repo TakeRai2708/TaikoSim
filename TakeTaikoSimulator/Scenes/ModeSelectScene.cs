@@ -1,4 +1,4 @@
-using TakeTaikoSimulator.Charts;
+﻿using TakeTaikoSimulator.Charts;
 using Raylib_cs;
 using TakeTaikoSimulator.Audio;
 using TakeTaikoSimulator.Configs;
@@ -30,6 +30,7 @@ namespace TakeTaikoSimulator.Scenes
             // 説明は TaikøNauts と同じ3行（10/31 の動画 2026-10-31_01-44-20.mp4 の16秒あたり）
             new("段位道場", "3曲連続して演奏しながら、\nお題の合格を目指そう!\n合格すると腕前が認定されるよ!", new Color(70, 90, 170, 255), true),
             new("特訓モード", "小節をえらんで、ゆっくり練習する", new Color(60, 150, 110, 255), true),
+            new("着せ替え", "どんちゃん・ぷちキャラ・ネームプレートをえらぶ", new Color(135, 90, 170, 255), true),
             new("設定", "音・キー・画面・スキンなどの設定", new Color(90, 100, 125, 255), true),
             new("クレジット", "使っているソフト・フォント・ライセンス", new Color(60, 130, 150, 255), true),
         };
@@ -94,6 +95,7 @@ namespace TakeTaikoSimulator.Scenes
 
         public override void Enter()
         {
+            NamePlate.Preload();
             chara.Load();
             CharaConfig? cc = CharaBaker.Config;
             if (cc != null) chara.Loop("songselect_loop", cc.SongSelectLoopTime);
@@ -272,6 +274,7 @@ namespace TakeTaikoSimulator.Scenes
                 case "演奏ゲーム": SceneManager.ToSongSelectFromMode(new SongSelectScene()); break;
                 case "特訓モード": SceneManager.ToSongSelectFromMode(new SongSelectScene(training: true)); break;
                 case "段位道場": SceneManager.ToDanSelectFromMode(new DanSelectScene(intro: true)); break;
+                case "着せ替え": SceneManager.Simple(new DressingScene()); break;
                 case "設定": Game.OpenSettings(); break;
                 case "クレジット": SceneManager.Simple(new CreditsScene()); break;
             }
@@ -326,7 +329,9 @@ namespace TakeTaikoSimulator.Scenes
 
             Rectangle profileButton = new(32, 900, 390, 64);
             Raylib.DrawRectangleRounded(profileButton, .15f, 8, new Color(14, 22, 35, 225));
-            Outlined(SongHistory.ProfileName(SongHistory.ActiveProfile) + "　変更 F5", profileButton, 26, Color.White, Color.Black);
+            NamePlate.DrawPlayers();
+            PuchiChara.DrawPlayers("entry");
+            Text("データ変更 F5", 36, 866, 23, Color.White);
             if (!Game.IsSettingsOpen && deciding == null && !choosingCategory && Gui.Clicked(profileButton))
                 SceneManager.Simple(new EntryScene(selectData: true));
             if (choosingCategory) DrawCategoryPopup();

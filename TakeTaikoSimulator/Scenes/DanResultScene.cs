@@ -1,4 +1,4 @@
-using System.Globalization;
+﻿using System.Globalization;
 using Raylib_cs;
 using TakeTaikoSimulator.Audio;
 using TakeTaikoSimulator.Charts;
@@ -225,6 +225,8 @@ namespace TakeTaikoSimulator.Scenes
                 if (aStyle.HasStampAnime) aStyle.DrawStamp(age);
                 else DrawStamp(AStyleStampX, AStyleStampY);
                 DrawShodan();
+                PuchiChara.Draw(SongHistory.ActiveProfile, LocalSession.Controller, "danResult");
+                NamePlate.Draw(SongHistory.ActiveProfile, LocalSession.Controller, 16, 950);
                 DrawFooter();
                 return;
             }
@@ -242,6 +244,8 @@ namespace TakeTaikoSimulator.Scenes
             if (age < SummaryAt) DrawBreakdown();
             else DrawSummary();
 
+            PuchiChara.Draw(SongHistory.ActiveProfile, LocalSession.Controller, "danResult");
+            NamePlate.Draw(SongHistory.ActiveProfile, LocalSession.Controller, 16, 950);
             DrawStamp(StampX + StampSize / 2f, StampY + StampSize * 0.3f);
             DrawShodan();
             DrawFooter();

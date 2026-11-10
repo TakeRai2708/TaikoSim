@@ -1,4 +1,4 @@
-using System.Numerics;
+﻿using System.Numerics;
 using Raylib_cs;
 using TakeTaikoSimulator.Audio;
 using TakeTaikoSimulator.Charts;
@@ -453,6 +453,8 @@ namespace TakeTaikoSimulator.Scenes
                 }
                 else DrawConfirm();
             }
+            NamePlate.Draw(SongHistory.ActiveProfile, LocalSession.Controller, 16, 950);
+            PuchiChara.Draw(SongHistory.ActiveProfile, LocalSession.Controller, "danSelect");
             options.Draw(true);
             if (toastTimer > 0f) DrawBanner(toast);
         }

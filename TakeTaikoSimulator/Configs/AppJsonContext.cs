@@ -1,4 +1,4 @@
-using System.Text.Json;
+﻿using System.Text.Json;
 using System.Text.Json.Serialization;
 using TakeTaikoSimulator.Charts;
 
@@ -21,6 +21,8 @@ namespace TakeTaikoSimulator.Configs
         UseStringEnumConverter = true,
         ReadCommentHandling = JsonCommentHandling.Skip,
         AllowTrailingCommas = true)]
+    [JsonSerializable(typeof(NamePlateConfig))]
+    [JsonSerializable(typeof(PlayerAppearanceConfig))]
     [JsonSerializable(typeof(GameConfig))]
     [JsonSerializable(typeof(SoundConfig))]
     [JsonSerializable(typeof(KeyConfig))]

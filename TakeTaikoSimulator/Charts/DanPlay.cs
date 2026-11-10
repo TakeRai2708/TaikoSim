@@ -318,6 +318,7 @@ namespace TakeTaikoSimulator.Charts
 
             SongHistory.SaveDanRecord(SongHistory.KeyFor(Course.JsonPath),
                 new DanClearRecord(result == DanResultType.Gold, combo));
+            TakeTaikoSimulator.Configs.PlayerDataStore.UpdateDan(SongHistory.ActiveProfile, Course.DanIndex, result == DanResultType.Gold, combo);
         }
     }
 }
