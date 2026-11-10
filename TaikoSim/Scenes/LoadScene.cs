@@ -116,7 +116,7 @@ namespace TaikoSim.Scenes
             }
             else
             {
-                SceneManager.AfterBoot(new ModeSelectScene()); // パッと切り替えないで、暗くしてから明るくする
+                SceneManager.AfterBoot(new EntryScene()); // パッと切り替えないで、暗くしてから明るくする
             }
         }
 

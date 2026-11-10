@@ -29,6 +29,17 @@ namespace TaikoSim.Scenes
     // 選んでいた場所は static に覚えておくので、演奏から戻ってきても同じ曲を選んだまま
     public class SongSelectScene : Scene
     {
+        // プレイヤーを変えたら、その人のお気に入り・最近の曲で一覧を作り直す。
+        public static void ResetForProfile()
+        {
+            builtFor = null;
+            inSongs = false;
+            genrePos = songPos = 0;
+            openSpecial = Special.None;
+            openCat = -1;
+            lastSongKey = searchText = "";
+        }
+
         private readonly bool training;
         public SongSelectScene(bool training = false) => this.training = training;
 
@@ -1768,4 +1779,5 @@ namespace TaikoSim.Scenes
         }
     }
 }
+
 

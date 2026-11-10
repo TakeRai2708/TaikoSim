@@ -170,6 +170,11 @@ namespace TaikoSim.Scenes
                 return;
             }
 
+            if (Raylib.IsKeyPressed(KeyboardKey.F5))
+            {
+                SceneManager.Simple(new EntryScene(selectData: true));
+                return;
+            }
             // ← カッ(左縁)・↑ で上、カッ(右縁)・↓ で下
             int move = 0;
             if (InputManager.IsDrumPressed(DrumPart.LeftKa) || KeyPressed(KeyboardKey.Up)) move--;
@@ -311,6 +316,11 @@ namespace TaikoSim.Scenes
                 DrawHint("テスト：.tja ファイルをウィンドウにドラッグ＆ドロップすると譜面が流れます", 984, new Color(240, 205, 120, 255), 20);
             }
 
+            Rectangle profileButton = new(32, 900, 390, 64);
+            Raylib.DrawRectangleRounded(profileButton, .15f, 8, new Color(14, 22, 35, 225));
+            Outlined(SongHistory.ProfileName(SongHistory.ActiveProfile) + "　変更 F5", profileButton, 26, Color.White, Color.Black);
+            if (!Game.IsSettingsOpen && deciding == null && !choosingCategory && Gui.Clicked(profileButton))
+                SceneManager.Simple(new EntryScene(selectData: true));
             if (choosingCategory) DrawCategoryPopup();
             if (toastTimer > 0f) DrawBanner(toast, new Color(255, 200, 60, 255));
             else if (exitTimer > 0f) DrawBanner("3秒以内にもう一度 Esc を押すと終了します", new Color(255, 200, 60, 255));
@@ -530,3 +540,4 @@ namespace TaikoSim.Scenes
         }
     }
 }
+

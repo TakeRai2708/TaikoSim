@@ -214,7 +214,7 @@ namespace TaikoSim.Scenes
         private void Finish()
         {
             ConfigManager.SaveAll();
-            SceneManager.Simple(new ModeSelectScene());
+            SceneManager.Simple(new EntryScene());
         }
 
         // ===== 描画 =====
@@ -564,4 +564,5 @@ namespace TaikoSim.Scenes
         }
     }
 }
+
 
