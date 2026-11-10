@@ -20,6 +20,8 @@ namespace TaikoSim.Scenes
     // 操作：カッ・↑↓・ホイールで選ぶ、ドン・Enter・クリックで決定、Esc を2回で終了
     public class ModeSelectScene : Scene
     {
+        public override string? MenuBgmFile => MenuBgm.EntryFile;
+
         private sealed record Item(string Title, string Description, Color Color, bool Ready);
 
         private static readonly Item[] Items =

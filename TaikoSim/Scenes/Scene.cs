@@ -7,6 +7,11 @@
         // この画面で設定パネルを開けるか(演奏画面では false にする)
         public virtual bool CanOpenSettings => true;
 
+        // 同じBGMを指定する画面の間では、再生位置をそのまま引き継ぐ。
+        public virtual string? MenuBgmFile => null;
+        public virtual bool MenuBgmMuted => false;
+        public virtual double MenuBgmLoopMs => 0;
+
         // キー入力待ち中か(true の間はスクショキーを無視して、キーの登録を優先する)
         public virtual bool IsWaitingKey => false;
 

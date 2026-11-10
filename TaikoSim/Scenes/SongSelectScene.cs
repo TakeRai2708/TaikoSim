@@ -147,6 +147,10 @@ namespace TaikoSim.Scenes
 
         // ===== そのほか =====
         private readonly SongPreview preview = new();
+        public override string? MenuBgmFile => MenuBgm.SongSelectFile;
+        public override double MenuBgmLoopMs => MenuBgm.SongSelectLoopMs;
+        private bool leavingForDifficulty;
+        public override bool MenuBgmMuted => preview.HasPlaybackRequest || leavingForDifficulty || SongLoading.IsActive;
         private string toast = "";
         private float toastTimer;
         private bool wasScanning;
@@ -456,8 +460,8 @@ namespace TaikoSim.Scenes
                 return;
             }
 
-            // 曲を選んでいるときはプレビューを用意して、板が開いたら流す(難易度をえらんでいる間も流しっぱなし)
-            string? previewTja = diffOpen ? diffSong?.TjaPath
+            // 曲と難易度ではプレビュー。「戻る」を選んでいる間は止め、選曲BGMへ戻す。
+            string? previewTja = diffOpen ? (diffCursor == 0 ? null : diffSong?.TjaPath)
                 : inSongs && CurrentItem is { Kind: Kind.Song } now ? now.Song!.TjaPath : null;
             preview.Request(previewTja, diffOpen || list.Expand > 0f);
             if (returnTime >= 0f) { DiscardTypedChars(); return; }
@@ -756,6 +760,7 @@ namespace TaikoSim.Scenes
             SongEntry song = item.Song!;
             if (!training && LocalSession.Count == 2)
             {
+                leavingForDifficulty = true;
                 preview.Dispose();
                 SceneManager.Simple(new LocalDifficultyScene(song));
                 return;

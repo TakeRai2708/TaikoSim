@@ -16,6 +16,10 @@ public sealed class LocalDifficultyScene(SongEntry song) : Scene
         .Where(c => c <= CourseType.Edit).Distinct().OrderBy(c => c).ToArray();
     private readonly int[] cursor = new int[2];
     private readonly bool[] ready = new bool[2];
+    public override string? MenuBgmFile => MenuBgm.SongSelectFile;
+    public override double MenuBgmLoopMs => MenuBgm.SongSelectLoopMs;
+    public override bool MenuBgmMuted => preview.HasPlaybackRequest || leaving || SongLoading.IsActive;
+    private readonly SongPreview preview = new();
     private readonly MenuChara chara = new();
     private readonly PlayOptionsPanel options = new();
     private int optionPlayer = -1;
@@ -25,6 +29,7 @@ public sealed class LocalDifficultyScene(SongEntry song) : Scene
 
     public override void Enter()
     {
+        preview.Request(song.TjaPath, true);
         chara.Load();
         if (CharaBaker.Config is CharaConfig cc) chara.Loop("songselect_loop", cc.SongSelectLoopTime);
         int oni = Array.IndexOf(courses, CourseType.Oni);
@@ -33,6 +38,7 @@ public sealed class LocalDifficultyScene(SongEntry song) : Scene
 
     public override void Exit()
     {
+        preview.Dispose();
         chara.Dispose();
         if (optionPlayer >= 0) LocalSession.WithOptions(optionPlayer, options.CloseNow);
     }
@@ -41,6 +47,7 @@ public sealed class LocalDifficultyScene(SongEntry song) : Scene
     {
         age += dt;
         chara.Update(dt);
+        preview.Update(dt);
         if (leaving || Game.IsSettingsOpen) return;
         if (optionPlayer >= 0)
         {
@@ -74,9 +81,12 @@ public sealed class LocalDifficultyScene(SongEntry song) : Scene
         if (ready.All(r => r))
         {
             leaving = true;
+            preview.Dispose();
             SceneManager.ToPlayWithLoading(new LocalPlayScene(song, courses[cursor[0]], courses[cursor[1]]), song.Title, song.Subtitle);
         }
     }
+
+    public override void ApplyVolume() => preview.ApplyVolume();
 
     public override void UpdateBlocked(float dt) => chara.Update(dt);
 

@@ -66,3 +66,22 @@ Windows Native AOT publishing also remains unverified here.
 - First save to a fresh data slot must create PlayerData/2 or /3 automatically.
 
 The current automated total is 64 checks. Windows visual checks above are pending.
+
+## Menu BGM (current automated total: 82)
+
+1. With A-Style active, entry and mode selection should play
+   `Sound/BGM/Entry.ogg`. During player-data selection and the transition to mode
+   selection, the song must continue from the same position.
+2. On the genre list, `Sound/BGM/SongSelect.ogg` should repeat at about 4.06 seconds
+   (the short supplied clip includes a gap before the next repetition).
+3. A song preview should replace this BGM. In difficulty selection, move the cursor
+   onto **Back**: preview stops and SongSelect.ogg restarts. Move back onto a
+   difficulty: the preview returns. Repeat on the song list's Close/Back row.
+4. During preview loading and the transition into 2P difficulty or performance,
+   there should be no brief burst of menu BGM. If a preview cannot load, BGM should
+   remain available. 2P difficulty now also previews the shared selected song.
+5. Adjust Master/BGM separately from Music/Voice; test F1 settings, a skin switch,
+   audio-output restart and game exit. Other scenes' own music must not overlap
+   the shared menu music. Missing BGM files must not cause errors or repeated loads.
+
+Controller tests use fake streams and do not substitute for these native audio checks.

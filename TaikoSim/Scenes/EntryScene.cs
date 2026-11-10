@@ -29,6 +29,8 @@ public sealed class EntryScene : Scene
     private string error = "";
     private static readonly Rectangle DataPanel = new(248, 292, 1423, 490);
 
+    public override string? MenuBgmFile => MenuBgm.EntryFile;
+
     public EntryScene(bool selectData = false) => choosing = selectData;
 
     public override void Enter()

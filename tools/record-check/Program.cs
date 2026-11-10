@@ -205,6 +205,70 @@ foreach (var group in Enum.GetValues<TaikoSim.Configs.RecordGroup>())
 var invalidGroupConfig = new TaikoSim.Configs.GameConfig { RecordGroup = (TaikoSim.Configs.RecordGroup)99 };
 invalidGroupConfig.Fix();
 Check(invalidGroupConfig.RecordGroup == TaikoSim.Configs.RecordGroup.OniAndUra, "未知の集計設定は従来の表裏合算へ戻す");
+// BASSを呼ばず、実際のBGM制御を偽の再生先で動かす。
+var musicLoads = new List<string>();
+var musicTracks = new List<FakeMenuBgm>();
+using (var music = new TaikoSim.Audio.MenuBgmPlayer(file =>
+{
+    musicLoads.Add(file);
+    if (file == "missing.ogg") return null;
+    var track = new FakeMenuBgm(); musicTracks.Add(track); return track;
+}))
+{
+    music.Update(TaikoSim.Audio.MenuBgm.EntryFile, 1, 1, false, .8f, .016f);
+    var entryMusic = musicTracks.Last();
+    Check(entryMusic.Plays == 1 && entryMusic.Loop && entryMusic.Volume == .8f, "エントリーBGMをループ再生");
+    music.Update(TaikoSim.Audio.MenuBgm.EntryFile, 1, 1, false, .7f, 5);
+    Check(musicLoads.Count == 1 && entryMusic.Plays == 1 && entryMusic.Stops == 0, "モード選択へ移っても同じBGMを読み直し・停止・巻き戻ししない");
+    music.Update(TaikoSim.Audio.MenuBgm.SongSelectFile, 1, 1, false, .6f, .016f, 4060);
+    var selectMusic = musicTracks.Last();
+    Check(entryMusic.Disposes == 1 && selectMusic.Plays == 1 && !selectMusic.Loop, "選曲へ移ったらエントリーBGMを片付けて選曲BGMへ");
+    music.Update(TaikoSim.Audio.MenuBgm.SongSelectFile, 1, 1, false, .6f, 3.1f, 4060);
+    Check(selectMusic.Plays == 1, "選曲ジングルが終わっても測定周期までは繰り返さない");
+    music.Update(TaikoSim.Audio.MenuBgm.SongSelectFile, 1, 1, false, .6f, 1, 4060);
+    Check(selectMusic.Plays == 2, "選曲BGMは約4.06秒周期で繰り返す");
+    music.Update(TaikoSim.Audio.MenuBgm.SongSelectFile, 1, 1, true, .6f, .016f, 4060);
+    Check(selectMusic.Stops == 1 && selectMusic.Volume == 0, "曲のプレビュー中はBGMを止める");
+    music.Update(TaikoSim.Audio.MenuBgm.SongSelectFile, 1, 1, true, .6f, 10, 4060);
+    Check(selectMusic.Plays == 2 && selectMusic.Stops == 1, "プレビュー中にBGMを繰り返さない");
+    music.Update(TaikoSim.Audio.MenuBgm.SongSelectFile, 1, 1, false, .4f, .016f, 4060);
+    Check(selectMusic.Plays == 3 && selectMusic.Volume == .4f && musicLoads.Count == 2, "戻るにカーソルが乗ったら選曲BGMを頭から再開し再読込しない");
+    music.Update(TaikoSim.Audio.MenuBgm.SongSelectFile, 2, 1, false, .4f, .016f, 4060);
+    Check(selectMusic.Disposes == 1 && musicLoads.Count == 3, "スキン変更で現在のBGMを差し替える");
+    var oldDeviceMusic = musicTracks.Last();
+    music.Update(TaikoSim.Audio.MenuBgm.SongSelectFile, 2, 2, false, .4f, .016f, 4060);
+    Check(oldDeviceMusic.Disposes == 0 && musicLoads.Count == 4, "音の再初期化後は古いハンドルに触らず読み直す");
+    var currentDeviceMusic = musicTracks.Last();
+    music.Update(null, 2, 2, false, .4f, .016f);
+    Check(currentDeviceMusic.Disposes == 1, "演奏やリザルトではメニューBGMを終了");
+    music.Update("missing.ogg", 2, 2, false, .4f, .016f);
+    int attempts = musicLoads.Count;
+    music.Update("missing.ogg", 2, 2, false, .4f, 5);
+    Check(musicLoads.Count == attempts, "無いBGMを毎フレーム読み直さない");
+    music.Update("missing.ogg", 3, 2, false, .4f, .016f);
+    Check(musicLoads.Count == attempts + 1, "スキン変更後は無かったBGMも再確認");
+}
+using (var mutedMusic = new TaikoSim.Audio.MenuBgmPlayer(_ => { var t = new FakeMenuBgm(); musicTracks.Add(t); return t; }))
+{
+    mutedMusic.Update("select.ogg", 1, 1, true, 1, .016f, 4060);
+    var track = musicTracks.Last();
+    Check(track.Plays == 0 && track.Volume == 0, "プレビューから入った画面でBGMを一瞬鳴らさない");
+    mutedMusic.Update("select.ogg", 1, 1, false, 1, .016f, 4060);
+    Check(track.Plays == 1, "最初は消音だったBGMも戻るで再生できる");
+}
+var previewState = new TaikoSim.Audio.SongPreview();
+previewState.Request("no-such-chart-for-menu-check.tja", true);
+Check(previewState.HasPlaybackRequest, "曲の読み込み待ちではBGMを鳴らさない");
+previewState.Request(null, false);
+Check(!previewState.HasPlaybackRequest, "戻るへの移動でプレビュー要求を解除しBGMへ戻す");
+previewState.Request("no-such-chart-for-menu-check.tja", true);
+for (int i = 0; i < 1000 && previewState.HasPlaybackRequest; i++)
+{
+    previewState.Update(.2f);
+    await Task.Delay(1);
+}
+Check(!previewState.HasPlaybackRequest, "読めないプレビューでBGMを消したままにしない");
+previewState.Dispose();
 Console.WriteLine($"PASS: {passed} total record/local-player checks");
 
 [System.Text.Json.Serialization.JsonSourceGenerationOptions(UseStringEnumConverter = true)]
