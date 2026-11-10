@@ -85,3 +85,20 @@ The current automated total is 64 checks. Windows visual checks above are pendin
    the shared menu music. Missing BGM files must not cause errors or repeated loads.
 
 Controller tests use fake streams and do not substitute for these native audio checks.
+
+## Back sound
+
+Check A-Style `Sound/Cancel.ogg` for song-list Close, song-list Esc back to genres,
+genres Esc back to mode, difficulty Back selected with Don/Enter/mouse, and
+ordinary difficulty Esc. The ordinary difficulty Back/ESC should each play it
+once. Two-player difficulty Esc also plays cancel when clearing readiness or
+returning to song select. With Cancel.ogg absent, Ka is the fallback. Verify the
+SE volume slider controls it independently from BGM and voice volume.
+
+## Options opening click
+
+Open normal and 2P difficulty options with one mouse click. The panel must finish
+rising and remain open; the same click must neither close it nor change a value.
+Clicks during its opening motion are ignored. After it settles, verify a control
+click edits once, an outside click closes, and Esc/F2 close still works. Also open
+with Don/Enter/F2 and repeat these checks.

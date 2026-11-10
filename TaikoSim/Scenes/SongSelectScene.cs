@@ -200,7 +200,6 @@ namespace TaikoSim.Scenes
         private const string SelectStartVoice = "Sound/SongSelect/SelectStart.ogg";
         private const string DecideSongVoice = "Sound/SongSelect/DecideSong.ogg";
         private const string DecideDifficultyVoice = "Sound/SongSelect/DecideDifficulty.ogg";
-        private const string CancelSe = "Sound/Cancel.ogg";
         private const double GenreVoiceDelay = 0.95, DecideSongVoiceDelay = 0.5;
         private bool selectPrompt;   // SelectStart をくり返している途中
 
@@ -631,7 +630,7 @@ namespace TaikoSim.Scenes
                     //   点滅 → 白 → ポンッ → まわりの板が上下へ逃げる → 「とじる」の板が横につぶれて細い線 → 空のジャンルの色の板が横に広がる
                     //   → J-POP の板（開いた形）に入れ替わって中身とまわりが出る → 0.3秒あとに黄色い枠。時間もジャンルを開くときとほぼ同じ（ずれは 0.05秒以内）
                     MenuSounds.Don();
-                    MenuVoice.PlaySe(CancelSe);
+                    MenuSounds.Cancel();
                     list.StartDecide();
                     flipOpen = CloseGenreNow;
                     flipFromBack = true;
@@ -712,7 +711,8 @@ namespace TaikoSim.Scenes
                 list.EndDecide();
                 return;
             }
-            if (inSongs) { MenuSounds.Ka(); CloseGenre(); return; }
+            if (inSongs) { MenuSounds.Cancel(); CloseGenre(); return; }
+            MenuSounds.Cancel();
             SceneManager.ToModeFromSongSelect(new ModeSelectScene());
         }
 
@@ -793,7 +793,7 @@ namespace TaikoSim.Scenes
         {
             // 11/8 の TaikøNauts の録画：難易度の板は一瞬で消えて、選んでいた曲の板は閉じた形にもどる。
             //   そこから 0.43秒で黄色い枠、0.45秒で開く（BarList.CollapseAfterDifficulty）。フェードはしない
-            MenuSounds.Ka();
+            MenuSounds.Cancel();
             options.CloseNow();
             diffOpen = false;
             diffSong = null;

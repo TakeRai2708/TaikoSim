@@ -357,7 +357,8 @@ namespace TaikoSim.UI
         {
             if (!IsOpen) return;
             float px = PanelX, py = PanelTop + SlideY();
-            bool input = active && !Closing;
+            // 開いたクリックを「板の外を押した」と二重処理しない。移動中の板もクリックさせない。
+            bool input = active && !Closing && Opened;
             Vector2 mouse = Screen.GetMousePosition();
             bool pressed = input && Raylib.IsMouseButtonPressed(MouseButton.Left);
 

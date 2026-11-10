@@ -874,3 +874,15 @@ Order:
 - Skin or audio generation changes cause a reload. Never dispose a handle from the old audio generation after output restart, as its ID may have been reused. Missing music is silent and attempted only once per file/skin/audio generation. A-Style audio assets remain private/local and are not committed; skins without these files work silently.
 - `BGM.zip` actually includes BGM plus most of the Sound tree. In that supplied copy `EnsoGame/Combo/2P/` is empty; do not request nonexistent separate 2P combo voices without checking that first. The older §8 "BGM Entry/SongSelect not used" statement is superseded by this section.
 - Linux source compile 0 errors / 253 existing warnings. **82 checks passed**: actual BGM controller exercised with fake streams for continuity, source changes, stop/restart on Back, loop cadence, live volume, generation invalidation, no assets/retry loops, plus preview loading/cancel/failure state. Real Windows playback, mixing balance, native looping and device switching remain unverified.
+
+### Back/cancel sound consistency (11/10)
+
+- `MenuSounds.Cancel()` loads `Sound/Cancel.ogg` and uses SE volume. A skin without it falls back to the ordinary Ka sound. It follows the same skin/audio-generation reload and safe disposal as the other menu effects.
+- Song-list Close confirmation keeps its existing Don plus cancel effect. Esc from the song list to genres, genres to mode select, and difficulty Back/ESC now use the same cancel effect (difficulty previously played only Ka). Both button confirmation and Esc route through CloseDifficulty so the cancel effect is not doubled.
+- Two-player difficulty Esc now plays cancel when clearing readiness or returning to song select; closing the options popup retains its separate behavior. No new sounds were added to menu music or preview cursor movement.
+- Compile check and the existing 82 checks cover source/integration regressions; native audio playback of this change still needs Windows verification.
+
+### Play-options opening click (11/10)
+
+- Fixed the panel opening and immediately closing from one mouse click. SongSelectScene and LocalDifficultyScene may call Open while drawing a clicked options row, then call PlayOptionsPanel.Draw later in the same frame. Raylib's IsMouseButtonPressed remains true, and the opening panel is still below the screen, so its old outside-click handler called Close immediately.
+- Mouse interaction in PlayOptionsPanel.Draw now requires Opened, matching the existing Don gate. The initial click and clicks while the panel rises/settles cannot edit values or trigger outside-close. Once settled, controls and outside-click close work normally; Esc/F2 close is unchanged. This applies to both normal and 2P options panels. Native mouse verification remains pending.
