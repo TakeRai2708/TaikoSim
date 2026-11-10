@@ -130,6 +130,37 @@ try
         scene.OnBack();
         Check(PlatePlayer(scene) == joined[^1], "移行中のEscで確定済み参加者を失わない");
     }
+    // 未作成のデータへカーソルを移しても、作成や入力画面を始めない。
+    File.Delete(PlayerDataStore.NamePath(3));
+    LocalSession.Reset(); LocalSession.Don(0);
+    var browsing = new EntryScene(selectData: true);
+    Field("opened").SetValue(browsing, .3f);
+    var move = typeof(EntryScene).GetMethod("Move", BindingFlags.NonPublic | BindingFlags.Instance)!;
+    move.Invoke(browsing, new object[] { 1 });
+    move.Invoke(browsing, new object[] { 1 });
+    Check((int)Field("cursor").GetValue(browsing)! == 2, "未作成のデータ枠へ移動できる");
+    Check(!(bool)Field("naming").GetValue(browsing)!, "選択しただけでは名前入力を開かない");
+    Check(!PlayerDataStore.HasName(3), "選択しただけではデータを作らない");
+    decide.Invoke(browsing, null);
+    Check(!(bool)Field("naming").GetValue(browsing)!, "選択移動と同じフレームの決定は受け付けない");
+    Check(!(bool)Field("leaving").GetValue(browsing)!, "選択だけではモード選択へ移行しない");
+    Field("selectionChanged").SetValue(browsing, false);
+    PlayerDataStore.Save(3, new NamePlateConfig { Name = "3番目" });
+    decide.Invoke(browsing, null);
+    Check((bool)Field("leaving").GetValue(browsing)!, "次の入力で決定した場合は確定する");
+    // 見た目を変えても、人数確定→データ選択という手順は維持する。
+    var clickStart = typeof(EntryScene).GetMethod("ClickStart", BindingFlags.NonPublic | BindingFlags.Instance)!;
+    foreach (int count in new[] { 1, 2 })
+    {
+        LocalSession.Reset();
+        var entry = new EntryScene();
+        clickStart.Invoke(entry, new object[] { count });
+        Check(LocalSession.Count == count && (float)Field("joiningTransition").GetValue(entry)! < 0, "最初のクリックは参加だけ");
+        clickStart.Invoke(entry, new object[] { count });
+        Check((float)Field("joiningTransition").GetValue(entry)! == 0, "次のクリックで人数確定");
+        entry.Update(.6f);
+        Check((bool)Field("choosing").GetValue(entry)! && !(bool)Field("naming").GetValue(entry)!, "人数確定後は名前入力ではなくデータ選択へ");
+    }
     Console.WriteLine($"PASS: {passed} nameplate/profile/cosmetic/rank checks");
 }
 finally

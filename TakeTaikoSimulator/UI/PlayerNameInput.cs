@@ -42,7 +42,8 @@ public sealed class PlayerNameInput
     private static float FittedSize(string text) => 40 * Math.Min(1, 830 / Math.Max(1, FontManager.Measure(text, 40).X));
     public void Draw()
     {
-        Raylib.DrawRectangle(0, 0, 1920, 1080, new Color(8, 15, 25, 245));
+        Raylib.DrawRectangle(0, 0, 1920, 1080, new Color(0, 0, 0, 165));
+        Raylib.DrawRectangleRounded(new(440, 250, 1040, 570), .02f, 8, new Color(13, 23, 38, 255));
         FontManager.Draw("プレイヤー名を入力", 520, 300, 48, Color.White);
         FontManager.Draw("24文字まで。あとからNamePlateConfig.jsonでも変更できます", 520, 390, 25, Color.LightGray);
         Raylib.DrawRectangleRounded(Box, .06f, 8, new Color(26, 40, 59, 255));
