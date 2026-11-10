@@ -1,4 +1,4 @@
-﻿using TaikoSim.Charts;
+﻿using TakeTaikoSimulator.Charts;
 
 // 合否の判定（DanPlay）の境界値テスト。実データの段位を使って、
 // 「赤のボーダーちょうど」「1つ足りない」「金のボーダーちょうど」が意図どおりになるか確かめる。

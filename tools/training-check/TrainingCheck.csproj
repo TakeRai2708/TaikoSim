@@ -6,8 +6,8 @@
     <Nullable>enable</Nullable>
   </PropertyGroup>
   <ItemGroup>
-    <Reference Include="Check">
-      <HintPath>../build-check/.bin/net10.0/Check.dll</HintPath>
+    <Reference Include="TakeTaikoSimulator">
+      <HintPath>../build-check/.bin/net10.0/TakeTaikoSimulator.dll</HintPath>
     </Reference>
   </ItemGroup>
 </Project>

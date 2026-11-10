@@ -9,7 +9,7 @@
     <EnableDefaultCompileItems>false</EnableDefaultCompileItems>
     <RootNamespace>DanCheck</RootNamespace>
     <NoWarn>$(NoWarn);CA1416</NoWarn>
-    <SrcDir>$(MSBuildThisFileDirectory)../../TaikoSim/</SrcDir>
+    <SrcDir>$(MSBuildThisFileDirectory)../../TakeTaikoSimulator/</SrcDir>
   </PropertyGroup>
   <ItemGroup>
     <Compile Include="Program.cs" />

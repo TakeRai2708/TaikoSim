@@ -1,4 +1,4 @@
-using TaikoSim.Audio;
+using TakeTaikoSimulator.Audio;
 
 internal sealed class FakeMenuBgm : IMenuBgmTrack
 {

@@ -4,7 +4,7 @@ import math, os
 
 HERE = os.path.dirname(os.path.abspath(__file__))
 # できた画像・音を入れる場所(リポジトリの Simple スキン)。環境変数 TAIKOSIM_SKIN_OUT で変えられる
-OUT = os.environ.get('TAIKOSIM_SKIN_OUT', os.path.normpath(os.path.join(HERE, '..', '..', 'TaikoSim', 'Skins', 'TaikoSim-Simple')))
+OUT = os.environ.get('TAIKOSIM_SKIN_OUT', os.path.normpath(os.path.join(HERE, '..', '..', 'TakeTaikoSimulator', 'Skins', 'TaikoSim-Simple')))
 
 def _find_font(env, candidates):
     """フォントを探す。環境変数 → 候補の順。どれも無ければ Simple スキンの Font/default.otf(Noto Sans CJK JP Bold)"""

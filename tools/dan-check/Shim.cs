@@ -2,7 +2,7 @@
 //   Charts/Chart.cs や Charts/SongHistory.cs を丸ごと持ってくると Raylib や設定ファイルが要るので、
 //   パーサと判定ロジックのテストに必要な分だけここに置いている。
 //   ★ 本体側の並び・名前を変えたら、こっちも直すこと。
-namespace TaikoSim.Charts
+namespace TakeTaikoSimulator.Charts
 {
     // Charts/Chart.cs の CourseType（並びを必ず同じにする）
     public enum CourseType { Easy = 0, Normal = 1, Hard = 2, Oni = 3, Edit = 4, Tower = 5, Dan = 6 }

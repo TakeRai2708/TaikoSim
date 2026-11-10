@@ -1,6 +1,6 @@
 # dan-check — 段位ファイルのパーサを実データで試す道具
 
-`TaikoSim/Charts/Dan.cs`・`DanJson.cs`・`ChartText.cs` を、実際の段位フォルダに対して動かして、
+`TakeTaikoSimulator/Charts/Dan.cs`・`DanJson.cs`・`ChartText.cs` を、実際の段位フォルダに対して動かして、
 読めた中身をそのまま表示します。ゲーム本体には入りません。
 
 ```

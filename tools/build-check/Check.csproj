@@ -1,11 +1,13 @@
 <Project Sdk="Microsoft.NET.Sdk">
   <!--
-    TaikoSim のビルド確認用(Linux・NuGet が使えない環境で、コンパイルが通るかだけ確かめる)
+    TakeTaikoSimulator のビルド確認用(Linux・NuGet が使えない環境で、コンパイルが通るかだけ確かめる)
     実行はできない(Raylib と BASS の dll が Windows 用なので)。使い方は README.md
     DepsDir：Raylib-cs と ManagedBass のソースを置いた場所(setup.sh が作る)
   -->
   <PropertyGroup>
     <OutputType>Exe</OutputType>
+    <AssemblyName>TakeTaikoSimulator</AssemblyName>
+    <RootNamespace>TakeTaikoSimulator</RootNamespace>
     <TargetFramework>net10.0</TargetFramework>
     <ImplicitUsings>enable</ImplicitUsings>
     <Nullable>enable</Nullable>
@@ -17,7 +19,7 @@
     <!-- AOT/トリムの警告を出す（自作コードが AOT で問題ないか、Linux でも静的に確認するため） -->
     <IsAotCompatible>true</IsAotCompatible>
     <JsonSerializerIsReflectionEnabledByDefault>false</JsonSerializerIsReflectionEnabledByDefault>
-    <SrcDir>$(MSBuildThisFileDirectory)../../TaikoSim/</SrcDir>
+    <SrcDir>$(MSBuildThisFileDirectory)../../TakeTaikoSimulator/</SrcDir>
     <DepsDir Condition="'$(DepsDir)' == ''">$(MSBuildThisFileDirectory).deps/</DepsDir>
     <BaseIntermediateOutputPath>$(MSBuildThisFileDirectory).obj/</BaseIntermediateOutputPath>
     <OutputPath>$(MSBuildThisFileDirectory).bin/</OutputPath>

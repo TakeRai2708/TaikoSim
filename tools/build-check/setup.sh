@@ -1,6 +1,6 @@
 #!/usr/bin/env bash
 # ビルド確認に使うライブラリのソースを .deps/ に取ってくる(最初の1回だけ)
-#   Raylib-cs 8.1.0(TaikoSim.csproj と同じ版)と ManagedBass(Bass・BassMix・BassWasapi・BassAsio)
+#   Raylib-cs 8.1.0(TakeTaikoSimulator.csproj と同じ版)と ManagedBass(Bass・BassMix・BassWasapi・BassAsio)
 set -euo pipefail
 cd "$(dirname "$0")"
 mkdir -p .deps

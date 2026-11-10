@@ -159,8 +159,8 @@ def ura_flip():
     """難易度選択で、おに ⇔ 裏おにを切り替えたときの音(キラッと上がる和音。0.7秒)"""
     return mix(0.8, [(0, don() * 0.6)] + [(0.03 + i * 0.05, bell(mtof(m), 0.7, 0.22)) for i, m in enumerate([72, 79, 84, 91])])
 
-# ===== 音色(exe の横の HitSounds/。スキンとは別。TaikoSim/HitSounds/ に作る) =====
-HITSOUNDS = os.path.normpath(os.path.join(os.path.dirname(os.path.abspath(__file__)), '..', '..', 'TaikoSim', 'HitSounds'))
+# ===== 音色(exe の横の HitSounds/。スキンとは別。TakeTaikoSimulator/HitSounds/ に作る) =====
+HITSOUNDS = os.path.normpath(os.path.join(os.path.dirname(os.path.abspath(__file__)), '..', '..', 'TakeTaikoSimulator', 'HitSounds'))
 
 def save_hitsound(folder, name, don_sig, ka_sig):
     """音色1つ(dong.ogg・ka.ogg・HitSounds.json)。OpenTaiko の Global/HitSounds と同じ並び"""

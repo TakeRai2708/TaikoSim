@@ -1,7 +1,7 @@
-using TaikoSim.Charts;
-using TaikoSim.Scenes;
-using TaikoSim.Input;
-using TaikoSim.Configs;
+using TakeTaikoSimulator.Charts;
+using TakeTaikoSimulator.Scenes;
+using TakeTaikoSimulator.Input;
+using TakeTaikoSimulator.Configs;
 using Raylib_cs;
 
 int passed = 0;

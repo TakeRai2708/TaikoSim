@@ -1,6 +1,6 @@
-# AGENTS.md — Handoff guide for AI assistants working on TaikoSim
+# AGENTS.md — Handoff guide for AI assistants working on TakeTaikoSimulator
 
-This file is for any AI (Claude, ChatGPT / Codex, etc.) that picks up work on TaikoSim.
+This file is for any AI (Claude, ChatGPT / Codex, etc.) that picks up work on TakeTaikoSimulator.
 Read all of it before you start.
 
 **Also read `KNOWN-ISSUES.txt` before working; update it when investigation or verification changes.**
@@ -8,7 +8,7 @@ Read all of it before you start.
 **Also read `TAIKONAUTS-SPEC.md`.**
 That file is a digest of the official TaikøNauts documentation (50 pages): "how the original is built".
 The **correct file formats** live there: dan-dojo `dan.json`, Don-chan `Config.json`, `category.def` / `order.def`, `SONGGENREID`, etc.
-This file (AGENTS.md) is where we record **values we actually measured** from videos and images for TaikoSim.
+This file (AGENTS.md) is where we record **values we actually measured** from videos and images for TakeTaikoSimulator.
 
 > Language note: this file is in English so that AI agents can read it quickly.
 > The user (たけらい) is Japanese. **All replies to the user must be in Japanese** (see §2).
@@ -18,7 +18,7 @@ This file (AGENTS.md) is where we record **values we actually measured** from vi
 
 ## 1. Project overview
 
-- **TaikoSim**: a Taiko no Tatsujin simulator. Personal use only, **private. Never publish it.**
+- **TakeTaikoSimulator**: a Taiko no Tatsujin simulator. Personal use only, **private. Never publish it.**
 - Author: たけらい (Japanese IT vocational-school student, Windows 11)
 - Stack
   - C# / .NET 10 (`net10.0-windows`)
@@ -75,11 +75,11 @@ This file (AGENTS.md) is where we record **values we actually measured** from vi
   so be honest: "it compiles, but I haven't checked the visuals"
 - To compile-check on Linux:
   ```
-  dotnet build TaikoSim/TaikoSim.csproj -p:EnableWindowsTargeting=true
+  dotnet build TakeTaikoSimulator/TakeTaikoSimulator.csproj -p:EnableWindowsTargeting=true
   ```
   (needs NuGet for Raylib-cs and ManagedBass)
 - Without NuGet access use `tools/build-check/` (see its README.md): `./setup.sh` fetches the Raylib-cs 8.1.0 and ManagedBass sources,
-  then `dotnet build Check.csproj` compiles them together with the TaikoSim sources (only the Windows Forms FolderBrowserDialog is replaced by an empty class in `stub.cs`)
+  then `dotnet build Check.csproj` compiles them together with the TakeTaikoSimulator sources (only the Windows Forms FolderBrowserDialog is replaced by an empty class in `stub.cs`)
 - Since visuals can't be run, build mock-ups in Python (Pillow) by compositing skin images and compare them side by side with frames from たけらい's videos
 - `bass.dll` etc. are committed to the repo
 
@@ -87,7 +87,7 @@ This file (AGENTS.md) is where we record **values we actually measured** from vi
 - たけらい wants the exe given to friends built with **Native AOT** (so ILSpy etc. can't read it)
 - **A normal `dotnet build` does not do this.** Build the exe from Visual Studio or with:
   ```
-  dotnet publish TaikoSim/TaikoSim.csproj -r win-x64 -c Release
+  dotnet publish TakeTaikoSimulator/TakeTaikoSimulator.csproj -r win-x64 -c Release
   ```
   - Visual Studio needs the **"Desktop development with C++"** workload (AOT uses the C++ toolchain)
 - What was changed to make AOT work (`claude/aot`):
@@ -103,16 +103,16 @@ This file (AGENTS.md) is where we record **values we actually measured** from vi
 
 ### Window modes (11/8): only "framed window" or "real fullscreen", like OpenTaiko
 - The self-made borderless (undecorated window exactly the monitor size) was removed. Windows seemed to treat it as a fullscreen game
-  (independent flip?): Claude's computer-use screenshots of TaikoSim stayed stale and clicks were judged to land on "the desktop". OBS window capture was fine
+  (independent flip?): Claude's computer-use screenshots of TakeTaikoSimulator stayed stale and clicks were judged to land on "the desktop". OBS window capture was fine
 - OpenTaiko (Silk.NET + GLFW, rendering through ANGLE; Windows default OpenGL) also has only `WindowState.Normal` (framed) or `WindowState.Fullscreen`
 - Fullscreen = `ToggleFullscreen` at the monitor's native size (no mode switch; the 1920×1080 canvas is scaled). The resolution setting applies to window mode only
 - A window that doesn't fit the monitor is shrunk (keeping 16:9) and centered. `GameConfig.FullscreenType` is kept only so old config files load; the dropdown is gone
-- **Also: computer use's "open application" launched a NEW TaikoSim each time instead of focusing the running one** (several Debug instances piled up). Focus TaikoSim by clicking it
+- **Also: computer use's "open application" launched a NEW TakeTaikoSimulator each time instead of focusing the running one** (several Debug instances piled up). Focus TakeTaikoSimulator by clicking it
 
 ### KeyProbe (Debug builds only, 11/8)
 - `Diagnostics/KeyProbe.cs` writes `Logs/KeyProbe_<date>_<time>.txt` next to the exe: Windows key/char/focus messages seen by a WH_GETMESSAGE hook on the main thread,
   Raylib `IsKeyDown` changes for DFJK / ERUI / Enter / Esc / Space / arrows, and focus / foreground-window / fullscreen changes.
-- Added because keys sent by Claude's computer use reached TaikøNauts but not TaikoSim; the log shows where they stop
+- Added because keys sent by Claude's computer use reached TaikøNauts but not TakeTaikoSimulator; the log shows where they stop
 
 ### Debug log (CSV) — for investigating slowness, input, audio drift
 - Turn on via Settings "一般 → デバッグ → デバッグ記録（CSV）" or the song-select option 「デバッグ記録(CSV)」
@@ -133,7 +133,7 @@ This file (AGENTS.md) is where we record **values we actually measured** from vi
 ## 5. Folder layout (main parts)
 
 ```
-TaikoSim/
+TakeTaikoSimulator/
   Program.cs, Game.cs          … startup, main loop
   Scenes/                      … screens
     ModeSelectScene.cs         … mode select (first screen after boot)
@@ -209,7 +209,7 @@ python play.py        # play screen (notes, lane, digits...; regenerates everyth
 python sounds.py      # sounds (needs ffmpeg)
 python dan.py         # dan dojo images (20 dan plates)
 ```
-- Output overwrites `TaikoSim/Skins/TaikoSim-Simple/` directly
+- Output overwrites `TakeTaikoSimulator/Skins/TaikoSim-Simple/` directly
   (set `TAIKOSIM_SKIN_OUT` to write elsewhere)
 - **Fonts**: originally drawn with Noto Sans CJK **Black** and **Bold**.
   If missing, `Font/default.otf` (Noto Sans CJK JP Bold) is used instead (slightly thinner).
@@ -264,7 +264,7 @@ python dan.py         # dan dojo images (20 dan plates)
 - Bars are spaced **50 px** further apart vertically than song select. When opening they spread **23 px** up and down each
 - Bar images are 980×160. When open, only the base is stretched; the title (`Title/<n>.png`) is placed on top at native size
 - Only indices 0 ("演奏ゲーム") and 1 ("段位道場") are used.
-  A-Style's 2 and 3 are "Player settings" and "AI battle", which differ from TaikoSim's items, so they're unused
+  A-Style's 2 and 3 are "Player settings" and "AI battle", which differ from TakeTaikoSimulator's items, so they're unused
 - Fireworks (`Background_Fireworks.png`, two 300×300 frames): one cycle per 3.2 s. They swell and fade over 1.4 s
 - "段位道場" shows `1POnly.png`; "演奏ゲーム" shows the same character as song select (`Bar/Pop/0.png` at (288, 271) native size)
 - The "フリープレイ" at the bottom is **text only**, 48 px, centered in (730, 1012, 460, 56) (it used to be 30 px, too small)
@@ -289,7 +289,7 @@ In A-Style they look like **sideways taiko drums** (Don-chan = red face, light-b
   - Play: `ensoGameX [-83,-83]` `ensoGameY [-111,690]` `ensoGameNormalScale 0.81`
   - Song select: `songSelectX [-185,1300]` `songSelectY [436,436]` `songSelectLoopTime 1000` `songSelectWaitLoopTime 560`
   - Beats: `normalMotionBeat 4` `combo10MotionBeat 2` `goGoMotionMotionBeat 4` (**note the doubled "Motion" in the key name**)
-  - Position arrays are [1P, 2P]. TaikoSim is single player, so [0] is used
+  - Position arrays are [1P, 2P]. TakeTaikoSimulator is single player, so [0] is used
 - **Loading them as-is doesn't fit in memory**: 1.87 MB per frame → `normal` (471 frames) alone is 883 MB; the whole play screen is 4.7 GB
 - Even trimmed + scaled to 0.81 + every other frame, the 13 play animations are **627 MB of GPU memory** → too much. So (11/7):
   - `Graphics/CharaCache.cs` `CharaBaker`: after every skin (re)load, a **background thread bakes** each animation into
@@ -315,7 +315,7 @@ In A-Style they look like **sideways taiko drums** (Don-chan = red face, light-b
     - Gauge becoming clear and 10 combo on the same hit → `10combo` wins (OpenTaiko updates the gauge before the combo milestone). `PlayChara.OnJudge` takes the gauge state for this
     - `clearin` also plays during GoGo, then back to `gogo`
     - Balloon: `balloon_breaking` at (212, −8) ×0.95 (match within 1–2 px). `balloon_broke` at the same place, 1 beat. **The balloon image is drawn over Don-chan's mouth** → Don-chan is drawn before the balloon
-    - `failed_down` was not seen (the song was cleared). TaikoSim plays it when the song ends without clearing (dan: 不合格) — still a guess
+    - `failed_down` was not seen (the song was cleared). TakeTaikoSimulator plays it when the song ends without clearing (dan: 不合格) — still a guess
 - **In dan play Don-chan never uses the clear/max motions** (11/8, 十段 on auto `2026-11-08 03-23-19.mp4`: gauge 100 % rainbow, still `normal`; 10 combo = `10combo`). `PlayChara.Load(isDan)`
 - Menu screens (`Graphics/MenuChara.cs`, 11/8) — time-based loops (`…LoopTime` ms per cycle), all checked by template matching on the 11/8 recordings (error ≈ 0):
   - Mode select and song select: `songselect_loop` (236 frames / 1000 ms) at (−185, 436) ×1, drawn behind the bars. Idle never switches to `songselect_wait_loop` (that is the 2-player "waiting" motion)
@@ -438,7 +438,7 @@ In A-Style they look like **sideways taiko drums** (Don-chan = red face, light-b
 - Per-song conditions: small slots on the right show finished songs' tags (1st) + that song's mini bar (same colors as the large bar) + number
 - The tag under the song title alternates between 「N曲目 / M曲」 and the genre (`genre` in `dan.json`) **about every 2 s**
 - The left panel's difficulty mark is the 「段位道場」 mark (red cloth bundle). Code-drawn if `MiniTaiko/CourseSymbol_Dan.png` is missing
-- End of the last song: on fail, a light-blue 「不合格」 on the lane (small characters on both sides; TaikoSim shows text only) → fade → result. Pass not seen yet
+- End of the last song: on fail, a light-blue 「不合格」 on the lane (small characters on both sides; TakeTaikoSimulator shows text only) → fade → result. Pass not seen yet
 - Result per-song page: songs not reached show a grey plate with 「???」 and 「未到達」
 - Dan-select plates sit at **fixed places x = 190 + danIndex × 68** (20 slots; missing dans show faint plates)
 
@@ -507,10 +507,10 @@ Measured by overlaying images on frames of the 九段 video (03-04-03 at 20 s, 2
   - **Then, if passed with no 不可 across the whole dan, the lane switches to the normal full-combo banner (any 可 → フルコンボ, none → ドンダフルコンボ) 1.0 s later** (`PlayScene.DanComboAfterSeconds`; uses `PlayEnd` and its sound; the pass text is hidden from then on; fade-out waits for `PlayEnd.IsFinished`).
     Seen on the 11/6 arcade 六段 video: 402.0 s 「合格」 → 403.0 s white flash → 「ドンダフルコンボ!!」 until ~409 s. Whether it also appears after a fail is unknown (only implemented for passes)
 - Arcade 六段 video (11/6, `2026-11-06_09-10-55.mp4`; 0–80 s barely plays and later parts stall now and then, so long spans run 1–10 % long):
-  - Doors start closing ~2.2 s after the last note (2.25 s and ~2.2 s) — same as TaikøNauts and TaikoSim
-  - Doors slam almost shut in ~0.1 s, then close the last gap over ~0.9 s; open in ~0.17 s (TaikoSim keeps the OpenTaiko/TaikøNauts 1.0 s / 0.27 s; たけらい chose not to change it)
-  - The next song's title is already behind the doors and visible the moment they start opening (TaikoSim: `DanShutter` draws the title under the doors from the closed phase, 11/6)
-  - Next song's 0 s after the previous #END: 8.06 s and 6.98 s (TaikøNauts 10.71/10.84 s). Not constant; maybe the arcade uses the audio length. TaikoSim keeps 10.78 s
+  - Doors start closing ~2.2 s after the last note (2.25 s and ~2.2 s) — same as TaikøNauts and TakeTaikoSimulator
+  - Doors slam almost shut in ~0.1 s, then close the last gap over ~0.9 s; open in ~0.17 s (TakeTaikoSimulator keeps the OpenTaiko/TaikøNauts 1.0 s / 0.27 s; たけらい chose not to change it)
+  - The next song's title is already behind the doors and visible the moment they start opening (TakeTaikoSimulator: `DanShutter` draws the title under the doors from the closed phase, 11/6)
+  - Next song's 0 s after the previous #END: 8.06 s and 6.98 s (TaikøNauts 10.71/10.84 s). Not constant; maybe the arcade uses the audio length. TakeTaikoSimulator keeps 10.78 s
   - After the result, the arcade shows a separate full-screen 「六段合格」 celebration (~4.5 s). Not implemented
 - **Dan plates come from the skin** (`Graphics/DanPlates.cs`, 11/5): `Image/06.DanSelect/DanPlate/{danIndex}.png` (五級 = 0 … 初段 = 5 … 六段 = 10 … 外伝 = 19),
   falling back to the dan folder's `danPlatePath` (so custom dans still show one). たけらい: a plate from the song folder shows in every skin, which felt wrong.
@@ -567,8 +567,8 @@ t = 0 when the result fades in (fade 0.07 s).
 - Images are **40×40 frames laid out horizontally**. **Frame 0 is empty (= off)**; content starts at frame 1
   - `Auto.png` 80×40 (2 frames) / `Speed.png` 600×40 (15 frames: empty / ×1.1 1.2 1.3 1.4 1.5 1.6 1.7 1.8 1.9 2.0 2.5 3.0 3.5 4.0)
   - `Abekobe` `Doron` `HiSpeedLock` `Adjust` are 80×40 (2 frames), `Random` 120×40 (3 frames),
-    `PlaySpeed` 480×40 (12 frames: 0.5–0.9 / empty / 1.1–1.5 / 2.0). **TaikoSim lacks those features, so they're unused for now**
-- `Speed.png` frames 1–14 **exactly match** TaikoSim's `HiSpeedSteps` minus `0.5` and `1.0`.
+    `PlaySpeed` 480×40 (12 frames: 0.5–0.9 / empty / 1.1–1.5 / 2.0). **TakeTaikoSimulator lacks those features, so they're unused for now**
+- `Speed.png` frames 1–14 **exactly match** TakeTaikoSimulator's `HiSpeedSteps` minus `0.5` and `1.0`.
   No badge at ≤ 1.0×. Values not on a step (typed directly) use the nearest step's badge
 - Position: **left panel, right of the difficulty mark** (top-left (170, 353), native 40×40; more badges go to the right).
   Measured on the 10/31 dan video (with AUTO). It used to be guessed under the song title
@@ -576,7 +576,7 @@ t = 0 when the result fades in (fade 0.07 s).
 - Skins without images (Simple etc.) draw a yellow rounded tag with text (`AUTO`, `×1.5`) instead
 
 ### Favorite key
-- TaikoSim uses **F4**; TaikøNauts uses F8. **Kept at F4 at たけらい's request** (not matching the original)
+- TakeTaikoSimulator uses **F4**; TaikøNauts uses F8. **Kept at F4 at たけらい's request** (not matching the original)
 
 ### Play screen
 - Judge circle center: (620, 389) for notes/judging. The judge-frame image (`Notes/JudgementFrame.png`, 195×195) is drawn with its top-left at **(522, 291)**
@@ -611,13 +611,13 @@ t = 0 when the result fades in (fade 0.07 s).
   - Song select → mode select: 0.5 → 0.8 → 0.65 s (`ToModeFromSongSelect`)
   - Mode select → dan select: 0.5 → 0.4 → 0.3 s (`ToDanSelectFromMode`)
   - Result → next: the result fades itself over 0.5 s, 1.05 s black → 0.5 s fade in (`AfterResult`)
-  - Boot loading → mode select: 0.3 s out → 0.5 s in (`AfterBoot`; TaikøNauts shows an IC-card screen here, so TaikoSim chose these values)
+  - Boot loading → mode select: 0.3 s out → 0.5 s in (`AfterBoot`; TaikøNauts shows an IC-card screen here, so TakeTaikoSimulator chose these values)
   - Dan select → dan play: `DanLoading` (see above)
   - The current scene's Update is paused while fading out and while black
 - Donderful combo: display timing, confetti position (525,162 / right side mirrored at 1367) and speed (30 frames/s) match TaikøNauts
 - Text under the notes (SENotes, 口唱歌): ドン notes become ドン / ド / コ and カッ notes カッ / カ depending on the spacing to the 3 notes before and after
   (`Charts/SeNotes.cs`, a port of OpenTaiko `CTja.tSenotes_Core_V2`; decided at load time into `Note.SeKind`; per branch when the chart branches).
-  Spacing is in 16th notes, computed from ms × BPM / 15000 (TaikoSim notes have no beat position), so comparisons allow ±0.02.
+  Spacing is in 16th notes, computed from ms × BPM / 15000 (TakeTaikoSimulator notes have no beat position), so comparisons allow ±0.02.
   Checked against the 11/6 arcade 六段 video: 時空庁 around 140 s 「ド カッ カ ド ドン ドン カッ」 and MATSURI around 190 s 「ド カッ カ カッ カ ドン ド カ ド」 both match.
   Image rows in A-Style / Simple `SENotes.png`: 0 ドン, 1 ド, 2 コ, 3 カ, 4 カッ (OpenTaiko's own image has カッ/カ the other way round)
 - Judge text above the judge circle (良・可・不可) is shown **only when the player hit the note** (`PlayScene.SetJudge`, `delta != null`).
@@ -628,7 +628,7 @@ t = 0 when the result fades in (fade 0.07 s).
     Only that cell; neighbours and separators don't change (median of 35 additions). Drawn with a whitened mask of the Gauge_Light red cell (darker separator pixels get less)
   - Yellow cells (border and after) do **not** flash when added
   - After clearing, the whole red section flashes yellow (peak (248,248,9)) **every 0.500 s counted from the moment of clear** (38 flashes fit 0.501 s; the song's bar was 0.983 s, so it is not beat-synced).
-    Within each cycle: dark until 0.27 s → up in 0.06 s → down over 0.17 s. OpenTaiko uses 532 ms (365/448/531 ms), which TaikoSim used before.
+    Within each cycle: dark until 0.27 s → up in 0.06 s → down over 0.17 s. OpenTaiko uses 532 ms (365/448/531 ms), which TakeTaikoSimulator used before.
     The recording was only ~10–15 fps after 104 s, so the in-cycle shape is approximate; the 0.5 s period is reliable
   - No permanent glow on the tip cell (the skin glow added 10/20 was removed 11/6; `SkinManager.GetGaugeGlowCell` is now unused)
 - Soul gauge rainbow: `Gauge/Rainbow.png` 24 frames (3 sets × 8 frames for norma 80/70/60%); each frame is crossfaded into the next
@@ -643,10 +643,10 @@ Found by cross-correlating every A-Style `Sound/*.ogg` against the audio of Taik
 - Mode select: enter → `Entry/SelectMode` then **loop** the hovered item's voice (`Entry/EnsoGame` every 2.31 s, `Entry/DaniDojo` every 4.35 s, forever while idle); cursor move → switch immediately; dan category popup → stop the loop; decide → `Entry/ModeSelected`. (Before 11/9 DaniDojo was played on decide — wrong)
 - Song select: enter → **loop** `SongSelect/SelectStart` (3.9 s) until the first input; genre bar hovered → `SongSelect/Genre/{BarType}.ogg` 0.95 s later (J-POP 1, アニメ 3, ボーカロイド 4; どうよう/バラエティー are 0 → silent, same in TaikøNauts), also after 「とじる」; song decided (difficulty panel) → `DecideSong` 0.5 s later; difficulty decided → `DecideDifficulty` at once; 「とじる」 → `Cancel.ogg` (SE)
 - Dan select: `DanSelect/Intro` at 0 → `Plate.ogg` (SE) at 3.43 s → `DanSelectIn` voice at 4.33 s (0.5 s when returning without intro); confirm popup → `Select.ogg`; 挑戦する → `Decide.ogg`
-- Dan result (A-Style only): `Intro.ogg` 0.3 s, `BGM/DanResult.ogg` loop from 1.9 s, `PanelIn` at the summary, `Gauge` at gauge start, `ConditionGaugeCountUp` at each counting row, `ClearGold`/`ClearRed`/`Failed` at the stamp (all matched within 0.1 s on the 名人 gold pass). Skipping plays only the stamp sound. TaikøNauts waits for a key before the summary; TaikoSim still advances by itself
+- Dan result (A-Style only): `Intro.ogg` 0.3 s, `BGM/DanResult.ogg` loop from 1.9 s, `PanelIn` at the summary, `Gauge` at gauge start, `ConditionGaugeCountUp` at each counting row, `ClearGold`/`ClearRed`/`Failed` at the stamp (all matched within 0.1 s on the 名人 gold pass). Skipping plays only the stamp sound. TaikøNauts waits for a key before the summary; TakeTaikoSimulator still advances by itself
 - Dan result, after a pass: in TaikøNauts a second Don-chan with a name plate slides up from below (rank-up / 昇格 animation). たけらい 11/9: the A-Style assets or TaikøNauts' code for it look broken → **do not copy it**
 - Training pause → `EnsoGame/Pause.ogg` (TaikøNauts plays it when the pause menu opens)
-- Not used yet: `Entry/DataLoadSuccess`, `SelectPlaySide`, `Join`, `Start` (entry screens TaikoSim doesn't have), `Result/BestScore_1P` (auto-play results are not saved, so it could not be recorded), `DanSelect/Stamp`, `DanResult/SongResultPlateIn`, `BGM/SongSelect.ogg` (loops on the genre list every 4.06 s in TaikøNauts; TaikoSim plays previews instead), `BGM/Entry.ogg`
+- Not used yet: `Entry/DataLoadSuccess`, `SelectPlaySide`, `Join`, `Start` (entry screens TakeTaikoSimulator doesn't have), `Result/BestScore_1P` (auto-play results are not saved, so it could not be recorded), `DanSelect/Stamp`, `DanResult/SongResultPlateIn`, `BGM/SongSelect.ogg` (loops on the genre list every 4.06 s in TaikøNauts; TakeTaikoSimulator plays previews instead), `BGM/Entry.ogg`
 
 ## 9. Work in progress and what's next
 
@@ -697,12 +697,12 @@ Found by cross-correlating every A-Style `Sound/*.ogg` against the audio of Taik
   - Sound `Sound/SongSelect/Skip.ogg` (A-Style has it; Simple's is made by `skip()` in `sounds.py`; fallback is ka)
 - Hit sounds (`Audio/HitSounds.cs`): `HitSounds/<name>/` next to the exe (dong.ogg or don.ogg, ka.ogg, HitSounds.json). Same layout as OpenTaiko's `Global/HitSounds`, so those can be dropped in
   - The first entry is "skin" (the skin's `Sound/Taiko/0.Taiko/`). The choice is `GameConfig.HitSound` (folder name). In the play options 「音色」, ka → plays don, then ka 0.15 s later
-  - TaikoSim's own sets (Electro / Clap / WoodBlock) are made by `hitsounds()` in `tools/skin-gen/sounds.py` into `TaikoSim/HitSounds/` (copied next to the exe at build)
+  - TakeTaikoSimulator's own sets (Electro / Clap / WoodBlock) are made by `hitsounds()` in `tools/skin-gen/sounds.py` into `TakeTaikoSimulator/HitSounds/` (copied next to the exe at build)
 - Play options panel (`UI/PlayOptionsPanel.cs`): drawn with A-Style `02.SongSelect/Option/` images. Controls match OpenTaiko's `CActPlayOption`
   - ka / ←→ change the value; don / Enter go to the next item and close after the last (don is ignored until fully open); ↑↓ move between items; number keys type a value; Esc / F2 close
-  - Speed (HS) steps match OpenTaiko (0.5, 1.0–2.0 by 0.1, 2.5–4.0 by 0.5). Auto roll: 0,5,8,10,12,15,18,20,25,30,40,50,60,80,100; accuracy in 5% steps (TaikoSim's choice)
+  - Speed (HS) steps match OpenTaiko (0.5, 1.0–2.0 by 0.1, 2.5–4.0 by 0.5). Auto roll: 0,5,8,10,12,15,18,20,25,30,40,50,60,80,100; accuracy in 5% steps (TakeTaikoSimulator's choice)
   - Look measured on the TaikøNauts video (10/18 `2026-10-18_00-27-01.mp4`, 50–58 s):
-    panel at native size at (0, 465) (sized for 8 items; grows/shrinks 61 px per item to match TaikoSim's item count) / top-left 1P mark 54 px (36, 28), 「演奏オプション」 32 px (105, center 55) /
+    panel at native size at (0, 465) (sized for 8 items; grows/shrinks 61 px per item to match TakeTaikoSimulator's item count) / top-left 1P mark 54 px (36, 28), 「演奏オプション」 32 px (105, center 55) /
     item bands from (32, 94) in the panel, 61 px apart; normally half-white overlay, selected band (254,255,0) / names white with black outline 26 px /
     values in a white box (band (178, 6)), dark text with white outline; the selected band has no box and shows ◀ value ▶ (arrows at band (186, 10) and (326, 10)) / ON/OFF are 「する」「しない」
   - Motion (same video): open = rises from the bottom at 3000 px/s, overshoots 60 px, settles in 0.07 s. Close = rises 54 px in 0.04 s, returns in 0.04 s, then drops at 3100 px/s
@@ -783,7 +783,7 @@ Facts first:
   support any other graphics APIs"
 - `rlgl` only abstracts **OpenGL versions** (1.1 / 2.1 / 3.3 / 4.3 / ES2 / ES3). No bridge to other APIs
 - Vulkan "could be added if really required" (implying the abstraction layer is a big job). DirectX isn't mentioned at all
-- TaikoSim's dependency: **540 `Raylib.*` calls, 35 `Rlgl.*` calls, 38 of 64 files**,
+- TakeTaikoSimulator's dependency: **540 `Raylib.*` calls, 35 `Rlgl.*` calls, 38 of 64 files**,
   plus **two custom GLSL shaders** (`DynamicFont` SDF font, `SkinManager` roll heat). Switching means rewriting them as HLSL / SPIR-V → **effectively a full rewrite**
 
 Order:
@@ -801,8 +801,8 @@ Order:
   - 「とじる」 → genre list: the same flip animation as opening a genre (timings within 0.05 s) → `flipOpen = CloseGenreNow`
   - Song select → mode select (Esc): 0.5 s out, ~0.77 s black, then in — matches `ToModeFromSongSelect`
   - Esc inside a genre still uses the old 0.18+0.18 s crossfade (not recorded)
-  - Checked on TaikoSim itself (11/8 `2026-11-08 04-40-58.mp4`): difficulty → song matches (frame/open 0.45–0.53 s after the switch)
-  - 「とじる」/「ランダム」 keep the open genre's background (TaikoSim used to switch to background 0 = rainbow). During the 「とじる」 flip the bar that widens back from the thin line is the destination genre's color (TaikøNauts showed J-POP's light blue)
+  - Checked on TakeTaikoSimulator itself (11/8 `2026-11-08 04-40-58.mp4`): difficulty → song matches (frame/open 0.45–0.53 s after the switch)
+  - 「とじる」/「ランダム」 keep the open genre's background (TakeTaikoSimulator used to switch to background 0 = rainbow). During the 「とじる」 flip the bar that widens back from the thin line is the destination genre's color (TaikøNauts showed J-POP's light blue)
 - Phase 2 of A-Style song select: search, options panel, Oni→Ura transition animation (`Oni_Transition.png`), personal best, crowns
 - Older leftovers: logs for the exclusive-fullscreen crash, checking skin coordinates
 
@@ -902,3 +902,11 @@ Order:
 - Integrated source build: 0 errors / 253 existing warnings. Record/local-player/BGM checks: 82 passed. Training checks: 50 passed. These are compile/headless checks, not native gameplay testing.
 - The training enhancement's earlier no-build note is historical: it now compiles and its scroll/hold checks pass. Windows visuals, keyboard rollover and audio remain unverified.
 - KNOWN-ISSUES.txt contains historical audio hypotheses from 2026-11-05; they are not newly verified findings against today's sources. Its TEST-001 records the existing dan requirement-test failure, reproduced before these merges and after the rename.
+
+### Official product rename (2026-11-10)
+- Official app/window/assembly/root namespace: TakeTaikoSimulator. Open TakeTaikoSimulator.slnx; source/project: TakeTaikoSimulator/TakeTaikoSimulator.csproj; executable: TakeTaikoSimulator.exe. All source/script/project references follow this path. No GitHub Actions workflows existed in the repository at the time of this change.
+- Keep BaseOutputPath pointing to legacy TaikoSim/bin/. Runtime data is relative to AppContext.BaseDirectory, so this preserves existing output-folder data when configuration/RID match. Do not rename Config files, profile paths, cache formats, TaikoSim-Simple, TAIKOSIM_* variables, or TaikoSim_ log/screenshot prefixes just to remove legacy branding. Updating a distribution must retain its existing data folders.
+- Renaming itself does not change gameplay/audio/judging; earlier feature changes belong to the separate integration commit. Only the long settings-sidebar product label is fitted within its original width. External DLL names, packages and third-party license bodies are unchanged.
+- Production Windows-target win-x64 build passed with the original PublishAot/IsAotCompatible=true and JSON reflection disabled: 0 errors, one existing CS0162 in DanUnlock. A managed PE apphost is produced with the new name. This is NOT a Native AOT publish or a Windows launch test. Those require the user's Windows machine.
+- Before/after source builds and 82 record/local-player/BGM + 50 training checks passed. tools/rename-check checks 22 generated-JSON/path/assembly/type compatibility cases. Existing dan --requirements-test fails identically on original master and renamed sources; do not claim every repository test passes.
+- GitHub repository rename is still pending: the connected GitHub tools expose no rename endpoint, and the cloud browser is signed out (private Settings inaccessible). Actual repo URL remains https://github.com/TakeRai2708/TaikoSim . An administrator can rename it to TakeTaikoSimulator in Settings > General > Repository name. Keep it private. Do not claim the rename already happened or replace working links with a nonexistent URL.

@@ -1,4 +1,4 @@
-using TaikoSim.Charts;
+using TakeTaikoSimulator.Charts;
 
 // requirements.json に不正な条件が混じる場合も、遊べる状態とエラー通知を両立する。
 internal static class RequirementTests

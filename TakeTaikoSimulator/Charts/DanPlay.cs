@@ -1,0 +1,323 @@
+namespace TakeTaikoSimulator.Charts
+{
+    // 段位に挑戦している間の状態と、合否の判定。
+    //   判定のしかたは OpenTaiko に合わせる（赤合格／金合格、以上／未満の扱い）。
+    //   条件の種類ごとの「以上／未満」は DanExamTypes.IsLess() が持っている。
+
+    /// <summary>課題曲1曲ぶんの成績</summary>
+    public sealed class DanSongTally
+    {
+        public int Great;     // 良
+        public int Good;      // 可
+        public int Miss;      // 不可
+        public int Roll;      // 連打
+        public int MaxCombo;
+        public long Score;
+
+        /// <summary>たたけた数（良＋可。不可は当たっていないので数えない）</summary>
+        public int Hit => Great + Good;
+
+        public long Value(DanExamType type) => type switch
+        {
+            DanExamType.Great => Great,
+            DanExamType.Good => Good,
+            DanExamType.Miss => Miss,
+            DanExamType.Roll => Roll,
+            DanExamType.Hit => Hit,
+            DanExamType.Score => Score,
+            DanExamType.MaxCombo => MaxCombo,
+            _ => 0,
+        };
+
+        public void Reset()
+        {
+            Great = Good = Miss = Roll = MaxCombo = 0;
+            Score = 0;
+        }
+    }
+
+    /// <summary>
+    /// 条件のバーの状態。OpenTaiko の Exam.ReachStatus と同じ並び（下ほど良い）。
+    ///   Failure＝割った（バーは空・「達成失敗」）／Danger＝赤く点滅／Low＝「未満」は赤・「以上」は黄色／
+    ///   High＝黄色／NearSuccess・NearerSuccess＝黄色が白く点滅／Success＝ピンク／
+    ///   NearBetter・NearerBetter＝ピンクが白く点滅／Better＝虹色
+    /// </summary>
+    public enum DanReach
+    {
+        Failure, Danger, Low, High, NearSuccess, NearerSuccess, Success, NearBetter, NearerBetter, Better,
+    }
+
+    // 段位1つぶんの挑戦
+    public sealed class DanPlay
+    {
+        public DanCourse Course { get; }
+
+        /// <summary>今やっている課題曲（0 から）</summary>
+        public int SongIndex { get; set; }
+
+        /// <summary>段位の魂ゲージ（0〜100）。曲をまたいで持ち越す</summary>
+        public double Gauge { get; set; }
+
+        /// <summary>課題曲ごとの成績</summary>
+        public DanSongTally[] Tallies { get; }
+
+        /// <summary>途中でやめたか（F3 の強制終了・Esc で戻った）</summary>
+        public bool Quit { get; set; }
+
+        /// <summary>オート演奏で遊んだか（オートの結果はクリア記録に残さない）</summary>
+        public bool AutoPlayed { get; set; }
+
+        /// <summary>今のコンボと最大コンボ。本家は課題曲をまたいでコンボが続く</summary>
+        public int Combo { get; set; }
+        public int MaxCombo { get; set; }
+
+        public DanPlay(DanCourse course)
+        {
+            Course = course;
+            Tallies = new DanSongTally[Math.Max(1, course.Songs.Count)];
+            for (int i = 0; i < Tallies.Length; i++) Tallies[i] = new DanSongTally();
+        }
+
+        public DanSongTally Current => Tallies[Math.Clamp(SongIndex, 0, Tallies.Length - 1)];
+        public int SongCount => Course.Songs.Count;
+        public bool IsLastSong => SongIndex >= SongCount - 1;
+
+        /// <summary>全部の課題曲を合計した値</summary>
+        public long Total(DanExamType type)
+        {
+            // 最大コンボだけは「合計」ではなく「一番大きいもの」
+            if (type == DanExamType.MaxCombo)
+            {
+                long best = 0;
+                foreach (DanSongTally t in Tallies) best = Math.Max(best, t.MaxCombo);
+                return best;
+            }
+
+            long sum = 0;
+            foreach (DanSongTally t in Tallies) sum += t.Value(type);
+            return sum;
+        }
+
+        // ===== 条件の判定 =====
+
+        /// <summary>値がボーダーを満たしているか。「未満」系は value &lt; border、それ以外は value &gt;= border</summary>
+        public static bool Satisfies(long value, long border, bool isLess) =>
+            isLess ? value < border : value >= border;
+
+        /// <summary>
+        /// 画面に出す数。
+        /// ★「未満」系（可・不可）は **残り回数** を出す。
+        ///   例：「可の数 285 未満」なら 285 から始まって、可を取るたびに減っていく。
+        ///   本家の動画（10/31）でそうなっているのを確認した。OpenTaiko の
+        ///   GetDisplayedAmount()（Range != Less ? Amount : Value[0] - Amount）と同じ。
+        /// 「以上」系（良・連打・叩けた数・スコア・最大コンボ）は、そのまま今の数。
+        /// </summary>
+        public long Displayed(DanExam exam, int songIndex = 0) => DisplayedFor(exam, songIndex, Amount(exam, songIndex));
+
+        /// <summary>条件の数そのもの（曲ごと条件はその曲の数、それ以外は全曲の合計）</summary>
+        public long Amount(DanExam exam, int songIndex = 0) =>
+            exam.PerSong ? Tallies[Math.Clamp(songIndex, 0, Tallies.Length - 1)].Value(exam.Type) : Total(exam.Type);
+
+        /// <summary>Displayed の、数を自分で渡す版（段位リザルトで、数を 0 から数えあげるのに使う）</summary>
+        public static long DisplayedFor(DanExam exam, int songIndex, long amount)
+        {
+            if (!exam.IsLess) return amount;
+            return Math.Max(0, exam.For(songIndex).Red - amount);
+        }
+
+        /// <summary>バーの伸び具合（0〜1）。「未満」系は残りの割合なので、使うほど減る</summary>
+        public float Progress(DanExam exam, int songIndex = 0) => ProgressFor(exam, songIndex, Amount(exam, songIndex));
+
+        /// <summary>Progress の、数を自分で渡す版</summary>
+        public static float ProgressFor(DanExam exam, int songIndex, long amount)
+        {
+            long border = exam.For(songIndex).Red;
+            // ボーダーが0（「連打数 0 以上」＝その曲は条件なし）は、空のバー。
+            // 本家（11/5 の六段の動画）は演奏中もリザルトも、暗い空のバーに「0」だった
+            if (border <= 0) return 0f;
+            return Math.Clamp(DisplayedFor(exam, songIndex, amount) / (float)border, 0f, 1f);
+        }
+
+        /// <summary>「0 以上」みたいに、その曲には条件が無いか（バーは空・虹にしない）</summary>
+        public static bool NoCondition(DanExam exam, int songIndex) =>
+            !exam.IsLess && exam.For(songIndex).Red <= 0;
+
+        /// <summary>
+        /// 条件のバーの今の状態（色と点滅を決める）。OpenTaiko の Dan_Cert.UpdateReachStatus と同じ考え方。
+        ///   「未満」系：割った → Failure（「達成失敗」）、残り4回以下 → Danger（赤く点滅）、
+        ///              残りが20%未満 → Danger、30%未満 → Low（赤）、
+        ///              それ以外は 金もセーフ → Success（ピンク）、金は割った → High（黄色）
+        ///   「以上」系：金を満たした → Better（虹色）、赤を満たした → Success（ピンク。金に近づくと点滅）、
+        ///              95%以上 → NearSuccess（黄色が点滅）、50%以上 → High（黄色）、それより下 → Low
+        /// 10/31 の九段の動画で、不可「残り7＝ピンク・5＝黄・3と2＝赤く点滅」、可「55＝ピンク・32＝赤」、
+        /// 連打「95/162＝黄・24/23＝虹」を確かめた
+        /// </summary>
+        public DanReach Reach(DanExam exam, int songIndex)
+        {
+            if (exam.Thresholds.Length == 0) return DanReach.Better;
+            int i = exam.PerSong ? Math.Clamp(songIndex, 0, Tallies.Length - 1) : 0;
+            return ReachFor(exam, i, Amount(exam, i));
+        }
+
+        /// <summary>Reach の、数を自分で渡す版（段位リザルトで数えあげている途中の色に使う）</summary>
+        public static DanReach ReachFor(DanExam exam, int songIndex, long amount)
+        {
+            if (exam.Thresholds.Length == 0) return DanReach.Better;
+            int i = exam.PerSong ? songIndex : 0;
+            DanThreshold t = exam.For(i);
+            if (NoCondition(exam, i)) return DanReach.Low;   // 条件なし：空のバー・白い数字（虹にしない）
+            bool gold = !exam.HasGold(i) || Satisfies(amount, t.Gold, exam.IsLess);
+
+            if (exam.IsLess)
+            {
+                if (!Satisfies(amount, t.Red, true)) return DanReach.Failure;
+                if (amount + 4 >= t.Red && amount > 0) return DanReach.Danger;
+                float percent = Percent(exam, i, amount);
+                if (percent < 20f) return DanReach.Danger;
+                if (percent < 30f) return DanReach.Low;
+                return gold ? DanReach.Success : DanReach.High;
+            }
+
+            if (Satisfies(amount, t.Red, false))
+            {
+                if (gold) return DanReach.Better;
+                // 赤は満たした。金にどれだけ近いかで点滅を速くする
+                double better = t.Gold - t.Red <= 0 ? 100 : 100.0 * (amount - t.Red) / (t.Gold - t.Red);
+                return better < 100.0 / 3 ? DanReach.Success : better < 200.0 / 3 ? DanReach.NearBetter : DanReach.NearerBetter;
+            }
+            float p = Percent(exam, i, amount);
+            return p < 50f ? DanReach.Low : p < 95f ? DanReach.High : DanReach.NearSuccess;
+        }
+
+        // バーの伸び具合を % で（OpenTaiko の GetAmountToPercent。0 以外は 1〜100）
+        private static float Percent(DanExam exam, int songIndex, long amount)
+        {
+            long border = exam.For(songIndex).Red;
+            long shown = DisplayedFor(exam, songIndex, amount);
+            if (border <= 0 || shown <= 0) return 0f;
+            return Math.Clamp(100f * shown / border, 1f, 100f);
+        }
+
+        /// <summary>課題曲ぜんぶの音符の数（[普通, 玄人, 達人] の分岐ごと）。魂ゲージの増え方に使う</summary>
+        public int[] TotalNotes()
+        {
+            int[] sum = new int[3];
+            foreach (DanSong song in Course.Songs)
+                for (int b = 0; b < 3 && b < song.NoteCounts.Length; b++) sum[b] += song.NoteCounts[b];
+            return sum;
+        }
+
+        /// <summary>魂ゲージのバーの伸び具合（0〜1）。合格ボーダーを100%として見る</summary>
+        public float GaugeProgress()
+        {
+            long border = Course.Gauge.Red;
+            if (border <= 0) return (float)(Gauge / 100.0);
+            return Math.Clamp((float)(Gauge / border), 0f, 1f);
+        }
+
+        /// <summary>条件1つの今の状態（不合格／赤／金）</summary>
+        public DanResultType Status(DanExam exam)
+        {
+            if (exam.Thresholds.Length == 0) return DanResultType.Gold;   // 条件が空＝何もしなくても満たす
+
+            bool red = true, gold = true;
+            if (exam.PerSong)
+            {
+                // 曲ごと条件：どの曲もそれぞれのボーダーを満たす必要がある
+                for (int i = 0; i < SongCount && i < exam.Thresholds.Length; i++)
+                {
+                    long value = Tallies[i].Value(exam.Type);
+                    DanThreshold t = exam.Thresholds[i];
+                    if (!Satisfies(value, t.Red, exam.IsLess)) red = false;
+                    if (exam.HasGold(i) && !Satisfies(value, t.Gold, exam.IsLess)) gold = false;
+                }
+            }
+            else
+            {
+                long value = Total(exam.Type);
+                DanThreshold t = exam.Thresholds[0];
+                if (!Satisfies(value, t.Red, exam.IsLess)) red = false;
+                if (exam.HasGold(0) && !Satisfies(value, t.Gold, exam.IsLess)) gold = false;
+            }
+
+            return !red ? DanResultType.Failed : gold ? DanResultType.Gold : DanResultType.Red;
+        }
+
+        /// <summary>魂ゲージの条件の今の状態</summary>
+        public DanResultType GaugeStatus()
+        {
+            DanThreshold g = Course.Gauge;
+            if (g.Red <= 0) return DanResultType.Gold;                     // ゲージ条件なし
+            if (Gauge + 0.0001 < g.Red) return DanResultType.Failed;
+            if (!Course.HasGoldGauge) return DanResultType.Red;            // 金のゲージ条件なし → 赤どまりにはしない
+            return Gauge + 0.0001 >= g.Gold ? DanResultType.Gold : DanResultType.Red;
+        }
+
+        /// <summary>
+        /// 段位ぜんぶの合否。
+        /// 全部の条件が赤以上なら赤合格、さらに全部が金なら金合格、1つでも割ったら不合格。
+        /// 「金の条件なし」の項目は金の足を引っぱらない。
+        /// </summary>
+        public DanResultType Overall()
+        {
+            if (Quit) return DanResultType.Failed;
+
+            bool allGold = true;
+
+            DanResultType gauge = GaugeStatus();
+            if (gauge == DanResultType.Failed) return DanResultType.Failed;
+            // ゲージの金条件が無いときは、金の判定に加えない
+            if (gauge == DanResultType.Red && Course.HasGoldGauge) allGold = false;
+
+            foreach (DanExam exam in Course.Exams)
+            {
+                DanResultType status = Status(exam);
+                if (status == DanResultType.Failed) return DanResultType.Failed;
+                if (status == DanResultType.Red) allGold = false;
+            }
+
+            return allGold ? DanResultType.Gold : DanResultType.Red;
+        }
+
+        /// <summary>
+        /// もう赤合格に届かないことが確定したか（「未満」系の条件を使い切ったとき）。
+        /// 途中で分かるのは「未満」系だけ。「以上」系はこれから増えるので、最後まで分からない。
+        /// </summary>
+        public bool AlreadyFailed()
+        {
+            foreach (DanExam exam in Course.Exams)
+            {
+                if (!exam.IsLess) continue;
+                if (exam.PerSong)
+                {
+                    // 終わった曲（今の曲も含む）だけ見る
+                    for (int i = 0; i <= SongIndex && i < SongCount && i < exam.Thresholds.Length; i++)
+                        if (!Satisfies(Tallies[i].Value(exam.Type), exam.Thresholds[i].Red, true)) return true;
+                }
+                else if (!Satisfies(Total(exam.Type), exam.Thresholds[0].Red, true))
+                {
+                    return true;
+                }
+            }
+            return false;
+        }
+
+        /// <summary>結果をクリア記録に残す（次の段位の解禁条件に効く）</summary>
+        public void SaveRecord()
+        {
+            if (AutoPlayed || Quit) return;   // オート・途中でやめたときは記録しない
+            DanResultType result = Overall();
+            if (result is DanResultType.None or DanResultType.Failed) return;
+
+            // コンボの種別：不可0なら全良、可も0ならさらに上
+            long miss = Total(DanExamType.Miss);
+            long good = Total(DanExamType.Good);
+            SongClearType combo = miss > 0 ? SongClearType.Cleared
+                : good > 0 ? SongClearType.FullCombo
+                : SongClearType.AllPerfect;
+
+            SongHistory.SaveDanRecord(SongHistory.KeyFor(Course.JsonPath),
+                new DanClearRecord(result == DanResultType.Gold, combo));
+        }
+    }
+}

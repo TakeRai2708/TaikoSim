@@ -1,7 +1,7 @@
-# TaikøNauts 公式ドキュメントの要点（TaikoSim 実装用のメモ）
+# TaikøNauts 公式ドキュメントの要点（TakeTaikoSimulator 実装用のメモ）
 
 出典：<https://taikonauts-docs.pages.dev/> の `/docs/` 配下 **全50ページ**（2026-10-30 に全部読んだ）。
-ここは「本家がどう作られているか」の**写し**。TaikoSim で実際に測った値は `AGENTS.md` の方に書く。
+ここは「本家がどう作られているか」の**写し**。TakeTaikoSimulator で実際に測った値は `AGENTS.md` の方に書く。
 
 - 本家は **TJAPlayer3-Develop-ReWrite の精神的後継**。現在βで **Windows のみ**
 - `.tja` と **`.osu`**（osu! のビートマップ）の両方を読める
@@ -136,7 +136,7 @@ TaikøNauts は**課題曲を別々のファイルに置き、`dan.json` でま�
 `playDefaultScreen: true` でも使われるのは `effectStartMs` / `conditionPanelChangeMs` / `titleFadeStartMs` の3つだけ。
 残り4つはカスタム演出（`false`）専用。
 
-### OpenTaiko 側（参考・TaikoSim では「読めたら読む」おまけ扱い）
+### OpenTaiko 側（参考・TakeTaikoSimulator では「読めたら読む」おまけ扱い）
 
 OpenTaiko のソースから確定した、TJA ヘッダー方式：
 - 入口は `box.def` の `#GENRE:段位道場`
@@ -204,7 +204,7 @@ OpenTaiko のソースから確定した、TJA ヘッダー方式：
 
 ## 3. 楽曲システム
 
-### category.def / order.def（TaikoSim 未対応）
+### category.def / order.def（TakeTaikoSimulator 未対応）
 
 - **`category.def`**：置いたフォルダ以下を独立カテゴリにする。`#TITLE` が無ければフォルダ名
 - **`order.def`**：`box.def` または `category.def` と同じ階層。書いてある順に並ぶ
@@ -212,7 +212,7 @@ OpenTaiko のソースから確定した、TJA ヘッダー方式：
   - フォルダ：`[CategoryInfo]` / `[BoxInfo]` / `[FolderInfo]` ＋ `TITLE` または `GENRE`
   - 未掲載の実在曲をどこに置くかはシステムメニューの「order.def未掲載曲の扱い」（末尾／先頭／未分類）
 
-### SONGGENREID（TaikoSim 未対応）
+### SONGGENREID（TakeTaikoSimulator 未対応）
 
 `.tja` に `SONGGENREID:hogehoge` と書くと、背景・Dancer・Mob・Footer を専用のものに固定できる。
 `Config/SongGenreID/{ID}.json` を置けば、タイトル／サブタイトルの完全一致・部分一致で**一括指定**も可能：
@@ -226,7 +226,7 @@ OpenTaiko のソースから確定した、TJA ヘッダー方式：
 - 複数ヒットしたら**ランダムに選ぶ**（一括指定側も演出側も）
 - 一致しなければ `"default"` 指定の演出からランダム
 
-### 背景映像（TaikoSim 未対応）
+### 背景映像（TakeTaikoSimulator 未対応）
 
 `.tja` ヘッダーに `BGIMAGE:image.png`、または `BGMOVIE:movie.mp4` ＋ `MOVIEOFFSET:0.0`（秒、正で遅延）。
 表示モードは3つ：**背景ぼかし無し** / **背景ぼかしのみ** / **背景ぼかし＋ミニウィンドウ**
@@ -252,13 +252,13 @@ OpenTaiko のソースから確定した、TJA ヘッダー方式：
 | `skinPath` | `Image` フォルダの1つ上（スキン名フォルダ）を指定 |
 | `songPath` | 楽曲フォルダ。**複数指定可** |
 | `isReplacedKeyIn2P` | false で2P側が2P専用キー割り当てになる |
-| `autoRollSpeedPerSecond` | オート時の1秒あたりの連打回数。**本家の既定は 60**（TaikoSim は 20） |
-| `boxCloseInterval` | 選曲画面で「閉じる（戻る）」が出る間隔。**既定 7** ← TaikoSim の実装と一致 |
+| `autoRollSpeedPerSecond` | オート時の1秒あたりの連打回数。**本家の既定は 60**（TakeTaikoSimulator は 20） |
+| `boxCloseInterval` | 選曲画面で「閉じる（戻る）」が出る間隔。**既定 7** ← TakeTaikoSimulator の実装と一致 |
 | `maxSongCount` | 曲数カウンターの最大値。プレイ回数の制限はしない、表示専用 |
 
 ---
 
-## 5. 操作（TaikoSim とズレているところあり）
+## 5. 操作（TakeTaikoSimulator とズレているところあり）
 
 共通：`F1` システムメニュー / `F5` コンフィグ再読み込み / `F11` フルスクリーン / `F12` スクリーンショット
 
@@ -273,8 +273,8 @@ OpenTaiko のソースから確定した、TJA ヘッダー方式：
 
 マウス操作ON時：ホイール＝1曲、**Shift+ホイール＝4曲**、**Ctrl+ホイール＝8曲**、左クリック＝決定。
 
-> **TaikoSim との差**：お気に入りは TaikoSim が `F4`、本家は **`F8`**。
-> TaikoSim の「カッ連打で7曲スキップ」は `boxCloseInterval` とは別物。本家のマウスは 4/8 曲。
+> **TakeTaikoSimulator との差**：お気に入りは TakeTaikoSimulator が `F4`、本家は **`F8`**。
+> TakeTaikoSimulator の「カッ連打で7曲スキップ」は `boxCloseInterval` とは別物。本家のマウスは 4/8 曲。
 
 ---
 
@@ -316,7 +316,7 @@ OpenTaiko のソースから確定した、TJA ヘッダー方式：
 - フォントは**スキンの `Font` フォルダからの相対パス**。無ければ `Default.ttf` にフォールバックし、
   それも無ければエラーで起動できない
 - `mainFontPath`＝曲名など、`detailFontPath`＝ジャンル説明などの補足、`nameplateEnglishFontPath`＝ネームプレートの英数字
-- **`*BGMIntroTimeMs`＝BGMが最後まで鳴ったときに戻るループ開始位置（ミリ秒）**（TaikoSim 未対応）
+- **`*BGMIntroTimeMs`＝BGMが最後まで鳴ったときに戻るループ開始位置（ミリ秒）**（TakeTaikoSimulator 未対応）
 - `danBackgroundInEndFrame`＝段位選択画面の背景アニメを止めるフレーム番号
 
 ---
@@ -464,9 +464,9 @@ JSON が無ければ自動生成される。
 
 ---
 
-## 13. TaikoSim に無い機能（将来やるなら、のリスト）
+## 13. TakeTaikoSimulator に無い機能（将来やるなら、のリスト）
 
-本家にあって TaikoSim に無いもの。優先度は付けていない。
+本家にあって TakeTaikoSimulator に無いもの。優先度は付けていない。
 
 - **段位道場**（いま着手中）
 - `category.def` / `order.def`（カテゴリと並び順の定義）

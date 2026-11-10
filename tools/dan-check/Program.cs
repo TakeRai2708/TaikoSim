@@ -1,5 +1,5 @@
 using System.Text;
-using TaikoSim.Charts;
+using TakeTaikoSimulator.Charts;
 
 // 段位ファイルのパーサを実データで動かして、読めた中身をそのまま出す道具。
 //   dotnet run --project tools/dan-check -- "<段位カテゴリのフォルダ>"
