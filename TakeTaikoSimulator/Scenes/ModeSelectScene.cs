@@ -62,7 +62,7 @@ namespace TakeTaikoSimulator.Scenes
         // どんちゃんの声（11/9 の TaikøNauts の録画 2026-11-09 02-11-13.mp4・02-23-14.mp4 で確かめた）
         //   ・画面に入る → 「モードを選んでね」（SelectMode）→ 鳴り終わったら、カーソルの項目の声をくり返す
         //     （「演奏ゲーム」は 2.31秒ごと、「段位道場」は 4.35秒ごとに、何もしなければずっと）
-        //   ・カーソルを動かす → すぐにその項目の声に切りかえてくり返す（声の無い項目なら止める）
+        //   ・カーソルを動かす → 板が開いてからその項目の声をくり返す（声の無い項目なら止める）
         //   ・決める → くり返しをやめて「ModeSelected」（段位道場はカテゴリを決めたとき）
         //   前は段位道場の声を「決めたとき」に鳴らしていたけど、本家はカーソルが乗っている間の声だった
         private const string SelectModeVoice = "Sound/Entry/SelectMode.ogg";
@@ -74,6 +74,8 @@ namespace TakeTaikoSimulator.Scenes
             "段位道場" => "Sound/Entry/DaniDojo.ogg",
             _ => null,
         };
+
+        private bool itemVoicePending;
 
         private static void LoopItemVoice()
         {
@@ -102,6 +104,7 @@ namespace TakeTaikoSimulator.Scenes
             choosingCategory = false;
             if (VoiceOf(Current) is string itemVoice) MenuVoice.PlayThenLoop(SelectModeVoice, itemVoice);
             else MenuVoice.Play(SelectModeVoice);
+            itemVoicePending = false;
             // 段位のカテゴリを、決める前に読んでおく（裏で読むので止まらない）
             if (!DanList.IsScanned && !DanList.IsScanning) DanList.StartScan();
         }
@@ -109,6 +112,7 @@ namespace TakeTaikoSimulator.Scenes
         public override void Exit()
         {
             chara.Dispose();
+            MenuVoice.CancelPending();
             MenuVoice.StopLoop();
         }
 
@@ -137,6 +141,11 @@ namespace TakeTaikoSimulator.Scenes
             chara.Update(dt);
             if (toastTimer > 0f) toastTimer -= dt;
             list.Update(dt, cursor);
+            if (itemVoicePending && list.Expand > 0 && deciding == null && !choosingCategory)
+            {
+                itemVoicePending = false;
+                LoopItemVoice();
+            }
             DanList.Update();
             if (choosingCategory)
             {
@@ -184,7 +193,8 @@ namespace TakeTaikoSimulator.Scenes
             cursor = next;
             list.Collapse();
             MenuSounds.Ka();
-            LoopItemVoice();
+            MenuVoice.Stop();
+            itemVoicePending = true;
         }
 
         private void Decide()

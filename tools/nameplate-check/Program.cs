@@ -125,6 +125,17 @@ try
             Field("cursor").SetValue(scene, i);
             decide.Invoke(scene, null);
             Check(LocalSession.Profiles[joined[i]] == i + 1, "各参加者のデータ確定");
+            Check((float)Field("communication").GetValue(scene)! == 0, "確定時に通信演出を開始");
+            int beforePlayer = (int)Field("dataPlayerIndex").GetValue(scene)!;
+            decide.Invoke(scene, null);
+            scene.OnBack();
+            Check((int)Field("dataPlayerIndex").GetValue(scene)! == beforePlayer, "演出中の再決定と戻るは無効");
+            var advance = typeof(EntryScene).GetMethod("AdvanceCommunication", BindingFlags.NonPublic | BindingFlags.Instance)!;
+            advance.Invoke(scene, new object[] { 1f });
+            Check(!(bool)Field("communicationDone").GetValue(scene)!, "通信中に次の画面へ進まない");
+            advance.Invoke(scene, new object[] { 3.5f });
+            Check((bool)Field("communicationDone").GetValue(scene)!, "成功表示の後に一度だけ確定処理");
+
             Check(PlatePlayer(scene) == joined[Math.Min(i + 1, joined.Length - 1)], "確定後の暗転中もネームプレートの参加者が範囲内");
         }
         Check((bool)Field("leaving").GetValue(scene)!, "最後の参加者の確定でモード選択へ移行");

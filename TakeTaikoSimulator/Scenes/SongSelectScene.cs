@@ -40,6 +40,7 @@ namespace TakeTaikoSimulator.Scenes
             openSpecial = Special.None;
             openCat = -1;
             lastSongKey = searchText = "";
+            searchCourse = null; searchStars = null; searchGenre = null;
         }
 
         private readonly bool training;
@@ -142,9 +143,23 @@ namespace TakeTaikoSimulator.Scenes
         private bool searchFocused;
         private string searchBefore = "";              // 検索の箱を開く前の文字(Esc でやめたら戻す)
         private float caretTimer;
-        private static readonly Rectangle SearchBox = new Rectangle(560, 40, 800, 56);
-        private const float SearchTextX = 560 + 20, SearchTextY = 40 + 13, SearchFontSize = 28;
+        private bool searchSubmitQueued;
+        private static readonly Rectangle SearchBox = new Rectangle(410, 330, 1100, 60);
+        private const float SearchTextX = 430, SearchTextY = 345, SearchFontSize = 28;
         private const int SearchMaxLength = 40;
+        public override bool IsWaitingKey => searchFocused;
+        private static CourseType? searchCourse;
+        private static int? searchStars;
+        private static string? searchGenre;
+        private (CourseType? Course, int? Stars, string? Genre) searchFilterBefore;
+        private string[] searchGenres = { "すべてのジャンル" };
+        private int[] searchLevels = Array.Empty<int>();
+        private string[] searchLevelLabels = { "すべての★" };
+        private List<SongCategory>? searchCacheSource;
+        private (string, CourseType?, int?, string?) searchCacheKey;
+        private List<(SongEntry, SongCategory)> searchCache = new();
+        private static readonly string[] SearchCourses = { "すべての難易度", "かんたん", "ふつう", "むずかしい", "おに", "裏おに" };
+
         private static readonly Color CompositionColor = new Color(255, 230, 150, 255);
 
         // ===== そのほか =====
@@ -379,12 +394,14 @@ namespace TakeTaikoSimulator.Scenes
         private List<(SongEntry, SongCategory)> SearchResults()
         {
             string query = SongSearch.Normalize(searchText);
-            List<(SongEntry, SongCategory)> list = new();
-            if (query.Length == 0) return list;
+            var key = (query, searchCourse, searchStars, searchGenre);
+            if (ReferenceEquals(searchCacheSource, SongList.Categories) && searchCacheKey == key) return searchCache;
+            searchCacheSource = SongList.Categories; searchCacheKey = key;
+            var result = new List<(SongEntry, SongCategory)>();
             foreach (SongCategory category in SongList.Categories)
                 foreach (SongEntry song in category.Songs)
-                    if (SongSearch.Matches(song.SearchKey, query)) list.Add((song, category));
-            return list;
+                    if (SongSearch.MatchesFilters(song, category, query, searchCourse, searchStars, searchGenre)) result.Add((song, category));
+            return searchCache = result;
         }
 
         // 曲の一覧で、key の曲を選ぶ(無ければ最初の曲)
@@ -529,7 +546,14 @@ namespace TakeTaikoSimulator.Scenes
             {
                 searchFocused = true;
                 searchBefore = searchText;
-                searchText = "";
+                searchFilterBefore = (searchCourse, searchStars, searchGenre);
+                searchGenres = new[] { "すべてのジャンル" }.Concat(SongList.Categories.Select(c => string.IsNullOrWhiteSpace(c.Genre) ? c.Title : c.Genre)
+                    .Distinct(StringComparer.OrdinalIgnoreCase).OrderBy(g => g, StringComparer.Ordinal)).ToArray();
+                searchLevels = Enumerable.Range(0, 11).Concat(SongList.Categories.SelectMany(c => c.Songs).SelectMany(s => s.Courses)
+                    .Where(c => c.Type <= CourseType.Edit).Select(c => c.Level)).Distinct().OrderBy(n => n).ToArray();
+                searchLevelLabels = new[] { "すべての★" }.Concat(searchLevels.Select(n => $"★{n}")).ToArray();
+                Gui.ClosePopup();
+                searchSubmitQueued = false;
                 caretTimer = 0f;
                 return;
             }
@@ -700,7 +724,10 @@ namespace TakeTaikoSimulator.Scenes
             if (flipTime >= 0f) return; // ジャンルがめくれている途中は戻れない(途中で止めると一覧がおかしくなる)
             if (searchFocused)
             {
+                if (Gui.IsPopupOpen) { Gui.ClosePopup(); return; }
+                searchSubmitQueued = false;
                 searchFocused = false;
+                (searchCourse, searchStars, searchGenre) = searchFilterBefore;
                 searchText = searchBefore; // 前の検索の結果を見ていたときは、その文字に戻す
                 return;
             }
@@ -903,7 +930,7 @@ namespace TakeTaikoSimulator.Scenes
 
         private void UpdateSearchInput()
         {
-            WindowsIme.RequestTextInput(SearchBox,
+            if (!Gui.IsPopupOpen) WindowsIme.RequestTextInput(SearchBox,
                 new Vector2(SearchTextX + Measure(searchText, SearchFontSize).X, SearchTextY));
 
             int c = Raylib.GetCharPressed();
@@ -912,30 +939,34 @@ namespace TakeTaikoSimulator.Scenes
                 AddSearchChar(c);
                 c = Raylib.GetCharPressed();
             }
-            foreach (Rune rune in WindowsIme.TakeResultText().EnumerateRunes()) AddSearchChar(rune.Value);
+            string imeResult = WindowsIme.TakeResultText();
+            foreach (Rune rune in imeResult.EnumerateRunes()) AddSearchChar(rune.Value);
 
-            if (KeyPressed(KeyboardKey.Backspace) && searchText.Length > 0)
+            if (!WindowsIme.IsComposing && imeResult.Length == 0 && KeyPressed(KeyboardKey.Backspace) && searchText.Length > 0)
             {
                 int remove = searchText.Length >= 2 && char.IsLowSurrogate(searchText[^1]) ? 2 : 1;
                 searchText = searchText[..^remove];
             }
 
             // Enter：検索の結果を開く
-            if (Raylib.IsKeyPressed(KeyboardKey.Enter) || Raylib.IsKeyPressed(KeyboardKey.KpEnter))
+            if (imeResult.Length == 0 && !WindowsIme.IsComposing && !Gui.IsPopupOpen && (Raylib.IsKeyPressed(KeyboardKey.Enter) || Raylib.IsKeyPressed(KeyboardKey.KpEnter)))
+                searchSubmitQueued = true;
+        }
+
+        private void SubmitSearch()
+        {
+            int count = SearchResults().Count;
+            if (count == 0)
             {
-                if (searchText.Length == 0) { searchFocused = false; return; }
-                int count = SearchResults().Count;
-                if (count == 0)
-                {
-                    ShowToast($"「{searchText}」に当てはまる曲はありません");
-                    return;
-                }
-                searchFocused = false;
-                options.CloseNow();
-                diffOpen = false;
-                MenuSounds.Don();
-                OpenGenre(Special.Search, -1);
+                ShowToast("指定した条件に当てはまる曲はありません");
+                return;
             }
+            Gui.ClosePopup();
+            searchFocused = false;
+            options.CloseNow();
+            diffOpen = false;
+            MenuSounds.Don();
+            OpenGenre(Special.Search, -1);
         }
 
         private static void AddSearchChar(int c)
@@ -1130,6 +1161,7 @@ namespace TakeTaikoSimulator.Scenes
             if (options.IsOpen && options.ErrorMessage is string error)
                 Text(error, 44, 1037, 24, ErrorColor);
             if (toastTimer > 0f) DrawToast();
+            if (searchFocused) DrawSearchBox();
         }
 
         private void DrawHeader()
@@ -1141,7 +1173,7 @@ namespace TakeTaikoSimulator.Scenes
             }
             // 左上の「演奏ゲーム」「ジャンルをえらぶ」は出さない(スキンの画像とかぶって、じゃまになる)。
             // どのジャンルにいるかは一覧の板そのもので分かるので、文字は要らない
-            if (searchFocused || searchText.Length > 0 && openSpecial == Special.Search && !diffOpen) DrawSearchBox();
+
         }
 
         // 一覧(斜めに並べる。上下はぐるっとつながっている)
@@ -1707,36 +1739,49 @@ namespace TakeTaikoSimulator.Scenes
         // 検索の箱
         private void DrawSearchBox()
         {
-            Raylib.DrawRectangleRec(SearchBox, searchFocused ? new Color(18, 22, 36, 240) : new Color(18, 22, 36, 180));
-            if (searchFocused) Raylib.DrawRectangleLinesEx(SearchBox, 2, Gui.AccentColor);
-
-            string composition = searchFocused ? WindowsIme.CompositionText : "";
-            if (composition.Length == 0)
+            Gui.ResetClip();
+            Raylib.DrawRectangle(0, 0, 1920, 1080, new Color(0, 0, 0, 170));
+            SmoothShapes.Rectangle(new(360, 210, 1200, 610), 6, new Color(16, 24, 39, 255));
+            FontManager.Draw("曲を検索", 410, 250, 36, Color.White);
+            if (Gui.Button(new(1460, 238, 50, 50), "×")) { OnBack(); return; }
+            SmoothShapes.Rectangle(SearchBox, 6, new Color(25, 38, 58, 255));
+            SmoothShapes.Border(SearchBox, 6, 1, Gui.AccentColor);
+            string composition = WindowsIme.CompositionText;
+            Screen.BeginScissorMode((int)SearchBox.X + 12, (int)SearchBox.Y + 4, (int)SearchBox.Width - 24, (int)SearchBox.Height - 8);
+            float width = Measure(searchText + composition, SearchFontSize).X;
+            float x = SearchTextX - Math.Max(0, width - SearchBox.Width + 60);
+            if (searchText.Length == 0 && composition.Length == 0)
+                FontManager.Draw("曲名・アーティスト・フォルダ名", x, SearchTextY, 28, Gui.SubTextColor);
+            Text(searchText, x, SearchTextY, SearchFontSize, Color.White);
+            float endX = x + Measure(searchText, SearchFontSize).X;
+            if (composition.Length > 0)
             {
-                string caret = searchFocused && (caretTimer % 1f) < 0.5f ? "|" : "";
-                // まだ何も入れていないときは、薄い字で説明を出す(「|」はその前に)
-                if (searchText.Length == 0)
-                    Text("曲名・アーティスト・フォルダ名", SearchTextX + 14, SearchTextY + 1, 26, Gui.SubTextColor);
-                Text(searchText + caret, SearchTextX, SearchTextY, SearchFontSize, Color.White);
-            }
-            else
-            {
-                Text(searchText, SearchTextX, SearchTextY, SearchFontSize, Color.White);
-                float startX = SearchTextX + Measure(searchText, SearchFontSize).X;
-                Vector2 size = Measure(composition, SearchFontSize);
-                Text(composition, startX, SearchTextY, SearchFontSize, CompositionColor);
-                float lineY = SearchTextY + size.Y + 2;
-                Raylib.DrawLineEx(new Vector2(startX, lineY), new Vector2(startX + size.X, lineY), 2, CompositionColor);
+                Text(composition, endX, SearchTextY, SearchFontSize, CompositionColor);
                 int cursor = Math.Clamp(WindowsIme.CompositionCursor, 0, composition.Length);
-                Text("|", startX + Measure(composition[..cursor], SearchFontSize).X, SearchTextY, SearchFontSize, Color.White);
+                endX += Measure(composition[..cursor], SearchFontSize).X;
             }
-
-            if (searchFocused && searchText.Length > 0)
-            {
-                int count = SearchResults().Count;
-                Text(count > 0 ? $"{count}曲　Enter：開く" : "当てはまる曲はありません", SearchBox.X + SearchBox.Width + 16, SearchTextY + 2, 24,
-                    count > 0 ? Color.White : ErrorColor);
-            }
+            if ((caretTimer % 1f) < .5f) Text("|", endX, SearchTextY, SearchFontSize, Color.White);
+            Screen.EndScissorMode();
+            FontManager.Draw("難易度", 410, 435, 24, Gui.SubTextColor);
+            FontManager.Draw("★", 785, 435, 24, Gui.SubTextColor);
+            FontManager.Draw("ジャンル", 1160, 435, 24, Gui.SubTextColor);
+            int course = Gui.Dropdown("search/course", new(410, 475, 350, 56), SearchCourses, searchCourse == null ? 0 : (int)searchCourse + 1, 8);
+            searchCourse = course == 0 ? null : (CourseType)(course - 1);
+            int star = Gui.Dropdown("search/stars", new(785, 475, 350, 56), searchLevelLabels,
+                searchStars == null ? 0 : Math.Max(0, Array.IndexOf(searchLevels, searchStars.Value) + 1), 8);
+            searchStars = star == 0 ? null : searchLevels[star - 1];
+            int genre = Gui.Dropdown("search/genre", new(1160, 475, 350, 56), searchGenres,
+                searchGenre == null ? 0 : Math.Max(0, Array.IndexOf(searchGenres, searchGenre)), 8);
+            searchGenre = genre == 0 ? null : searchGenres[genre];
+            int count = SearchResults().Count;
+            FontManager.Draw($"一致する曲：{count}曲", 410, 600, 28, count == 0 ? Gui.SubTextColor : Color.White);
+            FontManager.Draw("指定しない項目は「すべて」のままで検索できます", 410, 650, 24, Gui.SubTextColor);
+            if (Gui.Button(new(410, 725, 200, 56), "条件をクリア"))
+            { searchText = ""; searchCourse = null; searchStars = null; searchGenre = null; }
+            if (Gui.Button(new(1060, 725, 200, 56), "戻る")) OnBack();
+            if (Gui.PrimaryButton(new(1280, 725, 230, 56), "検索する")) SubmitSearch();
+            Gui.DrawPopups();
+            if (searchSubmitQueued) { searchSubmitQueued = false; SubmitSearch(); }
         }
 
         private void DrawToast()

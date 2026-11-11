@@ -101,6 +101,7 @@ namespace TakeTaikoSimulator.UI
         private static Rectangle popupAnchor;
         private static string[] popupOptions = Array.Empty<string>();
         private static int popupSelected;
+        private static int popupFirst, popupRows = int.MaxValue;
         private static readonly Dictionary<string, int> popupResults = new();
 
         // 数値を入力中か
@@ -426,7 +427,7 @@ namespace TakeTaikoSimulator.UI
         }
 
         // プルダウン。選び直されたら新しい番号を返す
-        public static int Dropdown(string id, Rectangle area, string[] options, int selected)
+        public static int Dropdown(string id, Rectangle area, string[] options, int selected, int maxVisibleRows = int.MaxValue)
         {
             // 一覧で選ばれていたら、その番号にする
             if (popupResults.Remove(id, out int result))
@@ -444,13 +445,15 @@ namespace TakeTaikoSimulator.UI
                 area.Y + (area.Height - FontManager.Measure(text, 26).Y) / 2f, 26, TextColor);
             FontManager.Draw("▼", area.X + area.Width - 32, area.Y + (area.Height - 20) / 2f, 20, SubTextColor);
 
-            if (Clicked(area))
+            if (options.Length > 0 && Clicked(area))
             {
                 popupId = id;
                 popupJustOpened = true;
                 popupAnchor = area;
                 popupOptions = options;
                 popupSelected = selected;
+                popupRows = Math.Min(options.Length, Math.Max(1, maxVisibleRows));
+                popupFirst = Math.Clamp(selected - popupRows / 2, 0, Math.Max(0, options.Length - popupRows));
             }
 
             return selected;
@@ -462,7 +465,7 @@ namespace TakeTaikoSimulator.UI
             if (popupId == null) return;
 
             const float itemHeight = 40f;
-            Rectangle list = new Rectangle(popupAnchor.X, popupAnchor.Y + popupAnchor.Height, popupAnchor.Width, itemHeight * popupOptions.Length);
+            Rectangle list = new Rectangle(popupAnchor.X, popupAnchor.Y + popupAnchor.Height, popupAnchor.Width, itemHeight * popupRows);
 
             // 下にはみ出すなら上に出す
             if (list.Y + list.Height > Screen.Height)
@@ -473,9 +476,12 @@ namespace TakeTaikoSimulator.UI
             Raylib.DrawRectangleRec(list, new Color(14, 17, 27, 250));
             Raylib.DrawRectangleLinesEx(list, 1, new Color(90, 100, 130, 255));
 
-            for (int i = 0; i < popupOptions.Length; i++)
+            if (Raylib.CheckCollisionPointRec(mouse, list))
+                popupFirst = Math.Clamp(popupFirst - Math.Sign(Raylib.GetMouseWheelMove()), 0, Math.Max(0, popupOptions.Length - popupRows));
+            for (int row = 0; row < popupRows; row++)
             {
-                Rectangle item = new Rectangle(list.X, list.Y + i * itemHeight, list.Width, itemHeight);
+                int i = popupFirst + row;
+                Rectangle item = new Rectangle(list.X, list.Y + row * itemHeight, list.Width, itemHeight);
                 bool hover = Raylib.CheckCollisionPointRec(mouse, item);
 
                 if (i == popupSelected) Raylib.DrawRectangleRec(item, new Color(40, 70, 140, 255));
@@ -490,6 +496,13 @@ namespace TakeTaikoSimulator.UI
                     popupId = null;
                     return;
                 }
+            }
+
+            if (popupOptions.Length > popupRows)
+            {
+                float thumb = list.Height * popupRows / popupOptions.Length;
+                Raylib.DrawRectangleRec(new(list.X + list.Width - 6, list.Y, 6, list.Height), BoxColor);
+                Raylib.DrawRectangleRec(new(list.X + list.Width - 6, list.Y + (list.Height - thumb) * popupFirst / (popupOptions.Length - popupRows), 6, thumb), AccentColor);
             }
 
             // 一覧の外をクリックしたら閉じる(開いた瞬間のクリックは無視)

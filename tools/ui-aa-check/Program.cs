@@ -83,6 +83,19 @@ try
     Check(subpixelChanged, "小数位置の移動を丸めず描く");
     Check(Pixel(478, 555) == 255 && Pixel(448, 635) == 255 && Pixel(350, 745) == 255, "実際のON/OFFノブと音量ノブが表示される");
     Check(Edges(842, 537, 36, 36) > 20, "?の輪郭と通常フォントを同じ描画順で使える");
+    // 長い検索候補のポップアップ。スクロール位置と表示行から実インデックスへ戻す。
+    void GuiField(string name, object value) => typeof(Gui).GetField(name, BindingFlags.NonPublic|BindingFlags.Static)!.SetValue(null,value);
+    int GuiInt(string name) => (int)typeof(Gui).GetField(name, BindingFlags.NonPublic|BindingFlags.Static)!.GetValue(null)!;
+    string[] choices=Enumerable.Range(0,30).Select(i=>$"Genre {i}").ToArray();
+    Gui.Reset();Gui.ResetClip();Gui.BeginFrame();GuiField("mouse",new Vector2(1260,410));GuiField("mousePressed",true);
+    Gui.Dropdown("scroll-test",new(1250,400,300,56),choices,29,8);
+    Check(GuiInt("popupRows")==8,"長い候補を8行に制限");
+    Check(GuiInt("popupFirst")==22,"選択中の末尾候補を表示範囲へ入れる");
+    Gui.BeginFrame();GuiField("mouse",new Vector2(1260,476));GuiField("mousePressed",true);Gui.DrawPopups();
+    Gui.BeginFrame();
+    Check(Gui.Dropdown("scroll-test",new(1250,400,300,56),choices,29,8)==22,"表示行を正しい候補番号へ戻す");
+    Check(!Gui.IsPopupOpen,"候補の決定でポップアップを閉じる");
+    Gui.Reset();
     Raylib.EndTextureMode();
     reduced = Raylib.LoadRenderTexture(1280, 720);
     Raylib.BeginTextureMode(reduced); Raylib.ClearBackground(Color.Black);

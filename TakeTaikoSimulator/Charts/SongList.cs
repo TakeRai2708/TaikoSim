@@ -57,6 +57,16 @@ namespace TakeTaikoSimulator.Charts
             return builder.ToString();
         }
 
+        public static bool MatchesFilters(SongEntry song, SongCategory category, string normalizedQuery,
+            CourseType? course = null, int? stars = null, string? genre = null)
+        {
+            if (!Matches(song.SearchKey, normalizedQuery)) return false;
+            string categoryGenre = string.IsNullOrWhiteSpace(category.Genre) ? category.Title : category.Genre;
+            if (genre != null && !string.Equals(genre, categoryGenre, StringComparison.OrdinalIgnoreCase)) return false;
+            return course == null && stars == null || song.Courses.Any(c => c.Type <= CourseType.Edit
+                && (course == null || c.Type == course) && (stars == null || c.Level == stars));
+        }
+
         // text の中に query が入っているか(どちらも Normalize したものを渡す)
         public static bool Matches(string normalizedText, string normalizedQuery)
         {
