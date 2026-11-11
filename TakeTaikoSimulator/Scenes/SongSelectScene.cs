@@ -1126,7 +1126,9 @@ namespace TakeTaikoSimulator.Scenes
             options.Draw(active);
             Gui.ResetClip();
 
-            DrawFooter();
+            // 操作説明は出さない。入力値のエラーは引き続き知らせる。
+            if (options.IsOpen && options.ErrorMessage is string error)
+                Text(error, 44, 1037, 24, ErrorColor);
             if (toastTimer > 0f) DrawToast();
         }
 
@@ -1140,13 +1142,6 @@ namespace TakeTaikoSimulator.Scenes
             // 左上の「演奏ゲーム」「ジャンルをえらぶ」は出さない(スキンの画像とかぶって、じゃまになる)。
             // どのジャンルにいるかは一覧の板そのもので分かるので、文字は要らない
             if (searchFocused || searchText.Length > 0 && openSpecial == Special.Search && !diffOpen) DrawSearchBox();
-            else if (!diffOpen)
-            {
-                KeyboardKey searchKey = ConfigManager.Key.SystemKeys.GetValueOrDefault(SystemAction.Search, KeyboardKey.F3);
-                Text($"{searchKey}：検索", 1700, 50, 24, Gui.SubTextColor);
-            }
-            string count = $"{SongList.SongCount}曲";
-            Text(count, 1860 - Measure(count, 24).X, 84, 24, Gui.SubTextColor);
         }
 
         // 一覧(斜めに並べる。上下はぐるっとつながっている)
@@ -1742,27 +1737,6 @@ namespace TakeTaikoSimulator.Scenes
                 Text(count > 0 ? $"{count}曲　Enter：開く" : "当てはまる曲はありません", SearchBox.X + SearchBox.Width + 16, SearchTextY + 2, 24,
                     count > 0 ? Color.White : ErrorColor);
             }
-        }
-
-        private void DrawFooter()
-        {
-            string hint;
-            if (SongList.IsScanning) hint = "曲を読み込み中…　Esc：モード選択へ（読み込みは続きます）";
-            else if (searchFocused) hint = "文字を入れて検索　Enter：結果を開く　Esc：検索をやめる";
-            else if (options.IsOpen) hint = options.ErrorMessage ?? (options.IsTyping ? "数字を入力　Enter：決定"
-                : "カッ・←→：値を変える　ドン：次へ（最後で閉じる）　↑↓：項目　数字キー：直接入力　Esc・F2：閉じる");
-            else if (diffOpen) hint = "";
-            else if (inSongs)
-            {
-                KeyboardKey favKey = ConfigManager.Key.SystemKeys.GetValueOrDefault(SystemAction.Favorite, KeyboardKey.F4);
-                hint = $"カッ・↑↓：えらぶ　ドン・Enter：決定　Esc：ジャンルへ　{favKey}：お気に入り";
-            }
-            else hint = "カッ・↑↓：えらぶ　ドン・Enter：決定　Esc：モード選択へ";
-            if (hint.Length == 0) return;
-            // 斜めの一覧の下の方と重なるので、うしろに薄い帯
-            Vector2 size = Measure(hint, 24);
-            Raylib.DrawRectangleRounded(new Rectangle(28, 1030, size.X + 32, 40), 0.5f, 8, new Color(0, 0, 0, 150));
-            Text(hint, 44, 1037, 24, new Color(220, 224, 236, 255));
         }
 
         private void DrawToast()

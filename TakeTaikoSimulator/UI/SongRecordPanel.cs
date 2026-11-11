@@ -42,10 +42,10 @@ public static class SongRecordPanel
         for (int i = 0; i < 3; i++)
         {
             float x = 110 + i * 94;
-            Number("ScorePanel_Number.png", totals.Ranks[3 + i], x, 388, 18, 22, 16, 70, alpha);
-            Number("ScorePanel_Number.png", totals.Ranks[i], x, 428, 18, 22, 16, 70, alpha);
+            Number("ScorePanel_Number.png", totals.Ranks[3 + i], x, 380, 18, 22, 16, 70, alpha);
+            Number("ScorePanel_Number.png", totals.Ranks[i], x, 420, 18, 22, 16, 70, alpha);
             int crowns = i == 0 ? totals.Cleared : i == 1 ? totals.FullCombo : totals.DondaFullCombo;
-            Number("ScorePanel_Number.png", crowns, x, 470, 18, 22, 16, 70, alpha);
+            Number("ScorePanel_Number.png", crowns, x, 460, 18, 22, 16, 70, alpha);
         }
     }
 
@@ -64,18 +64,18 @@ public static class SongRecordPanel
         {
             // 80×80の各セルには難易度の印も入っている。
             if (!MenuSkin.Cell(Folder + "ScoreRank_Symbol.png", row * 7 + record.Rank - 1, 7, 5,
-                new(54, 610, 54, 54), MenuSkin.White(alpha)))
-                RankFallback(record.Rank, new(48, 616, 60, 40), alpha);
+                new(54, 598, 54, 54), MenuSkin.White(alpha)))
+                RankFallback(record.Rank, new(48, 604, 60, 40), alpha);
         }
         else if (!MenuSkin.Cell(Folder + "BestScorePanel/CourseSymbol.png", row, 1, 5,
-            new(54, 614, 54, 40), MenuSkin.White(alpha)))
-            Label(Chart.GetCourseName(course), new(34, 618, 90, 35), 18, Color.White, alpha);
+            new(54, 602, 54, 40), MenuSkin.White(alpha)))
+            Label(Chart.GetCourseName(course), new(34, 606, 90, 35), 18, Color.White, alpha);
 
         string score = record.Score.ToString(CultureInfo.InvariantCulture);
         float width = 24 + Math.Max(0, score.Length - 1) * 22;
         float scale = Math.Min(1, 190 / width);
         Number("BestScorePanel/Number.png", record.Score, 308 - width * scale / 2,
-            638, 24, 28, 22, 190, alpha);
+            626, 24, 28, 22, 190, alpha);
     }
 
     public static void DrawCard(string key, CourseType course, Rectangle card, float alpha, int? profile = null)
@@ -108,13 +108,62 @@ public static class SongRecordPanel
         public void Dispose() => Rlgl.PopMatrix();
     }
 
+    private sealed record DigitArt(float CellWidth, Rectangle Ink);
+    private static readonly Dictionary<string, DigitArt> digitArt = new();
+    private static int digitGeneration = -1;
+
+    // 初回だけ透明な余白を調べる。描くたびにGPUから画像を戻さない。
+    private static unsafe DigitArt PrepareDigits(string path, Texture2D texture)
+    {
+        if (digitGeneration != SkinManager.Generation)
+        { digitArt.Clear(); digitGeneration = SkinManager.Generation; }
+        if (digitArt.TryGetValue(path, out var cached)) return cached;
+        int cell = texture.Width / 10;
+        int left = cell, top = texture.Height, right = -1, bottom = -1;
+        Image image = Raylib.LoadImageFromTexture(texture);
+        try
+        {
+            Color* colors = Raylib.LoadImageColors(image);
+            try
+            {
+                if (colors != null)
+                    for (int y = 0; y < image.Height; y++)
+                        for (int x = 0; x < cell * 10; x++)
+                            if (colors[y * image.Width + x].A > 16)
+                            {
+                                int localX = x % cell;
+                                left = Math.Min(left, localX); right = Math.Max(right, localX);
+                                top = Math.Min(top, y); bottom = Math.Max(bottom, y);
+                            }
+            }
+            finally { if (colors != null) Raylib.UnloadImageColors(colors); }
+        }
+        finally { Raylib.UnloadImage(image); }
+        Rectangle ink = right >= left ? new(left, top, right - left + 1, bottom - top + 1) : new(0, 0, Math.Max(1, cell), Math.Max(1, texture.Height));
+        return digitArt[path] = new(cell, ink);
+    }
+
     private static void Number(string image, long value, float x, float y, float cellWidth, float height,
         float advance, float maxWidth, float alpha)
     {
         string digits = value.ToString(CultureInfo.InvariantCulture);
-        float scale = Math.Min(1, maxWidth / (cellWidth + Math.Max(0, digits.Length - 1) * advance));
-        if (!MenuSkin.Digits(Folder + image, digits, x, y, advance, scale, MenuSkin.White(alpha)))
-            Label(digits, new(x - maxWidth / 2, y - height / 2, maxWidth, height), height * scale, Color.White, alpha);
+        float fit = Math.Min(1, maxWidth / (cellWidth + Math.Max(0, digits.Length - 1) * advance));
+        string path = Folder + image;
+        if (SkinManager.GetTexture(path) is Texture2D texture && texture.Width >= 10)
+        {
+            DigitArt art = PrepareDigits(path, texture);
+            float scale = Math.Min(cellWidth / art.Ink.Width, height / art.Ink.Height) * fit;
+            float firstX = x - advance * fit * (digits.Length - 1) / 2;
+            for (int i = 0; i < digits.Length; i++)
+            {
+                Rectangle source = new((digits[i] - '0') * art.CellWidth + art.Ink.X, art.Ink.Y, art.Ink.Width, art.Ink.Height);
+                Rectangle dest = new(firstX + i * advance * fit - art.Ink.Width * scale / 2, y - art.Ink.Height * scale / 2,
+                    art.Ink.Width * scale, art.Ink.Height * scale);
+                Raylib.DrawTexturePro(texture, source, dest, Vector2.Zero, 0, MenuSkin.White(alpha));
+            }
+        }
+        else
+            Label(digits, new(x - maxWidth / 2, y - height / 2, maxWidth, height), height * fit, Color.White, alpha);
     }
 
     private static void Background(Rectangle rect, float alpha)
