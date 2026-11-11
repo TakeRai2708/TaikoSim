@@ -990,3 +990,8 @@ Order:
 - Each scene overrides `Scene.Presence` (details = line 1, state = line 2, end = "remaining" countdown). Sent only when it changes, at least 2 s apart.
 - たけらい: the result screen shows no score rank. Settings: 一般 → Discord (`DiscordPresence`, `DiscordHideSongTitle`).
 - `ApplicationId` is empty until たけらい creates the Discord app; the art asset is named `logo` (never A-Style art).
+
+### Name plate name fitting and rank backing (2026-11-12)
+- User supplied a small reference showing a dark rank cell left of the name. Shared plate rendering now paints a black76x35 backing at(73,36) only when Rank is nonempty. Existing NamePlate_Rank_Gold.png overlays that cell for gold passes when present; missing gold art falls back to black. RankType text colors/earned-state rules are unchanged. This is a drawn backing, not newly extracted official rank art.
+- Name text uses fixed30px skin-font glyphs, centered by visible ink in y37..70. A separate horizontal-only matrix scale fits ink plus2px outline/padding into the available width. Vertical scale remains1 for both ranked and unranked names. Ranked names use x151,width174; unranked names use x76,width249 and center in that entire name band. Existing titles and badge crop are unchanged.
+- Linux source build passes with0errors/253existing warnings;101profile/nameplate/cosmetic/rank checks pass. These checks do not verify actual Windows plate appearance, GPU drivers or Native AOT publish. Original NamePlate_Base.png crop issue remains pending. No skin art, settings/profile format, rank unlock logic or scene placement changes.

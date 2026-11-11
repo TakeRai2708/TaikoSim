@@ -104,16 +104,36 @@ public static class NamePlate
             bool rank = data.Rank.Length > 0;
             if (rank)
             {
+                // 段位があるときだけ、名前の左側に黒い帯を置く。
+                Rectangle rankArea = new(73, 36, 76, 35);
+                Raylib.DrawRectangleRec(rankArea, Raylib.ColorAlpha(Color.Black, alpha));
                 if (data.IsRankGold && SkinManager.GetTexture(Root + "NamePlate_Rank_Gold.png") is Texture2D gold)
-                    Raylib.DrawTexturePro(gold, new(0, 0, gold.Width, gold.Height), new(73, 45, 72, 25), Vector2.Zero, 0, white);
+                    Raylib.DrawTexturePro(gold, new(0, 0, gold.Width, gold.Height), rankArea, Vector2.Zero, 0, white);
                 Color rankColor = data.RankType == 1 ? new Color(255, 218, 85, 255) : data.RankType == 2
                     ? Raylib.ColorFromHSV((float)(Raylib.GetTime() * 70 % 360), .55f, 1) : new Color(225, 233, 240, 255);
-                Text(data.Rank, new(76, 44, 69, 28), 24, Raylib.ColorAlpha(rankColor, alpha), Raylib.ColorAlpha(Color.Black, alpha));
+                Text(data.Rank, new(76, 37, 69, 33), 24, Raylib.ColorAlpha(rankColor, alpha), Raylib.ColorAlpha(Color.Black, alpha));
             }
-            Text(data.Name, new(rank ? 151 : 76, 37, rank ? 174 : 249, 29), 35, white, Raylib.ColorAlpha(Color.Black, alpha));
+            NameText(data.Name, new(rank ? 151 : 76, 37, rank ? 174 : 249, 33), white, Raylib.ColorAlpha(Color.Black, alpha));
         }
         finally { Rlgl.PopMatrix(); }
     }
+    // 名前の高さは固定。長い場合も縦を潰さず、横だけ縮めて中央に収める。
+    private static void NameText(string text, Rectangle area, Color fill, Color outline)
+    {
+        if (text.Length == 0) return;
+        const float size = 30, edge = 2, padding = 2;
+        Rectangle ink = FontManager.MeasureSkinMainInk(text, size);
+        float scaleX = Math.Min(1, (area.Width - 2 * padding) / Math.Max(1, ink.Width + 2 * edge));
+        Rlgl.PushMatrix();
+        try
+        {
+            Rlgl.Translatef(area.X + area.Width / 2, area.Y + (area.Height - ink.Height) / 2 - ink.Y, 0);
+            Rlgl.Scalef(scaleX, 1, 1);
+            FontManager.DrawSkinMainOutlined(text, -ink.X - ink.Width / 2, 0, size, fill, outline, edge);
+        }
+        finally { Rlgl.PopMatrix(); }
+    }
+
     private static void Text(string text, Rectangle area, float size, Color fill, Color outline)
     {
         if (text.Length == 0) return;
