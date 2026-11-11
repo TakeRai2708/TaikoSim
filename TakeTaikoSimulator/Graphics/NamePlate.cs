@@ -125,7 +125,7 @@ public static class NamePlate
     private static void NameText(string text, Rectangle area, Color fill, Color outline)
     {
         if (text.Length == 0) return;
-        const float size = 30, edge = 2, padding = 2;
+        const float size = 25, edge = 4, padding = 2;
         Rectangle ink = FontManager.MeasureSkinMainInk(text, size);
         float scaleX = Math.Min(1, (area.Width - 2 * padding) / Math.Max(1, ink.Width + 2 * edge));
         Rlgl.PushMatrix();
