@@ -435,9 +435,9 @@ namespace TakeTaikoSimulator.Scenes
             Color edge = new(60, 20, 40, 255);
             OutlinedAt(text, x, y, size, new Color(255, 96, 170, 255), edge);
             Vector2 measured = Measure(text, size);
-            Raylib.BeginScissorMode((int)(x - 20f), (int)(y - 20f), (int)(measured.X + 40f), (int)(20f + measured.Y * 0.5f));
+            Screen.BeginScissorMode((int)(x - 20f), (int)(y - 20f), (int)(measured.X + 40f), (int)(20f + measured.Y * 0.5f));
             OutlinedAt(text, x, y, size, new Color(255, 226, 60, 255), edge);
-            Raylib.EndScissorMode();
+            Screen.EndScissorMode();
         }
 
         // 曲ごと条件：右にほかの曲の小さい枠
@@ -503,3 +503,4 @@ namespace TakeTaikoSimulator.Scenes
         };
     }
 }
+

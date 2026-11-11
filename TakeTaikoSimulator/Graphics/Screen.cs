@@ -4,7 +4,7 @@ using TakeTaikoSimulator.Configs;
 
 namespace TakeTaikoSimulator.Graphics
 {
-    // 1920×1080のキャンバスに描いて、ウィンドウの大きさに合わせて表示する係
+    // 1920×1080の論理座標を、実際の画面解像度へ直接描く係
     public static class Screen
     {
         // キャンバスの大きさ(座標は全部この大きさで考える)
@@ -12,6 +12,36 @@ namespace TakeTaikoSimulator.Graphics
         public const int Height = 1080;
 
         private static RenderTexture2D canvas;
+        private static float canvasX, canvasY, canvasScale = 1;
+        public static bool IsDrawingCanvas { get; private set; }
+        public static float TextRasterScale => IsDrawingCanvas ? canvasScale : 1;
+        public static Vector2 SnapTextPosition(Vector2 position) => !IsDrawingCanvas ? position : new(
+            (MathF.Round(canvasX + position.X * canvasScale) - canvasX) / canvasScale,
+            (MathF.Round(canvasY + position.Y * canvasScale) - canvasY) / canvasScale);
+
+        private static void PrepareCanvas(int width, int height)
+        {
+            width = Math.Max(1, width); height = Math.Max(1, height);
+            if (canvas.Texture.Width != width || canvas.Texture.Height != height)
+            {
+                if (canvas.Id != 0) Raylib.UnloadRenderTexture(canvas);
+                canvas = Raylib.LoadRenderTexture(width, height);
+                Raylib.SetTextureFilter(canvas.Texture, TextureFilter.Point);
+            }
+            canvasScale = Math.Min(width / (float)Width, height / (float)Height);
+            canvasX = (width - Width * canvasScale) / 2;
+            canvasY = (height - Height * canvasScale) / 2;
+        }
+
+        // 描画座標は従来の1920×1080。切り取りだけを実際の描画先の画素へ変換する。
+        public static void BeginScissorMode(int x, int y, int width, int height)
+        {
+            if (!IsDrawingCanvas) { Raylib.BeginScissorMode(x, y, width, height); return; }
+            int left = (int)MathF.Floor(canvasX + x * canvasScale), top = (int)MathF.Floor(canvasY + y * canvasScale);
+            int right = (int)MathF.Ceiling(canvasX + (x + width) * canvasScale), bottom = (int)MathF.Ceiling(canvasY + (y + height) * canvasScale);
+            Raylib.BeginScissorMode(left, top, Math.Max(0, right - left), Math.Max(0, bottom - top));
+        }
+        public static void EndScissorMode() => Raylib.EndScissorMode();
 
         // ウィンドウ設定を反映する予約(描画中に大きさを変えると危ないので、次のフレームの最初にやる)
         private static bool applyRequested = false;
@@ -25,8 +55,7 @@ namespace TakeTaikoSimulator.Graphics
         // 準備(ウィンドウを作った後に呼ぶ)
         public static void Init()
         {
-            canvas = Raylib.LoadRenderTexture(Width, Height);
-            Raylib.SetTextureFilter(canvas.Texture, TextureFilter.Bilinear); // 縮小してもガタガタにしない
+            PrepareCanvas(Raylib.GetRenderWidth(), Raylib.GetRenderHeight());
             SmoothShapes.Preload(); // 設定を開いた瞬間にシェーダーを準備して止まらないようにする
         }
 
@@ -35,28 +64,48 @@ namespace TakeTaikoSimulator.Graphics
         {
             SmoothShapes.Unload();
             Raylib.UnloadRenderTexture(canvas);
+            canvas = default; IsDrawingCanvas = false;
         }
 
         // ここから先の描画はキャンバスに描かれる
-        public static void BeginCanvas()
+        public static void BeginCanvas() => BeginCanvas(Raylib.GetRenderWidth(), Raylib.GetRenderHeight());
+
+        internal static void BeginCanvas(int width, int height)
         {
+            PrepareCanvas(width, height);
             Raylib.BeginTextureMode(canvas);
+            Raylib.BeginMode2D(new Camera2D { Offset = new(canvasX, canvasY), Target = Vector2.Zero, Rotation = 0, Zoom = canvasScale });
+            IsDrawingCanvas = true;
         }
 
         // キャンバスへの描画を終わる
         public static void EndCanvas()
         {
+            Raylib.EndMode2D();
+            IsDrawingCanvas = false;
+            // ClearBackgroundを使う画面でも、16:9の外は黒帯にする。
+            int left = (int)MathF.Floor(canvasX), top = (int)MathF.Floor(canvasY);
+            if (left > 0)
+            {
+                Raylib.DrawRectangle(0, 0, left, canvas.Texture.Height, Color.Black);
+                int right = (int)MathF.Ceiling(canvasX + Width * canvasScale);
+                Raylib.DrawRectangle(right, 0, canvas.Texture.Width - right, canvas.Texture.Height, Color.Black);
+            }
+            if (top > 0)
+            {
+                Raylib.DrawRectangle(0, 0, canvas.Texture.Width, top, Color.Black);
+                int bottom = (int)MathF.Ceiling(canvasY + Height * canvasScale);
+                Raylib.DrawRectangle(0, bottom, canvas.Texture.Width, canvas.Texture.Height - bottom, Color.Black);
+            }
             Raylib.EndTextureMode();
         }
 
         // キャンバスをウィンドウに表示する(縦横比が合わないときは黒帯)
         public static void DrawToWindow()
         {
-            GetViewport(out float x, out float y, out float scale);
-
             // RenderTexture は上下が逆さまに保存されているので、高さをマイナスにして反転する
-            Rectangle source = new Rectangle(0, 0, Width, -Height);
-            Rectangle dest = new Rectangle(x, y, Width * scale, Height * scale);
+            Rectangle source = new Rectangle(0, 0, canvas.Texture.Width, -canvas.Texture.Height);
+            Rectangle dest = new Rectangle(0, 0, Raylib.GetScreenWidth(), Raylib.GetScreenHeight());
 
             // キャンバスの色(RGB)をそのまま写す。キャンバスの透明度(A)は使わない。
             //   半透明の絵(フェード中の光・顔など)をふつうの合成でキャンバスに描くと、
@@ -160,7 +209,7 @@ namespace TakeTaikoSimulator.Graphics
             screenshotRequested = true;
         }
 
-        // 予約されていたら、キャンバス(1920×1080)を画像で保存する(EndCanvas の後に呼ぶ)
+        // 予約されていたら、実解像度のキャンバスを画像で保存する(EndCanvas の後に呼ぶ)
         // 保存したら結果のメッセージを返す。予約が無ければ null
         public static string? SaveScreenshotIfRequested()
         {
@@ -216,3 +265,4 @@ namespace TakeTaikoSimulator.Graphics
         }
     }
 }
+

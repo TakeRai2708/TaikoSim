@@ -185,12 +185,12 @@ namespace TakeTaikoSimulator.Scenes
                 //   左半分は左から、右半分は右から出てくる（OpenTaiko の DanC_Screen と同じ描き方）
                 float halfWidth = screen.Width / 2f;
                 float shift = halfWidth * (1f - closed);
-                Raylib.BeginScissorMode((int)Left, (int)Top, (int)(Right - Left), screen.Height);
+                Screen.BeginScissorMode((int)Left, (int)Top, (int)(Right - Left), screen.Height);
                 Raylib.DrawTexturePro(screen, new Rectangle(0, 0, halfWidth, screen.Height),
                     new Rectangle(Left - shift, Top, halfWidth, screen.Height), Vector2.Zero, 0f, Color.White);
                 Raylib.DrawTexturePro(screen, new Rectangle(halfWidth, 0, halfWidth, screen.Height),
                     new Rectangle(Left + halfWidth + shift, Top, halfWidth, screen.Height), Vector2.Zero, 0f, Color.White);
-                Raylib.EndScissorMode();
+                Screen.EndScissorMode();
             }
             else if (closed > 0f)
             {
@@ -239,7 +239,7 @@ namespace TakeTaikoSimulator.Scenes
             Raylib.DrawCircleV(k, 17f, new Color(150, 118, 62, 255));
             Raylib.DrawCircleV(k, 14f, new Color(196, 162, 92, 255));
             Raylib.DrawCircleV(k, 10f, new Color(58, 40, 26, 255));
-            Raylib.EndScissorMode();
+            Screen.EndScissorMode();
         }
 
         // area と扉の場所の重なりだけ描けるようにする。重なりが無ければ false
@@ -248,7 +248,7 @@ namespace TakeTaikoSimulator.Scenes
             float x0 = Math.Max(area.X, Left), y0 = Math.Max(area.Y, Top);
             float x1 = Math.Min(area.X + area.Width, Right), y1 = Math.Min(area.Y + area.Height, Bottom);
             if (x1 - x0 < 1f || y1 - y0 < 1f) return false;
-            Raylib.BeginScissorMode((int)x0, (int)y0, (int)MathF.Ceiling(x1 - x0), (int)MathF.Ceiling(y1 - y0));
+            Screen.BeginScissorMode((int)x0, (int)y0, (int)MathF.Ceiling(x1 - x0), (int)MathF.Ceiling(y1 - y0));
             return true;
         }
 
@@ -327,3 +327,4 @@ namespace TakeTaikoSimulator.Scenes
         }
     }
 }
+

@@ -41,23 +41,23 @@ namespace TakeTaikoSimulator.Graphics
             Raylib.BeginBlendMode(BlendMode.CustomSeparate);
 
             // キャンバスの外へ出るアニメ素材が、レーンや別の背景を覆わないようにする。
-            Raylib.BeginScissorMode(viewportX, viewportY, (int)(1920 * scale), (int)(276 * scale));
+            Screen.BeginScissorMode(viewportX, viewportY, (int)(1920 * scale), (int)(276 * scale));
             DrawParts(skin.UpperNormal, elapsed, 0);
             if (wasClear) DrawParts(skin.UpperClear, elapsed, 0);
-            Raylib.EndScissorMode();
+            Screen.EndScissorMode();
 
-            Raylib.BeginScissorMode(viewportX, viewportY + (int)(540 * scale), (int)(1920 * scale), (int)(540 * scale));
+            Screen.BeginScissorMode(viewportX, viewportY + (int)(540 * scale), (int)(1920 * scale), (int)(540 * scale));
             DrawParts(skin.LowerNormal, elapsed, 540);
             if (wasClear) DrawParts(skin.LowerClear, clearElapsed, 540);
-            Raylib.EndScissorMode();
+            Screen.EndScissorMode();
 
-            if (scale != 1) Raylib.BeginScissorMode(viewportX, viewportY, (int)(1920 * scale), (int)(1080 * scale));
+            if (scale != 1) Screen.BeginScissorMode(viewportX, viewportY, (int)(1920 * scale), (int)(1080 * scale));
             bool useFooter = wasClear && skin.LowerClear.Length > 0
                 ? skin.ClearUseFooter : skin.NormalUseFooter;
             if (useFooter && skin.Footer is Texture2D footer)
                 Raylib.DrawTextureEx(footer, new Vector2(skin.FooterX, 1080 - footer.Height + skin.FooterY),
                     0f, 1f, Color.White);
-            if (scale != 1) Raylib.EndScissorMode();
+            if (scale != 1) Screen.EndScissorMode();
             Raylib.EndBlendMode();
         }
 
@@ -466,3 +466,4 @@ namespace TakeTaikoSimulator.Graphics
         }
     }
 }
+

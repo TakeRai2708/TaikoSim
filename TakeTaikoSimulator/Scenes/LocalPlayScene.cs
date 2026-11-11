@@ -120,15 +120,16 @@ public sealed class LocalPlayScene : Scene
             else
             {
                 // キャンバスを入れ子にせず、既存の演奏を縦横同じ倍率で並べる。
-                Raylib.BeginScissorMode(p * 960, 270, 960, 540);
+                Screen.BeginScissorMode(p * 960, 270, 960, 540);
                 Rlgl.PushMatrix();
                 Rlgl.Translatef(p * 960, 270, 0);
                 Rlgl.Scalef(.5f, .5f, 1);
                 LocalSession.WithOptions(p, players[p].Draw);
                 Rlgl.PopMatrix();
-                Raylib.EndScissorMode();
+                Screen.EndScissorMode();
             }
         }
         Outlined(error.Length > 0 ? error : finished ? "ドン・Enter・Esc：選曲へ" : "Esc：演奏をやめる　F5：2人とも最初から", new(40, 940, 1840, 90), 30, Color.White, Color.Black);
     }
 }
+

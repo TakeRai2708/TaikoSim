@@ -10,7 +10,6 @@ namespace TakeTaikoSimulator.Graphics;
 internal sealed class CoverageFont(byte[] fileData) : IDisposable
 {
     private const int PageSize = 1024;
-    private static readonly int[] SizeSteps = { 16, 20, 24, 28, 32, 40, 48, 64, 80, 96, 128 };
     private sealed class Page
     {
         public readonly byte[] Pixels = new byte[PageSize * PageSize * 2];
@@ -20,22 +19,34 @@ internal sealed class CoverageFont(byte[] fileData) : IDisposable
     private readonly record struct Glyph(int Page, Rectangle Source, int X, int Y, int Advance);
     private sealed class Cache
     {
+        public long Used;
         public readonly Dictionary<int, Glyph> Glyphs = new();
         public readonly List<Page> Pages = new();
     }
     private readonly Dictionary<int, Cache> sizes = new();
+    private long useCounter;
     public int PageCount => sizes.Values.Sum(c => c.Pages.Count);
 
-    // サイズが少し変わるたびにページを増やさない。必ず表示サイズ以上の区切りを使う。
+    // 最終画素サイズで生成する。段階的に大きい字を作って再縮小しない。
     internal static int RasterSize(float size)
     {
-        foreach (int value in SizeSteps)
-            if (size <= value) return value;
-        return (int)MathF.Ceiling(size);
+        return Math.Max(1, (int)MathF.Ceiling(size * Screen.TextRasterScale));
     }
     private Cache Prepare(string text, int size)
     {
-        if (!sizes.TryGetValue(size, out var cache)) sizes[size] = cache = new();
+        if (!sizes.TryGetValue(size, out var cache))
+        {
+            // ウィンドウを何度もリサイズしても、古いサイズの画像を無制限に残さない。
+            if (sizes.Count >= 24)
+            {
+                var oldest = sizes.MinBy(pair => pair.Value.Used);
+                if (oldest.Value.Pages.Any(page => page.Texture.Id != 0)) Rlgl.DrawRenderBatchActive();
+                foreach (Page page in oldest.Value.Pages) if (page.Texture.Id != 0) Raylib.UnloadTexture(page.Texture);
+                sizes.Remove(oldest.Key);
+            }
+            sizes[size] = cache = new();
+        }
+        cache.Used = ++useCounter;
         List<int>? missing = null;
         foreach (Rune rune in text.EnumerateRunes())
             if (rune.Value >= 32 && !cache.Glyphs.ContainsKey(rune.Value))
@@ -95,7 +106,7 @@ internal sealed class CoverageFont(byte[] fileData) : IDisposable
         if (text.Length == 0 || size <= 0) return new(0, Math.Max(0, size));
         int pixels = RasterSize(size);
         Cache cache = Prepare(text, pixels);
-        float scale = size / pixels, width = 0, maximum = 0;
+        float scale = (Screen.IsDrawingCanvas ? 1 / Screen.TextRasterScale : size / pixels), width = 0, maximum = 0;
         int lines = 1;
         foreach (Rune rune in text.EnumerateRunes())
         {
@@ -108,7 +119,7 @@ internal sealed class CoverageFont(byte[] fileData) : IDisposable
     {
         int pixels = RasterSize(size);
         Cache cache = Prepare(text, pixels);
-        float scale = size / pixels, x = 0, y = 0;
+        float scale = (Screen.IsDrawingCanvas ? 1 / Screen.TextRasterScale : size / pixels), x = 0, y = 0;
         float left = float.PositiveInfinity, top = left, right = float.NegativeInfinity, bottom = right;
         foreach (Rune rune in text.EnumerateRunes())
         {
@@ -131,10 +142,12 @@ internal sealed class CoverageFont(byte[] fileData) : IDisposable
         int pixels = RasterSize(size), drawn = 0;
         Cache cache = Prepare(text, pixels);
         foreach (Page page in cache.Pages) Upload(page);
-        float scale = size / pixels, x = position.X, y = position.Y;
+        float scale = (Screen.IsDrawingCanvas ? 1 / Screen.TextRasterScale : size / pixels), x = position.X, y = position.Y;
+        Vector2 aligned = Screen.SnapTextPosition(position);
+        x = aligned.X; y = aligned.Y;
         foreach (Rune rune in text.EnumerateRunes())
         {
-            if (rune.Value == '\n') { x = position.X; y += size + 2; continue; }
+            if (rune.Value == '\n') { x = aligned.X; y = Screen.SnapTextPosition(new(position.X, y + size + 2)).Y; continue; }
             if (rune.Value < 32 || !cache.Glyphs.TryGetValue(rune.Value, out var glyph)) continue;
             if (glyph.Page >= 0)
             {
@@ -169,3 +182,4 @@ internal sealed class CoverageFont(byte[] fileData) : IDisposable
         sizes.Clear();
     }
 }
+

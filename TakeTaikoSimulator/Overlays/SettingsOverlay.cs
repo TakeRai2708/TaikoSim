@@ -402,7 +402,7 @@ namespace TakeTaikoSimulator.Overlays
                 Screen.Height - (int)HintHeight, Gui.BorderColor);
 
             // はみ出しを切る範囲は、横にずらした分も足す(切る範囲は Translatef の影響を受けないので)
-            Raylib.BeginScissorMode((int)(content.X + slideX), (int)content.Y, (int)content.Width, (int)content.Height);
+            Screen.BeginScissorMode((int)(content.X + slideX), (int)content.Y, (int)content.Width, (int)content.Height);
             Gui.SetClip(confirmOpen || unsavedOpen ? NoClickArea : content);
 
             // カテゴリを変えた直後：中身を 8px 下から戻す(ToScreenY が switchShift を足す。#057)
@@ -442,7 +442,7 @@ namespace TakeTaikoSimulator.Overlays
                 Raylib.DrawRectangleRec(content, Gui.WithAlpha(Gui.PanelColor, 1f - swEase));
 
             Gui.ResetClip();
-            Raylib.EndScissorMode();
+            Screen.EndScissorMode();
             DrawScrollbar(content);
 
             if (confirmOpen || unsavedOpen) Gui.SetClip(NoClickArea);
@@ -1558,4 +1558,5 @@ namespace TakeTaikoSimulator.Overlays
         }
     }
 }
+
 

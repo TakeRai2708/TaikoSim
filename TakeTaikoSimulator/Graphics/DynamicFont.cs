@@ -534,7 +534,7 @@ out vec4 finalColor;
 void main()
 {
     float d = (texture(texture0, fragTexCoord).r - 0.5) * pxPerUnit + dilate;
-    float a = clamp(d + 0.5, 0.0, 1.0);
+    float a = clamp(d / max(fwidth(d), 0.00001) + 0.5, 0.0, 1.0);
     vec4 c = fragColor * colDiffuse;
     finalColor = vec4(c.rgb, c.a * a);
 }
@@ -563,3 +563,4 @@ void main()
         }
     }
 }
+

@@ -79,7 +79,7 @@ namespace TakeTaikoSimulator.Scenes
             Raylib.ClearBackground(new Color(20, 22, 32, 255));
             FontManager.Draw("クレジット", Left, 60, 52, Color.White);
 
-            Raylib.BeginScissorMode(0, (int)Top - 10, Screen.Width, (int)ViewHeight + 10);
+            Screen.BeginScissorMode(0, (int)Top - 10, Screen.Width, (int)ViewHeight + 10);
             float y = Top - scroll;
             foreach (var (text, size, kind) in Lines)
             {
@@ -87,7 +87,7 @@ namespace TakeTaikoSimulator.Scenes
                 if (text.Length > 0) FontManager.Draw(text, Left + (kind == 0 ? 0 : 24), y, size, color);
                 y += kind == 0 ? LineHeight + HeadingExtra : LineHeight;
             }
-            Raylib.EndScissorMode();
+            Screen.EndScissorMode();
 
             // 右はしのスクロールバー(全部見えているときは出さない)
             float max = MaxScroll;
@@ -105,3 +105,4 @@ namespace TakeTaikoSimulator.Scenes
         }
     }
 }
+

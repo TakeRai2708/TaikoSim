@@ -414,9 +414,9 @@ namespace TakeTaikoSimulator.Scenes
 
             // 段位の札：左から右へ出てくる
             float tiles = Math.Clamp((frame - TilesFrom) / (TilesTo - TilesFrom), 0f, 1f);
-            if (tiles < 1f) Raylib.BeginScissorMode(0, 0, (int)(Screen.Width * tiles), Screen.Height);
+            if (tiles < 1f) Screen.BeginScissorMode(0, 0, (int)(Screen.Width * tiles), Screen.Height);
             DrawTiles();
-            if (tiles < 1f) Raylib.EndScissorMode();
+            if (tiles < 1f) Screen.EndScissorMode();
 
             // パネルとプレート：入りでは右からすべりこむ。段位を切りかえたら横へ入れかわる
             if (frame >= PanelFrom)
@@ -849,3 +849,4 @@ namespace TakeTaikoSimulator.Scenes
         }
     }
 }
+

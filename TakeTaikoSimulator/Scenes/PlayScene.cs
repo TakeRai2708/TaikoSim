@@ -1752,7 +1752,7 @@ namespace TakeTaikoSimulator.Scenes
                     foreach (Aup2 anime in danBackground) anime.Draw(anime.LoopedFrameAt(danBackgroundTime));
                 else background.Draw(localPlay ? localPlayer * 960 : 0, localPlay ? 270 : 0, localPlay ? .5f : 1);
             }
-            if (localPlay) Raylib.BeginScissorMode(localPlayer * 960, 270, 960, 540);
+            if (localPlay) Screen.BeginScissorMode(localPlayer * 960, 270, 960, 540);
             chara.DrawNormal();   // どんちゃん（背景の上・レーンの下。足がレーンの枠に少し隠れる）
             // 段位のときは、下半分を条件パネルにする(下の背景・ダンサーの上に描く)
             if (dan != null && danPanel != null)
@@ -2428,4 +2428,5 @@ namespace TakeTaikoSimulator.Scenes
         }
     }
 }
+
 
