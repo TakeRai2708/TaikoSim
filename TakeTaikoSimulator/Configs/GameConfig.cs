@@ -109,6 +109,9 @@
         // FPSを表示するか
         public bool ShowFps { get; set; } = true;
 
+        // マウスを置いた所の座標(1920×1080)を出すか。素材の位置を自分で直すとき用(11/11)
+        public bool ShowCursorPosition { get; set; } = false;
+
         // おかしな値を直す
         public void Fix()
         {

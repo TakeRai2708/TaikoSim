@@ -490,6 +490,7 @@ namespace TakeTaikoSimulator.Overlays
             SubHeader("デバッグ");
             game.DebugLog = CheckboxRow("デバッグ記録（CSV）", game.DebugLog);
             game.ShowPerfOverlay = CheckboxRow("重さの内訳を画面に出す", game.ShowPerfOverlay);
+            game.ShowCursorPosition = CheckboxRow("マウスの位置の座標を出す", game.ShowCursorPosition);
             NoteRow(DebugLog.Active && DebugLog.SessionFolder != null
                 ? $"記録中：Logs/{Path.GetFileName(DebugLog.SessionFolder)}/（frames・events・input の3つの CSV）"
                 : "ON にすると Logs/Debug_日付_時間/ に、毎フレームの重さ・できごと・入力を記録します");

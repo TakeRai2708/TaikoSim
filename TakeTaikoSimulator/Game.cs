@@ -226,6 +226,7 @@ namespace TakeTaikoSimulator
                 FontManager.Draw(fpsText, fpsX, 8, 28, frameMaxShownMs > SlowFrameMs ? Color.Red : Color.Lime);
             }
             if (ConfigManager.Game.ShowPerfOverlay) DrawPerfOverlay();
+            if (ConfigManager.Game.ShowCursorPosition) DrawCursorPosition();
             DebugLog.PauseTextCount(false);
             DebugLog.End(PerfSection.OverlayDraw, t);
 
@@ -266,6 +267,30 @@ namespace TakeTaikoSimulator
 
         // 重さの内訳(右上)。1秒ごとの「平均 / 一番重かったフレーム」を ms で出す
         //   作業 = CPU が働いた時間(表示・待ちを引いたもの)。1000 ÷ 作業 が、出せる FPS のめやす
+        // マウスを置いた所の座標(設定の「マウスの位置の座標を出す」)
+        //   11/11 たけらい：素材の位置がずれていたら自分で直したい。スクショから換算しなくても、座標がそのまま読めるように。
+        //   座標はコードと同じ 1920×1080 のキャンバスの座標(左上が 0, 0)。ウィンドウの大きさは関係ない。
+        //   細い十字の線と、マウスの右下に「x, y」を出す(画面の端では左・上に回る)
+        private static void DrawCursorPosition()
+        {
+            System.Numerics.Vector2 m = Screen.GetMousePosition();
+            if (m.X < 0 || m.Y < 0 || m.X >= Screen.Width || m.Y >= Screen.Height) return;
+            int x = (int)MathF.Floor(m.X), y = (int)MathF.Floor(m.Y);
+
+            Color line = new Color(0, 255, 255, 110);
+            Raylib.DrawLine(0, y, Screen.Width, y, line);
+            Raylib.DrawLine(x, 0, x, Screen.Height, line);
+
+            string text = $"{x}, {y}";
+            const float size = 28;
+            System.Numerics.Vector2 t = FontManager.Measure(text, size);
+            float bx = x + 18, by = y + 18;
+            if (bx + t.X + 16 > Screen.Width) bx = x - 18 - t.X - 16;
+            if (by + t.Y + 8 > Screen.Height) by = y - 18 - t.Y - 8;
+            Raylib.DrawRectangleRec(new Rectangle(bx, by, t.X + 16, t.Y + 8), new Color(0, 0, 0, 200));
+            FontManager.Draw(text, bx + 8, by + 4, size, Color.SkyBlue);
+        }
+
         private static void DrawPerfOverlay()
         {
             const float size = 20f, line = 24f, width = 330f;
