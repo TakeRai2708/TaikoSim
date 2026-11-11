@@ -85,10 +85,10 @@ public static class NamePlate
                 if (image.Anime != null && !SkinManager.SystemSkin)
                 {
                     float frame = (float)(Raylib.GetTime() * 60 % (image.Anime.LastFrame + 1));
-                    image.Anime.Draw(frame, new(image.X + 1, image.Y + 2), alpha);
+                    image.Anime.Draw(frame, new(image.X, image.Y), alpha);
                 }
                 else if (image.Base != null && SkinManager.GetTexture(image.Base) is Texture2D plate)
-                    Raylib.DrawTextureEx(plate, new(image.X + 1, image.Y + 2), 0, 1, white);
+                    Raylib.DrawTextureEx(plate, new(image.X, image.Y), 0, 1, white);
                 else Raylib.DrawRectangle(60, 7, 264, 29, Raylib.ColorAlpha(new Color(55, 95, 160, 255), alpha));
             }
             else
