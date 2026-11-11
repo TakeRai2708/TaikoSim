@@ -50,7 +50,6 @@ public static class NamePlate
     public static void Preload()
     {
         SkinManager.GetTexture(Root + "NamePlate_Base.png");
-        SkinManager.GetTexture(Root + "NamePlate_Rank_Gold.png");
         for (int slot = 1; slot <= 3; slot++)
         {
             try
@@ -91,8 +90,6 @@ public static class NamePlate
                 else if (image.Base != null && SkinManager.GetTexture(image.Base) is Texture2D plate)
                     Raylib.DrawTextureEx(plate, new(image.X, image.Y), 0, 1, white);
                 else Raylib.DrawRectangle(60, 7, 264, 29, Raylib.ColorAlpha(new Color(55, 95, 160, 255), alpha));
-                // 1P赤・2P青。シートの中央の青1Pは使用しない。
-                Raylib.DrawTexturePro(sheet, new(side == 0 ? 0 : 160, 80, 80, 80), new(-8, -1, 80, 80), Vector2.Zero, 0, white);
             }
             else
             {
@@ -104,15 +101,22 @@ public static class NamePlate
             bool rank = data.Rank.Length > 0;
             if (rank)
             {
-                // 段位があるときだけ、名前の左側に黒い帯を置く。
-                Rectangle rankArea = new(73, 36, 76, 35);
-                Raylib.DrawRectangleRec(rankArea, Raylib.ColorAlpha(Color.Black, alpha));
-                if (data.IsRankGold && SkinManager.GetTexture(Root + "NamePlate_Rank_Gold.png") is Texture2D gold)
-                    Raylib.DrawTexturePro(gold, new(0, 0, gold.Width, gold.Height), rankArea, Vector2.Zero, 0, white);
-                Color rankColor = data.RankType == 1 ? new Color(255, 218, 85, 255) : data.RankType == 2
-                    ? Raylib.ColorFromHSV((float)(Raylib.GetTime() * 70 % 360), .55f, 1) : new Color(225, 233, 240, 255);
+                // 09.zipの原本を確認。黒い段位欄と銀・金・虹の飾りは共通シートに入っている。
+                if (SkinManager.GetTexture(Root + "NamePlate_Base.png") is Texture2D rankSheet
+                    && rankSheet.Width >= 328 && rankSheet.Height >= 523)
+                {
+                    Raylib.DrawTexturePro(rankSheet, new(12, 241, 131, 34), new(12, 40, 131, 34), Vector2.Zero, 0, white);
+                    int type = Math.Clamp(data.RankType, 0, 2);
+                    Raylib.DrawTexturePro(rankSheet, new(72, 323 + 82 * type, 70, 36), new(73, 36, 70, 36), Vector2.Zero, 0, white);
+                }
+                else Raylib.DrawRectangleRec(new(73, 36, 76, 35), Raylib.ColorAlpha(Color.Black, alpha));
+                // 金合格は段位文字の色。rankTypeは上の飾りの種類で、文字色とは別。
+                Color rankColor = data.IsRankGold ? new Color(255, 218, 85, 255) : new Color(225, 233, 240, 255);
                 Text(data.Rank, new(76, 37, 69, 33), 24, Raylib.ColorAlpha(rankColor, alpha), Raylib.ColorAlpha(Color.Black, alpha));
             }
+            // 段位欄の上にバッジを重ねる。各バッジは82px刻みで、80pxでは右端が切れる。
+            if (SkinManager.GetTexture(Root + "NamePlate_Base.png") is Texture2D badgeSheet)
+                Raylib.DrawTexturePro(badgeSheet, new(side == 0 ? 0 : 164, 80, 82, 80), new(-8, -1, 82, 80), Vector2.Zero, 0, white);
             NameText(data.Name, new(rank ? 151 : 76, 37, rank ? 174 : 249, 33), white, Raylib.ColorAlpha(Color.Black, alpha));
         }
         finally { Rlgl.PopMatrix(); }
