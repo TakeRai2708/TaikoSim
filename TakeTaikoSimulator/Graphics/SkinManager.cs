@@ -163,6 +163,12 @@ namespace TakeTaikoSimulator.Graphics
         public static string DisplayName { get; private set; } = "";
         public static string Version { get; private set; } = "";
         public static string Description { get; private set; } = "";
+        // SkinConfig.json で指定したフォント(スキンのフォルダからの場所。書いてなければ null)
+        //   11/11 たけらい「コンフィグ作ってそこで指定にしよう」
+        //   mainFont：曲名・ネームプレートなどの太い字(無ければ今までどおり Font/default.ttf か .otf)
+        //   systemFont：設定画面・説明などのふつうの字(無ければ今までどおり Assets/Fonts のフォント)
+        public static string? MainFontFile { get; private set; }
+        public static string? SystemFontFile { get; private set; }
 
         // スキンフォルダの中にあるスキンの一覧(毎フレーム探すと重いので覚えておく)
         public static List<string> SkinNames { get; private set; } = new();
@@ -217,7 +223,8 @@ namespace TakeTaikoSimulator.Graphics
             yield return (++done, total, "ゲージを準備しています");
             PrepareRollHeatShader();
             yield return (++done, total, "連打の演出を準備しています");
-            FontManager.ReloadSkinMainFont(CurrentPath);
+            FontManager.ReloadSystemFont(CurrentPath, SystemFontFile);
+            FontManager.ReloadSkinMainFont(CurrentPath, MainFontFile);
             yield return (++done, total, "背景を準備しています");
             PlayBackground.ReloadSkin();
             yield return (++done, total, "キャラクターを準備しています");
@@ -539,6 +546,8 @@ namespace TakeTaikoSimulator.Graphics
             DisplayName = CurrentName;
             Version = "";
             Description = "";
+            MainFontFile = null;
+            SystemFontFile = null;
 
             if (CurrentPath == null) return;
 
@@ -553,6 +562,10 @@ namespace TakeTaikoSimulator.Graphics
                 if (root.TryGetProperty("skinName", out JsonElement name)) DisplayName = name.GetString() ?? DisplayName;
                 if (root.TryGetProperty("skinVersion", out JsonElement version)) Version = version.GetString() ?? "";
                 if (root.TryGetProperty("skinDescription", out JsonElement description)) Description = description.GetString() ?? "";
+                if (root.TryGetProperty("mainFont", out JsonElement mainFont) && mainFont.ValueKind == JsonValueKind.String)
+                    MainFontFile = mainFont.GetString();
+                if (root.TryGetProperty("systemFont", out JsonElement systemFont) && systemFont.ValueKind == JsonValueKind.String)
+                    SystemFontFile = systemFont.GetString();
             }
             catch (Exception ex) when (ex is JsonException || ex is IOException || ex is InvalidOperationException)
             {

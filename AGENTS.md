@@ -178,6 +178,10 @@ tools/build-check/             … compile check without NuGet
       `Bar/1POnly.png`, `Background.png`, `Header.png`, `Background_Fireworks.png`.
       **The doubled `Bar/` is not a mistake** (たけらい checked the real thing)
   - `Font/default.otf` (font for song titles and menus)
+  - Fonts can be chosen in the skin's `SkinConfig.json` (11/11 たけらい chose this over a settings-screen option):
+    `"mainFont"` (song titles, nameplates) and `"systemFont"` (settings, notes, every other text).
+    The value is a path from the skin folder (`"Font/MyFont.otf"`); a bare file name also searches `Font/` and `Fonts/`.
+    Paths outside the skin folder are ignored. Missing or unreadable → the old rules (`Font/default.*`, `Assets/Fonts`)
 - When an image is missing, the program draws it itself (the game must work without a skin)
 - In tests, `SkinManager.SystemSkin = true` treats every image as missing
 

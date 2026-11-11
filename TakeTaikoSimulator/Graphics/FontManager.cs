@@ -27,10 +27,25 @@ namespace TakeTaikoSimulator.Graphics
             ? $"{Path.GetFileName(systemFont.FilePath)}（ページ {systemFont.PageCount}）"
             : "(default)";
 
-        // 初期化(ウィンドウを作った後に1回呼ぶ)
+        // 初期化(ウィンドウを作った後に1回呼ぶ)。スキンを読む前なので、Assets/Fonts のフォントを使う
         public static void Init()
         {
-            string? fontPath = FindFontFile();
+            LoadSystemFont(FindFontFile());
+        }
+
+        // スキンを読んだときに呼ぶ。SkinConfig.json の systemFont があればそれ、無ければ Assets/Fonts のフォント
+        //   同じファイルなら読み直さない(読み直すと、もう読んだ漢字をまた読むことになるので)
+        public static void ReloadSystemFont(string? skinPath, string? configured)
+        {
+            string? path = ResolveSkinFont(skinPath, configured, "systemFont") ?? FindFontFile();
+            if (systemFont != null && path != null && string.Equals(systemFont.FilePath, path, StringComparison.OrdinalIgnoreCase)) return;
+            systemFont?.Dispose();
+            systemFont = null;
+            LoadSystemFont(path);
+        }
+
+        private static void LoadSystemFont(string? fontPath)
+        {
             if (fontPath == null)
             {
                 Console.WriteLine("[Font] Assets/Fonts に .ttf / .otf が無いので標準フォントを使います(日本語は表示できません)");
@@ -39,9 +54,38 @@ namespace TakeTaikoSimulator.Graphics
 
             systemFont = DynamicFont.Load(fontPath, InitialCodepoints());
             if (systemFont == null)
-            {
                 Console.WriteLine($"[Font] {fontPath} を読み込めなかったので標準フォントを使います");
+            else
+                Console.WriteLine($"[Font] ふつうの字：{fontPath}");
+        }
+
+        // SkinConfig.json に書いたフォントの場所を、本当のファイルの場所にする(見つからなければ null)
+        //   書き方：スキンのフォルダからの場所("Font/MyFont.otf")。ファイル名だけなら Font・Fonts フォルダも探す
+        //   スキンのフォルダの外は読まない("../" などは使えない)
+        private static string? ResolveSkinFont(string? skinPath, string? configured, string key)
+        {
+            if (skinPath == null || string.IsNullOrWhiteSpace(configured)) return null;
+            try
+            {
+                string root = Path.GetFullPath(skinPath);
+                string[] candidates =
+                {
+                    Path.Combine(root, configured),
+                    Path.Combine(root, "Font", configured),
+                    Path.Combine(root, "Fonts", configured),
+                };
+                foreach (string candidate in candidates)
+                {
+                    string full = Path.GetFullPath(candidate);
+                    bool inside = full.StartsWith(root.TrimEnd(Path.DirectorySeparatorChar) + Path.DirectorySeparatorChar, StringComparison.OrdinalIgnoreCase);
+                    if (inside && File.Exists(full)) return full;
+                }
             }
+            catch (Exception ex) when (ex is ArgumentException || ex is NotSupportedException || ex is IOException)
+            {
+            }
+            Console.WriteLine($"[Font] SkinConfig.json の {key}「{configured}」が見つからないので、いつものフォントを使います");
+            return null;
         }
 
         // 文字を表示する(Raylib.DrawText の代わりに使う)
@@ -92,12 +136,13 @@ namespace TakeTaikoSimulator.Graphics
             systemFont?.InkBoundsSharp(text, size) ?? new(0, 0, Measure(text, size).X, size);
 
         // 起動時とスキン適用時に読む。現在の曲名の漢字もここで準備しておく。
-        public static void ReloadSkinMainFont(string? skinPath)
+        //   SkinConfig.json の mainFont があればそれ、無ければ Font/default.ttf か .otf
+        public static void ReloadSkinMainFont(string? skinPath, string? configured = null)
         {
             skinMainFont?.Dispose();
             skinMainFont = null;
             SkinMainGeneration++;
-            string? path = FindSkinMainFontFile(skinPath);
+            string? path = ResolveSkinFont(skinPath, configured, "mainFont") ?? FindSkinMainFontFile(skinPath);
             if (path != null)
             {
                 skinMainFont = DynamicFont.Load(path, InitialCodepoints()
