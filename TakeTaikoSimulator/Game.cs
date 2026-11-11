@@ -34,6 +34,7 @@ namespace TakeTaikoSimulator
         // 重さの確認用：直近1秒で一番時間がかかったフレーム(ミリ秒)
         // 普段は 1000 ÷ FPS くらい(120FPSなら約8ms)。カクッとすると大きくなる
         private float frameMaxMs = 0f;      // 今数えている1秒の中の一番大きい値
+        private int fpsShown = 0;           // FPSの表示値も1秒間固定する
         private float frameMaxShownMs = 0f; // 画面に出す値(1秒ごとに入れ替える)
         private float frameWindowTimer = 0f;
         private const float SlowFrameMs = 20f; // これより大きいと赤で出す
@@ -118,6 +119,7 @@ namespace TakeTaikoSimulator
 
             if (frameWindowTimer >= 1f)
             {
+                fpsShown = Raylib.GetFPS();
                 frameMaxShownMs = frameMaxMs;
                 frameMaxMs = 0f;
                 frameWindowTimer = 0f;
@@ -224,7 +226,7 @@ namespace TakeTaikoSimulator
             {
                 // 設定パネルが開いているときはパネルの右隣に出す(ロゴとかぶらないように)
                 float fpsX = settings.IsOpen ? SettingsOverlay.PanelWidth + 10 : 10;
-                string fpsText = $"{Raylib.GetFPS()} FPS　最大 {frameMaxShownMs:F1} ms";
+                string fpsText = $"{fpsShown} FPS　最大 {frameMaxShownMs:F1} ms";
                 FontManager.Draw(fpsText, fpsX, 8, 28, frameMaxShownMs > SlowFrameMs ? Color.Red : Color.Lime);
             }
             if (ConfigManager.Game.ShowPerfOverlay) DrawPerfOverlay();
