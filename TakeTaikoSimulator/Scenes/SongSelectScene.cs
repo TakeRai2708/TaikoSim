@@ -1342,7 +1342,7 @@ namespace TakeTaikoSimulator.Scenes
             float a = alpha * open; // 開くあいだに、だんだん出す
 
             // 上：カテゴリ名(特別な一覧のときだけ)とお気に入り
-            if (openSpecial != Special.None) Text(item.CategoryTitle, inner.X + 16, inner.Y + 8, 20, Fade(ink, a));
+            if (openSpecial != Special.None && openSpecial != Special.Recent) Text(item.CategoryTitle, inner.X + 16, inner.Y + 8, 20, Fade(ink, a));
             if (favorite) Text("♥ お気に入り", inner.X + inner.Width - 150, inner.Y + 8, 20, Fade(new Color(230, 80, 130, 255), a));
 
             // 曲名・サブタイトル(TaikøNauts と同じく板の上の方)
