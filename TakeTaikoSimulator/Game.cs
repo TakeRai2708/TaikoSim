@@ -88,6 +88,7 @@ namespace TakeTaikoSimulator
             WindowsIme.Shutdown(); // ウィンドウを閉じる前に、横取りしていたメッセージを元に戻す
             SceneManager.Current?.Exit(); // 曲もここで片付く
             MenuBgm.Shutdown();
+            Platform.DiscordPresence.Shutdown();
             AudioManager.Free();
             CharaBaker.Stop();
             KeyProbe.Stop();
@@ -154,6 +155,7 @@ namespace TakeTaikoSimulator
 
             // どんちゃんの声のくり返し（設定パネル中・画面の切り替え中も進める）
             MenuVoice.Update(dt);
+            Platform.DiscordPresence.Update(SceneManager.Current);
 
             // 設定パネルが開いているときは、後ろの画面は操作させない
             if (settings.IsOpen)

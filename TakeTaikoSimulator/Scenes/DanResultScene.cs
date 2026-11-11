@@ -21,6 +21,8 @@ namespace TakeTaikoSimulator.Scenes
     //   スキンに Image/09.DanResult/ があれば、その画像で描く（DanResultAStyle。11/5 の六段の動画で測った）
     public sealed class DanResultScene : Scene
     {
+        public override Platform.DiscordPresence.Info? Presence => new("段位道場", "リザルト");
+
         private readonly DanPlay dan;
         private readonly DanResultType result;
         private float age;

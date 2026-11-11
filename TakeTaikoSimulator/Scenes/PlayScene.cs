@@ -362,6 +362,29 @@ namespace TakeTaikoSimulator.Scenes
         // 演奏中は設定パネルを開かない
         public override bool CanOpenSettings => false;
 
+        // Discord の「プレイ中」：1行目に曲名（段位なら段位名）、2行目に難易度など、残り時間
+        //   「曲名を出さない」の設定なら、曲名のかわりに「演奏中」
+        public override Platform.DiscordPresence.Info? Presence
+        {
+            get
+            {
+                if (chart == null || course == null) return new("曲を読み込んでいます");
+                bool showTitle = Platform.DiscordPresence.ShowSongTitle;
+                string title = showTitle && chart.Title.Length > 0 ? chart.Title : "演奏中";
+                string level = $"{Chart.GetCourseName(course.Type)} ★{course.Level}";
+                long? end = PlaybackRate > 0 ? Platform.DiscordPresence.EndAfter((course.EndTimeMs - nowMs) / 1000.0 / PlaybackRate) : null;
+
+                if (dan != null)
+                {
+                    string song = showTitle && chart.Title.Length > 0 ? $"{dan.SongIndex + 1}曲目：{chart.Title}" : $"{dan.SongIndex + 1}曲目 / {dan.Tallies.Length}";
+                    return new(dan.Course.Title.Length > 0 ? dan.Course.Title : "段位道場", song, end);
+                }
+                if (isTraining)
+                    return trainingPaused ? new(title, $"特訓モード · {level}（一時停止中）") : new(title, $"特訓モード · {level}", end);
+                return new(title, autoPlay ? $"{level} · オート" : level, end);
+            }
+        }
+
         public PlayScene(string path, CourseType? courseType = null, bool returnToSelect = false, bool training = false)
         {
             isTraining = training;

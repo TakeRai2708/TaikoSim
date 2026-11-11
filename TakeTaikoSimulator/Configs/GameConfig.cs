@@ -112,6 +112,12 @@
         // マウスを置いた所の座標(1920×1080)を出すか。素材の位置を自分で直すとき用(11/11)
         public bool ShowCursorPosition { get; set; } = false;
 
+        // Discord の「プレイ中」に、今なにをしているかを出すか(11/11)
+        public bool DiscordPresence { get; set; } = true;
+
+        // Discord に曲名を出さないか(ON なら難易度だけ出す)
+        public bool DiscordHideSongTitle { get; set; } = false;
+
         // おかしな値を直す
         public void Fix()
         {

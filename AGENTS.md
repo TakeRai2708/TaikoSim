@@ -984,3 +984,9 @@ Order:
 - Dressing resets inherited GUI click clipping and snapshots the visible list top. It defers one row selection until after list drawing. Old in-loop Select changed top and could process one click repeatedly (20-item algorithm reproduction: row7 selected7,10,13,16,18; fixed:7 only). Windows mouse/resize verification remains pending; this does not prove every reported click-coordinate symptom resolved.
 - Remaining: the reported1P badge right-edge crop is not fixed. The original NamePlate_Base.png is absent from this task filesystem; do not guess new atlas cell dimensions from a screenshot. Request/retrieve that original sheet before changing the crop.
 - Validation: Linux source build0errors/253existing warnings;101profile/nameplate checks;40offscreen resolution checks. Production Windows-target build was attempted but blocked by missing restored runtime pack/ILLink.Tasks10.0.14 in this environment. No csproj/AOT settings changed. Windows game/IME/audio and Native AOT publish were not tested.
+
+## Discord Rich Presence (11/11)
+- `Platform/DiscordPresence.cs`. No library: writes JSON frames to the `discord-ipc-0..9` named pipe on a background thread (Utf8JsonWriter, AOT-safe).
+- Each scene overrides `Scene.Presence` (details = line 1, state = line 2, end = "remaining" countdown). Sent only when it changes, at least 2 s apart.
+- たけらい: the result screen shows no score rank. Settings: 一般 → Discord (`DiscordPresence`, `DiscordHideSongTitle`).
+- `ApplicationId` is empty until たけらい creates the Discord app; the art asset is named `logo` (never A-Style art).

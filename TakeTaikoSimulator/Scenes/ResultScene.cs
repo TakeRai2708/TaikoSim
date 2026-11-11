@@ -26,6 +26,8 @@ namespace TakeTaikoSimulator.Scenes
     //   ドン・Esc・Enter で選曲画面へ戻る(何もしなければ 20秒で戻る)。
     public sealed class ResultScene : Scene
     {
+        public override Platform.DiscordPresence.Info? Presence => new("リザルト");   // 11/11 たけらい：スコアランクは出さない
+
         private const string Dir = "Image/05.Result/";
         private const string BackgroundImage = Dir + "Background.png";          // 1920×2160(上半分が1P)
         private const string BackgroundClearImage = Dir + "Background_Clear.png"; // 1920×1080

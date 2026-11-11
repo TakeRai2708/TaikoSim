@@ -7,6 +7,9 @@
         // この画面で設定パネルを開けるか(演奏画面では false にする)
         public virtual bool CanOpenSettings => true;
 
+        // Discord の「プレイ中」に出す内容（Platform/DiscordPresence.cs）。null なら「メニュー」
+        public virtual Platform.DiscordPresence.Info? Presence => null;
+
         // 同じBGMを指定する画面の間では、再生位置をそのまま引き継ぐ。
         public virtual string? MenuBgmFile => null;
         public virtual bool MenuBgmMuted => false;

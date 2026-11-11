@@ -29,6 +29,8 @@ namespace TakeTaikoSimulator.Scenes
     // 選んでいた場所は static に覚えておくので、演奏から戻ってきても同じ曲を選んだまま
     public class SongSelectScene : Scene
     {
+        public override Platform.DiscordPresence.Info? Presence => new("曲を選んでいます");
+
         // プレイヤーを変えたら、その人のお気に入り・最近の曲で一覧を作り直す。
         public static void ResetForProfile()
         {

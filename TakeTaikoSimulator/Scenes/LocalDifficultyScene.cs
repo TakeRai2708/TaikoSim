@@ -12,6 +12,8 @@ namespace TakeTaikoSimulator.Scenes;
 // 同じ曲で難易度とオプションを別々に決める、2P用のテスト画面。
 public sealed class LocalDifficultyScene(SongEntry song) : Scene
 {
+    public override Platform.DiscordPresence.Info? Presence => new("2人プレイ", "曲を選んでいます");
+
     private readonly CourseType[] courses = song.Courses.Select(c => c.Type)
         .Where(c => c <= CourseType.Edit).Distinct().OrderBy(c => c).ToArray();
     private readonly int[] cursor = new int[2];

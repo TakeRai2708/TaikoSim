@@ -93,6 +93,8 @@ namespace TakeTaikoSimulator.Scenes
         // 読み込み中は設定パネルを開けない(スキンを読む前なので、パネルの絵が出せない)
         public override bool CanOpenSettings => false;
 
+        public override Platform.DiscordPresence.Info? Presence => new("起動中");
+
         public override void Enter()
         {
         }

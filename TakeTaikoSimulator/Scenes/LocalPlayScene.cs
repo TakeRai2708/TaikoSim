@@ -12,6 +12,10 @@ namespace TakeTaikoSimulator.Scenes;
 // 通常演奏を2つ動かす。音源は1つだけにして、両方の譜面を同じ時計で進める。
 public sealed class LocalPlayScene : Scene
 {
+    public override Platform.DiscordPresence.Info? Presence => Platform.DiscordPresence.ShowSongTitle
+        ? new(song.Title, "2人で演奏中")
+        : new("2人で演奏中");
+
     private readonly SongEntry song;
     private readonly PlayScene[] players;
     private bool finished;

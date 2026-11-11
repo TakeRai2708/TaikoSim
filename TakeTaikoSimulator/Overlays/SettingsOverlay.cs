@@ -491,6 +491,18 @@ namespace TakeTaikoSimulator.Overlays
             game.DebugLog = CheckboxRow("デバッグ記録（CSV）", game.DebugLog);
             game.ShowPerfOverlay = CheckboxRow("重さの内訳を画面に出す", game.ShowPerfOverlay);
             game.ShowCursorPosition = CheckboxRow("マウスの位置の座標を出す", game.ShowCursorPosition);
+
+            // ----- Discord(「プレイ中」の表示) -----
+            SubHeader("Discord");
+            game.DiscordPresence = CheckboxRow("Discord に遊んでいる内容を出す", game.DiscordPresence);
+            game.DiscordHideSongTitle = CheckboxRow("曲名を出さない（難易度だけ出す）", game.DiscordHideSongTitle);
+            NoteRow(Platform.DiscordPresence.CurrentStatus switch
+            {
+                Platform.DiscordPresence.Status.Connected => "Discord とつながっています",
+                Platform.DiscordPresence.Status.Waiting => "Discord を探しています（Discord のアプリを起動してください）",
+                Platform.DiscordPresence.Status.NoId => "Application ID がまだ入っていません（Platform/DiscordPresence.cs）",
+                _ => "OFF",
+            });
             NoteRow(DebugLog.Active && DebugLog.SessionFolder != null
                 ? $"記録中：Logs/{Path.GetFileName(DebugLog.SessionFolder)}/（frames・events・input の3つの CSV）"
                 : "ON にすると Logs/Debug_日付_時間/ に、毎フレームの重さ・できごと・入力を記録します");
