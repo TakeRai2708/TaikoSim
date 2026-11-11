@@ -110,7 +110,7 @@ public static class NamePlate
                     ? Raylib.ColorFromHSV((float)(Raylib.GetTime() * 70 % 360), .55f, 1) : new Color(225, 233, 240, 255);
                 Text(data.Rank, new(76, 44, 69, 28), 24, Raylib.ColorAlpha(rankColor, alpha), Raylib.ColorAlpha(Color.Black, alpha));
             }
-            Text(data.Name, new(rank ? 151 : 76, 43, rank ? 174 : 249, 29), 35, white, Raylib.ColorAlpha(Color.Black, alpha));
+            Text(data.Name, new(rank ? 151 : 76, 37, rank ? 174 : 249, 29), 35, white, Raylib.ColorAlpha(Color.Black, alpha));
         }
         finally { Rlgl.PopMatrix(); }
     }

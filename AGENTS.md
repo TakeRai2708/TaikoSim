@@ -972,3 +972,11 @@ Order:
 
 
 - Regression checks after this change: nameplate/profile101, record/local-player/BGM82, training50, CPU font/raster/atlas978. Font checks now exercise14 exact raster sizes rather than9 buckets.
+
+### Entry/plate/dressing alignment follow-up (2026-11-11)
+- User supplied four screenshots. CreditBar.png in the existing private01.Entry.zip has baked black-label bounds y73..125 in cell0 and y59..111 in cell1 (measured in x140..410/y45..140). Right-hand entry text now centers at cell-relative99.5/85.5, correcting the second-row14px mismatch; participation flow is unchanged.
+- Shared Free Play changes48->45px and outline3->5px at the same center. Shared name text moves6logical px upward (area y43->37); titles/ranks/config/data remain unchanged.
+- Dressing preview uses screenshot-indicated orange/yellow areas: Don image origin(1295,240), existing scale, assuming the supplied A-Style820x599 transparent frame; plate origin(1385,710), native scale1 instead of1.8. Other skins with different transparent margins may need further tuning. These are user-screenshot adjustments, not new reference-video measurements.
+- Dressing resets inherited GUI click clipping and snapshots the visible list top. It defers one row selection until after list drawing. Old in-loop Select changed top and could process one click repeatedly (20-item algorithm reproduction: row7 selected7,10,13,16,18; fixed:7 only). Windows mouse/resize verification remains pending; this does not prove every reported click-coordinate symptom resolved.
+- Remaining: the reported1P badge right-edge crop is not fixed. The original NamePlate_Base.png is absent from this task filesystem; do not guess new atlas cell dimensions from a screenshot. Request/retrieve that original sheet before changing the crop.
+- Validation: Linux source build0errors/253existing warnings;101profile/nameplate checks;40offscreen resolution checks. Production Windows-target build was attempted but blocked by missing restored runtime pack/ILLink.Tasks10.0.14 in this environment. No csproj/AOT settings changed. Windows game/IME/audio and Native AOT publish were not tested.

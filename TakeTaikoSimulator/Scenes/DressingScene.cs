@@ -173,6 +173,7 @@ public sealed class DressingScene : Scene
     public override void Draw()
     {
         Gui.BeginFrame();
+        Gui.ResetClip(); // 前の画面のクリック範囲を引き継がない
         Raylib.ClearBackground(new Color(10, 17, 28, 255));
         FontManager.Draw("着せ替え", 80, 55, 48, Color.White);
         for (int player = 0; player < 2; player++)
@@ -192,15 +193,17 @@ public sealed class DressingScene : Scene
         Raylib.DrawRectangleRounded(List, .02f, 8, new Color(21, 32, 49, 255));
         if (drafts.ContainsKey(Slot))
         {
-            for (int i = top; i < Math.Min(Count, top + 9); i++)
+            // 描画途中で選択・スクロールを変えると、同じクリックが別の行にも当たる。
+            int visibleTop = top, clickedRow = -1;
+            for (int i = visibleTop; i < Math.Min(Count, visibleTop + 9); i++)
             {
-                Rectangle row = new(100, 255 + (i - top) * 65, 660, 59);
+                Rectangle row = new(100, 255 + (i - visibleTop) * 65, 660, 59);
                 if (i == cursor) Raylib.DrawRectangleRec(row, new Color(44, 88, 132, 255));
                 string label = Label(i);
                 float size = 30 * Math.Min(1, 616 / Math.Max(1, FontManager.Measure(label, 30).X));
                 FontManager.Draw(label, row.X + 22, row.Y + (row.Height - size) / 2, size, Color.White);
                 if (!asking && !readFailed && !naming && Gui.Clicked(row))
-                { Select(i); if (category == 3 && i == 0) BeginNameEdit(); }
+                clickedRow = i;
             }
             if (Count == 0) FontManager.Draw("このスキンには素材がありません", 116, 280, 28, Color.LightGray);
             if (Count > 9)
@@ -209,14 +212,18 @@ public sealed class DressingScene : Scene
                 float h = 585f * 9 / Count;
                 Raylib.DrawRectangle(775, 255 + (int)((585 - h) * top / (Count - 9)), 5, (int)h, Color.SkyBlue);
             }
+            // 一覧を描き終えてから、一つの行だけ選択する。
+            if (clickedRow >= 0)
+            { Select(clickedRow); if (category == 3 && clickedRow == 0) BeginNameEdit(); }
             string title = $"{side + 1}P  {Current.Plate.Name}";
             FontManager.Draw(title, 890, 245, 36 * Math.Min(1, 910 / Math.Max(1, FontManager.Measure(title, 36).X)), Color.White);
-            NamePlate.Draw(Slot, side, 980, 345, 1.8f, preview: Current.Plate);
+            NamePlate.Draw(Slot, side, 1385, 710, preview: Current.Plate);
             string? rel = category == 0 && characters.Length > 0 ? "Image/99.Common/Chara/" + characters[cursor] + "/songselect_loop/0.png" : null;
             if (rel != null && SkinManager.GetTexture(rel) is Texture2D tex)
             {
                 float scale = Math.Min(720f / tex.Width, 370f / tex.Height);
-                Raylib.DrawTextureEx(tex, new(920, 500), 0, scale, Color.White);
+                // 添付のオレンジ枠へ。A-Styleの透明余白を含む820×599画像が基準。
+                Raylib.DrawTextureEx(tex, new(1295, 240), 0, scale, Color.White);
             }
             if (category == 1)
             {

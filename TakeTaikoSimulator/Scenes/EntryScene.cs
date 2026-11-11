@@ -233,8 +233,8 @@ public sealed class EntryScene : Scene
             string message = LocalSession.Count == 0 ? "太鼓をたたいてスタート!"
                 : i == 0 ? LocalSession.Count == 1 ? $"{LocalSession.Controller + 1}P参加中　もう一度ドンで決定" : "2人プレイを選択中"
                 : LocalSession.Count == 1 ? $"{2 - LocalSession.Controller}Pのドンで2人プレイ" : "もう一度ドンで決定";
-            // 左の焼き込み文字と、描画した文字の見た目の中心を揃える。
-            Rectangle area = new(row.X + 470, row.Y + 61, 630, 77);
+            // CreditBarの焼き込み文字は、2行目だけセル内で14px上にある。
+            Rectangle area = new(row.X + 470, row.Y + 61 - i * 14, 630, 77);
             Rectangle ink = FontManager.MeasureSkinMainInk(message, 54);
             float size = 54 * Math.Min(1, (area.Width - 12) / Math.Max(1, ink.Width));
             ink = FontManager.MeasureSkinMainInk(message, size);

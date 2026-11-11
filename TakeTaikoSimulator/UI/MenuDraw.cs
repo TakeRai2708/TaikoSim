@@ -20,7 +20,7 @@ namespace TakeTaikoSimulator.UI
         public static void FreePlay()
         {
             const string text = "フリープレイ";
-            const float size = 48, outline = 3;
+            const float size = 45, outline = 5;
             Rectangle ink = FontManager.MeasureSkinMainInk(text, size);
             FontManager.DrawSkinMainOutlined(text, 960 - ink.X - ink.Width / 2, 1052 - ink.Y - ink.Height / 2,
                 size, Color.White, Color.Black, outline);
