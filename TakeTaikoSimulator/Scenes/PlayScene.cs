@@ -19,8 +19,14 @@ namespace TakeTaikoSimulator.Scenes
         private const float LaneX = 494;          // レーンの左端
         private const float LaneY = 276;          // レーン(と左パネル)の上端
         private const float LaneHeight = 264;
-        private const float JudgeX = 620;         // 判定枠の中心x
-        private const float NoteY = 389;          // 音符の中心y
+        // 判定の場所（音符が止まる所＝判定枠の中心＝判定 ±0ms の所。演奏・特訓・段位・2人プレイで共通）
+        //   11/11 たけらい「判定枠ずれてる。ノーツと判定枠ピッタリじゃないと」
+        //     前は 音符 (620, 389)・判定枠の画像の左上 (522, 291) で、音符の画像（左上 522.5, 291.5）と枠の画像が半ピクセルずれていた
+        //     （シンプルスキンは枠の絵が画像の中で 1px 左だったので、合わせて 1.5px ずれていた）。
+        //   OpenTaiko と同じに「判定の瞬間、音符の画像と判定枠の画像は同じ左上に重なる」ようにした。
+        //     判定枠の左上は本家の動画と合わせた (522, 291) のまま。音符のほうを 0.5px 動かして、枠も JudgeX・NoteY から決める。
+        private const float JudgeX = 619.5f;      // 判定枠の中心x（= 522 + 195/2）
+        private const float NoteY = 388.5f;       // 音符の中心y（= 291 + 195/2）
         private const float BarTop = 288;         // 小節線の上端
         private const float BarBottom = 488;      // 小節線の下端
         private const float SeTextY = 490;        // 音符の下の文字の上端
@@ -2143,10 +2149,10 @@ namespace TakeTaikoSimulator.Scenes
         // 判定枠(レーンの光より上に描く。光っていても判定枠が見えるように)
         private static void DrawJudgeFrame()
         {
-            // 枠の画像の左上は (522, 291)。音符の流れ・判定時刻・花火の原点は変えない。
-            //   11/7：本家（TaikøNauts の六段の動画 26秒）と1pxずつずらして重ねたら、ここがいちばん合った
-            //   （前は (JudgeX + 1 − 97.5, NoteY − 97.5) で、本家より右に2px・下に1px ずれていた）
-            const float frameLeft = 522f, frameTop = 291f;
+            // 枠の画像の左上は、判定の瞬間の音符の画像の左上と同じ（= (522, 291)）。必ず JudgeX・NoteY から決める。
+            //   11/7：本家（TaikøNauts の六段の動画 26秒）と1pxずつずらして重ねたら、(522, 291) がいちばん合った
+            //   11/11：音符のほうを (522, 291) に合わせた（JudgeX・NoteY の説明）
+            const float frameLeft = JudgeX - NoteHalf, frameTop = NoteY - NoteHalf;
             if (!SkinManager.Draw(JudgeFrameImage, frameLeft, frameTop))
             {
                 // 画像が無いとき(システムのスキン)は、本当の判定の場所(JudgeX)に描く

@@ -128,8 +128,13 @@ public static class SongRecordPanel
 
     private static void RankFallback(int rank, Rectangle rect, float alpha)
     {
-        Color[] colors = { Color.White, new(204, 140, 83, 255), Color.LightGray, Color.Gold, Color.Pink, Color.Purple, Color.Yellow };
-        Label(rank == 7 ? "極" : rank >= 4 ? "雅" : "粋", rect, rect.Height * 0.8f, colors[Math.Clamp(rank - 1, 0, 6)], alpha);
+        // 絵が無いスキン（シンプル）は、演奏・リザルトのスコアランクと同じ E〜SS の字と色で出す
+        //   11/11 たけらい「スコアランク英語にして。なんでここだけ」（前は 粋・雅・極 の字だった。tools/skin-gen/play.py の RANKS と同じ）
+        string[] letters = { "E", "D", "C", "B", "A", "S", "SS" };
+        Color[] colors = { new(150, 150, 160, 255), new(120, 170, 210, 255), new(110, 200, 140, 255), new(240, 200, 70, 255),
+            new(255, 150, 60, 255), new(255, 110, 150, 255), new(190, 130, 255, 255) };
+        int i = Math.Clamp(rank - 1, 0, 6);
+        Label(letters[i], rect, rect.Height * (i == 6 ? 0.62f : 0.8f), colors[i], alpha);
     }
 
     private static void CrownFallback(SongClearType clear, Rectangle rect, float alpha)

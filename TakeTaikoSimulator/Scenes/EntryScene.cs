@@ -54,7 +54,7 @@ public sealed class EntryScene : Scene
             "DataLoad_Panel.png", "DataLoad_Text.png", "PlayerData_Panel.png", "Cursor_Left.png", "Cursor_Right.png", "Background_Fireworks.png" });
         PrepareGuide();
         MenuSkin.Preload(MenuSkin.SongFolder, SongRecordPanel.Images);
-        FontManager.PreloadSkinMain(new[] { "使用するデータを選んでくださいプレイヤー123記録なしおに裏譜面クリアフルコンボドンダフル記録が読めません左右カッえらぶドン決定戻る終了太鼓をたたいてスタート" });
+        FontManager.PreloadSkinMain(new[] { "使用するデータを選んでくださいプレイヤー123記録なしおに裏譜面クリアフルコンボドンダフル記録が読めません左右カッえらぶドン決定戻る終了太鼓をたたいてスタートEDCBAS" });
         for (int i = 0; i < 3; i++)
         {
             registered[i] = PlayerDataStore.HasName(i + 1);

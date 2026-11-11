@@ -964,7 +964,7 @@ namespace TakeTaikoSimulator.Scenes
 
             IEnumerable<string> Texts()
             {
-                yield return "演奏ゲーム難易度ジャンルを最近遊んだ曲最近追加された曲お気に入りカテゴリをえらぶとじるランダムにえらぶ全曲もどるオプション易普難鬼裏表なし★♥◀0123456789えらぶ決定1P検索読み込み中件一覧更新設定開閉入外当自己ベスト粋雅極かんたんふつうむずかしいおに";
+                yield return "演奏ゲーム難易度ジャンルを最近遊んだ曲最近追加された曲お気に入りカテゴリをえらぶとじるランダムにえらぶ全曲もどるオプション易普難鬼裏表なし★♥◀0123456789えらぶ決定1P検索読み込み中件一覧更新設定開閉入外当自己ベストEDCBASかんたんふつうむずかしいおに";
                 foreach (SongCategory category in categories)
                 {
                     yield return category.Title;
