@@ -38,14 +38,14 @@ public static class SongRecordPanel
             for (int i = 0; i < 3; i++) CrownFallback((SongClearType)(i + 1), new(42 + i * 94, 452, 36, 30), alpha);
         }
         // パネルの絵に印が入っているので、ここでは数字だけを重ねる。
-        Number("ScorePanel_Number.png", totals.Ranks[6], 300, 348, 18, 22, 16, 70, alpha);
+        Number("ScorePanel_Number.png", totals.Ranks[6], 300, 346, 18, 22, 16, 70, alpha);
         for (int i = 0; i < 3; i++)
         {
             float x = 110 + i * 94;
-            Number("ScorePanel_Number.png", totals.Ranks[3 + i], x, 380, 18, 22, 16, 70, alpha);
-            Number("ScorePanel_Number.png", totals.Ranks[i], x, 420, 18, 22, 16, 70, alpha);
+            Number("ScorePanel_Number.png", totals.Ranks[3 + i], x, 385, 18, 22, 16, 70, alpha);
+            Number("ScorePanel_Number.png", totals.Ranks[i], x, 424, 18, 22, 16, 70, alpha);
             int crowns = i == 0 ? totals.Cleared : i == 1 ? totals.FullCombo : totals.DondaFullCombo;
-            Number("ScorePanel_Number.png", crowns, x, 460, 18, 22, 16, 70, alpha);
+            Number("ScorePanel_Number.png", crowns, x, 462, 18, 22, 16, 70, alpha);
         }
     }
 
