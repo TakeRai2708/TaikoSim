@@ -110,6 +110,37 @@ namespace TakeTaikoSimulator.UI
             FontManager.DrawSkinMainOutlined(text, x, y, size, fill, outline, OutlineWidth(size));
         }
 
+        // ===== 細かい字のフォント（スキンの Default2.ttf。曲名の大きい表示・サブタイトル） =====
+        //   11/13 たけらい「曲タイトルの文字の縁の色、太さが違う気がする。ロードの時も」：
+        //   TaikøNauts の録画で見ると、演奏画面・読み込み画面・難易度をえらぶ画面の曲名とサブタイトルは、
+        //   ボタンの丸い字（Default.ttf）ではなく、細かい字のフォント（Default2.ttf）に黒い太い縁だった
+
+        /// <summary>細かい字のフォントで、縁取りした文字を四角の真ん中に（はみ出すなら縮める）。outline は縁の太さ（px）</summary>
+        public static void OutlinedDetail(string text, Rectangle area, float size, Color fill, Color outline, float thickness)
+        {
+            if (text.Length == 0) return;
+            Vector2 measured = FontManager.MeasureDetail(text, size);
+            float limit = area.Width - thickness * 2;
+            if (measured.X > limit && measured.X > 0)
+            {
+                float k = limit / measured.X;
+                size *= k; thickness *= k;
+                measured = FontManager.MeasureDetail(text, size);
+            }
+            thickness = Math.Min(thickness, DynamicFont.MaxOutline(size));
+            float x = area.X + (area.Width - measured.X) / 2f, y = area.Y + (area.Height - measured.Y) / 2f;
+            FontManager.DrawDetailOutlined(text, x, y, size, fill, outline, thickness);
+        }
+
+        /// <summary>細かい字のフォントで、縁なしの文字を四角の真ん中に（はみ出すなら縮める）</summary>
+        public static void CenteredDetail(string text, Rectangle area, float size, Color color)
+        {
+            if (text.Length == 0) return;
+            Vector2 measured = FontManager.MeasureDetail(text, size);
+            if (measured.X > area.Width && measured.X > 0) { size *= area.Width / measured.X; measured = FontManager.MeasureDetail(text, size); }
+            FontManager.DrawDetail(text, area.X + (area.Width - measured.X) / 2f, area.Y + (area.Height - measured.Y) / 2f, size, color);
+        }
+
         // ===== 色・形 =====
 
         // 角の丸さ(半径 px)を、DrawRectangleRounded の roundness(短い辺に対する割合)に直す

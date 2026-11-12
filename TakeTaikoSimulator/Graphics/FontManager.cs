@@ -236,6 +236,13 @@ namespace TakeTaikoSimulator.Graphics
             else DrawOutlined(text, x, y, size, fill, outline, thickness);
         }
 
+        /// <summary>細かい字のフォントに、文字を先に読み込む（無ければシステム用のフォント）</summary>
+        public static void PreloadDetail(IEnumerable<string> texts)
+        {
+            if (skinDetailFont != null) skinDetailFont.Preload(texts);
+            else Preload(texts);
+        }
+
         public static Vector2 MeasureDetail(string text, float size) =>
             skinDetailFont?.Measure(text, size) ?? Measure(text, size);
 

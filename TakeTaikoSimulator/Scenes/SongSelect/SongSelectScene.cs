@@ -1135,6 +1135,7 @@ namespace TakeTaikoSimulator.Scenes
                 }
             }
             FontManager.PreloadSkinMain(Texts()); // 文字はスキンの太字フォントで描く
+            FontManager.PreloadDetail(Texts());   // 難易度をえらぶ画面の曲名・サブタイトルは細かい字のフォント
         }
 
         // ===== TaikøNauts のスキン(02.SongSelect の Bar/番号.png など) =====
@@ -1521,7 +1522,7 @@ namespace TakeTaikoSimulator.Scenes
             Outlined(song.Title, new Rectangle(inner.X + 20, inner.Y + 32, inner.Width - 40, 66), 48, Fade(titleColor, alpha), Fade(ink, alpha));
             string sub = song.HasError ? song.Error : song.Subtitle;
             if (sub.Length > 0)
-                Outlined(sub, new Rectangle(inner.X + 20, inner.Y + 96, inner.Width - 40, 34), 24, Fade(song.HasError ? ErrorColor : Color.White, a), Fade(ink, a));
+                OutlinedDetail(sub, new Rectangle(inner.X + 20, inner.Y + 96, inner.Width - 40, 34), 24, Fade(song.HasError ? ErrorColor : Color.White, a), Fade(Color.Black, a), 3f);
 
             // 下：難易度と★
             //   11/12：札は原寸の 176×86 で、上が 572（開いた板の下 695 から 123px 上）。11/11 の録画に札の絵を重ねて合わせた。
@@ -1647,11 +1648,12 @@ namespace TakeTaikoSimulator.Scenes
             }
 
             Color ink = Raylib.ColorBrightness(diffColor, -0.7f);
-            Outlined(diffSong.Title, new Rectangle(titleBox.X + 30, titleBox.Y + 55 * scale, titleBox.Width - 60, 80 * scale), 64 * scale,
-                Fade(Color.White, alpha), Fade(InkColor, alpha));
+            // 曲名・サブタイトル：細かい字のフォントに真っ黒の縁（11/13 たけらい「作曲者の文字は真っ黒でいい」。TaikøNauts の録画と同じ）
+            OutlinedDetail(diffSong.Title, new Rectangle(titleBox.X + 30, titleBox.Y + 55 * scale, titleBox.Width - 60, 80 * scale), 64 * scale,
+                Fade(Color.White, alpha), Fade(Color.Black, alpha), 6f * scale);
             if (diffSong.Subtitle.Length > 0)
-                Outlined(diffSong.Subtitle, new Rectangle(titleBox.X + 30, titleBox.Y + 135 * scale, titleBox.Width - 60, 40 * scale), 32 * scale,
-                    Fade(Color.White, alpha), Fade(InkColor, alpha));
+                OutlinedDetail(diffSong.Subtitle, new Rectangle(titleBox.X + 30, titleBox.Y + 135 * scale, titleBox.Width - 60, 40 * scale), 32 * scale,
+                    Fade(Color.White, alpha), Fade(Color.Black, alpha), 4f * scale);
 
             // 箱：戻る・オプション・かんたん〜おに
             bool ready = returnTime < 0f && DiffReady && active && !options.IsOpen;

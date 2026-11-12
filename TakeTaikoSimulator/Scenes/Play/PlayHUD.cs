@@ -101,12 +101,19 @@ namespace TakeTaikoSimulator.Scenes
             FontManager.Measure(courseText, 22);
             songTitle = title.Replace('\r', ' ').Replace('\n', ' ').Trim();
             FontManager.PrepareSkinMainText(songTitle);
+            FontManager.PreloadDetail(new[] { songTitle });
             PrepareSongTitleLayout();
         }
 
+        // 11/13：曲名はスキンの細かい字のフォント（Default2.ttf）に黒い 6px の縁（TaikøNauts の録画で、縁こみの右はし x 1869・
+        //   高さ y 34〜95。無いスキンは今までどおり太い字）
+        private static bool TitleUsesDetail => FontManager.HasSkinDetail;
+        private const float DetailTitleOutline = 6f;
+
         private void PrepareSongTitleLayout()
         {
-            float width = FontManager.MeasureSkinMain(songTitle, SongTitleFontSize).X;
+            float width = TitleUsesDetail ? FontManager.MeasureDetail(songTitle, SongTitleFontSize).X
+                : FontManager.MeasureSkinMain(songTitle, SongTitleFontSize).X;
             float scale = width > SongTitleMaxWidth ? SongTitleMaxWidth / width : 1f;
             songTitleSize = SongTitleFontSize * scale;
             songTitleX = SongTitleRight - width * scale;
@@ -119,7 +126,10 @@ namespace TakeTaikoSimulator.Scenes
             // スキン適用時にフォントと必要な文字は準備済み。ここでは幅だけを再計算する。
             if (songTitleSkinGeneration != SkinManager.Generation) PrepareSongTitleLayout();
             // 黒い縁 → 白い文字(SDF フォントで2回。前は8方向にずらして9回描いていた)
-            FontManager.DrawSkinMainOutlined(songTitle, songTitleX, SongTitleY, songTitleSize, Color.White, Color.Black, SongTitleOutline);
+            if (TitleUsesDetail)
+                FontManager.DrawDetailOutlined(songTitle, songTitleX, SongTitleY, songTitleSize, Color.White, Color.Black,
+                    Math.Min(DetailTitleOutline * songTitleSize / SongTitleFontSize, DynamicFont.MaxOutline(songTitleSize)));
+            else FontManager.DrawSkinMainOutlined(songTitle, songTitleX, SongTitleY, songTitleSize, Color.White, Color.Black, SongTitleOutline);
         }
 
         public void Update(float dt, long score)
