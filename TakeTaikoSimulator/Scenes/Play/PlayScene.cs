@@ -154,9 +154,17 @@ namespace TakeTaikoSimulator.Scenes
         // ===== 判定 =====
 
         // 判定の幅(ミリ秒)。OpenTaiko の初期値と同じ
-        private const double GoodRangeMs = 25;  // 良
-        private const double OkRangeMs = 75;    // 可
-        private const double BadRangeMs = 108;  // 不可(これより早く叩いても何も起きない)
+        //   演奏速度（演奏オプション）を変えたときは、曲の時間の方を伸び縮みさせる：
+        //   実際の時間で ±25ms のままになるように、曲の時間での幅に速度を掛ける（OpenTaiko と同じ考え方）
+        private double GoodRangeMs => 25 * playSpeed;  // 良
+        private double OkRangeMs => 75 * playSpeed;    // 可
+        private double BadRangeMs => 108 * playSpeed;  // 不可(これより早く叩いても何も起きない)
+
+        // ===== 演奏オプション（11/12 たけらい。演奏を始めたときの値で固定する） =====
+        //   演奏速度：曲そのものの速さ。段位道場・2人プレイ・特訓モードでは 1.0 のまま
+        //     （段位は試験、2人プレイは曲が1つ、特訓は自分の速度の切り替えがある）
+        private double playSpeed = 1.0;
+        private readonly Random noteRandom = new();
 
         private enum Judge { Good, Ok, Bad } // 良・可・不可(Judge.png の上から順)
 
@@ -432,6 +440,7 @@ namespace TakeTaikoSimulator.Scenes
             autoPlay = ConfigManager.Game.AutoPlay; // 演奏開始時の選択を固定する。
             autoRollPerSecond = ConfigManager.Game.AutoRollPerSecond;
             hiSpeed = ConfigManager.Game.HiSpeed > 0f ? ConfigManager.Game.HiSpeed : 1f;
+            playSpeed = isTraining || localPlay || dan != null ? 1.0 : ConfigManager.Game.PlaySpeed;
             if (dan != null)
             {
                 // #DISABLEDCHEAT:true のカテゴリは、練習向けの機能（オート演奏・オート連打）を使えない
@@ -489,6 +498,8 @@ namespace TakeTaikoSimulator.Scenes
                     ? chart.Courses.FirstOrDefault(c => c.Type == type) ?? (localPlay ? null : chart.GetPreferredCourse())
                     : chart.GetPreferredCourse();
                 if (course == null) error = "譜面（#START〜#END）が見つかりませんでした";
+                // 演奏オプションの あべこべ・ランダム（譜面は読むたびに新しく作るので、ここで書きかえてよい）
+                else NoteOptions.Apply(course, ConfigManager.Game.Abekobe, ConfigManager.Game.Random, noteRandom);
             }
             catch (Exception ex) when (ex is IOException || ex is UnauthorizedAccessException)
             {
@@ -595,6 +606,13 @@ namespace TakeTaikoSimulator.Scenes
             {
                 audioMessage = $"{loadError}（音なしで流します）";
                 return;
+            }
+
+            // 演奏速度（音の高さも一緒に変わる）。変えられなかったら、ふつうの速さで遊ぶ
+            if (!isTraining && playSpeed != 1.0 && !song.SetPlaybackRate(playSpeed))
+            {
+                playSpeed = 1.0;
+                audioMessage = "演奏速度を変えられなかったので、ふつうの速さで流します";
             }
 
             // 音量 = Master × Music
@@ -1681,7 +1699,8 @@ namespace TakeTaikoSimulator.Scenes
             chara.OnJudge(judge == Judge.Bad, combo, note.IsGoGo, stats.IsClear, stats.IsMax);
 
             // コンボの声(50・100…コンボになった瞬間。OpenTaiko と同じく、切れてからまた届けばまた鳴る)
-            if (judge != Judge.Bad && comboVoices.TryGetValue(combo, out SoundEffect? voice))
+            //   演奏オプションの「ボイス」が「しない」なら鳴らさない
+            if (judge != Judge.Bad && ConfigManager.Game.ComboVoice && comboVoices.TryGetValue(combo, out SoundEffect? voice))
             {
                 SoundConfig sound = ConfigManager.Sound;
                 voice.Play((float)sound.GetFinalVolume(sound.VoiceVolume));
@@ -1831,7 +1850,9 @@ namespace TakeTaikoSimulator.Scenes
             DrawBarLines(course, viewMs);
 
             // 後ろ(右)の音符から描いて、手前(左)の音符が上に重なるようにする
-            for (int i = course.Notes.Count - 1; i >= 0; i--)
+            //   ドロン（演奏オプション）：音符の絵は描かない。下の文字だけ流れる
+            bool doron = ConfigManager.Game.Doron;
+            for (int i = course.Notes.Count - 1; i >= 0 && !doron; i--)
             {
                 if (!IsHidden(i)) DrawNote(course.Notes[i], viewMs);
             }

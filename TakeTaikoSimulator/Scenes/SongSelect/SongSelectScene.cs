@@ -1266,6 +1266,12 @@ namespace TakeTaikoSimulator.Scenes
             if (diffOpen) DrawDifficulty();
             DrawSavedSongRecords();
             NamePlate.DrawPlayers(900, ReturnAlpha);
+            // 名札の下に、つけている演奏オプションのアイコンを横1列で（11/12 たけらいのスクショ。左から約76px・名札のすぐ下）
+            foreach (int side in LocalSession.Players)
+            {
+                GameConfig badgeConfig = LocalSession.Count == 2 ? LocalSession.Options[side] : ConfigManager.Game;
+                OptionBadges.DrawGrid(badgeConfig, NamePlate.MenuArea(side).X + 76f, 900f + 80f + 8f, 1f, int.MaxValue, gap: 4f, alpha: ReturnAlpha);
+            }
             PuchiChara.DrawPlayers("songSelect");
             DrawHeader();
 

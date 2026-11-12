@@ -26,7 +26,7 @@ public partial class PlayScene
     private double?[] trainingDeltas = Array.Empty<double?>();
     private int trainingEarlyOk, trainingLateOk;
     private string trainingNotice = "";
-    private double PlaybackRate => isTraining ? trainingTimeline?.Rate ?? 1.0 : 1.0;
+    private double PlaybackRate => isTraining ? trainingTimeline?.Rate ?? 1.0 : playSpeed;
 
     private static bool IsTrainingKey(KeyboardKey key) => ConfigManager.Key.SystemKeys
         .Any(pair => pair.Key is SystemAction.TrainingPause or SystemAction.TrainingPreviousBar

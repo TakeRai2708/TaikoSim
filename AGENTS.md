@@ -1136,3 +1136,13 @@ Order:
 ### Discord application ID configured (2026-11-12)
 - User supplied Application ID1570361696688799856 from their Discord application. Set Platform/DiscordPresence.cs ApplicationId to that exact string, enabling the existing IPC worker when the shared DiscordPresence setting is ON. No token/client secret or new permissions are used; protocol, scene activity content, background connection logic and AOT configuration are unchanged.
 - Existing large-image key is logo; upload the desired image under that key in the application's Rich Presence assets to show it. Desktop Discord must be running and activity sharing enabled. Source diff confirms the exact ID string is the only runtime-code change. SDK/build, actual Windows IPC connection/activity display and Native AOT publish remain unverified; do not claim connected merely because the ID is configured.
+
+## Play options added (11/12, たけらい)
+- New options in `GameConfig` (per player data via `PlayerSettingsFile`, and in the `LocalSession` per-side tuple): `Doron`, `Abekobe`, `Random` (`NoteRandom` Off/Kimagure/Detarame), `PlaySpeed`, `ComboVoice`.
+- `Charts/NoteOptions.cs`: Abekobe flips every Don⇔Ka; Kimagure 21 %, Detarame 51 % per note (OpenTaiko `CTja.tRandomizeTaikoChips`), then `SeNotes.Assign` again. Applied in `PlayScene.LoadChart`.
+- Doron: `DrawNote` is skipped, only the SE text scrolls. ComboVoice off: combo voices are not played (nothing else).
+- PlaySpeed: only the values that have an A-Style icon (`GameConfig.PlaySpeeds`: 0.5–1.5 by 0.1, and 2.0). Uses `Song.SetPlaybackRate` (pitch changes too) and the training-mode `PlaybackRate` clock; judge windows are multiplied by the speed so they stay ±25/75/108 ms in real time. Forced to 1.0 in dan, 2-player and training.
+- Records are saved as usual whatever options are on (たけらい: may change later).
+- `PlayOptionsPanel`: 8 rows per page, more rows go to page 2 (「1/2」 at top right, PageUp/PageDown, Don walks through). `Kind.Choice` and `Kind.Disabled` (演奏スキップ is shown greyed out; 音符位置調整 is not shown).
+- `OptionBadges.DrawGrid`: order はやさ → ドロン → あべこべ → ランダム → AUTO → 演奏速度, packed. Play screen: 3 per row from (170, 353). Song select: one row under each nameplate.
+- Scoreboard (演奏情報表示) moved from the bottom-left corner to (8, 540) under the nameplate, 1.1×.

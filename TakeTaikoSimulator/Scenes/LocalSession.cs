@@ -66,12 +66,14 @@ public static class LocalSession
         }
     }
 
-    private static (bool Auto, float Speed, int Roll, string Sound, bool Fixed, bool Board) ReadOptions(GameConfig cfg)
-        => (cfg.AutoPlay, cfg.HiSpeed, cfg.AutoRollPerSecond, cfg.HitSound, cfg.AutoFixedPattern, cfg.ShowScoreboard);
+    private static (bool Auto, float Speed, int Roll, string Sound, bool Fixed, bool Board, bool Doron, bool Abekobe, NoteRandom Random, float PlaySpeed, bool Voice) ReadOptions(GameConfig cfg)
+        => (cfg.AutoPlay, cfg.HiSpeed, cfg.AutoRollPerSecond, cfg.HitSound, cfg.AutoFixedPattern, cfg.ShowScoreboard,
+            cfg.Doron, cfg.Abekobe, cfg.Random, cfg.PlaySpeed, cfg.ComboVoice);
 
-    private static void WriteOptions(GameConfig cfg, (bool Auto, float Speed, int Roll, string Sound, bool Fixed, bool Board) value)
+    private static void WriteOptions(GameConfig cfg, (bool Auto, float Speed, int Roll, string Sound, bool Fixed, bool Board, bool Doron, bool Abekobe, NoteRandom Random, float PlaySpeed, bool Voice) value)
     {
-        (cfg.AutoPlay, cfg.HiSpeed, cfg.AutoRollPerSecond, cfg.HitSound, cfg.AutoFixedPattern, cfg.ShowScoreboard) = value;
+        (cfg.AutoPlay, cfg.HiSpeed, cfg.AutoRollPerSecond, cfg.HitSound, cfg.AutoFixedPattern, cfg.ShowScoreboard,
+            cfg.Doron, cfg.Abekobe, cfg.Random, cfg.PlaySpeed, cfg.ComboVoice) = value;
     }
 
     public static void WithOptions(int player, Action action)

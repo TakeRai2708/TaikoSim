@@ -45,8 +45,14 @@ namespace TakeTaikoSimulator.UI
         private const float LabelSize = 26f, ValueSize = 26f;
 
         // 項目の数に合わせて、板を縦に伸ばす(下の端はそのまま、上へ伸ばす)
-        private float PanelHeight => BaseHeight + (items.Length - BaseRows) * RowStep;
-        private float PanelTop => BaseTop - (items.Length - BaseRows) * RowStep;
+        //   11/12 たけらい「オプション画面は8まで表示だからそれ以上あったら次に行くように」
+        //   → 8項目までは今までどおり。9項目から先は次のページ（板は8項目ぶんの大きさのまま。右上に「1/2」）
+        private const int PageRows = 8;
+        private int VisibleRows => Math.Min(items.Length, PageRows);
+        private int PageCount => (items.Length + PageRows - 1) / PageRows;
+        private int Page => cursor / PageRows;
+        private float PanelHeight => BaseHeight + (VisibleRows - BaseRows) * RowStep;
+        private float PanelTop => BaseTop - (VisibleRows - BaseRows) * RowStep;
 
         private static readonly Color Ink = new Color(20, 20, 24, 255);
         private static readonly Color ValueInk = new Color(16, 16, 16, 255);   // 値の字(ほぼ黒。薄く見えないように)
@@ -72,7 +78,8 @@ namespace TakeTaikoSimulator.UI
         public bool IsTyping => editRow >= 0;
 
         // ===== 項目 =====
-        private enum Kind { Toggle, HiSpeed, AutoRoll, Percent, HitSound }
+        //   Choice：決まった選択肢から選ぶ（GetInt / SetInt が何番目か）。Disabled：まだ作っていない項目（灰色で、選べない）
+        private enum Kind { Toggle, HiSpeed, AutoRoll, Percent, HitSound, Choice, Disabled }
         private sealed class Item
         {
             public string Label = "";
@@ -81,6 +88,8 @@ namespace TakeTaikoSimulator.UI
             public Action<bool> SetBool = _ => { };
             public Func<int> GetInt = () => 0;
             public Action<int> SetInt = _ => { };
+            public string[] Choices = Array.Empty<string>();
+            public bool Wrap = true;   // Choice で、端まで行ったら反対の端に回るか
         }
 
         private static GameConfig Cfg => TakeTaikoSimulator.Scenes.LocalSession.OptionsContext ?? ConfigManager.Game;
@@ -95,19 +104,53 @@ namespace TakeTaikoSimulator.UI
             PlayerSettings.Save(TakeTaikoSimulator.Scenes.LocalSession.Profiles[side], own);
         }
 
+        // 11/12 たけらい：並びは TaikøNauts の板に合わせた（1ページ目 8個、2ページ目 4個）
+        //   ・演奏スキップ：素材がまだ無いので、行だけ出して灰色（選べない）
+        //   ・音符位置調整：オフセットのことなので出さない（設定画面にある）
+        //   ・オート連打・毎回同じ出方：TaikøNauts には無い、TakeTaikoSimulator の項目。2ページ目の後ろに置く
+        private static readonly string[] PlaySpeedTexts =
+            GameConfig.PlaySpeeds.Select(s => s.ToString("0.0", CultureInfo.InvariantCulture)).ToArray();
         private readonly Item[] items =
         {
-            new Item { Label = "オート演奏", Kind = Kind.Toggle,
-                GetBool = () => Cfg.AutoPlay, SetBool = v => Cfg.AutoPlay = v },
+            // ----- 1ページ目 -----
             new Item { Label = "はやさ", Kind = Kind.HiSpeed },  // TJA の SCROLL に掛ける倍率(本家の「はやさ」)
+            new Item { Label = "ドロン", Kind = Kind.Toggle,     // 音符の絵を消す（下の文字だけ流れる）
+                GetBool = () => Cfg.Doron, SetBool = v => Cfg.Doron = v },
+            new Item { Label = "あべこべ", Kind = Kind.Toggle,   // ドン⇔カッ を全部入れかえる
+                GetBool = () => Cfg.Abekobe, SetBool = v => Cfg.Abekobe = v },
+            new Item { Label = "ランダム", Kind = Kind.Choice, Choices = new[] { "しない", "きまぐれ", "でたらめ" },
+                GetInt = () => (int)Cfg.Random, SetInt = v => Cfg.Random = (NoteRandom)v },
+            new Item { Label = "演奏スキップ", Kind = Kind.Disabled },
+            new Item { Label = "ボイス", Kind = Kind.Toggle,     // 演奏中のコンボの声
+                GetBool = () => Cfg.ComboVoice, SetBool = v => Cfg.ComboVoice = v },
+            new Item { Label = "音色", Kind = Kind.HitSound },  // ドン・カッの音(Audio/HitSounds.cs。本家の「音色」)
+            new Item { Label = "オートプレイ", Kind = Kind.Toggle,
+                GetBool = () => Cfg.AutoPlay, SetBool = v => Cfg.AutoPlay = v },
+            // ----- 2ページ目 -----
+            new Item { Label = "演奏速度", Kind = Kind.Choice, Choices = PlaySpeedTexts, Wrap = false,   // 曲そのものの速さ
+                GetInt = () => Math.Max(0, Array.FindIndex(GameConfig.PlaySpeeds, s => Math.Abs(s - Cfg.PlaySpeed) < 0.001f)),
+                SetInt = v => Cfg.PlaySpeed = GameConfig.PlaySpeeds[v] },
+            new Item { Label = "演奏情報表示", Kind = Kind.Toggle,   // 良・可・不可・連打数の板（前の名前は「判定の板」）
+                GetBool = () => Cfg.ShowScoreboard, SetBool = v => Cfg.ShowScoreboard = v },
             new Item { Label = "オート連打", Kind = Kind.AutoRoll,
                 GetInt = () => Cfg.AutoRollPerSecond, SetInt = v => Cfg.AutoRollPerSecond = v },
-            new Item { Label = "音色", Kind = Kind.HitSound },  // ドン・カッの音(Audio/HitSounds.cs。本家の「音色」)
             new Item { Label = "毎回同じ出方", Kind = Kind.Toggle,
                 GetBool = () => Cfg.AutoFixedPattern, SetBool = v => Cfg.AutoFixedPattern = v },
-            new Item { Label = "判定の板", Kind = Kind.Toggle,
-                GetBool = () => Cfg.ShowScoreboard, SetBool = v => Cfg.ShowScoreboard = v },
         };
+
+        private static bool NoTyping(Kind kind) => kind is Kind.Toggle or Kind.HitSound or Kind.Choice or Kind.Disabled;
+
+        // 選べる項目まで、dir の向きに進む（灰色の項目は飛ばす。上と下はつながっている）
+        private int NextRow(int from, int dir)
+        {
+            int row = from;
+            for (int i = 0; i < items.Length; i++)
+            {
+                row = (row + dir + items.Length) % items.Length;
+                if (items[row].Kind != Kind.Disabled) return row;
+            }
+            return from;
+        }
 
         // カッで変えるときの段階
         //   HS倍率は OpenTaiko と同じ(0.5, 1.0〜2.0 は 0.1 ずつ, 2.5〜4.0 は 0.5 ずつ)
@@ -177,7 +220,7 @@ namespace TakeTaikoSimulator.UI
             int c = Raylib.GetCharPressed();
             while (c > 0)
             {
-                if (items[cursor].Kind is not (Kind.Toggle or Kind.HitSound) && (char.IsAsciiDigit((char)c) || (c == '.' && items[cursor].Kind == Kind.HiSpeed)))
+                if (!NoTyping(items[cursor].Kind) && (char.IsAsciiDigit((char)c) || (c == '.' && items[cursor].Kind == Kind.HiSpeed)))
                 {
                     BeginEdit(cursor, selectAll: false);
                     editText = ((char)c).ToString();
@@ -191,14 +234,23 @@ namespace TakeTaikoSimulator.UI
             if (left) Change(cursor, -1);
             if (right) Change(cursor, +1);
 
-            if (KeyPressed(KeyboardKey.Up)) { cursor = (cursor + items.Length - 1) % items.Length; MenuSounds.Ka(); }
-            if (KeyPressed(KeyboardKey.Down)) { cursor = (cursor + 1) % items.Length; MenuSounds.Ka(); }
+            if (KeyPressed(KeyboardKey.Up)) { cursor = NextRow(cursor, -1); MenuSounds.Ka(); }
+            if (KeyPressed(KeyboardKey.Down)) { cursor = NextRow(cursor, +1); MenuSounds.Ka(); }
+            // PageUp・PageDown：ページを変える
+            if (PageCount > 1 && (KeyPressed(KeyboardKey.PageDown) || KeyPressed(KeyboardKey.PageUp)))
+            {
+                int page = (Page + (KeyPressed(KeyboardKey.PageDown) ? 1 : PageCount - 1)) % PageCount;
+                cursor = NextRow(page * PageRows - 1 < 0 ? items.Length - 1 : page * PageRows - 1, +1);
+                MenuSounds.Ka();
+            }
 
             bool decide = InputManager.IsDonPressed() || EnterPressed();
             if (decide && Opened)
             {
                 MenuSounds.Don();
-                if (cursor < items.Length - 1) cursor++;
+                // 次の選べる項目へ（ページの最後なら次のページへ）。もう後ろに無ければ閉じる
+                int next = NextRow(cursor, +1);
+                if (next > cursor) cursor = next;
                 else Close();
             }
         }
@@ -209,9 +261,19 @@ namespace TakeTaikoSimulator.UI
             Item item = items[row];
             switch (item.Kind)
             {
+                case Kind.Disabled:
+                    return;
                 case Kind.Toggle:
                     item.SetBool(!item.GetBool());
                     break;
+                case Kind.Choice:
+                {
+                    int count = item.Choices.Length, now = item.GetInt();
+                    int next = item.Wrap ? ((now + dir) % count + count) % count : Math.Clamp(now + dir, 0, count - 1);
+                    if (next == now) return;
+                    item.SetInt(next);
+                    break;
+                }
                 case Kind.HitSound:
                 {
                     // 一覧をぐるっと回る。変えたら「ドン → カッ」を1回ずつ鳴らす(カッの音は鳴らさない)
@@ -324,6 +386,8 @@ namespace TakeTaikoSimulator.UI
         private static string ValueText(Item item) => item.Kind switch
         {
             Kind.Toggle => item.GetBool() ? "する" : "しない",
+            Kind.Choice => item.Choices[Math.Clamp(item.GetInt(), 0, item.Choices.Length - 1)],
+            Kind.Disabled => "しない",
             Kind.HitSound => HitSounds.List.FirstOrDefault(e => e.Key == Cfg.HitSound)?.Name ?? "スキン",
             Kind.HiSpeed => (Cfg.HiSpeed > 0f ? Cfg.HiSpeed : 1f).ToString("0.0##", CultureInfo.InvariantCulture),
             Kind.Percent => item.GetInt().ToString(CultureInfo.InvariantCulture) + "%",
@@ -389,14 +453,30 @@ namespace TakeTaikoSimulator.UI
                 Gui.DrawCentered($"{side + 1}P", mark, 22, Color.White);
             }
             Outlined("演奏オプション", px + TitleX, py + TitleCenterY, TitleSize, Color.White, Ink, centerX: false);
+            // 2ページ以上あるときは、右上に「1/2」
+            if (PageCount > 1)
+                Outlined($"{Page + 1}/{PageCount}", px + PanelWidth - 62f, py + TitleCenterY, 24f, Color.White, Ink, centerX: true);
 
-            // ----- 項目 -----
-            for (int i = 0; i < items.Length; i++)
+            // ----- 項目（今のページの分だけ） -----
+            int first = Page * PageRows, last = Math.Min(items.Length, first + PageRows);
+            for (int i = first; i < last; i++)
             {
                 Item item = items[i];
                 Rectangle row = RowArea(i, px, py);
                 bool selected = i == cursor;
                 bool editing = editRow == i;
+                if (item.Kind == Kind.Disabled)
+                {
+                    // まだ作っていない項目：灰色で出すだけ（TaikøNauts の、選べない項目と同じ見た目）
+                    Color gray = new Color(110, 116, 104, 150);
+                    if (!MenuSkin.Whole(Folder + "Option_Base.png", row, gray)) SmoothShapes.Rounded(row, 0.3f, 8, gray);
+                    Outlined(item.Label, row.X + 11, row.Y + RowHeight / 2f, LabelSize, new Color(150, 150, 150, 255), new Color(70, 70, 70, 255), centerX: false);
+                    Rectangle grayBox = Offset(ValueBox, row);
+                    if (!MenuSkin.NPatch(Folder + "Option_Value_Base.png", grayBox, 20, new Color(120, 120, 120, 255)))
+                        SmoothShapes.Rounded(grayBox, 1f, 12, new Color(120, 120, 120, 255));
+                    Outlined(ValueText(item), grayBox.X + grayBox.Width / 2f, row.Y + RowHeight / 2f, ValueSize, new Color(70, 70, 70, 255), new Color(150, 150, 150, 255), centerX: true);
+                    continue;
+                }
                 Color rowTint = selected ? SelectedRowTint : RowTint;
                 if (!MenuSkin.Whole(Folder + "Option_Base.png", row, rowTint))
                     SmoothShapes.Rounded(row, 0.3f, 8, rowTint);
@@ -440,7 +520,7 @@ namespace TakeTaikoSimulator.UI
                 else if (Raylib.CheckCollisionPointRec(mouse, box))
                 {
                     cursor = i;
-                    if (item.Kind is Kind.Toggle or Kind.HitSound) Change(i, +1);
+                    if (NoTyping(item.Kind)) Change(i, +1);
                     else if (!editing) BeginEdit(i, selectAll: true);
                 }
                 else if (Raylib.CheckCollisionPointRec(mouse, row) && !selected)
@@ -470,7 +550,7 @@ namespace TakeTaikoSimulator.UI
         private static Vector2 MeasureSkin(string text, float size) => FontManager.MeasureSkinMain(text, size);
 
         private static Rectangle RowArea(int i, float px, float py) =>
-            new Rectangle(px + RowX, py + RowTop + i * RowStep, RowWidth, RowHeight);
+            new Rectangle(px + RowX, py + RowTop + i % PageRows * RowStep, RowWidth, RowHeight);
 
         private static Rectangle Offset(Rectangle r, Rectangle row) => new Rectangle(row.X + r.X, row.Y + r.Y, r.Width, r.Height);
 

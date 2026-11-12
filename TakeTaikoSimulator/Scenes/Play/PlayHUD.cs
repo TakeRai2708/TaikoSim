@@ -184,7 +184,8 @@ namespace TakeTaikoSimulator.Scenes
             // 難易度の★の数は出さない(難易度のマークだけ)
 
             // つけているオプションのバッジ(何もつけていなければ何も描かない)
-            OptionBadges.DrawLeftAligned(OptionBadgeX, OptionBadgeY, OptionBadgeScale);
+            //   11/12 たけらいのスクショ：3個ずつ2段（難易度の印の右。段の間は約42px）
+            OptionBadges.DrawGrid(Configs.ConfigManager.Game, OptionBadgeX, OptionBadgeY, OptionBadgeScale, 3, gap: 2f);
         }
 
         // 段位道場のときの難易度マーク（赤い布の包み＋「段位道場」）

@@ -10,8 +10,9 @@ namespace TakeTaikoSimulator.UI
     //   コマ0 は空っぽ(＝オフ)、コマ1 から中身が入っている。
     //     Auto.png        80×40  …… 2コマ（空 / AUTO）
     //     Speed.png      600×40  …… 15コマ（空 / ×1.1 1.2 1.3 1.4 1.5 1.6 1.7 1.8 1.9 2.0 2.5 3.0 3.5 4.0）
-    //     Abekobe / Doron / HiSpeedLock / Adjust は 80×40 の2コマ、Random は 120×40 の3コマ、
-    //     PlaySpeed は 480×40 の12コマ（0.5〜0.9 / 空 / 1.1〜1.5 / 2.0）。TakeTaikoSimulator にその機能が無いので今は使わない。
+    //     Abekobe / Doron / HiSpeedLock / Adjust は 80×40 の2コマ、Random は 120×40 の3コマ（空 / きまぐれ / でたらめ）、
+    //     PlaySpeed は 480×40 の12コマ（0.5〜0.9 / 空 / 1.1〜1.5 / 2.0）。
+    //     11/12：ドロン・あべこべ・ランダム・演奏速度を作ったので、これらも出す（HiSpeedLock・Adjust は機能が無いので出さない）
     //
     //   画像が無いスキン(シンプルなど)では、代わりに文字でバッジを描く。
     public static class OptionBadges
@@ -45,52 +46,65 @@ namespace TakeTaikoSimulator.UI
             return nearest;
         }
 
-        /// <summary>今つけているオプションのバッジを、左はしをそろえて右へ並べる。描いた幅を返す</summary>
-        public static float DrawLeftAligned(float left, float y, float scale = 1f)
+        // 並べる順（11/12 たけらいのスクショ：TaikøNauts で全部つけたときの並び）
+        //   はやさ → ドロン → あべこべ → ランダム → AUTO → 演奏速度。つけていない物は詰める
+        private static List<(string File, int CellIndex, string Text)> Collect(GameConfig cfg)
         {
-            float width = Measure(scale);
-            return width <= 0f ? 0f : DrawRightAligned(left + width, y, scale);
+            List<(string File, int CellIndex, string Text)> badges = new();
+            var inv = System.Globalization.CultureInfo.InvariantCulture;
+
+            // はやさ(1.0 倍のときは出さない。0 は「譜面どおり」＝1.0倍)
+            float hiSpeed = cfg.HiSpeed > 0f ? cfg.HiSpeed : 1f;
+            int speedCell = SpeedCell(hiSpeed);
+            if (speedCell > 0) badges.Add(("Speed.png", speedCell, $"×{hiSpeed.ToString("0.0#", inv)}"));
+
+            if (cfg.Doron) badges.Add(("Doron.png", 1, "ドロン"));
+            if (cfg.Abekobe) badges.Add(("Abekobe.png", 1, "あべ"));
+            // Random.png：空 / きまぐれ / でたらめ
+            if (cfg.Random == NoteRandom.Kimagure) badges.Add(("Random.png", 1, "きま"));
+            else if (cfg.Random == NoteRandom.Detarame) badges.Add(("Random.png", 2, "でた"));
+
+            // オート演奏
+            if (cfg.AutoPlay) badges.Add(("Auto.png", 1, "AUTO"));
+
+            // 演奏速度。PlaySpeed.png は 0.5〜0.9 / 空（1.0）/ 1.1〜1.5 / 2.0 の12コマ ＝ GameConfig.PlaySpeeds と同じ順
+            int playCell = Array.FindIndex(GameConfig.PlaySpeeds, s => Math.Abs(s - cfg.PlaySpeed) < 0.001f);
+            if (playCell >= 0 && Math.Abs(cfg.PlaySpeed - 1f) > 0.001f)
+                badges.Add(("PlaySpeed.png", playCell, $"♪{cfg.PlaySpeed.ToString("0.0", inv)}"));
+            return badges;
         }
 
-        // 並べたときの全体の幅（バッジが無ければ 0）
-        private static float Measure(float scale)
+        /// <summary>今つけているオプションのバッジを、左はしをそろえて右へ並べる。描いた幅を返す</summary>
+        public static float DrawLeftAligned(float left, float y, float scale = 1f) => DrawGrid(Cfg, left, y, scale, int.MaxValue);
+
+        /// <summary>
+        /// cfg のオプションのバッジを、左上 (left, top) から右へ並べる。perRow 個で次の段へ。描いた幅を返す
+        ///   演奏画面：3個ずつ2段。選曲：名札の下に横1列
+        /// </summary>
+        public static float DrawGrid(GameConfig cfg, float left, float top, float scale, int perRow, float gap = Gap, float alpha = 1f)
         {
-            int count = 0;
-            float hiSpeed = Cfg.HiSpeed > 0f ? Cfg.HiSpeed : 1f;
-            if (SpeedCell(hiSpeed) > 0) count++;
-            if (Cfg.AutoPlay) count++;
-            return count == 0 ? 0f : count * Cell * scale + (count - 1) * Gap * scale;
+            var badges = Collect(cfg);
+            if (badges.Count == 0) return 0f;
+            float size = Cell * scale, step = size + gap * scale;
+            Color tint = Fade(Color.White, alpha);
+            for (int i = 0; i < badges.Count; i++)
+            {
+                (string file, int cell, string text) = badges[i];
+                Rectangle dest = new(left + i % perRow * step, top + i / perRow * step, size, size);
+                bool drawn = MenuSkin.Part(Folder + file, new Rectangle(cell * Cell, 0f, Cell, Cell), dest, tint);
+                if (!drawn && alpha > 0.5f) DrawTextBadge(dest, text);
+            }
+            int columns = Math.Min(badges.Count, perRow);
+            return columns * size + (columns - 1) * gap * scale;
         }
 
         /// <summary>今つけているオプションのバッジを、右はしをそろえて描く。描いた幅を返す</summary>
         public static float DrawRightAligned(float right, float y, float scale = 1f)
         {
-            List<(string File, int CellIndex, string Text)> badges = new();
-
-            // はやさ(1.0 倍のときは出さない。0 は「譜面どおり」＝1.0倍)
-            float hiSpeed = Cfg.HiSpeed > 0f ? Cfg.HiSpeed : 1f;
-            int speedCell = SpeedCell(hiSpeed);
-            if (speedCell > 0)
-                badges.Add(("Speed.png", speedCell, $"×{hiSpeed.ToString("0.0#", System.Globalization.CultureInfo.InvariantCulture)}"));
-
-            // オート演奏
-            if (Cfg.AutoPlay) badges.Add(("Auto.png", 1, "AUTO"));
-
-            if (badges.Count == 0) return 0f;
-
-            float size = Cell * scale, gap = Gap * scale;
-            float total = badges.Count * size + (badges.Count - 1) * gap;
-            float x = right - total;
-
-            foreach ((string file, int cell, string text) in badges)
-            {
-                Rectangle dest = new(x, y, size, size);
-                bool drawn = MenuSkin.Part(Folder + file,
-                    new Rectangle(cell * Cell, 0f, Cell, Cell), dest, Color.White);
-                if (!drawn) DrawTextBadge(dest, text);
-                x += size + gap;
-            }
-            return total;
+            int count = Collect(Cfg).Count;
+            if (count == 0) return 0f;
+            float total = count * Cell * scale + (count - 1) * Gap * scale;
+            return DrawGrid(Cfg, right - total, y, scale, int.MaxValue);
         }
 
         // 画像が無いスキン用。黄色い角丸の札に、黒っぽい字で書く(A-Style の Speed バッジに寄せた色)

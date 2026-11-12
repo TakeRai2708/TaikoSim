@@ -16,6 +16,9 @@
 
     public enum RecordGroup { Easy, Normal, Hard, Oni, OniAndUra }
 
+    // 演奏オプションの「ランダム」（Charts/NoteOptions.cs）。しない／きまぐれ（21%）／でたらめ（51%）
+    public enum NoteRandom { Off, Kimagure, Detarame }
+
     // ゲーム全体の設定
     public class GameConfig
     {
@@ -96,6 +99,20 @@
         // 演奏画面の左下に、良・可・不可・連打数の板を出すか
         public bool ShowScoreboard { get; set; } = true;
 
+        // ===== 演奏オプション（11/12 たけらい。UI/PlayOptionsPanel.cs） =====
+        // ドロン：音符の絵を消す（下の文字「ドン・カッ・連打・ふうせん」だけ流れる）
+        public bool Doron { get; set; } = false;
+        // あべこべ：ドン⇔カッ を全部入れかえる
+        public bool Abekobe { get; set; } = false;
+        // ランダム：音符ごとに、決まった確率で ドン⇔カッ を入れかえる
+        public NoteRandom Random { get; set; } = NoteRandom.Off;
+        // 演奏速度：曲そのものの速さ（1.0 がふつう）。選べる値は PlaySpeeds（A-Style のアイコンがある値だけ）
+        //   音の高さも一緒に変わる。段位道場・2人プレイ・特訓モードでは使わない（PlayScene）
+        public float PlaySpeed { get; set; } = 1f;
+        public static readonly float[] PlaySpeeds = { 0.5f, 0.6f, 0.7f, 0.8f, 0.9f, 1.0f, 1.1f, 1.2f, 1.3f, 1.4f, 1.5f, 2.0f };
+        // ボイス：演奏中のコンボの声（50コンボ…）を鳴らすか
+        public bool ComboVoice { get; set; } = true;
+
         // 王冠・スコアランクの獲得数で表示する難易度。曲ごとの記録はそのまま。
         public RecordGroup RecordGroup { get; set; } = RecordGroup.OniAndUra;
 
@@ -126,6 +143,9 @@
             if (!Enum.IsDefined(InputTiming)) InputTiming = InputTimingMode.HighPrecision;
             if (!float.IsFinite(HiSpeed) || HiSpeed < 0f) HiSpeed = 0f;
             HiSpeed = Math.Min(HiSpeed, 100f);
+            if (!Enum.IsDefined(Random)) Random = NoteRandom.Off;
+            // 演奏速度は、選べる値のうち一番近いものにそろえる
+            PlaySpeed = float.IsFinite(PlaySpeed) ? PlaySpeeds.MinBy(s => Math.Abs(s - PlaySpeed)) : 1f;
             AutoRollPerSecond = Math.Clamp(AutoRollPerSecond, AutoRollMin, AutoRollMax);
             AutoGoodPercent = Math.Clamp(AutoGoodPercent, AutoPercentMin, AutoPercentMax);
             AutoOkPercent = Math.Clamp(AutoOkPercent, AutoPercentMin, AutoPercentMax);

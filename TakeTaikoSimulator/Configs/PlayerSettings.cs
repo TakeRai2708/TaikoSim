@@ -7,6 +7,7 @@ namespace TakeTaikoSimulator.Configs;
 //
 //   11/12 たけらい「プレイヤーデータごとに設定とかも変えれるようにしよ」。分け方（①A からキーを外したもの）：
 //     データごと（人のもの）：音符の速さ・音色・オート（連打速度・精度・毎回同じ出方）・判定の板・王冠とランクの集計・音量
+//                             ・ドロン・あべこべ・ランダム・演奏速度・ボイス（演奏オプションを足したとき）
 //     全員共通（PCのもの）  ：叩くキー・画面・スキン・入力の精度・デバッグ・Discord・音オフセット・譜面オフセット・音の出し方
 //
 //   しくみ（ゲームのほかの所は、今までどおり ConfigManager.Game / Sound を読むだけでいい）：
@@ -26,6 +27,11 @@ public sealed class PlayerSettingsFile
     public int AutoBadPercent { get; set; } = 0;
     public bool AutoFixedPattern { get; set; } = false;
     public bool ShowScoreboard { get; set; } = true;
+    public bool Doron { get; set; } = false;
+    public bool Abekobe { get; set; } = false;
+    public NoteRandom Random { get; set; } = NoteRandom.Off;
+    public float PlaySpeed { get; set; } = 1f;
+    public bool ComboVoice { get; set; } = true;
     public RecordGroup RecordGroup { get; set; } = RecordGroup.OniAndUra;
     public int MasterVolume { get; set; } = 100;
     public int SeVolume { get; set; } = 100;
@@ -155,6 +161,11 @@ public static class PlayerSettings
         game.AutoBadPercent = file.AutoBadPercent;
         game.AutoFixedPattern = file.AutoFixedPattern;
         game.ShowScoreboard = file.ShowScoreboard;
+        game.Doron = file.Doron;
+        game.Abekobe = file.Abekobe;
+        game.Random = file.Random;
+        game.PlaySpeed = file.PlaySpeed;
+        game.ComboVoice = file.ComboVoice;
         game.RecordGroup = file.RecordGroup;
     }
 
@@ -169,6 +180,11 @@ public static class PlayerSettings
         file.AutoBadPercent = game.AutoBadPercent;
         file.AutoFixedPattern = game.AutoFixedPattern;
         file.ShowScoreboard = game.ShowScoreboard;
+        file.Doron = game.Doron;
+        file.Abekobe = game.Abekobe;
+        file.Random = game.Random;
+        file.PlaySpeed = game.PlaySpeed;
+        file.ComboVoice = game.ComboVoice;
         file.RecordGroup = game.RecordGroup;
     }
 

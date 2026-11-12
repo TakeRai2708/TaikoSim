@@ -5,7 +5,9 @@ using TakeTaikoSimulator.Graphics;
 
 namespace TakeTaikoSimulator.Scenes
 {
-    // 良・可・不可・連打数の板(TaikøNauts は左上。TakeTaikoSimulator は左下に出す)
+    // 良・可・不可・連打数の板（演奏オプションの「演奏情報表示」）
+    //   11/12 たけらい「ネームプレートの下らへんに今よりも10%デカく表示してほしい」
+    //   → 名札（左上 (0,450)・高さ約77）のすぐ下、(8, 540) に 1.1倍で出す。前は左下の隅 (8, 920) に原寸だった
     //   大きさ・数字の位置は TaikøNauts の動画で測った値(板はスキンの画像そのままの大きさ)
     public sealed class PlayScoreboard
     {
@@ -13,7 +15,8 @@ namespace TakeTaikoSimulator.Scenes
         private const string NumberImage = "Image/04.EnsoGame/Scoreboard/Number.png"; // 20×23 が横10
 
         // 板の左上(左下の隅。見えている板の部分が、左から約25px・下から約25px になる)
-        private const float BoardX = 8f, BoardY = 920f;
+        private const float BoardX = 8f, BoardY = 540f;
+        private const float Scale = 1.1f;   // 板も数字も、左上を基準にこの倍率で大きくする
         private const float BoardWidth = 244f, BoardHeight = 160f;
         // 板は少し透けている(TaikøNauts の動画で、後ろのキャラが透けて見えた。濃さは見た目で合わせた推測の値)。数字は透けない
         private const float BoardAlpha = 0.8f;
@@ -44,25 +47,25 @@ namespace TakeTaikoSimulator.Scenes
         {
             if (SkinManager.GetTexture(BaseImage) is not Texture2D board) return;
             Raylib.DrawTexturePro(board, new Rectangle(0, 0, BoardWidth, BoardHeight),
-                new Rectangle(BoardX, BoardY, BoardWidth, BoardHeight), Vector2.Zero, 0f, Raylib.ColorAlpha(Color.White, BoardAlpha));
+                new Rectangle(BoardX, BoardY, BoardWidth * Scale, BoardHeight * Scale), Vector2.Zero, 0f, Raylib.ColorAlpha(Color.White, BoardAlpha));
 
             Texture2D? digits = SkinManager.GetTexture(NumberImage);
             for (int row = 0; row < texts.Length; row++)
             {
                 string text = texts[row];
                 float width = (text.Length - 1) * DigitStep + DigitWidth;
-                float x = BoardX + NumberCenterX - width / 2f;
-                float y = BoardY + RowY[row];
+                float x = BoardX + (NumberCenterX - width / 2f) * Scale;
+                float y = BoardY + RowY[row] * Scale;
                 if (digits is not Texture2D tex)
                 {
-                    FontManager.Draw(text, x, y, 22, Color.White);
+                    FontManager.Draw(text, x, y, 22 * Scale, Color.White);
                     continue;
                 }
                 for (int i = 0; i < text.Length; i++)
                 {
                     int digit = text[i] - '0';
                     Raylib.DrawTexturePro(tex, new Rectangle(digit * DigitWidth, 0, DigitWidth, DigitHeight),
-                        new Rectangle(x + i * DigitStep, y, DigitWidth, DigitHeight), Vector2.Zero, 0f, Color.White);
+                        new Rectangle(x + i * DigitStep * Scale, y, DigitWidth * Scale, DigitHeight * Scale), Vector2.Zero, 0f, Color.White);
                 }
             }
         }
