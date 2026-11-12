@@ -625,7 +625,18 @@ namespace TakeTaikoSimulator.Scenes
                 if (!breakGesture && (freshUp != freshDown))
                 {
                     var action = skipGesture.Register(Math.Sign(move), Raylib.GetTime());
-                    if (action.Direction != 0) Move(action.Direction, action.Skip ? SkipCount : 1);
+                    if (action.Direction != 0)
+                    {
+                        if (!action.Skip)
+                        {
+                            // 1打目で通常移動する前の板を覚える。
+                            skipStartPosition = CurrentPos;
+                            skipStartedOnBack = inSongs && CurrentItem is { Kind: Kind.Back };
+                            Move(action.Direction);
+                        }
+                        else if (skipStartedOnBack) SkipToBack(action.Direction, skipStartPosition);
+                        else Move(action.Direction, SkipCount);
+                    }
                     if (action.Skip) skipLock = SkipInterval;
                 }
                 else Move(move);
@@ -641,6 +652,23 @@ namespace TakeTaikoSimulator.Scenes
         private const float SkipInterval = 0.5f;
         private float skipLock;
         private readonly SongSelectSkipGesture skipGesture = new();
+        private int skipStartPosition;
+        private bool skipStartedOnBack;
+
+        // 「とじる」から始めた2打は、同じ方向の次の「とじる」で止める。
+        private void SkipToBack(int direction, int start)
+        {
+            List<Item> items = CurrentList;
+            int pos = start;
+            for (int guard = 0; guard < items.Count; guard++)
+            {
+                pos += Math.Sign(direction);
+                if (items[Mod(pos, items.Count)].Kind != Kind.Back) continue;
+                SetPos(pos);
+                MenuSounds.Skip();
+                return;
+            }
+        }
 
         // 通常移動では「とじる」も選べる。スキップでは「とじる」と見出しを数えない。
         private void Move(int direction, int steps = 1)
