@@ -619,11 +619,11 @@ namespace TakeTaikoSimulator.Scenes
             float wheel = Raylib.GetMouseWheelMove();
             if (wheel > 0) move--;
             else if (wheel < 0) move++;
-            if (move != 0)
+            // スキップ後1秒は、カッ・矢印の押し直し/長押し・ホイールで一覧を動かさない。
+            if (move != 0 && skipLock <= 0f)
             {
                 bool scrolling = list.Shown != CurrentPos;
-                if (fresh && skipLock > 0f) { }                       // スキップしてから 0.5秒は、カッ・↑↓を受け付けない
-                else if (fresh && scrolling) { Move(Math.Sign(move), SkipCount); skipLock = SkipInterval; }
+                if (fresh && scrolling) { Move(Math.Sign(move), SkipCount); skipLock = SkipInterval; }
                 else Move(move);
             }
 
@@ -633,9 +633,9 @@ namespace TakeTaikoSimulator.Scenes
 
         // まとめて飛ぶ曲の数(OpenTaiko と同じ)
         private const int SkipCount = 7;
-        // スキップしてから次にスキップできるまで(TaikøNauts の動画 10/30：カッを連打し続けると、スキップの音がちょうど 0.5秒ごとに鳴って、
-        //   その間はカッの音もカーソルの動きも無かった)。この間のカッ・↑↓は無視する
-        private const float SkipInterval = 0.5f;
+        // スキップ後、次の移動を受け付けるまで。11/12の指定で0.5秒から1秒へ。
+        // この間の移動入力は捨て、解除後にまとめて実行しない。ドン・Enterの決定は使える。
+        private const float SkipInterval = 1f;
         private float skipLock;
 
         // steps 回ぶん動かす(見出しの板は飛ばす)。2回以上ならスキップの音
@@ -1276,7 +1276,7 @@ namespace TakeTaikoSimulator.Scenes
                 if (clickable && item.Kind != Kind.Label && Gui.Clicked(selected && selectedArea is Rectangle open ? open : area))
                 {
                     if (selected) Decide();
-                    else
+                    else if (skipLock <= 0f)
                     {
                         SetPos(pos);
                         MenuSounds.Ka();
