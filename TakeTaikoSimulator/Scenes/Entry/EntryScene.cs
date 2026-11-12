@@ -67,12 +67,42 @@ public sealed class EntryScene : Scene
 
     public EntryScene(bool selectData = false) => this.selectData = selectData;
 
+    // 「はじめの設定」から戻ってきた：そのデータの通信中から続ける（SetupScene → ここ）
+    private void ResumeFromSetup(PlayerJoin.ResumeInfo info)
+    {
+        step = Step.Data;
+        sideKeySet = info.KeySet;
+        join.Resume(info);
+    }
+
+    // 名前を入れたあと：この画面を覚えておいて「はじめの設定」へ
+    private void GoToSetup()
+    {
+        PlayerJoin.ResumeInfo info = join.MakeResume();
+        PlayerJoin.Pending = info;
+        bool reselect = selectData;
+        int index = dataPlayerIndex;
+        int[] chosen = chosenProfiles.ToArray();
+        SceneManager.Simple(new SetupScene(info.Slot, () =>
+        {
+            EntryScene scene = new(reselect);
+            scene.dataPlayerIndex = index;
+            foreach (int c in chosen) scene.chosenProfiles.Add(c);
+            return scene;
+        }));
+    }
+
     public override void Enter()
     {
-        if (!selectData) LocalSession.Reset();
+        if (!selectData && PlayerJoin.Pending == null) LocalSession.Reset();
         MenuSkin.Preload(Folder, new[] { "Background.png", "Header.png", "CreditBar.png", "Background_Fireworks.png",
             "Playside_Panel.png", "Playside_Panel_Overlay.png", "Playside_Bar.png", "Playside_Effect.png" });
         FontManager.PreloadSkinMain(new[] { "太鼓をたたいてスタート!どちらの太鼓であそびますか？ひだりつかわないみぎ" });
+        if (PlayerJoin.Pending is PlayerJoin.ResumeInfo pending)
+        {
+            ResumeFromSetup(pending);
+            return;
+        }
         if (selectData)
         {
             if (LocalSession.Count == 0) LocalSession.Join(0, 0);
@@ -111,7 +141,9 @@ public sealed class EntryScene : Scene
         if (leaving) return;
         if (step == Step.Data)
         {
-            if (join.Update(dt) == PlayerJoin.Result.Finished) FinishDataLoad();
+            PlayerJoin.Result result = join.Update(dt);
+            if (result == PlayerJoin.Result.Finished) FinishDataLoad();
+            else if (result == PlayerJoin.Result.Setup) GoToSetup();
             return;
         }
         if (Game.IsSettingsOpen) return;

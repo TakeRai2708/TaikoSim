@@ -229,8 +229,33 @@ namespace TakeTaikoSimulator.Graphics
         // メニューの画面のアニメ（モード選択・選曲・段位選択は songselect_loop、リザルトは result_*）
         public static readonly string[] MenuAnims =
         {
-            "songselect_loop", "result_loop", "result_clear_loop", "result_failed_in", "result_failed_loop",
+            "songselect_loop", "entry_loop", "result_loop", "result_clear_loop", "result_failed_in", "result_failed_loop",
         };
+
+        // メニューのアニメの1周の長さ（ミリ秒。コマを間引く量を決めるのに使う）。時間が決まっていないものは 0
+        private static int LoopMsFor(CharaConfig config, string anim) => anim switch
+        {
+            "songselect_loop" => config.SongSelectLoopTime,
+            "entry_loop" => config.EntryModeLoopTime,
+            "result_loop" => config.ResultLoopTime,
+            "result_clear_loop" => config.ResultClearLoopTime,
+            "result_failed_in" => config.ResultFailedInTime,
+            "result_failed_loop" => config.ResultFailedLoopTime,
+            _ => 0,
+        };
+
+        // 何コマに1コマ残すか
+        //   11/13 たけらい「モード選択、選曲のどんちゃん、なんか fps 低い」：
+        //   songselect_loop は 236コマを 1秒で回すので、2コマに1コマでも 118コマ/秒。画面は 60コマ/秒しか出ないのに、
+        //   裏のスレッドが毎秒 118枚の PNG を読むことになって、読みが間に合わず同じコマが続いていた。
+        //   → 時間が決まっているアニメは「1秒に 60コマ」になるまで間引く（見た目は同じ。読む量は半分）
+        private static int FrameStepFor(CharaConfig config, string anim, int sourceCount)
+        {
+            int loopMs = LoopMsFor(config, anim);
+            if (loopMs <= 0 || sourceCount <= 0) return FrameStep;
+            int wanted = Math.Max(1, (int)Math.Ceiling(loopMs / 1000.0 * 60.0));
+            return Math.Max(FrameStep, (int)Math.Ceiling(sourceCount / (double)wanted));
+        }
         public static bool IsResultAnim(string anim) => anim.StartsWith("result_", StringComparison.Ordinal);
 
         // 曲を決めたときのジャンプに使うアニメ
@@ -262,7 +287,7 @@ namespace TakeTaikoSimulator.Graphics
         public static float PlayScale(string anim) => Config == null ? 1 : IsBalloonAnim(anim) ? Config.EnsoGameBalloonScale : Config.EnsoGameNormalScale;
         public static float BakeScale(string anim) => ScaleFor(Config, anim);
         private static float ScaleFor(CharaConfig? config, string anim) => config == null ? 1
-            : anim == "songselect_loop" ? Math.Max(config.SongSelectScale, config.EntryScale)
+            : anim is "songselect_loop" or "entry_loop" ? Math.Max(config.SongSelectScale, config.EntryScale)
             : anim == SongStartAnim ? Math.Max(config.EnsoGameNormalScale, config.SongSelectScale)
             : IsResultAnim(anim) ? config.ResultScale
             : IsBalloonAnim(anim) ? config.EnsoGameBalloonScale : config.EnsoGameNormalScale;
@@ -311,8 +336,10 @@ namespace TakeTaikoSimulator.Graphics
                 if (token.IsCancellationRequested) return;
                 try
                 {
-                    if (CharaCache.BuildIfNeeded(Path.Combine(job.Source, anim), job.Cache, anim,
-                        ScaleFor(job.Config, anim), FrameStep, () => token.IsCancellationRequested)) ready[job.Cache + "/" + anim] = true;
+                    string source = Path.Combine(job.Source, anim);
+                    int step = FrameStepFor(job.Config, anim, Directory.Exists(source) ? CharaCache.CountFrames(source) : 0);
+                    if (CharaCache.BuildIfNeeded(source, job.Cache, anim,
+                        ScaleFor(job.Config, anim), step, () => token.IsCancellationRequested)) ready[job.Cache + "/" + anim] = true;
                 }
                 catch (Exception ex) { Console.WriteLine($"[Chara] {anim} を焼けませんでした：{ex.Message}"); }
             }

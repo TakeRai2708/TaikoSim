@@ -120,7 +120,7 @@ namespace TakeTaikoSimulator.Scenes
             NamePlate.Preload();
             chara.Load();
             CharaConfig? cc = CharaBaker.Config;
-            if (cc != null) chara.Loop("songselect_loop", cc.SongSelectLoopTime);
+            CharaLoop();
             cursor = Math.Clamp(cursor, 0, Items.Length - 1);
             list.Reset(cursor);
             deciding = null;
@@ -147,6 +147,8 @@ namespace TakeTaikoSimulator.Scenes
             itemVoicePending = false;
             // 段位のカテゴリを、決める前に読んでおく（裏で読むので止まらない）
             if (!DanList.IsScanned && !DanList.IsScanning) DanList.StartScan();
+            // 「はじめの設定」から戻ってきた：途中参加の通信中から続ける
+            if (PlayerJoin.Pending is PlayerJoin.ResumeInfo pending) join.Resume(pending);
         }
 
         public override void Exit()
@@ -197,7 +199,15 @@ namespace TakeTaikoSimulator.Scenes
             // 途中参加の板が出ている間は、そちらだけ動かす
             if (join.Active)
             {
-                if (join.Update(dt) == PlayerJoin.Result.Finished) LoopItemVoice();   // 「完了」の声で止まった、項目の声を戻す
+                PlayerJoin.Result result = join.Update(dt);
+                if (result == PlayerJoin.Result.Finished) LoopItemVoice();   // 「完了」の声で止まった、項目の声を戻す
+                else if (result == PlayerJoin.Result.Setup)
+                {
+                    // 名前を入れた：「はじめの設定」へ行って、終わったらこの画面に戻って通信中から続ける（11/13 たけらい ②B）
+                    PlayerJoin.ResumeInfo info = join.MakeResume();
+                    PlayerJoin.Pending = info;
+                    SceneManager.Simple(new SetupScene(info.Slot, () => new ModeSelectScene()));
+                }
                 return;
             }
             if (itemVoicePending && list.Expand > 0 && deciding == null && !choosingCategory)
@@ -305,9 +315,18 @@ namespace TakeTaikoSimulator.Scenes
         }
 
         // どんちゃんを、いつものくり返しの動きに戻す（決定をやめたとき・設定のように同じ画面に残るとき）
-        private void CharaBackToLoop()
+        private void CharaBackToLoop() => CharaLoop();
+
+        // モード選択のどんちゃんの通常の動き：entry_loop（entryModeLoopTime = 500ms で1周）
+        //   11/13 たけらい「モード選択のどんちゃんの通常時は演奏画面のうんうんしてる時と同じ」
+        //   11/11 の録画（2026-11-11 23-40-44.mp4 108〜114秒）で測ると、モード選択のどんちゃんは 0.5秒で1周していた
+        //   （選曲の songselect_loop は 1秒）。どんちゃんの Config.json の entryModeLoopTime と同じなので entry_loop を使う。
+        //   前は songselect_loop（ジャンプ）だった。entry_loop が無いキャラは songselect_loop のまま
+        private void CharaLoop()
         {
-            if (chara.Config is CharaConfig cc) chara.Loop("songselect_loop", cc.SongSelectLoopTime);
+            if (chara.Config is not CharaConfig cc) return;
+            if (chara.HasAnim("entry_loop")) chara.Loop("entry_loop", cc.EntryModeLoopTime);
+            else chara.Loop("songselect_loop", cc.SongSelectLoopTime);
         }
 
         // カテゴリの吹き出し：カッ・←→で選ぶ、ドンで決める（決めると板が光って段位道場へ）

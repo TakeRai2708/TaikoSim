@@ -15,7 +15,7 @@ namespace TakeTaikoSimulator.Graphics
     //   コマの絵の大きさは 300×280 くらい（約300KB）なので、テクスチャの上書きは一瞬。
     public sealed class CharaStream : IDisposable
     {
-        private const int Ahead = 6;   // 今のコマから何コマ先まで読んでおくか
+        private const int Ahead = 10;  // 今のコマから何コマ先まで読んでおくか（11/13：6 → 10。読みが間に合わないコマを減らす）
         private const int Pinned = 4;  // 最初の何コマを読みっぱなしにするか
 
         private sealed class Clip

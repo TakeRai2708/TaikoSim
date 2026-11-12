@@ -38,8 +38,16 @@ namespace TakeTaikoSimulator.Scenes
         private const float NoteHalf = NoteSize / 2f;
 
         // ===== スキンの画像の場所 =====
-        private const string NotesDir = "Image/04.EnsoGame/Notes/Normal/0/";
-        private const string FaceNotesDir = "Image/04.EnsoGame/Notes/Normal/1/";
+        // 音符の顔（11/13 たけらい。A-Style の Notes/Normal/0・1・2 ＝ ふつう・口あけ・怒り顔）：
+        //   10コンボ未満：ふつうの顔のまま
+        //   10〜99コンボ：拍の後半だけ口をあけた顔（1）
+        //   100コンボ以上：拍の後半だけ怒り顔（2）
+        //   どの段階も、拍の頭はふつうの顔（0）に戻る。連打・風船・大音符も同じ
+        //   拍は、今の小節線（直前の #BARLINE）からの経過時間を、その小節の BPM の1拍で割って数える
+        //   前は 1 番の絵をずっと使っていて（「通常の顔」と思っていた）、動いていなかった
+        private const string NotesRoot = "Image/04.EnsoGame/Notes/Normal/";
+        private const string NotesDir = NotesRoot + "0/";
+        private int noteFace;   // 今のコマで使う顔（0・1・2）。DrawPlayScreen で1回だけ決める
         private const string JudgeFrameImage = "Image/04.EnsoGame/Notes/JudgementFrame.png";
         private const string LaneImage = "Image/04.EnsoGame/Lane/Background_1P.png";
         private const string PanelImage = "Image/04.EnsoGame/MiniTaiko/Background_1P.png";
@@ -1853,6 +1861,7 @@ namespace TakeTaikoSimulator.Scenes
 
             t = DebugLog.Begin();
             DrawBarLines(course, viewMs);
+            UpdateNoteFace(course, viewMs);
 
             // 後ろ(右)の音符から描いて、手前(左)の音符が上に重なるようにする
             //   ドロン（演奏オプション）：音符の絵は描かない。下の文字だけ流れる
@@ -2280,11 +2289,31 @@ namespace TakeTaikoSimulator.Scenes
             }
         }
 
-        // 音符1つ
-        private static Texture2D? GetNoteTexture(string file)
+        // 音符1つ（顔つき。その顔の絵が無いスキンは 0 番）
+        private Texture2D? GetNoteTexture(string file)
         {
-            // 1番の画像に通常の顔が含まれる。無いスキンは従来の0番へ戻す。
-            return SkinManager.GetTexture(FaceNotesDir + file) ?? SkinManager.GetTexture(NotesDir + file);
+            if (noteFace != 0 && SkinManager.GetTexture(NotesRoot + noteFace + "/" + file) is Texture2D faced) return faced;
+            return SkinManager.GetTexture(NotesDir + file);
+        }
+
+        // 今のコマの顔を決める（コンボ数と、拍のどこか）
+        private void UpdateNoteFace(Course course, double viewMs)
+        {
+            noteFace = 0;
+            if (combo < 10) return;
+            // 直前の小節線（分岐の外か、今の分岐のもの）
+            BarLine? bar = null;
+            foreach (BarLine b in course.BarLines)
+            {
+                if (b.TimeMs > viewMs) break;
+                if (branches.IsActive(b)) bar = b;
+            }
+            double bpm = bar?.Bpm ?? chart?.Bpm ?? 120;
+            if (bpm <= 0) return;
+            double beatMs = 60000.0 / bpm;
+            double phase = ((viewMs - (bar?.TimeMs ?? 0)) / beatMs) % 1.0;
+            if (phase < 0) phase += 1.0;
+            if (phase >= 0.5) noteFace = combo >= 100 ? 2 : 1;
         }
 
         private void DrawNote(Note note, double viewMs)

@@ -44,6 +44,25 @@ namespace TakeTaikoSimulator.Scenes
 
         private Step step = Step.Welcome;
 
+        // ===== 新しいプレイヤーデータの「はじめの設定」（11/13 たけらい） =====
+        //   名前を入れたあと、起動時と同じこの画面で 音量 → 叩くキー → 完了 を通る（画面のページは PC のものなので出さない）。
+        //   終わったら next の画面に戻る（エントリーなら「どちらの太鼓で」、途中参加ならモード選択・選曲）
+        //   前は、自前の小さな板（はやさ・音色・音量）だった
+        private readonly int playerSlot = -1;
+        private readonly Func<Scene>? next;
+        private bool PlayerMode => playerSlot >= 0;
+        private SoundConfig? soundBefore;   // 途中参加のとき：1人目の音量を、終わったら元に戻す
+
+        public SetupScene() { }
+
+        /// <param name="slot">はじめの設定をするデータ（名前はもう入っている）</param>
+        /// <param name="next">終わったあとに出す画面</param>
+        public SetupScene(int slot, Func<Scene> next)
+        {
+            playerSlot = slot;
+            this.next = next;
+        }
+
         // 聞く必要がある叩く場所(キーが0個の場所だけ)
         private DrumPart[] partsToAsk = Parts;
 
@@ -79,6 +98,14 @@ namespace TakeTaikoSimulator.Scenes
 
             // 初回はようこそ画面から。一部だけ空なら、いきなり叩くキーの画面
             step = isFirstRun ? Step.Welcome : Step.Keys;
+            if (PlayerMode)
+            {
+                // 新しいデータ：ようこそ → 音量 → キー → 完了。キーは今のものを見せて、変えたい所だけ変える
+                isFirstRun = false;
+                step = Step.Welcome;
+                // 途中参加（もうだれかが遊んでいる）なら、ここで動かす音量はその人のものなので、あとで戻す
+                if (LocalSession.Count > 0) soundBefore = ConfigManager.Copy(ConfigManager.Sound);
+            }
         }
 
         public override void Update(float dt)
@@ -151,7 +178,7 @@ namespace TakeTaikoSimulator.Scenes
             switch (step)
             {
                 case Step.Welcome:
-                    step = Step.Display;
+                    step = PlayerMode ? Step.Sound : Step.Display;
                     break;
 
                 case Step.Display:
@@ -186,14 +213,14 @@ namespace TakeTaikoSimulator.Scenes
                     break;
 
                 case Step.Sound:
-                    step = Step.Display;
+                    step = PlayerMode ? Step.Welcome : Step.Display;
                     break;
 
                 case Step.Keys:
                     if (keyIndex == 0)
                     {
                         // 初回なら音量の設定に戻る。一部だけ空のときは戻る先が無い
-                        if (isFirstRun) step = Step.Sound;
+                        if (isFirstRun || PlayerMode) step = Step.Sound;
                     }
                     else
                     {
@@ -216,12 +243,28 @@ namespace TakeTaikoSimulator.Scenes
         private bool CanGoBack()
         {
             if (step == Step.Welcome) return false;
-            if (step == Step.Keys && keyIndex == 0 && !isFirstRun) return false;
+            if (step == Step.Keys && keyIndex == 0 && !isFirstRun && !PlayerMode) return false;
             return true;
         }
 
         private void Finish()
         {
+            if (PlayerMode)
+            {
+                // 新しい人の設定：演奏の設定は初期値、音量はこの画面で決めたもの。ファイルに書いてから元の画面へ
+                PlayerSettings.Save(playerSlot, PlayerSettings.ForNewData());
+                if (soundBefore != null)
+                {
+                    PlayerSettings.ApplySound(new PlayerSettingsFile
+                    {
+                        MasterVolume = soundBefore.MasterVolume, SeVolume = soundBefore.SeVolume, MusicVolume = soundBefore.MusicVolume,
+                        BgmVolume = soundBefore.BgmVolume, VoiceVolume = soundBefore.VoiceVolume,
+                    }, ConfigManager.Sound);
+                }
+                ConfigManager.SaveAll();   // 叩くキーは全員共通なので、ここで保存
+                SceneManager.Simple(next!());
+                return;
+            }
             ConfigManager.SaveAll();
             SceneManager.Simple(new EntryScene());
         }
@@ -237,8 +280,8 @@ namespace TakeTaikoSimulator.Scenes
             SmoothShapes.Rounded(Panel, 0.009f, 8, Gui.PanelColor);
 
             // 文字と細い進行線だけで、どこまで設定したか分かるようにする
-            FontManager.Draw(isFirstRun ? "初期設定" : "キーの設定", Left, 32, 38, Color.White);
-            if (isFirstRun)
+            FontManager.Draw(PlayerMode ? "はじめの設定" : isFirstRun ? "初期設定" : "キーの設定", Left, 32, 38, Color.White);
+            if (isFirstRun || PlayerMode)
             {
                 DrawProgress();
             }
@@ -269,9 +312,9 @@ namespace TakeTaikoSimulator.Scenes
 
         private void DrawProgress()
         {
-            string[] names = { "ようこそ", "画面", "音量", "キー", "完了" };
+            string[] names = PlayerMode ? new[] { "ようこそ", "音量", "キー", "完了" } : new[] { "ようこそ", "画面", "音量", "キー", "完了" };
             float first = Left + 60f, last = Right - 60f, gap = (last - first) / (names.Length - 1);
-            int current = (int)step;
+            int current = PlayerMode && step > Step.Welcome ? (int)step - 1 : (int)step;   // 画面のページが無いぶん詰める
 
             // 青い線の伸び（ページが変わったら、今の長さから次の長さへ）
             float target = current;
@@ -316,6 +359,13 @@ namespace TakeTaikoSimulator.Scenes
         // 1ページ目：ようこそ
         private void DrawWelcome()
         {
+            if (PlayerMode)
+            {
+                FontManager.Draw($"{PlayerDataStore.DisplayName(playerSlot)} さん、ようこそ！", Left, 300, 64, Color.White);
+                FontManager.Draw("音量と叩くキーを確かめます。演奏の設定（はやさ・音色など）は初期値から始まります。", Left, 430, 32, Color.White);
+                FontManager.Draw("あとからいつでも設定（F1）と演奏オプションで変更できます。", Left, 480, 28, Gui.SubTextColor);
+                return;
+            }
             FontManager.Draw("TaikoSimへようこそ！", Left, 300, 64, Color.White);
             FontManager.Draw("最初に、画面・音量・叩くキーを設定します。", Left, 430, 32, Color.White);
             FontManager.Draw("あとからいつでも設定（F1）で変更できます。", Left, 480, 28, Gui.SubTextColor);
@@ -496,7 +546,7 @@ namespace TakeTaikoSimulator.Scenes
             y += 196;
             KeyboardKey settingsKey = ConfigManager.Key.SystemKeys.GetValueOrDefault(SystemAction.Settings, KeyboardKey.F1);
             FontManager.Draw($"設定はいつでも {settingsKey} で変更できます。", Left, y, 28, Gui.AccentColor);
-            FontManager.Draw("「はじめる」を押すとエントリー画面に進みます。", Left, y + 46, 26, Gui.SubTextColor);
+            FontManager.Draw(PlayerMode ? "「はじめる」を押すと元の画面に戻ります。" : "「はじめる」を押すとエントリー画面に進みます。", Left, y + 46, 26, Gui.SubTextColor);
         }
 
         // ページの大きいタイトル
@@ -518,7 +568,7 @@ namespace TakeTaikoSimulator.Scenes
             {
                 if (changingPart != null) hint = "Esc：変更をキャンセル";
                 else if (keyIndex > 0) hint = $"Esc：{KeyConfig.GetDrumPartName(partsToAsk[keyIndex - 1])}をやり直す";
-                else if (isFirstRun) hint = "Esc：前のページに戻る";
+                else if (isFirstRun || PlayerMode) hint = "Esc：前のページに戻る";
                 else hint = ""; // 一部だけ空のときの最初の場所は戻れない
             }
             else if (Gui.IsEditing)

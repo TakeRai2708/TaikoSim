@@ -273,6 +273,8 @@ namespace TakeTaikoSimulator.Scenes
             returnTime = -1f;
             returnSwap = null;
             if (!SongList.IsScanned && !SongList.IsScanning) SongList.StartScan();
+            // 「はじめの設定」から戻ってきた：途中参加の通信中から続ける
+            if (PlayerJoin.Pending is PlayerJoin.ResumeInfo pending) join.Resume(pending);
             wasScanning = SongList.IsScanning;
             searchFocused = false;
             if (!SongList.IsScanning) Rebuild(keepPlace: true);
@@ -542,7 +544,13 @@ namespace TakeTaikoSimulator.Scenes
             // 途中参加の板が出ている間は、そちらだけ動かす（名前の入力があるので、打った文字は捨てない）
             if (join.Active)
             {
-                join.Update(dt);
+                if (join.Update(dt) == PlayerJoin.Result.Setup)
+                {
+                    // 名前を入れた：「はじめの設定」へ。終わったら選曲に戻る（曲の位置は static で覚えているので同じ所）
+                    PlayerJoin.ResumeInfo info = join.MakeResume();
+                    PlayerJoin.Pending = info;
+                    SceneManager.Simple(new SetupScene(info.Slot, () => new SongSelectScene()));
+                }
                 return;
             }
 
