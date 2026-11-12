@@ -1116,3 +1116,11 @@ Order:
 - Settings rows are grouped into cards (`BeginCard`/`EndCard` in SettingsOverlay.cs); `Gui.Segmented` replaces a dropdown automatically
   when it has 2–4 short options (no current setting qualifies).
 
+
+## Entry flow (11/12, たけらい)
+- Flow: yellow start bars (Don of either key set) → 「どちらの太鼓で」 side select (ひだり／つかわない／みぎ, default つかわない, uses A-Style `01.Entry/Playside_*.png`; own UI when missing) → data select → 通信中 → 完了 → mode select.
+- Side and key set are separate: `LocalSession.KeySets[side]`. `InputManager.IsDrumPressed(part, side)` maps through it; `IsKeySetPressed`/`IsKeySetDonPressed` read a key set directly (for people not joined yet).
+- Data select/communication lives in `Scenes/Entry/PlayerJoin.cs` and is reused as an overlay: the 2nd player joins from mode select or song select (list only, not difficulty select, not training) with a Don of the unused key set, and takes the free side. `LocalSession.Join` is called only when 完了 ends.
+- Solo player on みぎ looks like 2P in menus; the play screen keeps the 1P layout (PlayScene draws the nameplate/puchi with side 0).
+- Leaving 2-player = going back to the entry screen (it resets the session).
+- An unregistered data slot shows only 「新しく遊ぶ」 (no name, score rank, or crown summary).

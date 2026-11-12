@@ -10,9 +10,13 @@ namespace TakeTaikoSimulator.Input
     {
         // 叩く場所が押された瞬間か(登録されたキーのどれか1つでもOK)
         public static bool IsDrumPressed(DrumPart part) => IsDrumPressed(part, TakeTaikoSimulator.Scenes.LocalSession.MenuPlayer);
-        public static bool IsDrumPressed(DrumPart part, int player)
+        //   player は「側」（0 = ひだり、1 = みぎ）。どのキーの組を叩くかは LocalSession.KeySets が決める
+        public static bool IsDrumPressed(DrumPart part, int player) => IsKeySetPressed(part, TakeTaikoSimulator.Scenes.LocalSession.KeySets[player]);
+
+        // キーの組（0 = 設定の1Pのキー、1 = 2Pのキー）を直接見る。まだ側が決まっていない人（エントリー・途中参加）用
+        public static bool IsKeySetPressed(DrumPart part, int keySet)
         {
-            part = (DrumPart)((int)part % 4 + player * 4);
+            part = (DrumPart)((int)part % 4 + keySet * 4);
             if (!ConfigManager.Key.DrumKeys.TryGetValue(part, out List<KeyboardKey>? keys)) return false;
 
             foreach (KeyboardKey key in keys)
@@ -21,6 +25,8 @@ namespace TakeTaikoSimulator.Input
             }
             return false;
         }
+
+        public static bool IsKeySetDonPressed(int keySet) => IsKeySetPressed(DrumPart.LeftDon, keySet) || IsKeySetPressed(DrumPart.RightDon, keySet);
 
         // ドン(左面か右面)が押された瞬間か
         public static bool IsDonPressed()

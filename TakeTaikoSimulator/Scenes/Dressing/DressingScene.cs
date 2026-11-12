@@ -49,7 +49,7 @@ public sealed class DressingScene : Scene
     public override void Enter()
     {
         side = LocalSession.Controller;
-        if (LocalSession.Count == 0) LocalSession.Don(side);
+        if (LocalSession.Count == 0) LocalSession.Join(side, side);
         try
         {
             foreach (int player in LocalSession.Players)

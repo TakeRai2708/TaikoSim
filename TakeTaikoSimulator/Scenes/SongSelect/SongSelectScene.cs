@@ -155,7 +155,11 @@ namespace TakeTaikoSimulator.Scenes
         private static readonly Rectangle SearchBox = new Rectangle(410, 330, 1100, 60);
         private const float SearchTextX = 430, SearchTextY = 345, SearchFontSize = 28;
         private const int SearchMaxLength = 40;
-        public override bool IsWaitingKey => searchFocused;
+        public override bool IsWaitingKey => searchFocused || join.Naming;
+        public override bool CanOpenSettings => !join.Naming && !join.Busy;
+        // 2人目の途中参加（データ選択 → 通信中 → 完了）。曲の一覧・ジャンルの一覧にいるときだけ、まだ使っていない方のキーのドンで開く
+        //   難易度選択では入れない（11/12 たけらい ④A）。特訓モードは1人用なので入れない
+        private readonly PlayerJoin join = new();
         private static CourseType? searchCourse;
         private static int? searchStars;
         private static string? searchGenre;
@@ -316,6 +320,7 @@ namespace TakeTaikoSimulator.Scenes
             largeControlGuide?.Unload();
             largeControlGuide = null;
             options.CloseNow();
+            join.Dispose();
         }
 
         // 設定パネルで音量が変わったとき：流れているプレビューの曲に、すぐ新しい音量をかける
@@ -534,6 +539,13 @@ namespace TakeTaikoSimulator.Scenes
             preview.Request(previewTja, diffOpen || list.Expand > 0f);
             if (returnTime >= 0f) { DiscardTypedChars(); return; }
 
+            // 途中参加の板が出ている間は、そちらだけ動かす（名前の入力があるので、打った文字は捨てない）
+            if (join.Active)
+            {
+                join.Update(dt);
+                return;
+            }
+
             // 検索の箱に入力中
             if (searchFocused)
             {
@@ -588,6 +600,13 @@ namespace TakeTaikoSimulator.Scenes
                     flipOpen = null;
                     flipFromBack = false;
                 }
+                return;
+            }
+
+            // 2人目の途中参加：まだ使っていない方のキーのドン
+            if (!training && afterBlink == null && PlayerJoin.NewPlayerPressed)
+            {
+                join.OpenForNewPlayer();
                 return;
             }
 
@@ -812,6 +831,7 @@ namespace TakeTaikoSimulator.Scenes
         // Esc：オプション → 難易度 → 曲の一覧 → ジャンルの一覧 → モード選択 の順に1つ戻る
         public override void OnBack()
         {
+            if (join.Active) { join.Back(); return; }
             if (returnTime >= 0f) return;
             if (flipTime >= 0f) return; // ジャンルがめくれている途中は戻れない(途中で止めると一覧がおかしくなる)
             if (searchFocused)
@@ -1226,7 +1246,7 @@ namespace TakeTaikoSimulator.Scenes
         {
             Gui.BeginFrame();
             active = !Game.IsSettingsOpen;
-            if (!active || options.IsOpen || searchFocused) Gui.SetClip(NoClickArea);
+            if (!active || options.IsOpen || searchFocused || join.Active) Gui.SetClip(NoClickArea);
             else Gui.ResetClip();
 
             Raylib.DrawRectangleGradientV(0, 0, Screen.Width, Screen.Height,
@@ -1259,6 +1279,7 @@ namespace TakeTaikoSimulator.Scenes
                 Text(error, 44, 1037, 24, ErrorColor);
             if (toastTimer > 0f) DrawToast();
             if (searchFocused) DrawSearchBox();
+            join.Draw(active);
         }
 
         private void DrawHeader()

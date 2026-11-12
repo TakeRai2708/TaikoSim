@@ -12,190 +12,176 @@ using static TakeTaikoSimulator.UI.MenuDraw;
 
 namespace TakeTaikoSimulator.Scenes;
 
-// 11/9のエントリー動画25秒：背景を暗くし、中央の黄色い板でデータを選ぶ。
-// 人数を決めた後、参加している側のデータを順番に選ぶ。
+// エントリー画面
+//
+//   11/12 たけらい「エントリー画面の画面遷移の流れを変えよう」。流れ：
+//     ① 黄色い板（太鼓をたたいてスタート）：どちらかのキーの組のドンを叩く
+//     ② 「どちらの太鼓でつかいますか？」：ひだり ／ つかわない ／ みぎ（TaikøNauts と同じ。最初は「つかわない」）
+//          ・ひだり = 1P（赤）、みぎ = 2P（青）。叩くキーは、① で叩いた方のまま
+//          ・つかわない・Esc：① に戻る
+//     ③ データ選択 → データ通信中 → 完了（PlayerJoin）
+//     ④ モード選択へ
+//   ・ここで入れるのは1人だけ。2人目は、モード選択か選曲（曲の一覧）で、まだ使っていない方のキーのドンを叩いて入る
+//   ・2人プレイをやめるには、この画面まで戻る（入り直すと全員リセット）
+//   ・前は：1P・2P のドンで人数を決める → もう一度ドン → 参加している順にデータ選択 だった
+//
+//   selectData: true（モード選択で F5・名札をクリック）：今いる人のデータを、順番に選び直す（①② は出さない）
 public sealed class EntryScene : Scene
 {
     private const string Folder = "Image/01.Entry/";
-    private readonly SongRecordSummary?[] totals = new SongRecordSummary?[3];
-    private readonly string[] errors = new string[3];
-    private int cursor;
-    private bool choosing;
+    private enum Step { Start, Side, Data }
+
+    // 「どちらの太鼓で」の板。11/11 の録画（2026-11-11 23-40-44.mp4 の 104.5秒）と重ねて測った
+    //   Playside_Panel.png・Playside_Panel_Overlay.png：1920×1080 を (0,0) に
+    //   Playside_Bar.png：400×130 が縦に3つ（ひだり・つかわない・みぎ）。左上が (455 / 760 / 1065, 735)
+    //   Playside_Effect.png：400×130 が縦に6つ。上3つ = つかわない用（枠・光・白）、下3つ = ひだり・みぎ用（枠・光・白）
+    private static readonly float[] SideX = { 455, 760, 1065 };
+    private const float SideY = 735, SideWidth = 400, SideHeight = 130;
+    private const float SideOpenSeconds = 0.2f;     // 板が出てくる時間（黄色い板と入れ替わる）
+    private const float SideDecideSeconds = 0.3f;   // 決めたあと、白く光る時間
+    private static readonly string[] SideNames = { "ひだり", "つかわない", "みぎ" };
+    private static Rectangle SideBar(int index) => new(SideX[index], SideY, SideWidth, SideHeight);
+    // 押せる所・画像が無いときの箱（画像は、まわりに光のための余白がある）
+    private static Rectangle SideBox(int index) => index == 1
+        ? new(SideX[1] + 25, SideY + 20, SideWidth - 50, SideHeight - 40)
+        : new(SideX[index] + 60, SideY + 20, SideWidth - 120, SideHeight - 40);
+
+    private readonly PlayerJoin join = new();
+    private readonly bool selectData;
+    private readonly HashSet<int> chosenProfiles = new();   // 選び直しのとき、もう選んだデータ
+    private Step step = Step.Start;
+    private int dataPlayerIndex;      // 選び直しのとき、何人目か
+    private int sideKeySet;           // ① で叩いたキーの組
+    private int sideCursor = 1;       // 0 ひだり・1 つかわない・2 みぎ
+    private float sideAge;
+    private float sideDecide = -1f;
     private bool leaving;
     private float elapsed;
-    private float communication = -1;
-    private bool communicationDone, successVoice;
-    private float opened;
-    private float joiningTransition = -1;
-    private int dataPlayerIndex;
-    private readonly HashSet<int> chosenProfiles = new();
-    private string error = "";
-    private readonly PlayerNameInput nameInput = new();
-    private bool naming;
-    private bool selectionChanged;
-    private readonly bool[] registered = new bool[3];
-    private Aup2? controlGuide;
-    private int guideSkin = -1;
-    private static readonly NamePlateConfig NewDataPlate = new() { Name = "新しいデータ" };
-    private static Rectangle ConfirmArea => new(960 + Layout.GuideOffset.X, 810 + Layout.GuideOffset.Y, 184, 94);
-    public override bool IsWaitingKey => naming;
-    public override bool CanOpenSettings => !naming && communication < 0;
-    private static readonly Rectangle DataPanel = Layout.DataPanel;
+
+    public override bool IsWaitingKey => join.Naming;
+    public override bool CanOpenSettings => !join.Naming && !join.Busy;
 
     public override string? MenuBgmFile => MenuBgm.EntryFile;
 
-    public EntryScene(bool selectData = false) => choosing = selectData;
+    public EntryScene(bool selectData = false) => this.selectData = selectData;
 
     public override void Enter()
     {
-        if (!choosing) LocalSession.Reset();
-        if (choosing && LocalSession.Count == 0) LocalSession.Don(0);
-        PlayerDataStore.Reload();
-        NamePlate.Preload();
-        cursor = SongHistory.ActiveProfile - 1;
-        MenuSkin.Preload(Folder, new[] { "Background.png", "Header.png", "CreditBar.png",
-            "DataLoad_Panel.png", "DataLoad_Text.png", "PlayerData_Panel.png", "Cursor_Left.png", "Cursor_Right.png", "Background_Fireworks.png" });
-        PrepareGuide();
-        MenuSkin.Preload(MenuSkin.SongFolder, SongRecordPanel.Images);
-        FontManager.PreloadSkinMain(new[] { "使用するデータを選んでくださいプレイヤー123記録なしおに裏譜面クリアフルコンボドンダフル記録が読めません左右カッえらぶドン決定戻る終了太鼓をたたいてスタートEDCBAS読み込み中読み込みが完了しました" });
-        for (int i = 0; i < 3; i++)
+        if (!selectData) LocalSession.Reset();
+        MenuSkin.Preload(Folder, new[] { "Background.png", "Header.png", "CreditBar.png", "Background_Fireworks.png",
+            "Playside_Panel.png", "Playside_Panel_Overlay.png", "Playside_Bar.png", "Playside_Effect.png" });
+        FontManager.PreloadSkinMain(new[] { "太鼓をたたいてスタート!どちらの太鼓であそびますか？ひだりつかわないみぎ" });
+        if (selectData)
         {
-            registered[i] = PlayerDataStore.HasName(i + 1);
-            try { totals[i] = SongHistory.PreviewProfile(i + 1, ConfigManager.Game.RecordGroup); }
-            catch (Exception ex) when (ex is IOException or UnauthorizedAccessException or JsonException)
-            { errors[i] = "記録が読めません"; Console.WriteLine($"[Entry] {i + 1}: {ex.Message}"); }
+            if (LocalSession.Count == 0) LocalSession.Join(0, 0);
+            OpenReselect();
         }
         MenuVoice.Play("Sound/Entry/Start.ogg");
     }
 
     public override void Exit()
     {
-        controlGuide?.Unload(); controlGuide = null;
+        join.Dispose();
         MenuVoice.StopLoop();
     }
 
-    private void PrepareGuide()
+    // 選び直し：dataPlayerIndex 番目の人のデータ選択を開く
+    private void OpenReselect()
     {
-        if (guideSkin == SkinManager.Generation) return;
-        controlGuide?.Unload(); controlGuide = null;
-        guideSkin = SkinManager.Generation;
-        if (SkinManager.CurrentPath == null || SkinManager.SystemSkin) return;
-        controlGuide = Aup2.Load(Path.Combine(SkinManager.CurrentPath, "Image/99.Common/Control_Guide/Small/Anime.aup2"));
-        if (controlGuide != null && !controlGuide.HasAllImages) { controlGuide.Unload(); controlGuide = null; }
+        int side = LocalSession.Players[dataPlayerIndex];
+        step = Step.Data;
+        join.Open(side, LocalSession.KeySets[side], chosenProfiles, overlay: false);
+    }
+
+    private void BackToStart()
+    {
+        step = Step.Start;
+        dataPlayerIndex = 0;
+        chosenProfiles.Clear();
+        sideDecide = -1f;
+        LocalSession.Reset();
     }
 
     public override void Update(float dt)
     {
-        selectionChanged = false;
         elapsed += dt;
-        PrepareGuide();
-        if (choosing) opened += dt;
-        if (Game.IsSettingsOpen) return;
-        if (communication >= 0) { AdvanceCommunication(dt); return; }
         if (leaving) return;
-        if (naming)
+        if (step == Step.Data)
         {
-            if (nameInput.Update())
-            {
-                try
-                {
-                    var plate = PlayerDataStore.Copy(PlayerDataStore.NamePlate(cursor + 1));
-                    plate.Name = nameInput.Value;
-                    PlayerDataStore.Save(cursor + 1, plate);
-                    registered[cursor] = true;
-                    naming = false;
-                    Decide();
-                }
-                catch (Exception ex) when (ex is IOException or UnauthorizedAccessException or JsonException)
-                { nameInput.Error = "保存できませんでした：" + ex.Message; }
-            }
+            if (join.Update(dt) == PlayerJoin.Result.Finished) FinishDataLoad();
             return;
         }
-        if (joiningTransition >= 0)
-        {
-            joiningTransition += dt;
-            if (joiningTransition >= .5f) { joiningTransition = -1; choosing = true; opened = 0; }
-            return;
-        }
-        if (!choosing)
-        {
-            bool[] don = { InputManager.IsDonPressed(0) || Raylib.IsKeyPressed(KeyboardKey.Enter), InputManager.IsDonPressed(1) };
-            bool advance = false;
-            // 同じフレームで両側が初参加しても、2回押したことにはしない。
-            for (int p = 0; p < 2; p++) if (don[p]) advance |= LocalSession.Don(p);
-            if (don.Any(x => x)) MenuSounds.Don();
-            if (advance) joiningTransition = 0;
-            return;
-        }
-        int dataPlayer = LocalSession.Players[dataPlayerIndex];
-        if (choosing)
-        {
-            int move = 0;
-            if (Raylib.IsKeyPressed(KeyboardKey.Left) || InputManager.IsDrumPressed(DrumPart.LeftKa, dataPlayer)) move--;
-            if (Raylib.IsKeyPressed(KeyboardKey.Right) || InputManager.IsDrumPressed(DrumPart.RightKa, dataPlayer)) move++;
-            // 選択を動かした入力を、同じフレームの決定にも使わない。
-            if (move != 0) { Move(move); return; }
-        }
-        if (Raylib.IsKeyPressed(KeyboardKey.Enter) || Raylib.IsKeyPressed(KeyboardKey.KpEnter) || InputManager.IsDonPressed(dataPlayer)) Decide();
+        if (Game.IsSettingsOpen) return;
+        if (step == Step.Side) { UpdateSide(dt); return; }
+
+        // ① 黄色い板：どちらのキーの組でも始められる（Enter は1Pのキーの組）
+        if (InputManager.IsKeySetDonPressed(0) || Raylib.IsKeyPressed(KeyboardKey.Enter) || Raylib.IsKeyPressed(KeyboardKey.KpEnter)) OpenSide(0);
+        else if (InputManager.IsKeySetDonPressed(1)) OpenSide(1);
     }
 
-    private void Move(int step)
+    private void OpenSide(int keySet)
     {
-        int next = Math.Clamp(cursor + step, 0, 2);
-        if (next == cursor) return;
-        cursor = next;
-        selectionChanged = true;
-        error = "";
-        MenuSounds.Ka();
-    }
-
-    private void Decide()
-    {
-        if (leaving || communication >= 0 || selectionChanged) return;
-        if (opened < .2f) return;
-        if (!string.IsNullOrEmpty(errors[cursor])) { error = errors[cursor]; return; }
-        if (chosenProfiles.Contains(cursor + 1)) { error = "別のプレイヤーが使用中です"; return; }
-        if (!PlayerDataStore.HasName(cursor + 1)) { naming = true; nameInput.Open(); return; }
-        try { PlayerDataStore.NamePlate(cursor + 1); }
-        catch (Exception ex) when (ex is IOException or UnauthorizedAccessException or JsonException)
-        { error = "名前の設定が読めません：" + ex.Message; return; }
-        int physicalPlayer = LocalSession.Players[dataPlayerIndex];
-        try { SongHistory.SelectProfile(cursor + 1); }
-        catch (Exception ex) when (ex is IOException or UnauthorizedAccessException or JsonException)
-        { error = "記録が読めません"; Console.WriteLine($"[Entry] {ex.Message}"); return; }
-        LocalSession.Profiles[physicalPlayer] = cursor + 1;
-        chosenProfiles.Add(cursor + 1);
-        communication = 0;
-        communicationDone = successVoice = false;
-        leaving = dataPlayerIndex + 1 >= LocalSession.Count;
+        step = Step.Side;
+        sideKeySet = keySet;
+        sideCursor = 1;
+        sideAge = 0f;
+        sideDecide = -1f;
         MenuSounds.Don();
     }
 
-    // 参考動画32.9〜37.3秒を0.1秒刻みで計測。実通信ではなくローカルデータの読み込み演出。
-    private void AdvanceCommunication(float dt)
+    // ② どちらの太鼓で
+    private void UpdateSide(float dt)
     {
-        if (communicationDone) return;
-        communication += dt;
-        if (!successVoice && communication >= 2.4f)
-        { successVoice = true; MenuVoice.Play("Sound/Entry/DataLoadSuccess.ogg"); }
-        if (communication < 4.4f) return;
-        communicationDone = true;
-        FinishDataLoad();
+        sideAge += dt;
+        if (sideDecide >= 0f)
+        {
+            sideDecide += dt;
+            if (sideDecide < SideDecideSeconds) return;
+            sideDecide = -1f;
+            if (sideCursor == 1) { BackToStart(); return; }
+            step = Step.Data;
+            join.Open(sideCursor == 0 ? 0 : 1, sideKeySet, Array.Empty<int>(), overlay: false);
+            return;
+        }
+        if (sideAge < SideOpenSeconds) return;   // 出てくる途中は押せない（開いたドンで、そのまま決まらないように）
+        int move = 0;
+        if (Raylib.IsKeyPressed(KeyboardKey.Left) || InputManager.IsKeySetPressed(DrumPart.LeftKa, sideKeySet)) move--;
+        if (Raylib.IsKeyPressed(KeyboardKey.Right) || InputManager.IsKeySetPressed(DrumPart.RightKa, sideKeySet)) move++;
+        if (move != 0)
+        {
+            int next = Math.Clamp(sideCursor + move, 0, 2);
+            if (next != sideCursor) { sideCursor = next; MenuSounds.Ka(); }
+            return;
+        }
+        if (Raylib.IsKeyPressed(KeyboardKey.Enter) || Raylib.IsKeyPressed(KeyboardKey.KpEnter) || InputManager.IsKeySetDonPressed(sideKeySet))
+            DecideSide(sideCursor);
+    }
+
+    private void DecideSide(int index)
+    {
+        if (sideDecide >= 0f || sideAge < SideOpenSeconds) return;
+        sideCursor = index;
+        sideDecide = 0f;
+        if (index == 1) MenuSounds.Cancel();
+        else MenuSounds.Don();
     }
 
     private void FinishDataLoad()
     {
-        // 最後の確定後も、暗転中はこの画面を描く。参加者番号を人数の外へ進めない。
-        if (dataPlayerIndex + 1 < LocalSession.Count)
+        if (selectData)
         {
-            communication = -1;
-            dataPlayerIndex++;
-            cursor = Enumerable.Range(1, 3).First(s => !chosenProfiles.Contains(s)) - 1;
-            opened = 0;
-            return;
+            chosenProfiles.Add(LocalSession.Profiles[join.Side]);
+            if (dataPlayerIndex + 1 < LocalSession.Count)
+            {
+                dataPlayerIndex++;
+                OpenReselect();
+                return;
+            }
         }
-        SongHistory.SelectProfile(LocalSession.Profiles[LocalSession.Controller]);
         leaving = true;
+        try { SongHistory.SelectProfile(LocalSession.Profiles[LocalSession.Controller]); }
+        catch (Exception ex) when (ex is IOException or UnauthorizedAccessException or JsonException)
+        { Console.WriteLine($"[Entry] {ex.Message}"); }
         SongSelectScene.ResetForProfile();
         // 黒くしないで、そのままモード選択へ。板やどんちゃんが順番に出てくる（ModeSelectScene の「エントリーから入ってきたときの出かた」）
         //   11/11 の録画：エントリーとモード選択は同じ背景のままつながっていた。前は 0.3秒ずつ黒くしていた
@@ -204,22 +190,33 @@ public sealed class EntryScene : Scene
 
     public override void OnBack()
     {
-        if (naming) { if (!WindowsIme.IsComposing) naming = false; return; }
-        if (leaving || communication >= 0) return;
-        if (joiningTransition >= 0) return;
-        if (choosing) { choosing = false; dataPlayerIndex = 0; chosenProfiles.Clear(); LocalSession.Reset(); error = ""; MenuSounds.Ka(); }
-        else Game.ShouldExit = true;
+        if (leaving) return;
+        if (step == Step.Data)
+        {
+            // データ選択でやめたら、黄色い板まで戻る（全員リセット）
+            if (join.Back()) BackToStart();
+            return;
+        }
+        if (step == Step.Side)
+        {
+            if (sideDecide >= 0f) return;
+            MenuSounds.Ka();
+            BackToStart();
+            return;
+        }
+        Game.ShouldExit = true;
     }
 
     public override void Draw()
     {
         Gui.BeginFrame();
+        Gui.ResetClip();
         DrawBackdrop();
-        bool interactive = !leaving && !Game.IsSettingsOpen && joiningTransition < 0;
-        if (communication >= 0) DrawCommunication();
-        else if (naming) nameInput.Draw();
-        else if (!choosing) DrawStart(interactive);
-        else DrawProfiles(interactive);
+        bool interactive = !leaving && !Game.IsSettingsOpen;
+        if (step == Step.Start) DrawStart(interactive, 1f);
+        else if (step == Step.Side) DrawSide(interactive);
+        else if (join.Active) join.Draw(interactive);
+        else Raylib.DrawRectangle(0, 0, 1920, 1080, new Color(0, 0, 0, 150));   // 完了のあと、モード選択に替わるまでの1コマ
         MenuSkin.Whole(Folder + "Header.png", new(0, 0, 1920, 1080), Color.White);
         FreePlay();
     }
@@ -242,23 +239,20 @@ public sealed class EntryScene : Scene
         Raylib.DrawTexturePro(texture, new(cell * 300, 0, 300, 300), new(x - size / 2, y - size / 2, size, size), Vector2.Zero, 0, Fade(Color.White, alpha));
     }
 
-    private void DrawStart(bool interactive)
+    // ① 黄色い板。どちらの板にも「太鼓をたたいてスタート!」
+    private void DrawStart(bool interactive, float fade)
     {
+        if (fade <= 0f) return;
         // 20秒の動画とCreditBarの静止部分を照合：原寸、左上(380,404)。
-        float fade = joiningTransition < 0 ? 1 : 1 - Math.Clamp(joiningTransition / .5f, 0, 1);
         for (int i = 0; i < 2; i++)
         {
             Rectangle row = new(Layout.StartRow.X, Layout.StartRow.Y + i * Layout.StartRowSpacing, Layout.StartRow.Width, Layout.StartRow.Height);
-            bool enabled = LocalSession.Count < 2 || i == 1;
-            Color tint = MenuSkin.White(fade * (enabled ? 1 : .55f));
-            if (!MenuSkin.Cell(Folder + "CreditBar.png", i, 1, 2, row, tint))
+            if (!MenuSkin.Cell(Folder + "CreditBar.png", i, 1, 2, row, MenuSkin.White(fade)))
             {
                 SmoothShapes.Rounded(new(row.X + 13, row.Y + 14, 1146, 160), .2f, 12, Fade(new Color(255, 226, 61, 255), fade));
-                Outlined(i == 0 ? "1人プレイ" : "2人プレイ", new(row.X + 70, row.Y + 30, 320, 110), 56, Fade(Color.Black, fade), Fade(Color.White, fade));
+                Outlined(i == 0 ? "1P" : "2P", new(row.X + 70, row.Y + 30, 320, 110), 56, Fade(Color.Black, fade), Fade(Color.White, fade));
             }
-            string message = LocalSession.Count == 0 ? "太鼓をたたいてスタート!"
-                : i == 0 ? LocalSession.Count == 1 ? $"{LocalSession.Controller + 1}P参加中　もう一度ドンで決定" : "2人プレイを選択中"
-                : LocalSession.Count == 1 ? $"{2 - LocalSession.Controller}Pのドンで2人プレイ" : "もう一度ドンで決定";
+            const string message = "太鼓をたたいてスタート!";
             // CreditBarの焼き込み文字は、2行目だけセル内で14px上にある。
             Rectangle messageBox = i == 0 ? Layout.StartMessage1 : Layout.StartMessage2;
             Rectangle area = new(row.X + messageBox.X, row.Y + messageBox.Y, messageBox.Width, messageBox.Height);
@@ -267,103 +261,57 @@ public sealed class EntryScene : Scene
             ink = FontManager.MeasureSkinMainInk(message, size);
             FontManager.DrawSkinMainOutlined(message, area.X + (area.Width - ink.Width) / 2 - ink.X,
                 area.Y + (area.Height - ink.Height) / 2 - ink.Y, size, Fade(Color.White, fade), Fade(Color.Black, fade), Layout.StartMessageOutline);
-            if (interactive && enabled && Gui.Clicked(row)) { ClickStart(i + 1); interactive = false; }
+            // マウス：上の板 = 1Pのキーの組、下の板 = 2Pのキーの組で始める
+            if (interactive && Gui.Clicked(row)) { OpenSide(i); interactive = false; }
         }
-        if (joiningTransition >= 0) Raylib.DrawRectangle(0, 0, 1920, 1080, new Color(0, 0, 0, (int)(150 * (1 - fade))));
     }
 
-    private void ClickStart(int count)
+    // ② どちらの太鼓で
+    private void DrawSide(bool interactive)
     {
-        if (count == 1)
-        {
-            if (LocalSession.Count == 0) LocalSession.Don(0);
-            else if (LocalSession.Count == 1) joiningTransition = 0;
-        }
-        else if (LocalSession.Count == 2) joiningTransition = 0;
-        else
-        {
-            for (int side = 0; side < 2; side++) if (!LocalSession.Joined[side]) LocalSession.Don(side);
-        }
-        MenuSounds.Don();
-    }
+        float open = Math.Clamp(sideAge / SideOpenSeconds, 0f, 1f);
+        DrawStart(false, 1f - open);   // 黄色い板は、入れ替わりに消えていく
+        Raylib.DrawRectangle(0, 0, 1920, 1080, new Color(0, 0, 0, (int)(150 * open)));
+        Color tint = Fade(Color.White, open);
+        // 決めたあとの白い光：パッと出て、消えていく
+        float flash = sideDecide < 0f ? 0f : 1f - Math.Clamp(sideDecide / SideDecideSeconds, 0f, 1f);
+        float pulse = .55f + .45f * MathF.Sin(elapsed * 6f);
 
-    private void DrawProfiles(bool interactive, float alpha = 1)
-    {
-        Raylib.DrawRectangle(0, 0, 1920, 1080, new Color(0, 0, 0, 150));
-        int player = LocalSession.Players[dataPlayerIndex];
-        // 黄色/緑の2段。動画24秒の中央パネル・カードを原寸で使う。
-        if (!MenuSkin.Cell(Folder + "DataLoad_Panel.png", player, 1, 2, DataPanel, Fade(Color.White, alpha)))
-            SmoothShapes.Rounded(DataPanel, .08f, 12, Fade(player == 0 ? new Color(238, 192, 55, 255) : new Color(135, 190, 65, 255), alpha));
-        if (!MenuSkin.Cell(Folder + "DataLoad_Text.png", 0, 1, 3, DataPanel, Fade(Color.White, alpha)))
-            Outlined("使用するデータを選んでください", new(360, 385, 1200, 75), 52, Fade(Color.White, alpha), Fade(Color.Black, alpha));
-        Rectangle card = Layout.DataCard;
-        if (!MenuSkin.Whole(Folder + "PlayerData_Panel.png", card, Fade(Color.White, alpha)))
-            SmoothShapes.Rounded(card, .07f, 12, Fade(new Color(155, 50, 48, 255), alpha));
-        Outlined($"データ {cursor + 1}", Layout.DataTitle, 36, Fade(Color.White, alpha), Fade(Color.Black, alpha));
-        Outlined(registered[cursor] ? "登録済みのデータ" : "決定すると名前入力", Layout.DataSubtitle, 27, Fade(Color.White, alpha), Fade(Color.Black, alpha));
-        NamePlate.Draw(cursor + 1, player, Layout.PlatePosition.X, Layout.PlatePosition.Y, alpha: alpha, preview: registered[cursor] ? null : NewDataPlate);
-        if (totals[cursor] != null)
+        if (MenuSkin.Has(Folder + "Playside_Panel.png", Folder + "Playside_Bar.png"))
         {
-            Rlgl.PushMatrix();
-            Rlgl.Translatef(Layout.SummaryOffset.X, Layout.SummaryOffset.Y, 0);
-            SongRecordPanel.DrawSummary(ConfigManager.Game.RecordGroup, alpha, SongHistory.GetSummary(ConfigManager.Game.RecordGroup, cursor + 1));
-            Rlgl.PopMatrix();
-        }
-        DrawArrow(false, Layout.Previous, cursor > 0, interactive, alpha);
-        DrawArrow(true, Layout.Next, cursor < 2, interactive, alpha);
-        Rlgl.PushMatrix();
-        try
-        {
-            Rlgl.Translatef(Layout.GuideOffset.X, Layout.GuideOffset.Y, 0);
-            DrawGuide(alpha);
-        }
-        finally { Rlgl.PopMatrix(); }
-        if (interactive && !selectionChanged && Gui.Clicked(ConfirmArea)) Decide();
-        if (error.Length > 0 || !string.IsNullOrEmpty(errors[cursor]))
-            Outlined(error.Length > 0 ? error : errors[cursor], new(450, 758, 1020, 45), 27, Color.Red, Color.Black);
-    }
-
-    private void DrawCommunication()
-    {
-        float t = communication;
-        if (t < .3f) { DrawProfiles(false, 1 - t / .3f); return; }
-        Raylib.DrawRectangle(0, 0, 1920, 1080, new Color(0, 0, 0, 150));
-        bool success = t >= 2.2f;
-        float start = success ? 2.2f : .3f, end = success ? 4.4f : 2.2f;
-        float height = Math.Clamp((t - start) / .2f, 0, 1);
-        float alpha = Math.Clamp((end - t) / .2f, 0, 1);
-        if (height <= 0 || alpha <= 0) return;
-        Rectangle panel = new(DataPanel.X, DataPanel.Y + DataPanel.Height * (1 - height) / 2, DataPanel.Width, DataPanel.Height * height);
-        if (!MenuSkin.Cell(Folder + "DataLoad_Panel.png", success ? 0 : 1, 1, 2, panel, Fade(Color.White, alpha)))
-            SmoothShapes.Rounded(panel, .08f, 12, Fade(success ? Color.Gold : new Color(148, 211, 80, 255), alpha));
-        if (!MenuSkin.Cell(Folder + "DataLoad_Text.png", success ? 2 : 1, 1, 3, panel, Fade(Color.White, alpha)))
-            Outlined(success ? "読み込みが完了しました" : "読み込み中", panel, 48 * height, Fade(Color.White, alpha), Fade(Color.Black, alpha));
-    }
-
-    private void DrawGuide(float alpha = 1)
-    {
-        // 操作の案内：Small（500×124）を原寸で、左上を (710, 796) に置く。
-        //   11/12 たけらい「下の操作の表示が重なってる」：Base.png に「えらぶ」「決定」の字がもう描いてあるのに、
-        //   プログラムでも同じ字を書いていた。字を書くのをやめた。
-        //   場所と大きさは 11/11 の録画（2026-11-11 23-40-44.mp4 の 30秒）で測った：白い板が 778〜1141・814〜901
-        //   ＝ Base.png の白い所（68〜431・18〜105）と同じ大きさ。前は 0.75倍で (772.5, 806) に置いていた
-        if (controlGuide != null && !SkinManager.SystemSkin)
-        {
-            controlGuide.Draw(controlGuide.LoopedFrameAt(elapsed), new System.Numerics.Vector2(710, 796), alpha);
+            MenuSkin.Whole(Folder + "Playside_Panel.png", new(0, 0, 1920, 1080), tint);
+            MenuSkin.Whole(Folder + "Playside_Panel_Overlay.png", new(0, 0, 1920, 1080), tint);
+            for (int i = 0; i < 3; i++) MenuSkin.Cell(Folder + "Playside_Bar.png", i, 1, 3, SideBar(i), tint);
+            int row = sideCursor == 1 ? 0 : 3;
+            Rectangle bar = SideBar(sideCursor);
+            MenuSkin.Cell(Folder + "Playside_Effect.png", row + 1, 1, 6, bar, Fade(Color.White, open * pulse));
+            MenuSkin.Cell(Folder + "Playside_Effect.png", row, 1, 6, bar, tint);
+            if (flash > 0f) MenuSkin.Cell(Folder + "Playside_Effect.png", row + 2, 1, 6, bar, Fade(Color.White, flash));
         }
         else
         {
-            SmoothShapes.Rounded(new(777, 812, 366, 90), .25f, 12, Fade(Color.White, alpha));
-            Centered("← → 選択", new(790, 830, 150, 50), 27, Fade(Color.Black, alpha));
-            Centered("決定", new(960, 830, 170, 50), 30, Fade(Color.Black, alpha));
+            // スキンに絵が無いとき（Simple など）：Gui.cs の色で描く
+            Rectangle panel = new(410, 330, 1100, 580);
+            SmoothShapes.Rectangle(new Rectangle(panel.X, panel.Y + 8f, panel.Width, panel.Height), 28f, new Color(0, 0, 0, (int)(90 * open)));
+            SmoothShapes.Rectangle(panel, 28f, Gui.WithAlpha(Gui.PanelColor, open));
+            SmoothShapes.Border(panel, 28f, 1.5f, Gui.WithAlpha(Gui.BorderColor, open));
+            Gui.DrawCentered("どちらの太鼓であそびますか？", new Rectangle(panel.X, panel.Y + 70, panel.Width, 70), 52, Gui.WithAlpha(Gui.TextColor, open));
+            Gui.DrawCentered("ひだり = 1P　　みぎ = 2P　　（叩くキーは、今叩いた方のまま）", new Rectangle(panel.X, panel.Y + 170, panel.Width, 40), 26, Gui.WithAlpha(Gui.SubTextColor, open));
+            Color[] colors = { new(226, 58, 58, 255), Gui.TrackColor, new(58, 120, 226, 255) };
+            for (int i = 0; i < 3; i++)
+            {
+                Rectangle box = SideBox(i);
+                bool selected = i == sideCursor;
+                if (selected) Gui.Glow(box, 18f, Color.White, open * pulse);
+                SmoothShapes.Rectangle(box, 18f, Gui.WithAlpha(selected ? colors[i] : Gui.Lerp(colors[i], Gui.PanelColor, .55f), open));
+                if (selected) SmoothShapes.Border(box, 18f, 3f, Gui.WithAlpha(Color.White, open));
+                if (selected && flash > 0f) SmoothShapes.Rectangle(box, 18f, Gui.WithAlpha(Color.White, flash * .8f));
+                Gui.DrawCentered(SideNames[i], box, 40, Gui.WithAlpha(selected ? Color.White : Gui.SubTextColor, open));
+            }
         }
-    }
 
-    private void DrawArrow(bool right, Rectangle box, bool enabled, bool interactive, float alpha = 1)
-    {
-        if (!enabled) return;
-        if (!MenuSkin.Whole(Folder + (right ? "Cursor_Right.png" : "Cursor_Left.png"), box, Fade(Color.White, alpha)))
-            Outlined(right ? "▶" : "◀", box, 66, Fade(Color.Yellow, alpha), Fade(Color.Black, alpha));
-        if (interactive && Gui.Clicked(box)) Move(right ? 1 : -1);
+        if (!interactive || open < 1f || sideDecide >= 0f) return;
+        for (int i = 0; i < 3; i++)
+            if (Gui.Clicked(SideBox(i))) { DecideSide(i); break; }
     }
 }

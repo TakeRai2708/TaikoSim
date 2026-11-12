@@ -56,6 +56,10 @@ namespace TakeTaikoSimulator.Scenes
         private const string CategoryCursor = EntryFolder + "DanCategorySelect/Cursor.png";
         private static readonly Rectangle PopupArea = new(525f, 258f, 870f, 122f);
         private bool choosingCategory;
+        // 2人目の途中参加（データ選択 → 通信中 → 完了）。まだ使っていない方のキーのドンで開く
+        private readonly PlayerJoin join = new();
+        public override bool IsWaitingKey => join.Naming;
+        public override bool CanOpenSettings => !join.Naming && !join.Busy;
         private int categoryChoice;
         private float popupAge;
 
@@ -152,11 +156,13 @@ namespace TakeTaikoSimulator.Scenes
             controlGuide = null;
             MenuVoice.CancelPending();
             MenuVoice.StopLoop();
+            join.Dispose();
         }
 
         // Escでエントリーへ戻る。この戻り方では効果音を鳴らさない。
         public override void OnBack()
         {
+            if (join.Active) { join.Back(); return; }
             if (choosingCategory)
             {
                 choosingCategory = false;
@@ -187,6 +193,12 @@ namespace TakeTaikoSimulator.Scenes
                 if (introTime >= IntroEnd) introTime = -1f;
                 else return;
             }
+            // 途中参加の板が出ている間は、そちらだけ動かす
+            if (join.Active)
+            {
+                if (join.Update(dt) == PlayerJoin.Result.Finished) LoopItemVoice();   // 「完了」の声で止まった、項目の声を戻す
+                return;
+            }
             if (itemVoicePending && list.Expand > 0 && deciding == null && !choosingCategory)
             {
                 itemVoicePending = false;
@@ -214,6 +226,12 @@ namespace TakeTaikoSimulator.Scenes
                 return;
             }
 
+            // 2人目の途中参加：まだ使っていない方のキーのドン（11/12 たけらい「モード選択の時に2Pキーを押すとエントリーできて…」）
+            if (PlayerJoin.NewPlayerPressed)
+            {
+                join.OpenForNewPlayer();
+                return;
+            }
             if (Raylib.IsKeyPressed(KeyboardKey.F5))
             {
                 SceneManager.Simple(new EntryScene(selectData: true));
@@ -339,6 +357,9 @@ namespace TakeTaikoSimulator.Scenes
         public override void Draw()
         {
             Gui.BeginFrame();
+            // 途中参加の板が出ている間は、下の画面はマウスで押せない
+            if (join.Active) Gui.SetClip(new Rectangle(0, 0, 0, 0));
+            else Gui.ResetClip();
             bool entryBackground = MenuSkin.Whole(EntryBackground, new Rectangle(0, 0, Screen.Width, Screen.Height), Color.White);
             if (entryBackground) DrawEntryFireworks();
             else if (!DrawSkinBackground())
@@ -392,6 +413,7 @@ namespace TakeTaikoSimulator.Scenes
                 { SceneManager.Simple(new EntryScene(selectData: true)); break; }
             if (choosingCategory) DrawCategoryPopup();
             if (toastTimer > 0f) DrawBanner(toast, new Color(255, 200, 60, 255));
+            join.Draw(!Game.IsSettingsOpen);
         }
 
         // カテゴリの吹き出し（まわりは暗くする）

@@ -1425,7 +1425,7 @@ namespace TakeTaikoSimulator.Scenes
         {
             foreach (DrumPart candidate in Enum.GetValues<DrumPart>().Take(4))
             {
-                if (ConfigManager.Key.DrumKeys.TryGetValue((DrumPart)((int)candidate + (localPlay ? localPlayer : LocalSession.MenuPlayer) * 4), out List<KeyboardKey>? keys) && keys.Contains(key))
+                if (ConfigManager.Key.DrumKeys.TryGetValue((DrumPart)((int)candidate + LocalSession.KeySets[localPlay ? localPlayer : LocalSession.MenuPlayer] * 4), out List<KeyboardKey>? keys) && keys.Contains(key))
                 {
                     part = candidate;
                     return true;
@@ -1882,8 +1882,8 @@ namespace TakeTaikoSimulator.Scenes
 
             t = DebugLog.Begin();
             hud.DrawSongTitle();
-            PuchiChara.Draw(localPlay ? LocalSession.Profiles[localPlayer] : SongHistory.ActiveProfile, localPlay ? localPlayer : LocalSession.Controller, "ensoGame");
-            NamePlate.Draw(localPlay ? LocalSession.Profiles[localPlayer] : SongHistory.ActiveProfile, localPlay ? localPlayer : LocalSession.Controller, 0, 450, .96f);
+            PuchiChara.Draw(localPlay ? LocalSession.Profiles[localPlayer] : SongHistory.ActiveProfile, localPlay ? localPlayer : 0, "ensoGame");
+            NamePlate.Draw(localPlay ? LocalSession.Profiles[localPlayer] : SongHistory.ActiveProfile, localPlay ? localPlayer : 0, 0, 450, .96f);
             branchLane.DrawPopup();  // 「レベルアップ／レベルダウン」
             scoreboard.Set(goodCount, okCount, badCount, totalRollHits);
             if (danPanel != null) danPanel.DrawTop();   // 段位：「1曲目/3曲」・魂ゲージの札・左上のカウンター
