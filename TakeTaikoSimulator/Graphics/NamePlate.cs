@@ -94,7 +94,7 @@ public static class NamePlate
             }
             else
             {
-                Raylib.DrawRectangleRounded(new(0, 0, 338, 80), .12f, 8, Raylib.ColorAlpha(new Color(21, 32, 50, 255), alpha));
+                SmoothShapes.Rounded(new(0, 0, 338, 80), .12f, 8, Raylib.ColorAlpha(new Color(21, 32, 50, 255), alpha));
                 Raylib.DrawRectangle(0, 0, 6, 80, Raylib.ColorAlpha(side == 0 ? Color.Red : Color.SkyBlue, alpha));
                 Text($"{side + 1}P", new(10, 19, 48, 44), 36, white, Raylib.ColorAlpha(Color.Black, alpha));
             }

@@ -171,8 +171,8 @@ public static class SongRecordPanel
 
     private static void Background(Rectangle rect, float alpha)
     {
-        Raylib.DrawRectangleRounded(rect, 0.08f, 8, MenuDraw.Fade(new Color(18, 25, 40, 235), alpha));
-        Raylib.DrawRectangleRoundedLinesEx(rect, 0.08f, 8, 2, MenuDraw.Fade(new Color(92, 112, 140, 255), alpha));
+        SmoothShapes.Rounded(rect, 0.08f, 8, MenuDraw.Fade(new Color(18, 25, 40, 235), alpha));
+        SmoothShapes.RoundedLines(rect, 0.08f, 8, 2, MenuDraw.Fade(new Color(92, 112, 140, 255), alpha));
     }
 
     private static void Label(string text, Rectangle rect, float size, Color color, float alpha) =>
@@ -196,13 +196,13 @@ public static class SongRecordPanel
         Color fill = clear == SongClearType.Cleared ? Color.LightGray : clear == SongClearType.FullCombo ? Color.Gold : Color.SkyBlue;
         for (int i = 0; i < points.Length; i++)
         {
-            Raylib.DrawTriangle(P(.5f, .7f), points[(i + 1) % points.Length], points[i], MenuDraw.Fade(fill, alpha));
-            Raylib.DrawLineEx(points[i], points[(i + 1) % points.Length], 2, MenuDraw.Fade(Color.Black, alpha));
+            SmoothShapes.Triangle(P(.5f, .7f), points[(i + 1) % points.Length], points[i], MenuDraw.Fade(fill, alpha));
+            SmoothShapes.Line(points[i], points[(i + 1) % points.Length], 2, MenuDraw.Fade(Color.Black, alpha));
         }
         if (clear == SongClearType.AllPerfect)
         {
-            Raylib.DrawLineEx(P(.2f, .7f), P(.8f, .7f), 4, MenuDraw.Fade(Color.Pink, alpha));
-            Raylib.DrawLineEx(P(.2f, .85f), P(.8f, .85f), 4, MenuDraw.Fade(Color.Yellow, alpha));
+            SmoothShapes.Line(P(.2f, .7f), P(.8f, .7f), 4, MenuDraw.Fade(Color.Pink, alpha));
+            SmoothShapes.Line(P(.2f, .85f), P(.8f, .85f), 4, MenuDraw.Fade(Color.Yellow, alpha));
         }
     }
 }

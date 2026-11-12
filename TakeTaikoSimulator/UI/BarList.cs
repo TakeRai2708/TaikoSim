@@ -1,6 +1,7 @@
 ﻿using System.Numerics;
 using Raylib_cs;
 
+using TakeTaikoSimulator.Graphics;
 namespace TakeTaikoSimulator.UI
 {
     // モード選択・選曲画面の「斜めに並んだ板」の動き(TaikøNauts の選曲画面を測った値)
@@ -175,7 +176,7 @@ namespace TakeTaikoSimulator.UI
                 if (light) MenuSkin.NPatch(Folder + "Bar_Cursor_Decide.png", frame, 40, MenuSkin.White(a * WhiteOnYellow));
                 return;
             }
-            Raylib.DrawRectangleRounded(frame, MenuDraw.Roundness(frame, 30), 12, MenuDraw.Fade(color, a));
+            SmoothShapes.Rounded(frame, MenuDraw.Roundness(frame, 30), 12, MenuDraw.Fade(color, a));
         }
 
         // 開いたジャンルの板の、中の明るい板(TaikøNauts の動画：ジャンル名の帯より下だけ。板の上から113px〜下から22px)
@@ -193,10 +194,13 @@ namespace TakeTaikoSimulator.UI
         {
             Rectangle inner = new Rectangle(area.X + 70, area.Y + 20, area.Width - 140, area.Height - 40);
             bool movedPlate = !plain && plate != null;
+            DrawShadow(area, alpha);
             string overlay = Folder + (plain || movedPlate ? "Bar_Overlay_Plain.png" : "Bar_Overlay.png");
             if (MenuSkin.Has(Folder + "Bar_Base.png", overlay))
             {
-                MenuSkin.NPatch(Folder + "Bar_Base.png", area, 30, MenuDraw.Fade(color, alpha));
+                // ふちの内側に、板の色を少し暗くした帯を入れる(A-Style の板と同じ「黒いふち → 暗い色 → 明るい色」の3段)
+                MenuSkin.NPatch(Folder + "Bar_Base.png", area, 30, MenuDraw.Fade(Raylib.ColorBrightness(color, RimDarken), alpha));
+                MenuSkin.NPatch(Folder + "Bar_Base.png", RimInset(area), 30, MenuDraw.Fade(color, alpha));
                 MenuSkin.NPatch(overlay, area, 30, MenuSkin.White(alpha));
                 // Bar_Overlay.png の中の板(70,20 から 792×84)だけを切り取って、plate に伸ばす
                 if (movedPlate && plate!.Value.Height > 0)
@@ -204,13 +208,38 @@ namespace TakeTaikoSimulator.UI
                 return inner;
             }
 
-            Raylib.DrawRectangleRounded(area, MenuDraw.Roundness(area, 22), 12, MenuDraw.Fade(InkColor, alpha));
+            SmoothShapes.Rounded(area, MenuDraw.Roundness(area, 22), 12, MenuDraw.Fade(InkColor, alpha));
             Rectangle body = new Rectangle(area.X + 6, area.Y + 6, area.Width - 12, area.Height - 12);
-            Raylib.DrawRectangleRounded(body, MenuDraw.Roundness(body, 17), 12, MenuDraw.Fade(color, alpha));
+            SmoothShapes.Rounded(body, MenuDraw.Roundness(body, 17), 12, MenuDraw.Fade(Raylib.ColorBrightness(color, RimDarken), alpha));
+            Rectangle bright = RimInset(area);
+            SmoothShapes.Rounded(bright, MenuDraw.Roundness(bright, 17 - RimWidth / 2f), 12, MenuDraw.Fade(color, alpha));
             Rectangle innerPlate = movedPlate ? plate!.Value : inner;
             if (!plain && innerPlate.Height > 0)
-                Raylib.DrawRectangleRounded(innerPlate, MenuDraw.Roundness(innerPlate, 8), 8, MenuDraw.Fade(MenuDraw.Tint(color, 0.6f), alpha));
+                SmoothShapes.Rounded(innerPlate, MenuDraw.Roundness(innerPlate, 8), 8, MenuDraw.Fade(MenuDraw.Tint(color, 0.6f), alpha));
             return inner;
+        }
+
+        // ===== 板のまわりの影と、ふちの内側の暗い帯(スキンの板の絵を使わないとき＝シンプルスキン) =====
+        //   11/12 たけらい「(A-Style の板の)ふちのグローがシンプルスキンには無いから、すごい違和感」
+        //   A-Style の板は「やわらかい影 → 黒いふち → 板の色を暗くした帯 → 明るい色」になっている。
+        //   シンプルスキンは 黒いふち → 色 だけだったので、影と暗い帯を足した。
+        //   影は、うすい黒を少しずつ大きく重ねたもの(下に 5px ずらす)。ひかえめにしてある
+        private const float RimDarken = -0.28f, RimWidth = 12f;
+        private const int ShadowLayers = 5;
+        private const float ShadowSpread = 12f, ShadowDrop = 5f, ShadowAlpha = 0.07f;
+
+        private static Rectangle RimInset(Rectangle area) =>
+            new Rectangle(area.X + RimWidth, area.Y + RimWidth, area.Width - RimWidth * 2, area.Height - RimWidth * 2);
+
+        private static void DrawShadow(Rectangle area, float alpha)
+        {
+            if (alpha <= 0.01f) return;
+            for (int i = ShadowLayers; i >= 1; i--)
+            {
+                float e = ShadowSpread * i / ShadowLayers;
+                SmoothShapes.Rectangle(new Rectangle(area.X - e, area.Y - e + ShadowDrop, area.Width + e * 2, area.Height + e * 2),
+                    22 + e, new Color(0, 0, 0, (int)(255 * ShadowAlpha * alpha)));
+            }
         }
 
         // 一覧に何個描くか(短い一覧のときは、同じ項目が2回出ないように)

@@ -96,8 +96,8 @@ namespace TakeTaikoSimulator.Scenes
                 float trackX = Screen.Width - 40f, trackY = Top, trackH = ViewHeight;
                 float barH = Math.Max(40f, trackH * ViewHeight / (ViewHeight + max));
                 float barY = trackY + (trackH - barH) * (scroll / max);
-                Raylib.DrawRectangleRounded(new Rectangle(trackX, trackY, 8, trackH), 1f, 4, new Color(255, 255, 255, 30));
-                Raylib.DrawRectangleRounded(new Rectangle(trackX, barY, 8, barH), 1f, 4, new Color(255, 255, 255, 140));
+                SmoothShapes.Rounded(new Rectangle(trackX, trackY, 8, trackH), 1f, 4, new Color(255, 255, 255, 30));
+                SmoothShapes.Rounded(new Rectangle(trackX, barY, 8, barH), 1f, 4, new Color(255, 255, 255, 140));
             }
 
             FontManager.Draw("↑↓・ホイール・PageUp/Down：動かす　Esc・Enter・ドン：もどる", Left, Screen.Height - 70, 24, Color.SkyBlue);

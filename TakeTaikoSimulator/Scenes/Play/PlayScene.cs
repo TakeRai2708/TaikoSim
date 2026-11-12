@@ -2179,7 +2179,7 @@ namespace TakeTaikoSimulator.Scenes
             if (!SkinManager.Draw(JudgeFrameImage, frameLeft, frameTop))
             {
                 // 画像が無いとき(システムのスキン)は、本当の判定の場所(JudgeX)に描く
-                Raylib.DrawRing(new Vector2(JudgeX, NoteY), 44, 50, 0, 360, 48, Color.LightGray);
+                SmoothShapes.Ring(new Vector2(JudgeX, NoteY), 44, 50, 0, 360, 48, Color.LightGray);
             }
         }
 
@@ -2197,14 +2197,14 @@ namespace TakeTaikoSimulator.Scenes
                 foreach (int sign in new[] { -1, 1 })
                 {
                     float x = JudgeX + sign * (float)ms * pxPerMs;
-                    Raylib.DrawLineEx(new Vector2(x, top), new Vector2(x, top + length), 2, color);
-                    Raylib.DrawLineEx(new Vector2(x, bottom - length), new Vector2(x, bottom), 2, color);
+                    SmoothShapes.Line(new Vector2(x, top), new Vector2(x, top + length), 2, color);
+                    SmoothShapes.Line(new Vector2(x, bottom - length), new Vector2(x, bottom), 2, color);
                 }
             }
             Tick(BadRangeMs, GuideBadColor, 26);
             Tick(OkRangeMs, GuideOkColor, 34);
             Tick(GoodRangeMs, GuideGoodColor, 44);
-            Raylib.DrawLineEx(new Vector2(JudgeX, top), new Vector2(JudgeX, bottom), 2, GuideCenterColor);
+            SmoothShapes.Line(new Vector2(JudgeX, top), new Vector2(JudgeX, bottom), 2, GuideCenterColor);
 
             // 流れてくる音符の中心
             for (int i = 0; i < course.Notes.Count; i++)
@@ -2214,8 +2214,8 @@ namespace TakeTaikoSimulator.Scenes
                 float x = GetX(note.TimeMs, note.Bpm, note.Scroll, viewMs);
                 if (x < LaneX - 100 || x > Screen.Width + 100) continue;
                 float half = note.IsBig ? 80f : 56f;
-                Raylib.DrawLineEx(new Vector2(x, NoteY - half), new Vector2(x, NoteY + half), 2, GuideNoteColor);
-                Raylib.DrawCircleV(new Vector2(x, NoteY), 4, GuideNoteColor);
+                SmoothShapes.Line(new Vector2(x, NoteY - half), new Vector2(x, NoteY + half), 2, GuideNoteColor);
+                SmoothShapes.Circle(new Vector2(x, NoteY), 4, GuideNoteColor);
             }
 
             FontManager.Draw("ガイド：判定の中心(黄)　±25ms 良(緑)　±75ms 可(橙)　±108ms 不可(赤)　音符の中心(水色)　F10 で切替",
@@ -2233,7 +2233,7 @@ namespace TakeTaikoSimulator.Scenes
                 float x = GetX(bar.TimeMs, bar.Bpm, bar.Scroll, viewMs);
                 if (x < LaneX || x > Screen.Width) continue;
 
-                Raylib.DrawLineEx(new Vector2(x, BarTop), new Vector2(x, BarBottom), 3, new Color(255, 255, 255, 170));
+                SmoothShapes.Line(new Vector2(x, BarTop), new Vector2(x, BarBottom), 3, new Color(255, 255, 255, 170));
             }
         }
 
@@ -2451,9 +2451,9 @@ namespace TakeTaikoSimulator.Scenes
         // スキンが無いときの丸い音符
         private static void DrawFallbackCircle(float x, float radius, Color color)
         {
-            Raylib.DrawCircleV(new Vector2(x, NoteY), radius + 6, Color.Black);
-            Raylib.DrawCircleV(new Vector2(x, NoteY), radius + 3, Color.RayWhite);
-            Raylib.DrawCircleV(new Vector2(x, NoteY), radius, color);
+            SmoothShapes.Circle(new Vector2(x, NoteY), radius + 6, Color.Black);
+            SmoothShapes.Circle(new Vector2(x, NoteY), radius + 3, Color.RayWhite);
+            SmoothShapes.Circle(new Vector2(x, NoteY), radius, color);
         }
     }
 }

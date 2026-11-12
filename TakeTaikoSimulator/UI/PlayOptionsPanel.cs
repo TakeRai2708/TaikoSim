@@ -366,8 +366,8 @@ namespace TakeTaikoSimulator.UI
             Rectangle panel = new Rectangle(px, py, PanelWidth, PanelHeight);
             if (!MenuSkin.NPatch(Folder + "Background.png", panel, 60, Color.White))
             {
-                Raylib.DrawRectangleRounded(panel, 0.06f, 8, new Color(20, 24, 34, 245));
-                Raylib.DrawRectangleRoundedLinesEx(panel, 0.06f, 8, 3f, Gui.AccentColor);
+                SmoothShapes.Rounded(panel, 0.06f, 8, new Color(20, 24, 34, 245));
+                SmoothShapes.RoundedLines(panel, 0.06f, 8, 3f, Gui.AccentColor);
             }
 
             // ----- 左上の 1P の印と「演奏オプション」 -----
@@ -375,7 +375,7 @@ namespace TakeTaikoSimulator.UI
             int side = TakeTaikoSimulator.Scenes.LocalSession.MenuPlayer;
             if (!MenuSkin.Part(Folder + "PlayerSide.png", new Rectangle(side * 64, 0, 64, 64), mark, Color.White))
             {
-                Raylib.DrawCircleV(new Vector2(mark.X + mark.Width / 2f, mark.Y + mark.Height / 2f), mark.Width / 2f - 2f, side == 0 ? new Color(232, 72, 58, 255) : Color.SkyBlue);
+                SmoothShapes.Circle(new Vector2(mark.X + mark.Width / 2f, mark.Y + mark.Height / 2f), mark.Width / 2f - 2f, side == 0 ? new Color(232, 72, 58, 255) : Color.SkyBlue);
                 Gui.DrawCentered($"{side + 1}P", mark, 22, Color.White);
             }
             Outlined("演奏オプション", px + TitleX, py + TitleCenterY, TitleSize, Color.White, Ink, centerX: false);
@@ -389,7 +389,7 @@ namespace TakeTaikoSimulator.UI
                 bool editing = editRow == i;
                 Color rowTint = selected ? SelectedRowTint : RowTint;
                 if (!MenuSkin.Whole(Folder + "Option_Base.png", row, rowTint))
-                    Raylib.DrawRectangleRounded(row, 0.3f, 8, rowTint);
+                    SmoothShapes.Rounded(row, 0.3f, 8, rowTint);
 
                 // 項目の名前(白い字に黒い縁)
                 Outlined(item.Label, row.X + 11, row.Y + RowHeight / 2f, LabelSize, Color.White, Ink, centerX: false);
@@ -400,11 +400,11 @@ namespace TakeTaikoSimulator.UI
                 if (!selected || editing)
                 {
                     if (!MenuSkin.NPatch(Folder + "Option_Value_Base.png", box, 20, Color.White))
-                        Raylib.DrawRectangleRounded(box, 1f, 12, Color.White);
+                        SmoothShapes.Rounded(box, 1f, 12, Color.White);
                 }
                 if (editing)
                 {
-                    Raylib.DrawRectangleRoundedLinesEx(box, 1f, 12, 3f, editInvalid ? ErrorColor : Gui.AccentColor);
+                    SmoothShapes.RoundedLines(box, 1f, 12, 3f, editInvalid ? ErrorColor : Gui.AccentColor);
                     Vector2 size = MeasureSkin(value, ValueSize);
                     float cx = box.X + box.Width / 2f, cy = box.Y + box.Height / 2f;
                     if (editSelectAll && value.Length > 0)
@@ -474,8 +474,8 @@ namespace TakeTaikoSimulator.UI
             }
             float cx = area.X + area.Width / 2f, cy = area.Y + area.Height / 2f;
             Color c = new Color(60, 170, 230, 255);
-            if (flip) Raylib.DrawTriangle(new Vector2(cx + 9, cy), new Vector2(cx - 7, cy - 11), new Vector2(cx - 7, cy + 11), c);
-            else Raylib.DrawTriangle(new Vector2(cx - 9, cy), new Vector2(cx + 7, cy + 11), new Vector2(cx + 7, cy - 11), c);
+            if (flip) SmoothShapes.Triangle(new Vector2(cx + 9, cy), new Vector2(cx - 7, cy - 11), new Vector2(cx - 7, cy + 11), c);
+            else SmoothShapes.Triangle(new Vector2(cx - 9, cy), new Vector2(cx + 7, cy + 11), new Vector2(cx + 7, cy - 11), c);
         }
 
         private static bool KeyPressed(KeyboardKey key) => Raylib.IsKeyPressed(key) || Raylib.IsKeyPressedRepeat(key);

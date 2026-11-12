@@ -349,22 +349,22 @@ namespace TakeTaikoSimulator.Scenes
             Rectangle pill = new Rectangle(BestPill.X, BestPill.Y - lift, BestPill.Width, BestPill.Height);
 
             // 帯：白いふち → 金色（上がこい金、下が明るい）
-            Raylib.DrawRectangleRounded(ribbon, 1f, 12, Raylib.ColorAlpha(Color.White, alpha));
+            SmoothShapes.Rounded(ribbon, 1f, 12, Raylib.ColorAlpha(Color.White, alpha));
             Rectangle gold = new Rectangle(ribbon.X + 3, ribbon.Y + 3, ribbon.Width - 6, ribbon.Height - 6);
-            Raylib.DrawRectangleRounded(gold, 1f, 12, Raylib.ColorAlpha(new Color(255, 236, 150, 255), alpha));
+            SmoothShapes.Rounded(gold, 1f, 12, Raylib.ColorAlpha(new Color(255, 236, 150, 255), alpha));
             Screen.BeginScissorMode((int)gold.X, (int)gold.Y, (int)gold.Width, (int)(gold.Height * 0.55f));
-            Raylib.DrawRectangleRounded(gold, 1f, 12, Raylib.ColorAlpha(new Color(236, 180, 24, 255), alpha));
+            SmoothShapes.Rounded(gold, 1f, 12, Raylib.ColorAlpha(new Color(236, 180, 24, 255), alpha));
             Screen.EndScissorMode();
 
             // 黒い札：増えた点と、上向きの矢印
-            Raylib.DrawRectangleRounded(pill, 1f, 10, Raylib.ColorAlpha(new Color(24, 20, 16, 255), alpha));
+            SmoothShapes.Rounded(pill, 1f, 10, Raylib.ColorAlpha(new Color(24, 20, 16, 255), alpha));
             string gain = (update.After.Score - update.Before.Score).ToString();
             const float gainSize = 26f;
             float arrowX = pill.X + pill.Width - 18f, midY = pill.Y + pill.Height / 2f;
             Vector2 gm = FontManager.Measure(gain, gainSize);
             FontManager.Draw(gain, arrowX - 9f - gm.X, midY - gm.Y / 2f, gainSize, Raylib.ColorAlpha(Color.White, alpha));
             Color arrow = Raylib.ColorAlpha(Color.White, alpha);
-            Raylib.DrawTriangle(new Vector2(arrowX, midY - 9f), new Vector2(arrowX - 7f, midY - 1f), new Vector2(arrowX + 7f, midY - 1f), arrow);
+            SmoothShapes.Triangle(new Vector2(arrowX, midY - 9f), new Vector2(arrowX - 7f, midY - 1f), new Vector2(arrowX + 7f, midY - 1f), arrow);
             Raylib.DrawRectangleRec(new Rectangle(arrowX - 3f, midY - 1f, 6f, 9f), arrow);
 
             // 「ベストスコア更新！」
@@ -375,7 +375,7 @@ namespace TakeTaikoSimulator.Scenes
 
             // 黄色く光る
             if (t >= BestFlashStart && t < BestFlashEnd)
-                Raylib.DrawRectangleRounded(ribbon, 1f, 12,
+                SmoothShapes.Rounded(ribbon, 1f, 12,
                     Raylib.ColorAlpha(new Color(255, 255, 0, 255), 0.9f * (1f - (t - BestFlashStart) / (BestFlashEnd - BestFlashStart))));
 
             // 白い光が、左から右へ（帯の中だけ）
@@ -388,8 +388,8 @@ namespace TakeTaikoSimulator.Scenes
                 // ななめの帯（上が右に寄った平行四辺形）を、三角形2つで
                 Vector2 a = new Vector2(lead - BestShineWidth, top), b = new Vector2(lead, top);
                 Vector2 c = new Vector2(lead - BestShineSlant, bottom), d = new Vector2(lead - BestShineWidth - BestShineSlant, bottom);
-                Raylib.DrawTriangle(a, d, c, Color.White);
-                Raylib.DrawTriangle(a, c, b, Color.White);
+                SmoothShapes.Triangle(a, d, c, Color.White);
+                SmoothShapes.Triangle(a, c, b, Color.White);
                 Screen.EndScissorMode();
             }
         }

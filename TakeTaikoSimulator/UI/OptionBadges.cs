@@ -2,6 +2,7 @@ using Raylib_cs;
 using TakeTaikoSimulator.Configs;
 using static TakeTaikoSimulator.UI.MenuDraw;
 
+using TakeTaikoSimulator.Graphics;
 namespace TakeTaikoSimulator.UI
 {
     // 演奏オプションのバッジ(「AUTO」「×1.5」など)。
@@ -96,9 +97,9 @@ namespace TakeTaikoSimulator.UI
         private static void DrawTextBadge(Rectangle box, string text)
         {
             float radius = box.Height * 0.22f;
-            Raylib.DrawRectangleRounded(box, radius / box.Height * 2f, 6, new Color(20, 20, 24, 255));
+            SmoothShapes.Rounded(box, radius / box.Height * 2f, 6, new Color(20, 20, 24, 255));
             Rectangle inner = new(box.X + 3f, box.Y + 3f, box.Width - 6f, box.Height - 6f);
-            Raylib.DrawRectangleRounded(inner, radius / box.Height * 2f, 6, new Color(250, 208, 0, 255));
+            SmoothShapes.Rounded(inner, radius / box.Height * 2f, 6, new Color(250, 208, 0, 255));
             Outlined(text, inner, inner.Height * 0.46f, new Color(24, 24, 28, 255), new Color(255, 255, 255, 220));
         }
     }

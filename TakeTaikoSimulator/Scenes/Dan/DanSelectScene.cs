@@ -541,8 +541,8 @@ namespace TakeTaikoSimulator.Scenes
             Rectangle area = new(x + 2f, TileY, TilePitch - 4f, TileHeight);
             float round = Roundness(area, 10f);
             Color fill = Fade(Raylib.ColorBrightness(TileColor(slot), -0.35f), 0.45f);
-            Raylib.DrawRectangleRounded(area, round, 8, fill);
-            Raylib.DrawRectangleRoundedLinesEx(area, round, 8, 2f, Fade(new Color(0, 0, 0, 255), 0.25f));
+            SmoothShapes.Rounded(area, round, 8, fill);
+            SmoothShapes.RoundedLines(area, round, 8, 2f, Fade(new Color(0, 0, 0, 255), 0.25f));
         }
 
         private void DrawTile(DanCourse course, float x, bool selected)
@@ -565,10 +565,10 @@ namespace TakeTaikoSimulator.Scenes
             float round = Roundness(area, 10f);
 
             // 影 → 本体 → ふち
-            Raylib.DrawRectangleRounded(new Rectangle(area.X + 3f, area.Y + 4f, area.Width, area.Height), round, 8,
+            SmoothShapes.Rounded(new Rectangle(area.X + 3f, area.Y + 4f, area.Width, area.Height), round, 8,
                 new Color(0, 0, 0, 90));
-            Raylib.DrawRectangleRounded(area, round, 8, fill);
-            Raylib.DrawRectangleRoundedLinesEx(area, round, 8, selected ? 4f : 2f,
+            SmoothShapes.Rounded(area, round, 8, fill);
+            SmoothShapes.RoundedLines(area, round, 8, selected ? 4f : 2f,
                 selected ? Color.White : Raylib.ColorBrightness(fill, -0.5f));
 
             // 段位名を縦書き（1文字ずつ下に並べる。枠の場所で決まった名前）
@@ -613,9 +613,9 @@ namespace TakeTaikoSimulator.Scenes
             }
 
             Rectangle outer = new(PanelX, PanelY, PanelWidth, PanelHeight);
-            Raylib.DrawRectangleRounded(outer, Roundness(outer, 14f), 10, PanelRed);
+            SmoothShapes.Rounded(outer, Roundness(outer, 14f), 10, PanelRed);
             Rectangle inner = new(PanelX + PanelBorder, PanelY + 14f, PanelWidth - PanelBorder * 2f, PanelHeight - 28f);
-            Raylib.DrawRectangleRounded(inner, Roundness(inner, 10f), 10, Cream);
+            SmoothShapes.Rounded(inner, Roundness(inner, 10f), 10, Cream);
 
             DrawSongRows(course);
             DrawConditions(course);
@@ -628,12 +628,12 @@ namespace TakeTaikoSimulator.Scenes
                 DanSong song = course.Songs[i];
                 float y = SongTop + i * SongStep;
                 Rectangle row = new(SongLeft, y, SongRight - SongLeft, SongHeight);
-                Raylib.DrawRectangleRounded(row, Roundness(row, 16f), 10, new Color(255, 255, 255, 235));
+                SmoothShapes.Rounded(row, Roundness(row, 16f), 10, new Color(255, 255, 255, 235));
 
                 // 1st / 2nd / 3rd の色玉
                 Color ball = SongColors[Math.Min(i, SongColors.Length - 1)];
                 Rectangle ballBox = new(SongLeft + 5f, y + (SongHeight - BallSize) / 2f, BallSize, BallSize);
-                Raylib.DrawCircleV(new System.Numerics.Vector2(ballBox.X + BallSize / 2f, ballBox.Y + BallSize / 2f),
+                SmoothShapes.Circle(new System.Numerics.Vector2(ballBox.X + BallSize / 2f, ballBox.Y + BallSize / 2f),
                     BallSize / 2f, ball);
                 Outlined(Ordinal(i), ballBox, 28f, Color.White, Raylib.ColorBrightness(ball, -0.5f));
 
@@ -660,8 +660,8 @@ namespace TakeTaikoSimulator.Scenes
         //   本家（10/31 の動画）は札の中にピンクの鬼の面と ★9。A-Style の画像は使わずに形だけまねる
         private static void DrawLevelIcon(Rectangle box, DanSong song)
         {
-            Raylib.DrawRectangleRounded(box, Roundness(box, 10f), 8, new Color(246, 238, 222, 255));
-            Raylib.DrawRectangleRoundedLinesEx(box, Roundness(box, 10f), 8, 2f, new Color(200, 184, 160, 255));
+            SmoothShapes.Rounded(box, Roundness(box, 10f), 8, new Color(246, 238, 222, 255));
+            SmoothShapes.RoundedLines(box, Roundness(box, 10f), 8, 2f, new Color(200, 184, 160, 255));
             Color mask = CourseColor(song.Course), ink = new(30, 20, 30, 255);
             float cx = box.X + box.Width / 2f, top = box.Y + box.Height * 0.12f;
             float face = box.Width * 0.22f;
@@ -672,12 +672,12 @@ namespace TakeTaikoSimulator.Scenes
                 Vector2 a = new(cx + side * face * 0.95f, c.Y - face * 0.2f);
                 Vector2 b = new(cx + side * face * 0.35f, c.Y - face * 0.5f);
                 Vector2 tip = new(cx + side * face * 1.05f, top);
-                Raylib.DrawTriangle(a, b, tip, mask);
-                Raylib.DrawTriangle(a, tip, b, mask);
+                SmoothShapes.Triangle(a, b, tip, mask);
+                SmoothShapes.Triangle(a, tip, b, mask);
             }
-            Raylib.DrawCircleV(c, face, mask);
-            Raylib.DrawCircleV(new Vector2(c.X - face * 0.38f, c.Y - face * 0.05f), face * 0.2f, ink);
-            Raylib.DrawCircleV(new Vector2(c.X + face * 0.38f, c.Y - face * 0.05f), face * 0.2f, ink);
+            SmoothShapes.Circle(c, face, mask);
+            SmoothShapes.Circle(new Vector2(c.X - face * 0.38f, c.Y - face * 0.05f), face * 0.2f, ink);
+            SmoothShapes.Circle(new Vector2(c.X + face * 0.38f, c.Y - face * 0.05f), face * 0.2f, ink);
             Outlined($"★{song.Level}", new Rectangle(box.X, box.Y + box.Height * 0.58f, box.Width, box.Height * 0.38f),
                 box.Height * 0.3f, ink, Color.White);
         }
@@ -687,9 +687,9 @@ namespace TakeTaikoSimulator.Scenes
             // 「合格条件」の茶色いタブ
             // 全体を囲む枠線 → 「合格条件」の茶色いタブ
             Rectangle frame = new(SongLeft, CondFrameTop, SongRight - SongLeft, CondFrameBottom - CondFrameTop);
-            Raylib.DrawRectangleRoundedLinesEx(frame, Roundness(frame, 18f), 10, 3f, new Color(120, 96, 72, 255));
+            SmoothShapes.RoundedLines(frame, Roundness(frame, 18f), 10, 3f, new Color(120, 96, 72, 255));
             Rectangle tab = new(SongLeft + 5f, CondTabY, 405f, 44f);
-            Raylib.DrawRectangleRounded(tab, Roundness(tab, 10f), 8, TabBrown);
+            SmoothShapes.Rounded(tab, Roundness(tab, 10f), 8, TabBrown);
             Centered("合格条件", tab, 30f, Cream);
 
             // 魂ゲージは左に独立
@@ -716,12 +716,12 @@ namespace TakeTaikoSimulator.Scenes
         // 条件1つの箱：上に茶色いラベル、中に「○○ 未満／以上」、下に空の進捗バー
         private void DrawCondBox(Rectangle box, string label, string need, DanExam? exam, int songIndex)
         {
-            Raylib.DrawRectangleRounded(box, Roundness(box, 12f), 8, new Color(255, 255, 255, 215));
-            Raylib.DrawRectangleRoundedLinesEx(box, Roundness(box, 12f), 8, 2f, new Color(170, 150, 128, 255));
+            SmoothShapes.Rounded(box, Roundness(box, 12f), 8, new Color(255, 255, 255, 215));
+            SmoothShapes.RoundedLines(box, Roundness(box, 12f), 8, 2f, new Color(170, 150, 128, 255));
 
             // ラベルは箱の上辺にまたがって乗せる
             Rectangle tab = new(box.X + 22f, box.Y - 17f, Math.Min(296f, box.Width - 44f), 34f);
-            Raylib.DrawRectangleRounded(tab, Roundness(tab, 9f), 8, BoxTan);
+            SmoothShapes.Rounded(tab, Roundness(tab, 9f), 8, BoxTan);
             Centered(label, tab, 22f, Ink);
 
             if (exam == null)
@@ -729,8 +729,8 @@ namespace TakeTaikoSimulator.Scenes
                 // 魂ゲージ
                 Text(need, box.X + 36f, box.Y + 28f, 32f, Ink);
                 Rectangle bar = new(box.X + 14f, box.Y + box.Height - 34f, box.Width - 28f, 24f);
-                Raylib.DrawRectangleRounded(bar, 1f, 8, new Color(255, 255, 255, 255));
-                Raylib.DrawRectangleRoundedLinesEx(bar, 1f, 8, 2f, new Color(190, 180, 160, 255));
+                SmoothShapes.Rounded(bar, 1f, 8, new Color(255, 255, 255, 255));
+                SmoothShapes.RoundedLines(bar, 1f, 8, 2f, new Color(190, 180, 160, 255));
                 return;
             }
 
@@ -741,8 +741,8 @@ namespace TakeTaikoSimulator.Scenes
                 if (exam.HasGold(0))
                     Text($"金 {exam.Thresholds[0].Gold}", box.X + box.Width - 150f, box.Y + 26f, 22f, new Color(170, 130, 40, 255));
                 Rectangle bar = new(box.X + 14f, box.Y + box.Height - 30f, box.Width - 28f, 22f);
-                Raylib.DrawRectangleRounded(bar, 1f, 8, Color.White);
-                Raylib.DrawRectangleRoundedLinesEx(bar, 1f, 8, 2f, new Color(190, 180, 160, 255));
+                SmoothShapes.Rounded(bar, 1f, 8, Color.White);
+                SmoothShapes.RoundedLines(bar, 1f, 8, 2f, new Color(190, 180, 160, 255));
                 return;
             }
 
@@ -754,13 +754,13 @@ namespace TakeTaikoSimulator.Scenes
                 float cx = box.X + 14f + i * cellWidth;
                 Color ball = SongColors[Math.Min(i, SongColors.Length - 1)];
                 Rectangle badge = new(cx, box.Y + 20f, 54f, 30f);
-                Raylib.DrawRectangleRounded(badge, 1f, 8, ball);
+                SmoothShapes.Rounded(badge, 1f, 8, ball);
                 Centered(Ordinal(i), badge, 20f, Color.White);
                 Text($"{exam.Thresholds[i].Red} {range}", cx + 62f, box.Y + 22f, 26f, Ink);
 
                 Rectangle bar = new(cx, box.Y + box.Height - 28f, cellWidth - 12f, 20f);
-                Raylib.DrawRectangleRounded(bar, 1f, 8, Color.White);
-                Raylib.DrawRectangleRoundedLinesEx(bar, 1f, 8, 2f, new Color(190, 180, 160, 255));
+                SmoothShapes.Rounded(bar, 1f, 8, Color.White);
+                SmoothShapes.RoundedLines(bar, 1f, 8, 2f, new Color(190, 180, 160, 255));
             }
         }
 
@@ -793,9 +793,9 @@ namespace TakeTaikoSimulator.Scenes
             float w = 900f, h = 360f;
             float scale = 0.9f + 0.1f * EaseOut(t);
             Rectangle box = new(Screen.Width / 2f - w * scale / 2f, Screen.Height / 2f - h * scale / 2f, w * scale, h * scale);
-            Raylib.DrawRectangleRounded(box, Roundness(box, 20f), 10, PanelRed);
+            SmoothShapes.Rounded(box, Roundness(box, 20f), 10, PanelRed);
             Rectangle inner = new(box.X + 16f, box.Y + 16f, box.Width - 32f, box.Height - 32f);
-            Raylib.DrawRectangleRounded(inner, Roundness(inner, 16f), 10, Cream);
+            SmoothShapes.Rounded(inner, Roundness(inner, 16f), 10, Cream);
 
             Centered($"「{course.Title}」に挑戦するのか？", new Rectangle(inner.X, inner.Y + 40f, inner.Width, 60f), 40f, Ink);
 
@@ -810,8 +810,8 @@ namespace TakeTaikoSimulator.Scenes
         private void DrawConfirmButton(Rectangle box, string label, bool selected)
         {
             Color fill = selected ? new Color(253, 253, 0, 255) : new Color(230, 222, 200, 255);
-            Raylib.DrawRectangleRounded(box, Roundness(box, 14f), 8, fill);
-            Raylib.DrawRectangleRoundedLinesEx(box, Roundness(box, 14f), 8, selected ? 5f : 2f,
+            SmoothShapes.Rounded(box, Roundness(box, 14f), 8, fill);
+            SmoothShapes.RoundedLines(box, Roundness(box, 14f), 8, selected ? 5f : 2f,
                 selected ? new Color(214, 66, 54, 255) : new Color(180, 170, 150, 255));
             Centered(label, box, 34f, Ink);
 

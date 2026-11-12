@@ -236,9 +236,9 @@ namespace TakeTaikoSimulator.Scenes
             // 引き手（合わせ目のそば。金色の輪 → くぼみ）
             float knobX = knobOnRight ? paper.X + paper.Width - 34f : paper.X + 34f;
             Vector2 k = new(knobX, Top + height * 0.5f);
-            Raylib.DrawCircleV(k, 17f, new Color(150, 118, 62, 255));
-            Raylib.DrawCircleV(k, 14f, new Color(196, 162, 92, 255));
-            Raylib.DrawCircleV(k, 10f, new Color(58, 40, 26, 255));
+            SmoothShapes.Circle(k, 17f, new Color(150, 118, 62, 255));
+            SmoothShapes.Circle(k, 14f, new Color(196, 162, 92, 255));
+            SmoothShapes.Circle(k, 10f, new Color(58, 40, 26, 255));
             Screen.EndScissorMode();
         }
 

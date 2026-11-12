@@ -86,6 +86,33 @@ void main()
         if (thickness > 0) Draw(area, radius, thickness, color);
     }
 
+    // ===== Raylib の関数と同じ並びの引数で呼べる版 =====
+    //   11/12 たけらい「シンプルスキンが全部アンチエイリアシングが効いてなくてカクカク。でも効きすぎないように、ほどほどに」
+    //   画像の無いスキン(シンプル)は、板・丸・三角・線をプログラムで描いている。そこを Raylib.DrawXxx から
+    //   SmoothShapes.Xxx に置きかえた(輪郭の約1px だけをなじませる。ぼかしはしない)。
+    //   置きかえやすいように、引数の並びを Raylib と同じにしてある
+
+    /// <summary>Raylib.DrawRectangleRoundedLinesEx と同じ(線は四角の外側に thickness の太さ)</summary>
+    public static void RoundedLines(Rectangle area, float roundness, int segments, float thickness, Color color)
+    {
+        float radius = Math.Clamp(roundness, 0, 1) * Math.Min(area.Width, area.Height) / 2;
+        Border(new Rectangle(area.X - thickness, area.Y - thickness, area.Width + thickness * 2, area.Height + thickness * 2),
+            radius + thickness, thickness, color);
+    }
+
+    /// <summary>Raylib.DrawCircle と同じ</summary>
+    public static void Circle(int centerX, int centerY, float radius, Color color) => Circle(new Vector2(centerX, centerY), radius, color);
+
+    /// <summary>Raylib.DrawCircleLinesV と同じ(細い輪)</summary>
+    public static void CircleLines(Vector2 center, float radius, Color color) => Ring(center, radius - 0.75f, radius + 0.75f, color);
+
+    /// <summary>Raylib.DrawRing と同じ。ぐるっと1周の輪だけなめらかにする(途中で切れた輪は Raylib のまま)</summary>
+    public static void Ring(Vector2 center, float inner, float outer, float startAngle, float endAngle, int segments, Color color)
+    {
+        if (MathF.Abs(endAngle - startAngle) >= 360f) Ring(center, inner, outer, color);
+        else Raylib.DrawRing(center, inner, outer, startAngle, endAngle, segments, color);
+    }
+
     public static void Circle(Vector2 center, float radius, Color color) =>
         Draw(new(center.X - radius, center.Y - radius, radius * 2, radius * 2), radius, 0, color);
 

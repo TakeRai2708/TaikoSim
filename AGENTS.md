@@ -1102,4 +1102,9 @@ Order:
 - The setting 「?」 help tips stay. Dressing stays a separate screen with the same look. Song search uses the same panel style.
 - Loading screen: the round logo (`Assets/Branding/Logo.png`, embedded) centred with a subtle pulsing glow; % and bar below it.
 - A Linux raylib binary download for `tools/ui-aa-check` was blocked by the safety classifier, so none of this was rendered here.
+- Simple skin / code-drawn shapes: every `Raylib.DrawRectangleRounded`, `DrawRectangleRoundedLinesEx`, `DrawCircle(V)`, full `DrawRing`,
+  `DrawTriangle`, `DrawLineEx` call outside SmoothShapes.cs was replaced by the same-signature `SmoothShapes` wrapper (≈1 px edge AA, no blur).
+  Use the wrappers for new code. たけらい wants moderate AA, not soft/blurry edges.
+- Bars drawn without the A-Style bar art (`BarList.DrawBody`) now get a soft drop shadow and a darker rim band inside the outline,
+  because たけらい found the Simple skin bars flat next to A-Style. Unverified on screen.
 

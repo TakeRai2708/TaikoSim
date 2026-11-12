@@ -163,9 +163,9 @@ namespace TakeTaikoSimulator.Scenes
 
             if (countAlpha > 0f)
             {
-                Raylib.DrawRectangleRounded(all, 1f, 12, Fade(new Color(200, 228, 246, 255), countAlpha));
+                SmoothShapes.Rounded(all, 1f, 12, Fade(new Color(200, 228, 246, 255), countAlpha));
                 Rectangle left = new(all.X, all.Y, all.Width * 0.56f, all.Height);
-                Raylib.DrawRectangleRounded(left, 1f, 12, Fade(Color.White, countAlpha));
+                SmoothShapes.Rounded(left, 1f, 12, Fade(Color.White, countAlpha));
                 Centered($"{dan.SongIndex + 1}曲目", left, 22f, Fade(Ink, countAlpha));
                 Centered($"{dan.SongCount}曲", new Rectangle(left.X + left.Width, all.Y, all.Width - left.Width, all.Height), 22f, Fade(Ink, countAlpha));
             }
@@ -173,7 +173,7 @@ namespace TakeTaikoSimulator.Scenes
             {
                 float a = 1f - countAlpha;
                 Color c = Tint(SongList.GenreColor(genre), 0.2f);
-                Raylib.DrawRectangleRounded(all, 1f, 12, Fade(c, a));
+                SmoothShapes.Rounded(all, 1f, 12, Fade(c, a));
                 Outlined(genre, new Rectangle(all.X + 8f, all.Y, all.Width - 16f, all.Height), 22f,
                     Fade(Color.White, a), Fade(new Color(20, 20, 24, 255), a));
             }
@@ -194,10 +194,10 @@ namespace TakeTaikoSimulator.Scenes
                 return;
             }
             Rectangle box = new(GaugeLabelX, GaugeLabelY, GaugeLabelWidth, GaugeLabelHeight);
-            Raylib.DrawRectangleRounded(box, Roundness(box, 12f), 8, new Color(255, 255, 255, 235));
+            SmoothShapes.Rounded(box, Roundness(box, 12f), 8, new Color(255, 255, 255, 235));
             Rectangle tab = new(GaugeLabelX, GaugeLabelY, GaugeTabWidth, GaugeTabHeight);
-            Raylib.DrawRectangleRounded(tab, 1f, 12, Tan);
-            Raylib.DrawRectangleRoundedLinesEx(tab, 1f, 12, 2f, TanEdge);
+            SmoothShapes.Rounded(tab, 1f, 12, Tan);
+            SmoothShapes.RoundedLines(tab, 1f, 12, 2f, TanEdge);
             Centered("魂ゲージ", tab, 24f, Ink);
             string need = $"{dan.Course.Gauge.Red} %以上";
             float width = Measure(need, 40f).X;
@@ -216,17 +216,17 @@ namespace TakeTaikoSimulator.Scenes
             float stemTop = ArrowTop - grow, headTop = ArrowTop + 15f - grow, bottom = ArrowBottom + grow;
             Raylib.DrawRectangleRec(new Rectangle(x - 5f - grow, stemTop, 10f + grow * 2f, headTop - stemTop + 2f), color);
             Vector2 l = new(x - 14f - grow, headTop), r = new(x + 14f + grow, headTop), b = new(x, bottom);
-            Raylib.DrawTriangle(l, b, r, color);
-            Raylib.DrawTriangle(l, r, b, color);
+            SmoothShapes.Triangle(l, b, r, color);
+            SmoothShapes.Triangle(l, r, b, color);
         }
 
         // 左上の小さいカウンター（良・可・不可・連打数）
         private void DrawCounter()
         {
             Rectangle box = new(CounterX, CounterY, CounterWidth, CounterHeight);
-            Raylib.DrawRectangleRounded(box, Roundness(box, 10f), 8, new Color(232, 128, 56, 235));
+            SmoothShapes.Rounded(box, Roundness(box, 10f), 8, new Color(232, 128, 56, 235));
             Rectangle inner = new(box.X + 4f, box.Y + 4f, box.Width - 8f, box.Height - 8f);
-            Raylib.DrawRectangleRounded(inner, Roundness(inner, 8f), 8, new Color(120, 40, 30, 200));
+            SmoothShapes.Rounded(inner, Roundness(inner, 8f), 8, new Color(120, 40, 30, 200));
 
             // 全部の曲の合計（10/31 の動画：1曲目の終わり 良1088 → 2曲目で 1140 と続いていた）
             (string Label, Color Color, long Value)[] rows =
@@ -241,7 +241,7 @@ namespace TakeTaikoSimulator.Scenes
             {
                 float y = inner.Y + 2f + i * rowHeight;
                 Rectangle labelBox = new(inner.X + 4f, y + 2f, 104f, rowHeight - 4f);
-                Raylib.DrawRectangleRounded(labelBox, 1f, 8, new Color(255, 255, 255, 60));
+                SmoothShapes.Rounded(labelBox, 1f, 8, new Color(255, 255, 255, 60));
                 Centered(rows[i].Label, labelBox, CounterLabelSize, rows[i].Color);
                 string value = rows[i].Value.ToString(CultureInfo.InvariantCulture);
                 Vector2 size = Measure(value, CounterValueSize);
@@ -292,12 +292,12 @@ namespace TakeTaikoSimulator.Scenes
 
             // 行の背景
             Rectangle back = new(RowBackX, barTop - LabelAbove - 2f, RowBackWidth, BarHeight + LabelAbove + 28f);
-            Raylib.DrawRectangleRounded(back, Roundness(back, 18f), 10, RowBack);
+            SmoothShapes.Rounded(back, Roundness(back, 18f), 10, RowBack);
 
             // ラベル（可の数・不可の数・連打数…）
             Rectangle label = new(LabelX, barTop - LabelAbove, LabelWidth, LabelHeight);
-            Raylib.DrawRectangleRounded(label, 1f, 12, Tan);
-            Raylib.DrawRectangleRoundedLinesEx(label, 1f, 12, 2f, TanEdge);
+            SmoothShapes.Rounded(label, 1f, 12, Tan);
+            SmoothShapes.RoundedLines(label, 1f, 12, 2f, TanEdge);
             Centered(LabelText(exam.Type), label, 26f, Ink);
 
             // 左：コイン（全体条件）か 1st/2nd/3rd の札（曲ごと条件）＋「285 未満」
@@ -306,13 +306,13 @@ namespace TakeTaikoSimulator.Scenes
             {
                 Color c = SongColors[Math.Min(song, SongColors.Length - 1)];
                 Rectangle badge = new(LabelX + 14f, midY - 20f, 58f, 40f);
-                Raylib.DrawRectangleRounded(badge, 1f, 10, c);
+                SmoothShapes.Rounded(badge, 1f, 10, c);
                 Centered(Ordinal(song), badge, 22f, Color.White);
             }
             else
             {
-                Raylib.DrawCircleV(new System.Numerics.Vector2(LabelX + 40f, midY), 24f, new Color(250, 214, 90, 255));
-                Raylib.DrawCircleLinesV(new System.Numerics.Vector2(LabelX + 40f, midY), 24f, new Color(214, 160, 40, 255));
+                SmoothShapes.Circle(new System.Numerics.Vector2(LabelX + 40f, midY), 24f, new Color(250, 214, 90, 255));
+                SmoothShapes.CircleLines(new System.Numerics.Vector2(LabelX + 40f, midY), 24f, new Color(214, 160, 40, 255));
             }
             string need = $"{exam.For(song).Red} {(exam.IsLess ? "未満" : "以上")}";
             float needWidth = Measure(need, 40f).X;
@@ -332,9 +332,9 @@ namespace TakeTaikoSimulator.Scenes
             float progress = dan.Progress(exam, song);
             DanReach reach = dan.Reach(exam, song);
 
-            Raylib.DrawRectangleRounded(bar, Roundness(bar, 8f), 8, new Color(20, 20, 24, 255));
+            SmoothShapes.Rounded(bar, Roundness(bar, 8f), 8, new Color(20, 20, 24, 255));
             Rectangle inner = new(bar.X + 4f, bar.Y + 4f, bar.Width - 8f, bar.Height - 8f);
-            Raylib.DrawRectangleRounded(inner, Roundness(inner, 6f), 8, BarBack);
+            SmoothShapes.Rounded(inner, Roundness(inner, 6f), 8, BarBack);
             if (reach != DanReach.Failure && progress > 0f)
             {
                 Rectangle part = new(inner.X, inner.Y, Math.Max(inner.Height * 0.3f, inner.Width * progress), inner.Height);
@@ -393,7 +393,7 @@ namespace TakeTaikoSimulator.Scenes
                 _ => BarRed,                                    // Danger
             };
             if (reach == DanReach.Danger) alpha *= Wave(1f);
-            Raylib.DrawRectangleRounded(part, Roundness(part, 6f), 8, Fade(color, alpha));
+            SmoothShapes.Rounded(part, Roundness(part, 6f), 8, Fade(color, alpha));
 
             float flash = reach switch
             {
@@ -401,7 +401,7 @@ namespace TakeTaikoSimulator.Scenes
                 DanReach.NearerSuccess or DanReach.NearerBetter => Wave(2f),
                 _ => 0f,
             };
-            if (flash > 0f) Raylib.DrawRectangleRounded(part, Roundness(part, 6f), 8, Fade(Color.White, flash * alpha * 0.85f));
+            if (flash > 0f) SmoothShapes.Rounded(part, Roundness(part, 6f), 8, Fade(Color.White, flash * alpha * 0.85f));
         }
 
         // 0〜1 を行き来する波（OpenTaiko の (1 + cos(2π t)) / 2。speed は1秒に何回か）
@@ -455,11 +455,11 @@ namespace TakeTaikoSimulator.Scenes
 
                 bool played = i < current;
                 Color dot = played ? SongColors[Math.Min(i, SongColors.Length - 1)] : new Color(208, 208, 214, 255);
-                Raylib.DrawCircleV(new Vector2(OthersX + 20f, y + 15f), 15f, dot);
+                SmoothShapes.Circle(new Vector2(OthersX + 20f, y + 15f), 15f, dot);
                 if (played) Centered(Ordinal(i), new Rectangle(OthersX + 5f, y + 2f, 30f, 26f), 14f, Color.White);
 
                 Rectangle line = new(OthersX + 46f, y + 2f, OthersWidth - 46f, 26f);
-                Raylib.DrawRectangleRounded(line, 0.3f, 6, played ? new Color(20, 20, 24, 255) : new Color(208, 208, 214, 255));
+                SmoothShapes.Rounded(line, 0.3f, 6, played ? new Color(20, 20, 24, 255) : new Color(208, 208, 214, 255));
                 if (!played) continue;
 
                 Rectangle inner = new(line.X + 2f, line.Y + 2f, line.Width - 4f, line.Height - 4f);

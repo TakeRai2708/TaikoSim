@@ -253,7 +253,7 @@ public sealed class EntryScene : Scene
             Color tint = MenuSkin.White(fade * (enabled ? 1 : .55f));
             if (!MenuSkin.Cell(Folder + "CreditBar.png", i, 1, 2, row, tint))
             {
-                Raylib.DrawRectangleRounded(new(row.X + 13, row.Y + 14, 1146, 160), .2f, 12, Fade(new Color(255, 226, 61, 255), fade));
+                SmoothShapes.Rounded(new(row.X + 13, row.Y + 14, 1146, 160), .2f, 12, Fade(new Color(255, 226, 61, 255), fade));
                 Outlined(i == 0 ? "1人プレイ" : "2人プレイ", new(row.X + 70, row.Y + 30, 320, 110), 56, Fade(Color.Black, fade), Fade(Color.White, fade));
             }
             string message = LocalSession.Count == 0 ? "太鼓をたたいてスタート!"
@@ -293,12 +293,12 @@ public sealed class EntryScene : Scene
         int player = LocalSession.Players[dataPlayerIndex];
         // 黄色/緑の2段。動画24秒の中央パネル・カードを原寸で使う。
         if (!MenuSkin.Cell(Folder + "DataLoad_Panel.png", player, 1, 2, DataPanel, Fade(Color.White, alpha)))
-            Raylib.DrawRectangleRounded(DataPanel, .08f, 12, Fade(player == 0 ? new Color(238, 192, 55, 255) : new Color(135, 190, 65, 255), alpha));
+            SmoothShapes.Rounded(DataPanel, .08f, 12, Fade(player == 0 ? new Color(238, 192, 55, 255) : new Color(135, 190, 65, 255), alpha));
         if (!MenuSkin.Cell(Folder + "DataLoad_Text.png", 0, 1, 3, DataPanel, Fade(Color.White, alpha)))
             Outlined("使用するデータを選んでください", new(360, 385, 1200, 75), 52, Fade(Color.White, alpha), Fade(Color.Black, alpha));
         Rectangle card = Layout.DataCard;
         if (!MenuSkin.Whole(Folder + "PlayerData_Panel.png", card, Fade(Color.White, alpha)))
-            Raylib.DrawRectangleRounded(card, .07f, 12, Fade(new Color(155, 50, 48, 255), alpha));
+            SmoothShapes.Rounded(card, .07f, 12, Fade(new Color(155, 50, 48, 255), alpha));
         Outlined($"データ {cursor + 1}", Layout.DataTitle, 36, Fade(Color.White, alpha), Fade(Color.Black, alpha));
         Outlined(registered[cursor] ? "登録済みのデータ" : "決定すると名前入力", Layout.DataSubtitle, 27, Fade(Color.White, alpha), Fade(Color.Black, alpha));
         NamePlate.Draw(cursor + 1, player, Layout.PlatePosition.X, Layout.PlatePosition.Y, alpha: alpha, preview: registered[cursor] ? null : NewDataPlate);
@@ -335,7 +335,7 @@ public sealed class EntryScene : Scene
         if (height <= 0 || alpha <= 0) return;
         Rectangle panel = new(DataPanel.X, DataPanel.Y + DataPanel.Height * (1 - height) / 2, DataPanel.Width, DataPanel.Height * height);
         if (!MenuSkin.Cell(Folder + "DataLoad_Panel.png", success ? 0 : 1, 1, 2, panel, Fade(Color.White, alpha)))
-            Raylib.DrawRectangleRounded(panel, .08f, 12, Fade(success ? Color.Gold : new Color(148, 211, 80, 255), alpha));
+            SmoothShapes.Rounded(panel, .08f, 12, Fade(success ? Color.Gold : new Color(148, 211, 80, 255), alpha));
         if (!MenuSkin.Cell(Folder + "DataLoad_Text.png", success ? 2 : 1, 1, 3, panel, Fade(Color.White, alpha)))
             Outlined(success ? "読み込みが完了しました" : "読み込み中", panel, 48 * height, Fade(Color.White, alpha), Fade(Color.Black, alpha));
     }
@@ -353,7 +353,7 @@ public sealed class EntryScene : Scene
         }
         else
         {
-            Raylib.DrawRectangleRounded(new(777, 812, 366, 90), .25f, 12, Fade(Color.White, alpha));
+            SmoothShapes.Rounded(new(777, 812, 366, 90), .25f, 12, Fade(Color.White, alpha));
             Centered("← → 選択", new(790, 830, 150, 50), 27, Fade(Color.Black, alpha));
             Centered("決定", new(960, 830, 170, 50), 30, Fade(Color.Black, alpha));
         }

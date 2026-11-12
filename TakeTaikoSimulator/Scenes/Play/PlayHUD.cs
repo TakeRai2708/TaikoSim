@@ -209,12 +209,12 @@ namespace TakeTaikoSimulator.Scenes
             {
                 float x = side == 0 ? cloth.X : cloth.X + cloth.Width - 9f;
                 Raylib.DrawRectangleRec(new Rectangle(x, cloth.Y, 9f, cloth.Height), Color.RayWhite);
-                for (int i = 0; i < 5; i++) Raylib.DrawCircleV(new Vector2(x + 4.5f, cloth.Y + 5f + i * 8.5f), 2f, ink);
+                for (int i = 0; i < 5; i++) SmoothShapes.Circle(new Vector2(x + 4.5f, cloth.Y + 5f + i * 8.5f), 2f, ink);
             }
             // まんなかの金の紋
-            Raylib.DrawCircleV(c, 9f, ink);
-            Raylib.DrawCircleV(c, 7f, new Color(236, 182, 60, 255));
-            Raylib.DrawCircleV(c, 3f, ink);
+            SmoothShapes.Circle(c, 9f, ink);
+            SmoothShapes.Circle(c, 7f, new Color(236, 182, 60, 255));
+            SmoothShapes.Circle(c, 3f, ink);
             MenuDraw.Outlined("段位道場", new Rectangle(c.X - 50f, 414f, 100f, 30f), 22f, Color.White, ink);
         }
 
@@ -222,10 +222,10 @@ namespace TakeTaikoSimulator.Scenes
         private static void DrawDiamond(Vector2 c, float w, float h, Color color)
         {
             Vector2 top = new(c.X, c.Y - h), right = new(c.X + w, c.Y), bottom = new(c.X, c.Y + h), left = new(c.X - w, c.Y);
-            Raylib.DrawTriangle(top, left, bottom, color);
-            Raylib.DrawTriangle(top, bottom, left, color);
-            Raylib.DrawTriangle(top, bottom, right, color);
-            Raylib.DrawTriangle(top, right, bottom, color);
+            SmoothShapes.Triangle(top, left, bottom, color);
+            SmoothShapes.Triangle(top, bottom, left, color);
+            SmoothShapes.Triangle(top, bottom, right, color);
+            SmoothShapes.Triangle(top, right, bottom, color);
         }
 
         private static bool DrawDigits(string text, float x, float y, float scale, float bounce, bool alignRight)
@@ -400,8 +400,8 @@ namespace TakeTaikoSimulator.Scenes
                 // A-Style の目印（Condition_Stopper.png 43×70。絵のまんなかは x21）。無ければ白い棒を描く
                 if (!SkinManager.Draw(DanStopper, mx - 21f, GaugeY + 26f))
                 {
-                    Raylib.DrawRectangleRounded(new Rectangle(mx - 7f, GaugeY + 29f, 14f, 59f), 0.5f, 6, new Color(20, 20, 24, 255));
-                    Raylib.DrawRectangleRounded(new Rectangle(mx - 4f, GaugeY + 32f, 8f, 53f), 0.5f, 6, Color.White);
+                    SmoothShapes.Rounded(new Rectangle(mx - 7f, GaugeY + 29f, 14f, 59f), 0.5f, 6, new Color(20, 20, 24, 255));
+                    SmoothShapes.Rounded(new Rectangle(mx - 4f, GaugeY + 32f, 8f, 53f), 0.5f, 6, Color.White);
                 }
             }
             else if (SkinManager.GetTexture(ClearText) is Texture2D clear)

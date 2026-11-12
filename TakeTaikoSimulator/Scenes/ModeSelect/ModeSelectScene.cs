@@ -406,8 +406,8 @@ namespace TakeTaikoSimulator.Scenes
             if (!MenuSkin.Whole(CategoryPopup, PopupArea, MenuSkin.White(t)))
             {
                 Rectangle pill = new(PopupArea.X + 20f, PopupArea.Y + 18f, PopupArea.Width - 40f, 72f);
-                Raylib.DrawRectangleRounded(pill, 1f, 12, Fade(ink, t));
-                Raylib.DrawRectangleRounded(new Rectangle(pill.X + 6f, pill.Y + 6f, pill.Width - 12f, pill.Height - 12f), 1f, 12,
+                SmoothShapes.Rounded(pill, 1f, 12, Fade(ink, t));
+                SmoothShapes.Rounded(new Rectangle(pill.X + 6f, pill.Y + 6f, pill.Width - 12f, pill.Height - 12f), 1f, 12,
                     Fade(new Color(244, 244, 244, 255), t));
             }
             Outlined(title, new Rectangle(PopupArea.X + 90f, PopupArea.Y + 22f, PopupArea.Width - 180f, 66f), 34f,
@@ -553,7 +553,7 @@ namespace TakeTaikoSimulator.Scenes
             // 開いた板：上に名前、下に説明
             Outlined(item.Title, new Rectangle(inner.X + 20, inner.Y + 30, inner.Width - 40, 90), 72, text, ink);
             Rectangle pill = new Rectangle(inner.X + 60, inner.Y + inner.Height - 110, inner.Width - 120, 70);
-            Raylib.DrawRectangleRounded(pill, 1f, 12, Fade(new Color(255, 255, 255, 210), open));
+            SmoothShapes.Rounded(pill, 1f, 12, Fade(new Color(255, 255, 255, 210), open));
             // スキンの画像が無いときの細い帯は1行しか入らないので、行をつなげて書く（はみ出すぶんは小さくなる）
             Centered(item.Description.Replace("\n", ""), new Rectangle(pill.X + 20, pill.Y, pill.Width - 40, pill.Height), 32, Fade(ink, open));
         }
@@ -604,7 +604,7 @@ namespace TakeTaikoSimulator.Scenes
         private static void DrawHint(string hint, float y, Color? color = null, float size = 24)
         {
             var measured = Measure(hint, size);
-            Raylib.DrawRectangleRounded(new Rectangle(28, y - 7, measured.X + 32, measured.Y + 14), 0.5f, 8, new Color(0, 0, 0, 150));
+            SmoothShapes.Rounded(new Rectangle(28, y - 7, measured.X + 32, measured.Y + 14), 0.5f, 8, new Color(0, 0, 0, 150));
             Text(hint, 44, y, size, color ?? new Color(220, 224, 236, 255));
         }
 

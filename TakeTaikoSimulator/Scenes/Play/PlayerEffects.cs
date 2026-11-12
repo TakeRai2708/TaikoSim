@@ -452,7 +452,7 @@ namespace TakeTaikoSimulator.Scenes
                 ?? SkinManager.GetTexture(Dir + "Notes/Normal/0/" + file);
             if (image is Texture2D texture)
                 DrawCentered(texture, new Rectangle(0, 0, texture.Width, texture.Height), center, 1f, Color.White);
-            else Raylib.DrawCircleV(center, note.Big ? 72 : 48, note.Don ? Color.Red : Color.SkyBlue);
+            else SmoothShapes.Circle(center, note.Big ? 72 : 48, note.Don ? Color.Red : Color.SkyBlue);
         }
 
         private static void DrawCentered(Texture2D texture, Rectangle source, Vector2 center, float scale, Color tint,

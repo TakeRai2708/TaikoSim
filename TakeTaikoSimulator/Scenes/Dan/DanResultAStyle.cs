@@ -314,7 +314,7 @@ namespace TakeTaikoSimulator.Scenes
             {
                 float mx = gx + 12f + 1050f * norma / 100f - 4f;
                 if (!MenuSkin.Whole(Stopper, new Rectangle(mx - 21f, GY + 26f, 43f, 70f), MenuSkin.White(alpha)))
-                    Raylib.DrawRectangleRounded(new Rectangle(mx - 5f, GY + 28f, 10f, 50f), 0.5f, 6, Fade(Color.White, alpha));
+                    SmoothShapes.Rounded(new Rectangle(mx - 5f, GY + 28f, 10f, 50f), 0.5f, 6, Fade(Color.White, alpha));
                 string need = $"{norma} 以上";
                 OutlinedAt(need, mx + 8f - Measure(need, 26f).X / 2f, GY + 76f, 26f, Fade(Dark, alpha), Fade(Color.White, alpha));
             }
@@ -378,7 +378,7 @@ namespace TakeTaikoSimulator.Scenes
                 if (i > 0) MenuSkin.Part(Context, new Rectangle(0, (1 + i) * 65f, 220f, 65f), new Rectangle(cx + ContextDx, y + ContextDy, 220f, 65f), MenuSkin.White(alpha));
 
                 Rectangle bar = new(cx + MiniBarDx, y + MiniBarDy, MiniBarWidth, MiniBarHeight);
-                Raylib.DrawRectangleRounded(bar, 0.15f, 6, Fade(new Color(16, 16, 18, 255), alpha));
+                SmoothShapes.Rounded(bar, 0.15f, 6, Fade(new Color(16, 16, 18, 255), alpha));
                 Rectangle inner = new(bar.X + 3f, bar.Y + 3f, bar.Width - 6f, bar.Height - 6f);
                 Raylib.DrawRectangleRec(inner, Fade(new Color(61, 61, 61, 255), alpha));
 

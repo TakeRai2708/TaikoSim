@@ -1399,9 +1399,9 @@ namespace TakeTaikoSimulator.Scenes
             {
                 // 画像が無いとき(テスト用)：白い角丸の箱
                 Rectangle body = new Rectangle(balloon.X + 45, balloon.Y + 24, BalloonWidth - 90, 70);
-                Raylib.DrawRectangleRounded(body, 1f, 16, Fade(InkColor, a));
+                SmoothShapes.Rounded(body, 1f, 16, Fade(InkColor, a));
                 Rectangle fill = new Rectangle(body.X + 6, body.Y + 6, body.Width - 12, body.Height - 12);
-                Raylib.DrawRectangleRounded(fill, 1f, 16, Fade(new Color(244, 244, 244, 255), a));
+                SmoothShapes.Rounded(fill, 1f, 16, Fade(new Color(244, 244, 244, 255), a));
             }
             string count = item.SongCount > 0 ? $"全 {item.SongCount} 曲" : "曲がありません";
             Centered(count, new Rectangle(balloon.X + 60, balloon.Y + 58 - 25, BalloonWidth - 120, 50), 36, Fade(BalloonTextColor, a));
@@ -1416,8 +1416,8 @@ namespace TakeTaikoSimulator.Scenes
                 Rectangle labelInner = new Rectangle(area.X + 70, area.Y + 20, area.Width - 140, area.Height - 40);
                 if (!MenuSkin.NPatch(MenuSkin.SongFolder + "Bar_Label.png", area, 30, MenuSkin.White(alpha)))
                 {
-                    Raylib.DrawRectangleRounded(area, Roundness(area, 22), 10, Fade(LabelColor, alpha));
-                    Raylib.DrawRectangleRounded(labelInner, Roundness(labelInner, 8), 8, Fade(new Color(120, 122, 134, 200), alpha));
+                    SmoothShapes.Rounded(area, Roundness(area, 22), 10, Fade(LabelColor, alpha));
+                    SmoothShapes.Rounded(labelInner, Roundness(labelInner, 8), 8, Fade(new Color(120, 122, 134, 200), alpha));
                 }
                 Outlined(item.Title, labelInner, 46, Fade(new Color(225, 225, 240, 255), alpha), Fade(new Color(60, 50, 110, 255), alpha));
                 return;
@@ -1544,7 +1544,7 @@ namespace TakeTaikoSimulator.Scenes
             }
             // 画像が無いとき(システムのスキンなど)はプログラムで描く
             Raylib.DrawRectangleRec(chip, Fade(color, alpha));
-            Raylib.DrawRectangleRounded(right, 0.2f, 6, Fade(Raylib.ColorBrightness(color, -0.25f), alpha));
+            SmoothShapes.Rounded(right, 0.2f, 6, Fade(Raylib.ColorBrightness(color, -0.25f), alpha));
             Outlined(CourseMark(type), new Rectangle(chip.X + 6, chip.Y + 4, 82, 50), 40, Fade(Color.White, alpha), ink);
             Outlined(type == CourseType.Edit ? "裏おに" : Chart.GetCourseName(type), new Rectangle(chip.X + 4, chip.Y + 56, 86, 26), 20, Fade(Color.White, alpha), ink);
             Outlined($"★{level}", right, 36, Fade(Color.White, alpha), ink);
@@ -1598,10 +1598,10 @@ namespace TakeTaikoSimulator.Scenes
             }
             else
             {
-                Raylib.DrawRectangleRounded(panel, Roundness(panel, 40), 12, Fade(InkColor, alpha));
+                SmoothShapes.Rounded(panel, Roundness(panel, 40), 12, Fade(InkColor, alpha));
                 Rectangle panelBody = new Rectangle(panel.X + 7, panel.Y + 7, panel.Width - 14, panel.Height - 14);
-                Raylib.DrawRectangleRounded(panelBody, Roundness(panelBody, 34), 12, Fade(diffColor, alpha));
-                Raylib.DrawRectangleRounded(titleBox, Roundness(titleBox, 10), 8, Fade(Tint(diffColor, 0.55f), alpha));
+                SmoothShapes.Rounded(panelBody, Roundness(panelBody, 34), 12, Fade(diffColor, alpha));
+                SmoothShapes.Rounded(titleBox, Roundness(titleBox, 10), 8, Fade(Tint(diffColor, 0.55f), alpha));
             }
 
             Color ink = Raylib.ColorBrightness(diffColor, -0.7f);
@@ -1697,20 +1697,20 @@ namespace TakeTaikoSimulator.Scenes
             bool small = box.Width < 150;
             if (small ? MenuSkin.NPatchPart(Tn + "Difficulty_Select/Cursor_Effect_Small.png", new Rectangle(13, 10, 134, 141), frame, 30, MenuSkin.White(alpha))
                       : MenuSkin.NPatchPart(Tn + "Difficulty_Select/Cursor_Effect.png", new Rectangle(12, 9, 216, 382), frame, 30, MenuSkin.White(alpha))) return;
-            Raylib.DrawRectangleRounded(frame, Roundness(frame, 26), 10, Fade(CursorColor, alpha));
+            SmoothShapes.Rounded(frame, Roundness(frame, 26), 10, Fade(CursorColor, alpha));
         }
 
         private void DrawDiffBox(int index, Rectangle box, float alpha, float scale)
         {
             if (DrawDiffBoxImage(index, box, alpha, scale)) return;
 
-            Raylib.DrawRectangleRounded(box, Roundness(box, 18), 10, Fade(InkColor, alpha));
+            SmoothShapes.Rounded(box, Roundness(box, 18), 10, Fade(InkColor, alpha));
             Rectangle body = new Rectangle(box.X + 5, box.Y + 5, box.Width - 10, box.Height - 10);
 
             if (index <= 1)
             {
                 Color fill = index == 0 ? BackFillColor : new Color(220, 228, 70, 255);
-                Raylib.DrawRectangleRounded(body, Roundness(body, 14), 10, Fade(fill, alpha));
+                SmoothShapes.Rounded(body, Roundness(body, 14), 10, Fade(fill, alpha));
                 if (index == 1) Icons.Gear(body.X + body.Width / 2f, body.Y + body.Height / 2f - 8, Fade(new Color(90, 90, 100, 255), alpha), Fade(fill, alpha));
                 else Outlined("◀", new Rectangle(body.X, body.Y + 6, body.Width, body.Height * 0.6f), 48 * scale, Fade(Color.White, alpha), Fade(BackBoxColor, alpha));
                 Outlined(index == 0 ? "もどる" : "オプション", new Rectangle(body.X + 4, body.Y + body.Height - 34 * scale, body.Width - 8, 28 * scale), 22 * scale,
@@ -1722,14 +1722,14 @@ namespace TakeTaikoSimulator.Scenes
             bool exists = HasCourse(type);
             Color color = exists ? CourseColor(type) : new Color(120, 122, 132, 255);
             // 上は明るく、下は濃く
-            Raylib.DrawRectangleRounded(body, Roundness(body, 14), 10, Fade(color, alpha));
+            SmoothShapes.Rounded(body, Roundness(body, 14), 10, Fade(color, alpha));
             Rectangle upper = new Rectangle(body.X + 6, body.Y + 6, body.Width - 12, body.Height * 0.55f);
-            Raylib.DrawRectangleRounded(upper, Roundness(upper, 10), 8, Fade(Tint(color, 0.55f), alpha));
+            SmoothShapes.Rounded(upper, Roundness(upper, 10), 8, Fade(Tint(color, 0.55f), alpha));
             Color ink = Fade(Raylib.ColorBrightness(color, -0.7f), alpha);
 
             // 印(絵の代わり)
             Vector2 mark = new Vector2(body.X + body.Width / 2f, body.Y + 110 * scale);
-            Raylib.DrawCircleV(mark, 62 * scale, Fade(Color.White, alpha * 0.85f));
+            SmoothShapes.Circle(mark, 62 * scale, Fade(Color.White, alpha * 0.85f));
             Outlined(CourseMark(type), new Rectangle(mark.X - 60 * scale, mark.Y - 50 * scale, 120 * scale, 100 * scale), 84 * scale, Fade(color, alpha), ink);
 
             // 名前・★レベル・★の列
@@ -1738,7 +1738,7 @@ namespace TakeTaikoSimulator.Scenes
             // 無い難易度は、灰色にするだけ（11/12 たけらい「なしって書いてあるけどなくして、ただのグレーアウトに」）
             if (!exists) return;
             Rectangle strip = new Rectangle(body.X + 8, box.Y + 280 * scale, body.Width - 16, 22 * scale);
-            Raylib.DrawRectangleRounded(strip, 1f, 8, Fade(Raylib.ColorBrightness(color, -0.45f), alpha));
+            SmoothShapes.Rounded(strip, 1f, 8, Fade(Raylib.ColorBrightness(color, -0.45f), alpha));
             DrawCardLevel(index, type, box, alpha, scale, emptyDots: true);
         }
 
@@ -1758,7 +1758,7 @@ namespace TakeTaikoSimulator.Scenes
             {
                 Vector2 c = new Vector2(strip.X + cell * (s + 0.5f), strip.Y + strip.Height / 2f);
                 if (s < stars) Outlined("★", new Rectangle(c.X - cell / 2f, c.Y - 11 * scale, cell, 22 * scale), 18 * scale, Fade(Color.White, alpha), Fade(Raylib.ColorBrightness(color, -0.45f), alpha));
-                else if (emptyDots) Raylib.DrawCircleV(c, 2.5f * scale, Fade(new Color(255, 255, 255, 140), alpha));
+                else if (emptyDots) SmoothShapes.Circle(c, 2.5f * scale, Fade(new Color(255, 255, 255, 140), alpha));
             }
 
             if (index == 5 && HasCourse(CourseType.Oni) && HasCourse(CourseType.Edit))
@@ -1832,10 +1832,10 @@ namespace TakeTaikoSimulator.Scenes
             // TaikøNauts のスキン：Difficulty_Select/Player_Cursor.png(縦に 1P・2P・…。1段 136×130、中身は 14,0 から 114×113)
             if (MenuSkin.Part(Tn + "Difficulty_Select/Player_Cursor.png", new Rectangle(14, 0, 114, 113), new Rectangle(c.X - 57, c.Y - 56, 114, 113), MenuSkin.White(alpha))) return;
             if (MenuSkin.Whole(MenuSkin.SongFolder + "Marker_1P.png", new Rectangle(c.X - 56, c.Y - 56, 112, 118), MenuSkin.White(alpha))) return;
-            Raylib.DrawTriangle(new Vector2(c.X - 14, c.Y + 34), new Vector2(c.X, c.Y + 58), new Vector2(c.X + 14, c.Y + 34), Fade(InkColor, alpha));
-            Raylib.DrawCircleV(c, 53, Fade(InkColor, alpha));
-            Raylib.DrawCircleV(c, 48, Fade(MarkerColor, alpha));
-            Raylib.DrawTriangle(new Vector2(c.X - 10, c.Y + 36), new Vector2(c.X, c.Y + 52), new Vector2(c.X + 10, c.Y + 36), Fade(MarkerColor, alpha));
+            SmoothShapes.Triangle(new Vector2(c.X - 14, c.Y + 34), new Vector2(c.X, c.Y + 58), new Vector2(c.X + 14, c.Y + 34), Fade(InkColor, alpha));
+            SmoothShapes.Circle(c, 53, Fade(InkColor, alpha));
+            SmoothShapes.Circle(c, 48, Fade(MarkerColor, alpha));
+            SmoothShapes.Triangle(new Vector2(c.X - 10, c.Y + 36), new Vector2(c.X, c.Y + 52), new Vector2(c.X + 10, c.Y + 36), Fade(MarkerColor, alpha));
             Outlined("1P", new Rectangle(c.X - 44, c.Y - 30, 88, 60), 50, Fade(Color.White, alpha), Fade(InkColor, alpha));
         }
 
@@ -1852,13 +1852,13 @@ namespace TakeTaikoSimulator.Scenes
                 return;
             }
             if (MenuSkin.Whole(MenuSkin.SongFolder + "Hint.png", DiffHintBox, MenuSkin.White(alpha))) return;
-            Raylib.DrawRectangleRounded(DiffHintBox, 0.3f, 10, Fade(Color.White, alpha));
+            SmoothShapes.Rounded(DiffHintBox, 0.3f, 10, Fade(Color.White, alpha));
             Rectangle choose = new Rectangle(DiffHintBox.X + 18, DiffHintBox.Y + 18, 152, 50);
             Rectangle decide = new Rectangle(DiffHintBox.X + 190, DiffHintBox.Y + 18, 152, 50);
-            Raylib.DrawRectangleRounded(choose, 1f, 10, Fade(InkColor, alpha));
-            Raylib.DrawRectangleRounded(decide, 1f, 10, Fade(InkColor, alpha));
-            Raylib.DrawRectangleRounded(new Rectangle(choose.X + 3, choose.Y + 3, choose.Width - 6, choose.Height - 6), 1f, 10, Fade(Color.White, alpha));
-            Raylib.DrawRectangleRounded(new Rectangle(decide.X + 3, decide.Y + 3, decide.Width - 6, decide.Height - 6), 1f, 10, Fade(Color.White, alpha));
+            SmoothShapes.Rounded(choose, 1f, 10, Fade(InkColor, alpha));
+            SmoothShapes.Rounded(decide, 1f, 10, Fade(InkColor, alpha));
+            SmoothShapes.Rounded(new Rectangle(choose.X + 3, choose.Y + 3, choose.Width - 6, choose.Height - 6), 1f, 10, Fade(Color.White, alpha));
+            SmoothShapes.Rounded(new Rectangle(decide.X + 3, decide.Y + 3, decide.Width - 6, decide.Height - 6), 1f, 10, Fade(Color.White, alpha));
             Centered("カッ：えらぶ", choose, 26, Fade(InkColor, alpha));
             Centered("ドン：決定", decide, 26, Fade(InkColor, alpha));
         }
@@ -1919,7 +1919,7 @@ namespace TakeTaikoSimulator.Scenes
         {
             float width = Measure(toast, 28).X;
             Rectangle box = new Rectangle(Screen.Width / 2f - width / 2f - 30, 140, width + 60, 52);
-            Raylib.DrawRectangleRounded(box, 0.4f, 8, new Color(0, 0, 0, 210));
+            SmoothShapes.Rounded(box, 0.4f, 8, new Color(0, 0, 0, 210));
             Text(toast, box.X + 30, box.Y + 11, 28, new Color(255, 220, 120, 255));
         }
 
