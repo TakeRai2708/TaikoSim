@@ -77,7 +77,7 @@ namespace TakeTaikoSimulator.Scenes
             dan = isDan;
             config = CharaBaker.Config;
             if (config == null || CharaBaker.CacheFolder == null) return;
-            stream = new CharaStream(CharaBaker.CacheFolder);
+            stream = new CharaStream(CharaBaker.CacheFolder, ahead: 6);
             foreach (string anim in CharaBaker.PlayAnims) stream.Has(anim);   // 焼けているものは先にテクスチャを作っておく
         }
 

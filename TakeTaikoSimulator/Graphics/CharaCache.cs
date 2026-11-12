@@ -328,18 +328,33 @@ namespace TakeTaikoSimulator.Graphics
             worker?.Join(3000);
             worker = null;
         }
+        /// <summary>
+        /// 演奏中は焼くのを止める（PlayScene が true にする）
+        ///   11/13 たけらい「連打がまた同時押しみたいな感じ」：推測なんだけど、どんちゃんを焼き直している間は
+        ///   大きな PNG を次々に読むので、ゲーム全体のメモリの片づけ（GC）が増えて、演奏画面が一瞬止まる。
+        ///   止まっている間に叩いた分がまとめて処理されるので、同時押しのように感じる。
+        ///   → 演奏画面にいる間は、焼くのを待たせる（メニューに戻ったら続きから焼く）
+        /// </summary>
+        public static volatile bool Paused;
+
+        private static bool WaitWhilePaused(CancellationToken token)
+        {
+            while (Paused && !token.IsCancellationRequested) Thread.Sleep(100);
+            return token.IsCancellationRequested;
+        }
+
         private static void Run(Bake[] jobs, CancellationToken token)
         {
             foreach (string anim in BakeOrder)
             foreach (Bake job in jobs)
             {
-                if (token.IsCancellationRequested) return;
+                if (WaitWhilePaused(token)) return;
                 try
                 {
                     string source = Path.Combine(job.Source, anim);
                     int step = FrameStepFor(job.Config, anim, Directory.Exists(source) ? CharaCache.CountFrames(source) : 0);
                     if (CharaCache.BuildIfNeeded(source, job.Cache, anim,
-                        ScaleFor(job.Config, anim), step, () => token.IsCancellationRequested)) ready[job.Cache + "/" + anim] = true;
+                        ScaleFor(job.Config, anim), step, () => WaitWhilePaused(token))) ready[job.Cache + "/" + anim] = true;
                 }
                 catch (Exception ex) { Console.WriteLine($"[Chara] {anim} を焼けませんでした：{ex.Message}"); }
             }

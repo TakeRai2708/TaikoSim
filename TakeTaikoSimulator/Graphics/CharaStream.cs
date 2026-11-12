@@ -15,7 +15,9 @@ namespace TakeTaikoSimulator.Graphics
     //   コマの絵の大きさは 300×280 くらい（約300KB）なので、テクスチャの上書きは一瞬。
     public sealed class CharaStream : IDisposable
     {
-        private const int Ahead = 10;  // 今のコマから何コマ先まで読んでおくか（11/13：6 → 10。読みが間に合わないコマを減らす）
+        // 今のコマから何コマ先まで読んでおくか。メニューは 10（読みが間に合わないコマを減らす。11/13）、
+        // 演奏画面は 6 のまま（演奏中に読む量・メモリを増やさない）
+        private readonly int Ahead;
         private const int Pinned = 4;  // 最初の何コマを読みっぱなしにするか
 
         private sealed class Clip
@@ -39,9 +41,10 @@ namespace TakeTaikoSimulator.Graphics
         private volatile bool stop;
         private readonly ConcurrentQueue<Clip> added = new();
 
-        public CharaStream(string cacheFolder)
+        public CharaStream(string cacheFolder, int ahead = 10)
         {
             this.cacheFolder = cacheFolder;
+            Ahead = Math.Max(2, ahead);
             worker = new Thread(Run) { IsBackground = true, Name = "CharaStream", Priority = ThreadPriority.BelowNormal };
             worker.Start();
         }
@@ -187,7 +190,7 @@ namespace TakeTaikoSimulator.Graphics
         }
 
         // 今のコマの2つ前〜Ahead先（ループするので、最後と最初はつながっている）
-        private static bool InWindow(int i, int frame, int count)
+        private bool InWindow(int i, int frame, int count)
         {
             int d = ((i - frame) % count + count) % count;
             return d <= Ahead || d >= count - 2;

@@ -447,6 +447,7 @@ namespace TakeTaikoSimulator.Scenes
 
         public override void Enter()
         {
+            CharaBaker.Paused = true;   // 演奏中は、どんちゃんを焼き直さない（Graphics/CharaCache.cs）
             autoPlay = ConfigManager.Game.AutoPlay; // 演奏開始時の選択を固定する。
             autoRollPerSecond = ConfigManager.Game.AutoRollPerSecond;
             hiSpeed = ConfigManager.Game.HiSpeed > 0f ? ConfigManager.Game.HiSpeed : 1f;
@@ -520,6 +521,7 @@ namespace TakeTaikoSimulator.Scenes
         // 画面から出るとき：曲と効果音を片付ける
         public override void Exit()
         {
+            CharaBaker.Paused = false;
             // 演奏画面から離れたら必ずWindowsフックを解除する。
             windowsInput.Dispose();
             StopSong();
