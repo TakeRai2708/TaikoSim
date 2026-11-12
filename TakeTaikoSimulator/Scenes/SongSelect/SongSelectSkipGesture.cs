@@ -1,28 +1,27 @@
 namespace TakeTaikoSimulator.Scenes;
 
-// 選曲の連打だけを数える。アニメの進み具合ではなく、最初から3打目までの時間で判定する。
+// 最初の側を短時間保持する。逆側は通常移動にも連打判定にも使わない。
 internal sealed class SongSelectSkipGesture
 {
     public const double WindowSeconds = 0.25;
-    private readonly Queue<double> presses = new(3);
-    private int direction;
+    private int firstDirection;
+    private double firstTime;
 
-    public void Reset()
-    {
-        presses.Clear();
-        direction = 0;
-    }
+    public void Reset() => firstDirection = 0;
 
-    public bool Register(int nextDirection, double now)
+    // Direction=0は入力を無視。Skip=falseなら通常1項目、trueならスキップ。
+    public (int Direction, bool Skip) Register(int direction, double now)
     {
-        if (nextDirection != -1 && nextDirection != 1) { Reset(); return false; }
-        if (direction != nextDirection) Reset();
-        direction = nextDirection;
-        // 古い打鍵だけ外すので、直近3打が0.25秒以内なら反応する。
-        while (presses.Count > 0 && now - presses.Peek() > WindowSeconds) presses.Dequeue();
-        presses.Enqueue(now);
-        if (presses.Count < 3) return false;
+        if (direction != -1 && direction != 1) { Reset(); return (0, false); }
+        if (firstDirection == 0 || now < firstTime || now - firstTime > WindowSeconds)
+        {
+            firstDirection = direction;
+            firstTime = now;
+            return (direction, false);
+        }
+        // 逆側を叩いても、最初の側と判定の開始時刻を変えない。
+        if (direction != firstDirection) return (0, false);
         Reset();
-        return true;
+        return (direction, true);
     }
 }

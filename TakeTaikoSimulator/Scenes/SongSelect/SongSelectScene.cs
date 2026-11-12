@@ -608,7 +608,7 @@ namespace TakeTaikoSimulator.Scenes
             if (inSongs && InputManager.IsSystemPressed(SystemAction.Favorite) && CurrentItem is { Kind: Kind.Song } fav)
                 ToggleFavorite(fav.Song!);
 
-            // 同方向の押し直しを0.25秒以内に3回で7項目スキップ。左右混在・長押し・ホイールは数えない。
+            // 最初の側を0.25秒保持。逆側は無視し、同じ側の2打目だけでスキップする。
             bool freshUp = InputManager.IsDrumPressed(DrumPart.LeftKa) || Raylib.IsKeyPressed(KeyboardKey.Up);
             bool freshDown = InputManager.IsDrumPressed(DrumPart.RightKa) || Raylib.IsKeyPressed(KeyboardKey.Down);
             bool up = freshUp || KeyPressed(KeyboardKey.Up);
@@ -622,9 +622,12 @@ namespace TakeTaikoSimulator.Scenes
             // ロック中の入力は捨てる。ドン・Enterによる決定は下で受け付ける。
             if (move != 0 && skipLock <= 0f)
             {
-                bool skip = !breakGesture && (freshUp != freshDown)
-                    && skipGesture.Register(Math.Sign(move), Raylib.GetTime());
-                if (skip) { Move(Math.Sign(move), SkipCount); skipLock = SkipInterval; }
+                if (!breakGesture && (freshUp != freshDown))
+                {
+                    var action = skipGesture.Register(Math.Sign(move), Raylib.GetTime());
+                    if (action.Direction != 0) Move(action.Direction, action.Skip ? SkipCount : 1);
+                    if (action.Skip) skipLock = SkipInterval;
+                }
                 else Move(move);
             }
 
@@ -632,14 +635,14 @@ namespace TakeTaikoSimulator.Scenes
                 Decide();
         }
 
-        // まとめて飛ぶ曲の数(OpenTaiko と同じ)
+        // スキップで進む数。「とじる」と見出しは数えない。
         private const int SkipCount = 7;
         // スキップ後0.5秒は一覧の移動を止める。ドン・Enterの決定は使える。
         private const float SkipInterval = 0.5f;
         private float skipLock;
         private readonly SongSelectSkipGesture skipGesture = new();
 
-        // steps 回ぶん動かす(見出しの板は飛ばす)。2回以上ならスキップの音
+        // 通常移動では「とじる」も選べる。スキップでは「とじる」と見出しを数えない。
         private void Move(int direction, int steps = 1)
         {
             List<Item> list = CurrentList;
@@ -647,11 +650,16 @@ namespace TakeTaikoSimulator.Scenes
             int pos = CurrentPos;
             for (int step = 0; step < steps; step++)
             {
+                bool found = false;
                 for (int guard = 0; guard < list.Count; guard++)
                 {
                     pos += Math.Sign(direction);
-                    if (list[Mod(pos, list.Count)].Kind != Kind.Label) break;
+                    Kind kind = list[Mod(pos, list.Count)].Kind;
+                    if (kind == Kind.Label || (steps > 1 && kind == Kind.Back)) continue;
+                    found = true;
+                    break;
                 }
+                if (!found) return; // 数えられる項目がない一覧では動かさない。
             }
             SetPos(pos);
             if (steps > 1) MenuSounds.Skip();
