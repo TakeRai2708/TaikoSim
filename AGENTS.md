@@ -1171,3 +1171,8 @@ Order:
 - Note faces (`PlayScene.UpdateNoteFace`): combo < 10 → `Notes/Normal/0`; 10–99 → `1` (open mouth) in the second half of each beat; ≥100 → `2` (angry) in the second half; first half always `0`. Beat phase = time since the last active bar line / (60000/bar BPM). Rolls/balloons/big notes use the same folder. (Before: folder 1 was used all the time.)
 - Mode select Don-chan idle = `entry_loop` at `entryModeLoopTime` (500 ms; measured period 0.5 s on `2026-11-11 23-40-44.mp4` 108–114 s), falling back to `songselect_loop`. `entry_loop` is baked too.
 - Don-chan menu fps: `CharaBaker.FrameStepFor` thins timed menu loops to ≤60 frames/s (songselect_loop was 118 decoded PNGs/s and the stream couldn't keep up); `CharaStream.Ahead` 6 → 10. Caches re-bake automatically (FrameStep changed).
+
+## 11/13 batch 3 (たけらい)
+- Skin detail font: `FontManager.ReloadSkinDetailFont` reads `detailFontPath` (TaikøNauts key) or `Font/Default2.ttf|otf`; `DrawDetail`/`MeasureDetail` fall back to the system font. `mainFontPath` is also accepted for the main font. Used for the result best-score gain so far.
+- Result vs `2026-11-11 23-46-22.mp4` 90 s (same song as たけらい's screenshot): soul gauge scale 0.69 → 0.70 at GaugeX 79 (left end was 8 px off), 「魂」 grey (`Soul_Text.png` row 0) unless max on the result only, gauge drawn with the panel (not at RevealTime), nameplate (16,950) → (37,932) (the dark shadow on its right was the panel showing through). Difficulty tab, judge labels, Don-chan matched (0 px).
+- Play screen: `CharaBaker.Paused` stops background baking while PlayScene is active (suspected GC hitches → hits felt simultaneous).

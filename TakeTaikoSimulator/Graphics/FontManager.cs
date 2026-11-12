@@ -14,13 +14,17 @@ namespace TakeTaikoSimulator.Graphics
         // システム用のフォント(読み込めなかったら null で、Raylib の標準フォントを使う)
         private static DynamicFont? systemFont;
         private static DynamicFont? skinMainFont;
+        // スキンの細かい字のフォント（TaikøNauts の detailFontPath。A-Style は Font/Default2.ttf）
+        //   11/13 たけらい「太鼓の達人って二つのフォント使って表示してる。太鼓ノーツもそう」
+        //   太い字（曲名・ボタン）は skinMainFont、数字や説明の細かい字はこちら。無ければシステム用のフォント
+        private static DynamicFont? skinDetailFont;
         private static string skinMainPreparedText = "";
 
         // スキンの太字フォントを読み直した回数(先読みし直すかどうかの目印)
         public static int SkinMainGeneration { get; private set; }
 
         // 読み込んだ文字のページの数(システム用＋スキンの太字。デバッグ記録用)
-        public static int TotalPageCount => (systemFont?.PageCount ?? 0) + (skinMainFont?.PageCount ?? 0);
+        public static int TotalPageCount => (systemFont?.PageCount ?? 0) + (skinMainFont?.PageCount ?? 0) + (skinDetailFont?.PageCount ?? 0);
 
         // 使っているフォントの名前(表示用)
         public static string FontName => systemFont != null
@@ -189,9 +193,60 @@ namespace TakeTaikoSimulator.Graphics
             else Preload(texts);
         }
 
+        // ===== スキンの細かい字（detail） =====
+
+        /// <summary>スキンを読んだときに呼ぶ。SkinConfig.json の detailFontPath、無ければ Font/Default2.ttf か .otf</summary>
+        public static void ReloadSkinDetailFont(string? skinPath, string? configured = null)
+        {
+            string? path = ResolveSkinFont(skinPath, configured, "detailFontPath") ?? FindSkinFontFile(skinPath, "default2");
+            if (skinDetailFont != null && path != null && string.Equals(skinDetailFont.FilePath, path, StringComparison.OrdinalIgnoreCase)) return;
+            skinDetailFont?.Dispose();
+            skinDetailFont = null;
+            if (path == null) return;
+            skinDetailFont = DynamicFont.Load(path, InitialCodepoints());
+            if (skinDetailFont != null) Console.WriteLine($"[Font] 細かい字：{path}");
+        }
+
+        private static string? FindSkinFontFile(string? skinPath, string baseName)
+        {
+            if (skinPath == null) return null;
+            string folder = Path.Combine(skinPath, "Font");
+            if (!Directory.Exists(folder)) return null;
+            foreach (string file in Directory.EnumerateFiles(folder))
+            {
+                string ext = Path.GetExtension(file).ToLowerInvariant();
+                if ((ext == ".ttf" || ext == ".otf") && string.Equals(Path.GetFileNameWithoutExtension(file), baseName, StringComparison.OrdinalIgnoreCase))
+                    return file;
+            }
+            return null;
+        }
+
+        /// <summary>スキンに細かい字のフォントがあるか</summary>
+        public static bool HasSkinDetail => skinDetailFont != null;
+
+        public static void DrawDetail(string text, float x, float y, float size, Color color)
+        {
+            if (skinDetailFont != null) skinDetailFont.Draw(text, new Vector2(x, y), size, color);
+            else Draw(text, x, y, size, color);
+        }
+
+        public static void DrawDetailOutlined(string text, float x, float y, float size, Color fill, Color outline, float thickness)
+        {
+            if (skinDetailFont != null) skinDetailFont.DrawOutlined(text, new Vector2(x, y), size, fill, outline, thickness);
+            else DrawOutlined(text, x, y, size, fill, outline, thickness);
+        }
+
+        public static Vector2 MeasureDetail(string text, float size) =>
+            skinDetailFont?.Measure(text, size) ?? Measure(text, size);
+
+        public static Rectangle MeasureDetailInk(string text, float size) =>
+            skinDetailFont?.InkBounds(text, size) ?? MeasureInk(text, size);
+
         // 後片付け(ウィンドウを閉じる前に呼ぶ)
         public static void Unload()
         {
+            skinDetailFont?.Dispose();
+            skinDetailFont = null;
             skinMainFont?.Dispose();
             skinMainFont = null;
             skinMainPreparedText = "";

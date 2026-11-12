@@ -49,7 +49,10 @@ namespace TakeTaikoSimulator.Scenes
         // ===== 位置(1920×1080) =====
         private const float TitleCenterX = 960f, TitleY = 66f, TitleSize = 60f, TitleOutline = 4f;
         private const float CourseX = 31f, CourseY = 153f;
-        private const float GaugeX = 87f, GaugeY = 209f, GaugeScale = 0.69f; // 演奏画面のゲージを 69% にした大きさ
+        // 演奏画面のゲージを 70% にした大きさ
+        //   11/13 たけらい「左上の座標ずれ」：TaikøNauts の録画（2026-11-11 23-46-22.mp4 90秒）と、たけらいのスクショを重ねた。
+        //   ゲージの右（クリアの所）は合っていて、左はしだけ 8px 右にずれていた → 倍率が少し小さかった（0.69 → 0.70）
+        private const float GaugeX = 79f, GaugeY = 209f, GaugeScale = 0.70f;
         private const float ScoreRight = 459f, ScoreY = 321f, ScoreStep = 46f;  // スコアの数字(右寄せ)
         private const float JudgeRight = 879f, JudgeStep = 30f;                 // 良・可・不可・連打数・最大コンボ数(右寄せ)
         private static readonly float[] JudgeY = { 286f, 348f, 410f, 472f, 534f };
@@ -291,10 +294,11 @@ namespace TakeTaikoSimulator.Scenes
                 Raylib.DrawTexturePro(panel, new Rectangle(0, 0, 960, 1080), new Rectangle(0, 0, 960, 1080),
                     Vector2.Zero, 0f, Color.White);
             DrawCourse();
+            // ゲージは板といっしょに出す（録画では、板が出た 0.1秒後にはもうゲージがあった。数字はそのあと）
+            DrawGauge();
 
             if (elapsed >= RevealTime)
             {
-                DrawGauge();
                 DrawScore();
                 DrawJudgeNumbers();
                 DrawBestRecord();
@@ -304,7 +308,8 @@ namespace TakeTaikoSimulator.Scenes
             // どんちゃん（スコアの板の左下。吹き出しより奥。録画では最初のフェードから出ていた）
             if (CharaBaker.Config is CharaConfig dc) chara.Draw(dc.ResultX[0], dc.ResultY[0], dc.ResultScale);
             if (elapsed >= BalloonTime) DrawBalloon();
-            NamePlate.Draw(SongHistory.ActiveProfile, LocalSession.Controller, 16, 950);
+            // 名札：TaikøNauts の録画と重ねて (16,950) → (37,932)。前は右の奥に、板の影が黒くはみ出して見えていた
+            NamePlate.Draw(SongHistory.ActiveProfile, LocalSession.Controller, 37, 932);
             PuchiChara.Draw(SongHistory.ActiveProfile, LocalSession.Controller, "result");
             // オートのときは記録を残していないので、帯で知らせる（演奏画面と同じ場所。リザルトではずっと出す）
             if (data.AutoPlayed) UI.InfoBar.Draw(UI.InfoBar.PlayX, UI.InfoBar.PlayY, UI.InfoBar.NotSavedText);
@@ -364,8 +369,9 @@ namespace TakeTaikoSimulator.Scenes
             string gain = (update.After.Score - update.Before.Score).ToString();
             const float gainSize = 26f;
             float arrowX = pill.X + pill.Width - 18f, midY = pill.Y + pill.Height / 2f;
-            Vector2 gm = FontManager.Measure(gain, gainSize);
-            FontManager.Draw(gain, arrowX - 9f - gm.X, midY - gm.Y / 2f, gainSize, Raylib.ColorAlpha(Color.White, alpha));
+            // 増えた点は、スキンの細かい字のフォント（Default2.ttf）で
+            Vector2 gm = FontManager.MeasureDetail(gain, gainSize);
+            FontManager.DrawDetail(gain, arrowX - 9f - gm.X, midY - gm.Y / 2f, gainSize, Raylib.ColorAlpha(Color.White, alpha));
             Color arrow = Raylib.ColorAlpha(Color.White, alpha);
             SmoothShapes.Triangle(new Vector2(arrowX, midY - 9f), new Vector2(arrowX - 7f, midY - 1f), new Vector2(arrowX + 7f, midY - 1f), arrow);
             Raylib.DrawRectangleRec(new Rectangle(arrowX - 3f, midY - 1f, 6f, 9f), arrow);
@@ -447,7 +453,7 @@ namespace TakeTaikoSimulator.Scenes
             Rlgl.PushMatrix();
             Rlgl.Translatef(GaugeX - PlayHUD.GaugeLeft * GaugeScale, GaugeY - PlayHUD.GaugeTop * GaugeScale, 0f);
             Rlgl.Scalef(GaugeScale, GaugeScale, 1f);
-            hud.DrawGauge(data.Stats);
+            hud.DrawGauge(data.Stats, result: true);
             Rlgl.DrawRenderBatchActive();
             Rlgl.PopMatrix();
         }

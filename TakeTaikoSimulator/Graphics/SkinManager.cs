@@ -175,6 +175,8 @@ namespace TakeTaikoSimulator.Graphics
         public static double EntryBgmLoopEndMs { get; private set; }
         public static double SongSelectBgmLoopEndMs { get; private set; }
         public static string? MainFontFile { get; private set; }
+        // 細かい字のフォント（TaikøNauts と同じキー detailFontPath）
+        public static string? DetailFontFile { get; private set; }
         public static string? SystemFontFile { get; private set; }
 
         // スキンフォルダの中にあるスキンの一覧(毎フレーム探すと重いので覚えておく)
@@ -232,6 +234,7 @@ namespace TakeTaikoSimulator.Graphics
             yield return (++done, total, "連打の演出を準備しています");
             FontManager.ReloadSystemFont(CurrentPath, SystemFontFile);
             FontManager.ReloadSkinMainFont(CurrentPath, MainFontFile);
+            FontManager.ReloadSkinDetailFont(CurrentPath, DetailFontFile);
             yield return (++done, total, "背景を準備しています");
             PlayBackground.ReloadSkin();
             yield return (++done, total, "キャラクターを準備しています");
@@ -558,6 +561,7 @@ namespace TakeTaikoSimulator.Graphics
             Description = "";
             MainFontFile = null;
             SystemFontFile = null;
+            DetailFontFile = null;
             EntryBgmIntroMs = SongSelectBgmIntroMs = EntryBgmLoopEndMs = SongSelectBgmLoopEndMs = 0;
 
             if (CurrentPath == null) return;
@@ -577,6 +581,11 @@ namespace TakeTaikoSimulator.Graphics
                     MainFontFile = mainFont.GetString();
                 if (root.TryGetProperty("systemFont", out JsonElement systemFont) && systemFont.ValueKind == JsonValueKind.String)
                     SystemFontFile = systemFont.GetString();
+                // TaikøNauts の書き方（mainFontPath・detailFontPath）も読む。うちの mainFont があればそちらが先
+                if (MainFontFile == null && root.TryGetProperty("mainFontPath", out JsonElement mainPath) && mainPath.ValueKind == JsonValueKind.String)
+                    MainFontFile = mainPath.GetString();
+                if (root.TryGetProperty("detailFontPath", out JsonElement detailPath) && detailPath.ValueKind == JsonValueKind.String)
+                    DetailFontFile = detailPath.GetString();
                 EntryBgmIntroMs = ReadMs(root, "entryBGMIntroTimeMs");
                 SongSelectBgmIntroMs = ReadMs(root, "songSelectBGMIntroTimeMs");
                 EntryBgmLoopEndMs = ReadMs(root, "entryBGMLoopEndMs");

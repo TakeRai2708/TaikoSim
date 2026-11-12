@@ -287,7 +287,10 @@ namespace TakeTaikoSimulator.Scenes
         /// <summary>ノルマの境目（段差）の x。段位の「99%以上」の矢印と目印をここに合わせる</summary>
         public static float NormaBorderX(int norma) => GaugeX + 12 + (norma / 2 - 1) * CellWidth;
 
-        public void DrawGauge(PlayStats stats, bool dan = false)
+        // result：リザルトの小さいゲージ。満タンでないときは「魂」を灰色（Soul_Text.png の1段目）にする
+        //   11/13 たけらい「リザルトの魂ゲージ」：TaikøNauts の録画（2026-11-11 23-46-22.mp4 90秒）で、
+        //   リザルトの満タンでない魂は灰色だった（演奏画面は満タンでなくても白）
+        public void DrawGauge(PlayStats stats, bool dan = false, bool result = false)
         {
             if (SkinManager.GetTexture(GaugeBase) is not Texture2D frame
                 || SkinManager.GetTexture(GaugeLight) is not Texture2D light)
@@ -422,7 +425,8 @@ namespace TakeTaikoSimulator.Scenes
             if (SkinManager.GetTexture(SoulText) is Texture2D text)
             {
                 float height = text.Height / 3f;
-                DrawPart(text, new Rectangle(0, height, text.Width, height), 1792, 204);
+                int soulRow = result && !stats.IsMax ? 0 : 1;   // 0 = 灰色、1 = 白
+                DrawPart(text, new Rectangle(0, soulRow * height, text.Width, height), 1792, 204);
                 // 満タンで常時発光させず、飛んだ音符が到着したときだけ光を重ねる。
                 if (soulFlashAge < 0.16f)
                     DrawPart(text, new Rectangle(0, 2 * height, text.Width, height), 1792, 204,
