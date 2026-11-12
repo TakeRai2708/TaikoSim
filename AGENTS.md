@@ -1031,3 +1031,14 @@ Order:
 - User replaced the previous icon choice with59EA809C-8932-4440-BB35-8CF31D6693F5.png, clarified clipping on all four sides and requested transparency outside the circular emblem. Generated a repaired transparent preview and waited; the user explicitly approved that preview before applying. The selected image is the approved edited preview, not a claim of pixel-identical reproduction of the original attachment.
 - Replaced only Assets/Branding/AppIcon.png (256x256 RGBA) and AppIcon.ico (16/24/32/48/64/128/256px), using the same existing resource names and project/runtime wiring. Circular artwork and TakeTaiko lettering match the approved preview; transparent exterior and padding are retained. No gameplay, settings, data paths, skins, source code, build properties or AOT flags changed.
 - Validated both formats with Pillow: all7ICO sizes decode, corners remain transparent in every frame, and the256px ICO frame equals the PNG exactly. Checked existing production/check csproj icon and embedded-resource references. The older SDK workspace is no longer present, so no rebuild was run for this asset replacement. Windows Explorer/title-bar/taskbar appearance, runtime SetWindowIcon and Native AOT publish remain unverified. Earlier build/compiled-resource checks refer to the previous icon, not this replacement.
+## Song select measurements from the 11/11 recording (2026-11-11 23-44-20.mp4 / 23-46-22.mp4, TaikøNauts latest, A-Style)
+- Top-left taiko guide = `99.Common/Control_Guide/Large/Anime.aup2` drawn at (0,0), native size, plain 653-frame loop from scene enter
+  (does not react to input). Vanishes 0.77 s after a song is decided; not shown while choosing a difficulty.
+- Song decided at t=0: blink 0–0.55 (4 cycles), list fades 0.77–1.00, difficulty panel fades in 1.25–1.77 (linear), 1P marker at 1.97 (0.05 s fade).
+- Difficulty cursor: jumps instantly; only the 1P marker dips 8.6 px and returns within 0.117 s.
+  Deciding a course: cursor frame yellow⇔white ×4 in 0.567 s (white = 3rd frame of Cursor_Effect.png), yellow until 0.65, gone by 0.767; curtain 2.7 s later.
+- Positions found by overlaying the skin images on the video in 0.5 px steps: card number centre (111.5, 263), dot-row star (31 + 15n, 292),
+  bar chip number centre (147.5, 43.5). Missing courses: card and digit "0" at 50 % brightness (no 「なし」 text).
+- Esc from the song list uses the same blink → flip as deciding 「とじる」 (TaikøNauts' own Esc behaviour was not recorded).
+- Not yet done from this recording: クリア失敗 text, failed result, best-score update, entry → mode select animation.
+

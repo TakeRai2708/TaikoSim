@@ -137,6 +137,10 @@ namespace TakeTaikoSimulator.Scenes
         private Item? diffItem;                          // 難易度の板の番号(TaikøNauts のスキンの Difficulty_Select/Background/番号.png)
         private float diffTime;                        // 決定してからの時間(切り替えのアニメに使う)
         private Aup2? smallControlGuide;
+        // 左上の太鼓の案内(Control_Guide/Large/Anime.aup2。346×312・653コマ＝10.9秒でくり返す)
+        //   11/11 の録画：画面の左上 (0, 0) に原寸で出る。たたいても変わらず、この画面に入った時からずっとくり返す。
+        //   曲を決めて 0.77秒で消え、難易度をえらんでいる間は出ない
+        private Aup2? largeControlGuide;
         private readonly PlayOptionsPanel options = new();
 
         // ===== 検索 =====
@@ -178,9 +182,24 @@ namespace TakeTaikoSimulator.Scenes
         // ===== 決定 → 難易度の板(決定した時を0秒として。TaikøNauts を測った値) =====
         //   (10/29 の A.mp4 を 1/60秒ずつ：69.15秒に決定 → 枠の点滅 → 0.53秒から白 → 0.65秒で枠が消える → 0.70〜0.93秒で一覧が消える)
         private const float FrameHideAt = 0.65f;                          // 白くなった枠が消える
-        private const float ListFadeStart = 0.70f, ListFadeEnd = 0.93f;   // 一覧が消える
-        private const float PanelInStart = 1.25f, PanelInEnd = 1.58f;     // 難易度の板が出る
-        private const float MarkerAt = 1.7f;                   // 1P の印が出る
+        //   11/11 の録画(2026-11-11 23-44-20.mp4 の 70.97秒に決定)を 1/60秒ずつ測り直した：
+        //     0〜0.55秒 枠の点滅(4回) → 0.77秒 左上の太鼓の案内がパッと消える・一覧が消え始める → 1.00秒 一覧が消えきる
+        //     → 1.25〜1.77秒 難易度の板がじわっと出る(まっすぐ 0.52秒。前は 0.33秒にしていた) → 1.97秒 1P の印(0.05秒で出る)
+        private const float ListFadeStart = 0.77f, ListFadeEnd = 1.00f;   // 一覧が消える
+        private const float PanelInStart = 1.25f, PanelInEnd = 1.77f;     // 難易度の板が出る
+        private const float MarkerAt = 1.97f, MarkerFade = 0.05f;         // 1P の印が出る
+        private const float GuideHideAt = 0.77f;                          // 左上の太鼓の案内が消える
+
+        // ===== 難易度のカーソルの動き(11/11 の同じ録画) =====
+        //   動かしたとき(90.62秒・98.63秒)：枠と 1P の印は、すぐ次の箱へ移る(すべらない)。
+        //     1P の印だけ、0.117秒かけて下へ 8.6px しずんで戻る
+        //   決めたとき(102.25秒)：枠が 黄色 ⇔ 白 を4回くり返す(0.567秒。曲を決めたときの点滅と同じ速さ)
+        //     → 0.65秒まで黄色 → 0.767秒までに消える。板やカードはそのまま。幕は 2.7秒あと
+        private const float MarkerBounceSeconds = 0.117f, MarkerBounceDrop = 8.6f;
+        private const float DiffBlinkSeconds = 0.567f, DiffBlinkCount = 4f, DiffCursorHoldEnd = 0.65f, DiffCursorGoneAt = 0.767f;
+        private float markerBounce = 1f;      // カーソルを動かしてからの秒
+        private float diffDecideTime = -1f;   // 難易度を決めてからの秒(-1 なら決めていない)
+        private float guideClock;             // 左上の太鼓の案内の時計(この画面に入ってからの秒)
 
         // ===== 難易度の板の配置(TaikøNauts を測った値) =====
         private static readonly Rectangle DiffPanel = new Rectangle(352, 62, 1210, 746);
@@ -241,6 +260,8 @@ namespace TakeTaikoSimulator.Scenes
             if (CharaBaker.Config is CharaConfig cc) chara.Loop("songselect_loop", cc.SongSelectLoopTime);
             MenuVoice.Loop(SelectStartVoice);
             selectPrompt = true;
+            guideClock = 0f;
+            diffDecideTime = -1f;
             returnTime = -1f;
             returnSwap = null;
             if (!SongList.IsScanned && !SongList.IsScanning) SongList.StartScan();
@@ -253,8 +274,20 @@ namespace TakeTaikoSimulator.Scenes
             SongLoading.Preload(); // 曲の読み込み画面の画像(決めた瞬間に止まらないように)
             smallControlGuide?.Unload();
             smallControlGuide = null;
+            largeControlGuide?.Unload();
+            largeControlGuide = null;
             if (SkinManager.CurrentPath is string skin)
             {
+                largeControlGuide = Aup2.Load(Path.Combine(skin, "Image", "99.Common", "Control_Guide", "Large", "Anime.aup2"));
+                if (largeControlGuide != null)
+                {
+                    largeControlGuide.Preload();
+                    if (!largeControlGuide.HasAllImages)
+                    {
+                        largeControlGuide.Unload();
+                        largeControlGuide = null;
+                    }
+                }
                 smallControlGuide = Aup2.Load(Path.Combine(skin, "Image", "99.Common", "Control_Guide", "Small", "Anime.aup2"));
                 if (smallControlGuide != null)
                 {
@@ -276,6 +309,8 @@ namespace TakeTaikoSimulator.Scenes
             preview.Dispose();
             smallControlGuide?.Unload();
             smallControlGuide = null;
+            largeControlGuide?.Unload();
+            largeControlGuide = null;
             options.CloseNow();
         }
 
@@ -430,11 +465,20 @@ namespace TakeTaikoSimulator.Scenes
         // ===== 更新 =====
 
         // 曲を決めてから幕が閉じるまで（SongLoading の Wait）も、どんちゃんのジャンプは動かす
-        public override void UpdateBlocked(float dt) => chara.Update(dt);
+        // 画面の切り替え中(難易度を決めてから幕が閉じるまで)も、どんちゃんとカーソルの点滅は進める
+        public override void UpdateBlocked(float dt)
+        {
+            chara.Update(dt);
+            guideClock += dt;
+            if (diffDecideTime >= 0f) diffDecideTime += dt;
+        }
 
         public override void Update(float dt)
         {
             chara.Update(dt);
+            guideClock += dt;
+            markerBounce += dt;
+            if (diffDecideTime >= 0f) diffDecideTime += dt;
             caretTimer += dt;
             if (toastTimer > 0f) toastTimer -= dt;
             if (skipLock > 0f) skipLock -= dt;
@@ -698,9 +742,16 @@ namespace TakeTaikoSimulator.Scenes
             list.Reset(songPos);
         }
 
+        // Esc で曲の一覧からジャンルの一覧へ：「とじる」を決めたときと同じ「点滅 → めくれる」動きで戻る
+        //   11/11 たけらい「戻るアニメーションを見て直して」。前は 0.18秒ずつのフェード(測る前の仮の動き)だった。
+        //   録画(2026-11-11 23-46-22.mp4 の 112.5秒〜)の「とじる」は、ジャンルを開くときと同じめくれ方(FlipStart からの時間)。
+        //   Esc を押したときの本家の動きは録画に無いので、「とじる」と同じにしている
         private void CloseGenre()
         {
-            BeginReturn(CloseGenreNow);
+            if (list.Deciding || flipTime >= 0f) return;
+            list.StartDecide();
+            flipOpen = CloseGenreNow;
+            flipFromBack = true;
         }
 
         private void CloseGenreNow()
@@ -740,7 +791,7 @@ namespace TakeTaikoSimulator.Scenes
                 list.EndDecide();
                 return;
             }
-            if (inSongs) { MenuSounds.Cancel(); CloseGenre(); return; }
+            if (inSongs) { if (!list.Deciding) { MenuSounds.Cancel(); CloseGenre(); } return; }
             MenuSounds.Cancel();
             SceneManager.ToModeFromSongSelect(new ModeSelectScene());
         }
@@ -762,7 +813,7 @@ namespace TakeTaikoSimulator.Scenes
                 // お気に入りの一覧から消したときは、並びを作り直す
                 int index = Mod(songPos, songs.Count);
                 BuildSongs();
-                if (ownCount <= 1) { CloseGenre(); return; }
+                if (ownCount <= 1) { CloseGenreNow(); return; }   // 中身が空になったので、すぐジャンルの一覧へ
                 songPos = Math.Min(index, songs.Count - 1);
                 list.Reset(songPos);
             }
@@ -800,6 +851,8 @@ namespace TakeTaikoSimulator.Scenes
             diffItem = item;
             diffOpen = true;
             diffTime = 0f;
+            diffDecideTime = -1f;
+            markerBounce = 1f;
             uraCount = 0;
             if (selectPrompt) { MenuVoice.StopLoop(); selectPrompt = false; }
             MenuVoice.PlayAfter(DecideSongVoice, DecideSongVoiceDelay);
@@ -848,6 +901,7 @@ namespace TakeTaikoSimulator.Scenes
             {
                 diffCursor--;
                 uraCount = 0;
+                markerBounce = 0f;
                 MenuSounds.Ka();
             }
 
@@ -871,6 +925,7 @@ namespace TakeTaikoSimulator.Scenes
             {
                 diffCursor++;
                 uraCount = 0;
+                markerBounce = 0f;
                 MenuSounds.Ka();
                 return;
             }
@@ -908,6 +963,7 @@ namespace TakeTaikoSimulator.Scenes
 
             MenuSounds.Don();
             MenuVoice.Play(DecideDifficultyVoice);
+            diffDecideTime = 0f;
             lastCourse = type;
             lastSongKey = diffSong.Key;
             SongHistory.AddPlayed(diffSong.Key);
@@ -1171,6 +1227,10 @@ namespace TakeTaikoSimulator.Scenes
                 Raylib.DrawRectangle(1490, 120, 370, 52, new Color(18, 25, 38, 235));
                 Text("特訓モード", 1530, 128, 28, Color.SkyBlue);
             }
+            // 左上の太鼓の案内(難易度をえらんでいる間・検索の箱が出ている間は出さない)
+            if (!SkinManager.SystemSkin && largeControlGuide is Aup2 guide && !(diffOpen && diffTime >= GuideHideAt)
+                && !SongList.IsScanning && SongList.Categories.Count > 0)
+                guide.Draw(guide.LoopedFrameAt(guideClock), Vector2.Zero, ReturnAlpha);
             // 左上の「演奏ゲーム」「ジャンルをえらぶ」は出さない(スキンの画像とかぶって、じゃまになる)。
             // どのジャンルにいるかは一覧の板そのもので分かるので、文字は要らない
 
@@ -1517,19 +1577,24 @@ namespace TakeTaikoSimulator.Scenes
             {
                 Rectangle box = S(DiffBoxArea(i));
                 bool selected = i == diffCursor;
-                if (selected) DrawDiffCursor(box, alpha);
+                if (selected) DrawDiffCursor(box, alpha, diffDecideTime);
                 DrawDiffBox(i, box, alpha, scale);
                 if (i >= 2 && HasCourse(CourseAt(i))) SongRecordPanel.DrawCard(diffSong.Key, CourseAt(i), box, alpha);
                 if (ready && Gui.Clicked(box))
                 {
                     if (i == diffCursor) DecideDifficulty();
-                    else { diffCursor = i; MenuSounds.Ka(); }
+                    else { diffCursor = i; markerBounce = 0f; MenuSounds.Ka(); }
                 }
             }
 
             // 1P の印(カーソルの上)
             if (diffTime >= MarkerAt)
-                DrawPlayerMarker(DiffBoxArea(diffCursor), ReturnAlpha * Math.Clamp((diffTime - MarkerAt) / 0.1f, 0f, 1f));
+            {
+                Rectangle at = DiffBoxArea(diffCursor);
+                if (markerBounce < MarkerBounceSeconds)
+                    at.Y += MarkerBounceDrop * MathF.Sin(MathF.PI * markerBounce / MarkerBounceSeconds);
+                DrawPlayerMarker(at, ReturnAlpha * Math.Clamp((diffTime - MarkerAt) / MarkerFade, 0f, 1f));
+            }
 
 
             // 下のまんなか：えらぶ・決定
@@ -1565,9 +1630,29 @@ namespace TakeTaikoSimulator.Scenes
         };
 
         // 選んでいる箱のまわりの黄色い枠
-        private static void DrawDiffCursor(Rectangle box, float alpha)
+        //   decide：難易度を決めてからの秒(-1 なら決めていない)。黄色 ⇔ 白 を4回 → 黄色 → 消える
+        private static void DrawDiffCursor(Rectangle box, float alpha, float decide = -1f)
         {
+            float white = 0f;
+            if (decide >= 0f)
+            {
+                if (decide >= DiffCursorGoneAt) return;
+                if (decide < DiffBlinkSeconds)
+                {
+                    float phase = decide / DiffBlinkSeconds * DiffBlinkCount % 1f;   // 0 黄色 → 0.5 白 → 1 黄色
+                    white = 1f - MathF.Abs(phase * 2f - 1f);
+                }
+                else if (decide > DiffCursorHoldEnd)
+                    alpha *= 1f - (decide - DiffCursorHoldEnd) / (DiffCursorGoneAt - DiffCursorHoldEnd);
+            }
             Rectangle frame = new Rectangle(box.X - 12, box.Y - 12, box.Width + 24, box.Height + 24);
+            // 白い枠は Cursor_Effect.png の3つ目(480px 右)。カードのときだけ(小さい箱は決めても点滅しない)
+            if (white > 0f && box.Width >= 150 && SkinManager.GetTexture(Tn + "Difficulty_Select/Cursor_Effect.png") != null)
+            {
+                MenuSkin.NPatchPart(Tn + "Difficulty_Select/Cursor_Effect.png", new Rectangle(12, 9, 216, 382), frame, 30, MenuSkin.White(alpha));
+                MenuSkin.NPatchPart(Tn + "Difficulty_Select/Cursor_Effect.png", new Rectangle(12 + 480, 9, 216, 382), frame, 30, MenuSkin.White(alpha * white));
+                return;
+            }
             // TaikøNauts のスキン：カードは Cursor_Effect.png(1つ目 12,9 から 216×382)、小さい箱は Cursor_Effect_Small.png(1つ目 13,10 から 134×141)
             bool small = box.Width < 150;
             if (small ? MenuSkin.NPatchPart(Tn + "Difficulty_Select/Cursor_Effect_Small.png", new Rectangle(13, 10, 134, 141), frame, 30, MenuSkin.White(alpha))
@@ -1645,11 +1730,17 @@ namespace TakeTaikoSimulator.Scenes
 
         // ===== 難易度の数字と★の場所(TaikøNauts の画像と動画を測った値。画像の中の座標) =====
         // 開いた曲の板の札(176×86)：数字の真ん中
-        private const float ChipNumberX = 146, ChipNumberY = 43, ChipNumberAdvance = 24;
+        //   11/11：録画(2026-11-11 23-44-20.mp4 の 10秒)に A-Style の札と数字を 0.5px ずつずらして重ねて、いちばん合う所にした
+        //   (前は 146, 43。右へ 1.5px・下へ 0.5px ずれていた)
+        private const float ChipNumberX = 147.5f, ChipNumberY = 43.5f, ChipNumberAdvance = 24;
         // 難易度のカード(196×354)：★の右に数字、下の点々の列に★
         //   ★は 64〜91・250〜277(真ん中 77.5,263.5)、点々は 30,45,…,165 の10個・高さ 293(画像を測った)
-        private const float CardNumberX = 108, CardNumberY = 264, CardNumberAdvance = 19;
-        private const float CardDotX = 30, CardDotStep = 15, CardDotY = 293;
+        //   11/11：録画(同じ動画の 80秒)にカード・数字・★を 0.5px ずつずらして重ねて、いちばん合う所にした
+        //   (前は 数字 108, 264・★ 30, 293。数字は右へ 3.5px・上へ 1px、★は右へ 1px・上へ 1px ずれていた)
+        private const float CardNumberX = 111.5f, CardNumberY = 263, CardNumberAdvance = 19;
+        private const float CardDotX = 31, CardDotStep = 15, CardDotY = 292;
+        // 無い難易度のカード：絵も数字も半分の明るさ。数字は「0」(同じ録画。前は少し青い灰色で「なし」と書いていた)
+        private static readonly Color MissingCardTint = new Color(128, 128, 128, 255);
 
         // カードの数字と★の列(カードの画像の上に。★の列は、画像の点々に1つずつ重ねる)
         private void DrawCardLevel(CourseType type, Rectangle box, float alpha)
@@ -1686,10 +1777,11 @@ namespace TakeTaikoSimulator.Scenes
                 CourseType course = CourseAt(index);
                 bool has = HasCourse(course);
                 // 無い難易度は、暗くして描く
-                Color tint = has ? MenuSkin.White(alpha) : Fade(new Color(110, 110, 120, 255), alpha);
+                Color tint = has ? MenuSkin.White(alpha) : Fade(MissingCardTint, alpha);
                 MenuSkin.Part(sheet, new Rectangle(265 + 215 * (int)course, 1, 196, 354), box, tint);
                 if (has) DrawCardLevel(course, box, alpha);
-                else Outlined("なし", new Rectangle(box.X, box.Y + 236 * scale, box.Width, 48 * scale), 32 * scale, Fade(Color.White, alpha), Fade(InkColor, alpha));
+                else if (!MenuSkin.Digits(Tn + "Difficulty_Select/Difficulty_Level_Number.png", "0", box.X + CardNumberX * box.Width / 196f, box.Y + CardNumberY * box.Height / 354f, CardNumberAdvance, box.Width / 196f, tint))
+                    Outlined("なし", new Rectangle(box.X, box.Y + 236 * scale, box.Width, 48 * scale), 32 * scale, Fade(Color.White, alpha), Fade(InkColor, alpha));
                 return true;
             }
 
@@ -1699,7 +1791,7 @@ namespace TakeTaikoSimulator.Scenes
         // 1P の印(赤い丸に「1P」、下に三角)
         private static void DrawPlayerMarker(Rectangle box, float alpha)
         {
-            Vector2 c = new Vector2(box.X + box.Width / 2f, 358);
+            Vector2 c = new Vector2(box.X + box.Width / 2f, 358 + (box.Y - DiffCardY));
             // TaikøNauts のスキン：Difficulty_Select/Player_Cursor.png(縦に 1P・2P・…。1段 136×130、中身は 14,0 から 114×113)
             if (MenuSkin.Part(Tn + "Difficulty_Select/Player_Cursor.png", new Rectangle(14, 0, 114, 113), new Rectangle(c.X - 57, c.Y - 56, 114, 113), MenuSkin.White(alpha))) return;
             if (MenuSkin.Whole(MenuSkin.SongFolder + "Marker_1P.png", new Rectangle(c.X - 56, c.Y - 56, 112, 118), MenuSkin.White(alpha))) return;
