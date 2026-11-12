@@ -14,12 +14,13 @@ namespace TakeTaikoSimulator.Scenes;
 
 // エントリー画面
 //
-//   11/12 たけらい「エントリー画面の画面遷移の流れを変えよう」。流れ：
+//   11/12 たけらい「エントリー画面の画面遷移の流れを変えよう」、11/13「やっぱり」で順番を入れかえた。流れ：
 //     ① 黄色い板（太鼓をたたいてスタート）：どちらかのキーの組のドンを叩く
-//     ② 「どちらの太鼓でつかいますか？」：ひだり ／ つかわない ／ みぎ（TaikøNauts と同じ。最初は「つかわない」）
-//          ・ひだり = 1P（赤）、みぎ = 2P（青）。叩くキーは、① で叩いた方のまま
-//          ・つかわない・Esc：① に戻る
-//     ③ データ選択 → データ通信中 → 完了（PlayerJoin）
+//     ② データ選択 → データ通信中 → 完了（PlayerJoin。いったん、叩いたキーの組と同じ側に入る）
+//     ③ 「どちらの太鼓でつかいますか？」：ひだり ／ つかわない ／ みぎ（TaikøNauts と同じ。最初は「つかわない」）
+//          ・ひだり = 1P（赤）、みぎ = 2P（青）。叩くキーは、① で叩いた方のまま（LocalSession.MoveSide）
+//          ・②でデータを選んだあとなので、どんちゃんと名札をここに出せる（前は②より先に出していたので出せなかった）
+//          ・つかわない・Esc：① に戻る（選んだデータも取り消し。11/13 たけらい ③A）
 //     ④ モード選択へ
 //   ・ここで入れるのは1人だけ。2人目は、モード選択か選曲（曲の一覧）で、まだ使っていない方のキーのドンを叩いて入る
 //   ・2人プレイをやめるには、この画面まで戻る（入り直すと全員リセット）
@@ -47,6 +48,7 @@ public sealed class EntryScene : Scene
         : new(SideX[index] + 60, SideY + 20, SideWidth - 120, SideHeight - 40);
 
     private readonly PlayerJoin join = new();
+    private readonly MenuChara chara = new();   // ③ のどんちゃん（選曲と同じくり返しの動き）
     private readonly bool selectData;
     private readonly HashSet<int> chosenProfiles = new();   // 選び直しのとき、もう選んだデータ
     private Step step = Step.Start;
@@ -82,6 +84,7 @@ public sealed class EntryScene : Scene
     public override void Exit()
     {
         join.Dispose();
+        chara.Dispose();
         MenuVoice.StopLoop();
     }
 
@@ -112,21 +115,31 @@ public sealed class EntryScene : Scene
             return;
         }
         if (Game.IsSettingsOpen) return;
-        if (step == Step.Side) { UpdateSide(dt); return; }
+        if (step == Step.Side) { chara.Update(dt); UpdateSide(dt); return; }
 
         // ① 黄色い板：どちらのキーの組でも始められる（Enter は1Pのキーの組）
-        if (InputManager.IsKeySetDonPressed(0) || Raylib.IsKeyPressed(KeyboardKey.Enter) || Raylib.IsKeyPressed(KeyboardKey.KpEnter)) OpenSide(0);
-        else if (InputManager.IsKeySetDonPressed(1)) OpenSide(1);
+        if (InputManager.IsKeySetDonPressed(0) || Raylib.IsKeyPressed(KeyboardKey.Enter) || Raylib.IsKeyPressed(KeyboardKey.KpEnter)) OpenData(0);
+        else if (InputManager.IsKeySetDonPressed(1)) OpenData(1);
     }
 
-    private void OpenSide(int keySet)
+    // ② データ選択。側はまだ決めないので、叩いたキーの組と同じ側（1Pのキー → ひだり）にいったん入る
+    private void OpenData(int keySet)
+    {
+        step = Step.Data;
+        sideKeySet = keySet;
+        join.Open(keySet, keySet, Array.Empty<int>(), overlay: false);
+        MenuSounds.Don();
+    }
+
+    // ③ どちらの太鼓で
+    private void OpenSide()
     {
         step = Step.Side;
-        sideKeySet = keySet;
         sideCursor = 1;
         sideAge = 0f;
         sideDecide = -1f;
-        MenuSounds.Don();
+        chara.Load();
+        if (chara.Config is CharaConfig cc) chara.Loop("songselect_loop", cc.SongSelectLoopTime);
     }
 
     // ② どちらの太鼓で
@@ -139,8 +152,9 @@ public sealed class EntryScene : Scene
             if (sideDecide < SideDecideSeconds) return;
             sideDecide = -1f;
             if (sideCursor == 1) { BackToStart(); return; }
-            step = Step.Data;
-            join.Open(sideCursor == 0 ? 0 : 1, sideKeySet, Array.Empty<int>(), overlay: false);
+            // 選んだ側に移って、モード選択へ
+            LocalSession.MoveSide(sideKeySet, sideCursor == 0 ? 0 : 1);
+            GoToModeSelect();
             return;
         }
         if (sideAge < SideOpenSeconds) return;   // 出てくる途中は押せない（開いたドンで、そのまま決まらないように）
@@ -177,7 +191,14 @@ public sealed class EntryScene : Scene
                 OpenReselect();
                 return;
             }
+            GoToModeSelect();
+            return;
         }
+        OpenSide();   // ③ どちらの太鼓で
+    }
+
+    private void GoToModeSelect()
+    {
         leaving = true;
         try { SongHistory.SelectProfile(LocalSession.Profiles[LocalSession.Controller]); }
         catch (Exception ex) when (ex is IOException or UnauthorizedAccessException or JsonException)
@@ -193,8 +214,10 @@ public sealed class EntryScene : Scene
         if (leaving) return;
         if (step == Step.Data)
         {
-            // データ選択でやめたら、黄色い板まで戻る（全員リセット）
-            if (join.Back()) BackToStart();
+            // データ選択でやめたら、黄色い板まで戻る（全員リセット）。選び直しのときはモード選択へ
+            if (!join.Back()) return;
+            if (selectData) GoToModeSelect();
+            else BackToStart();
             return;
         }
         if (step == Step.Side)
@@ -216,6 +239,7 @@ public sealed class EntryScene : Scene
         if (step == Step.Start) DrawStart(interactive, 1f);
         else if (step == Step.Side) DrawSide(interactive);
         else if (join.Active) join.Draw(interactive);
+        else if (step == Step.Data) DrawStart(interactive, 1f);   // 選び直しで、データ選択をやめた直後の1コマ
         else Raylib.DrawRectangle(0, 0, 1920, 1080, new Color(0, 0, 0, 150));   // 完了のあと、モード選択に替わるまでの1コマ
         MenuSkin.Whole(Folder + "Header.png", new(0, 0, 1920, 1080), Color.White);
         FreePlay();
@@ -262,17 +286,17 @@ public sealed class EntryScene : Scene
             FontManager.DrawSkinMainOutlined(message, area.X + (area.Width - ink.Width) / 2 - ink.X,
                 area.Y + (area.Height - ink.Height) / 2 - ink.Y, size, Fade(Color.White, fade), Fade(Color.Black, fade), Layout.StartMessageOutline);
             // マウス：上の板 = 1Pのキーの組、下の板 = 2Pのキーの組で始める
-            if (interactive && Gui.Clicked(row)) { OpenSide(i); interactive = false; }
+            if (interactive && Gui.Clicked(row)) { OpenData(i); interactive = false; }
         }
     }
 
-    // ② どちらの太鼓で
+    // ③ どちらの太鼓で
     private void DrawSide(bool interactive)
     {
         float open = Math.Clamp(sideAge / SideOpenSeconds, 0f, 1f);
-        DrawStart(false, 1f - open);   // 黄色い板は、入れ替わりに消えていく
-        Raylib.DrawRectangle(0, 0, 1920, 1080, new Color(0, 0, 0, (int)(150 * open)));
+        Raylib.DrawRectangle(0, 0, 1920, 1080, new Color(0, 0, 0, 150));   // データ選択の幕を、そのまま引きつぐ
         Color tint = Fade(Color.White, open);
+        int profile = LocalSession.Profiles[sideKeySet];
         // 決めたあとの白い光：パッと出て、消えていく
         float flash = sideDecide < 0f ? 0f : 1f - Math.Clamp(sideDecide / SideDecideSeconds, 0f, 1f);
         float pulse = .55f + .45f * MathF.Sin(elapsed * 6f);
@@ -287,6 +311,13 @@ public sealed class EntryScene : Scene
             MenuSkin.Cell(Folder + "Playside_Effect.png", row + 1, 1, 6, bar, Fade(Color.White, open * pulse));
             MenuSkin.Cell(Folder + "Playside_Effect.png", row, 1, 6, bar, tint);
             if (flash > 0f) MenuSkin.Cell(Folder + "Playside_Effect.png", row + 2, 1, 6, bar, Fade(Color.White, flash));
+            // どんちゃんと名札（11/11 の録画 104.5秒で測った：名札の黒いふちが x 800〜1120・y 579〜650 ＝ 0.95倍、
+            //   どんちゃんの絵が x 754〜1180・y 253〜516。どんちゃんの倍率と左上は、この大きさから逆算した推測）
+            if (open >= 1f)
+            {
+                chara.Draw(735f, 225f, 0.55f);
+                NamePlate.Draw(profile, sideKeySet, 800f, 578f, 0.95f);
+            }
         }
         else
         {
@@ -297,6 +328,7 @@ public sealed class EntryScene : Scene
             SmoothShapes.Border(panel, 28f, 1.5f, Gui.WithAlpha(Gui.BorderColor, open));
             Gui.DrawCentered("どちらの太鼓であそびますか？", new Rectangle(panel.X, panel.Y + 70, panel.Width, 70), 52, Gui.WithAlpha(Gui.TextColor, open));
             Gui.DrawCentered("ひだり = 1P　　みぎ = 2P　　（叩くキーは、今叩いた方のまま）", new Rectangle(panel.X, panel.Y + 170, panel.Width, 40), 26, Gui.WithAlpha(Gui.SubTextColor, open));
+            if (open >= 1f) NamePlate.Draw(profile, sideKeySet, 791f, 240f, 1f);   // 名札（絵が無いスキンでも、だれのか分かるように）
             Color[] colors = { new(226, 58, 58, 255), Gui.TrackColor, new(58, 120, 226, 255) };
             for (int i = 0; i < 3; i++)
             {

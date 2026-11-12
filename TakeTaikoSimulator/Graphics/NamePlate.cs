@@ -51,7 +51,7 @@ public static class NamePlate
     public static void Preload()
     {
         SkinManager.GetTexture(Root + "NamePlate_Base.png");
-        for (int slot = 1; slot <= 3; slot++)
+        for (int slot = PlayerDataStore.GuestSlot; slot <= 3; slot++)
         {
             try
             {

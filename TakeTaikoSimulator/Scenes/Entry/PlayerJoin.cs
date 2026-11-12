@@ -35,9 +35,14 @@ public sealed class PlayerJoin
     private const float DimFadeSeconds = 0.15f;
     private const float CommunicationEnd = 4.4f;
 
+    // 並び：データ1・2・3・ゲスト（11/13 たけらい ①B：3枠のまま、空いている枠は「新規作成」、いちばん右に「ゲスト」）
+    private const int GuestIndex = 3, EntryCount = 4;
     private readonly SongRecordSummary?[] totals = new SongRecordSummary?[3];
     private readonly string[] errors = new string[3];
     private readonly bool[] registered = new bool[3];
+    private bool IsGuestCursor => cursor == GuestIndex;
+    /// <summary>今えらんでいるデータの番号（0 = ゲスト）</summary>
+    private int Slot => IsGuestCursor ? PlayerDataStore.GuestSlot : cursor + 1;
     private readonly HashSet<int> taken = new();
     private readonly PlayerNameInput nameInput = new();
     private int side, keySet;
@@ -101,7 +106,7 @@ public sealed class PlayerJoin
         NamePlate.Preload();
         MenuSkin.Preload(Folder, new[] { "DataLoad_Panel.png", "DataLoad_Text.png", "PlayerData_Panel.png", "Cursor_Left.png", "Cursor_Right.png" });
         MenuSkin.Preload(MenuSkin.SongFolder, SongRecordPanel.Images);
-        FontManager.PreloadSkinMain(new[] { "使用するデータを選んでくださいプレイヤー123記録なしおに裏譜面クリアフルコンボドンダフル記録が読めません左右カッえらぶドン決定戻る終了EDCBAS読み込み中読み込みが完了しました新しく遊ぶ別のプレイヤーが使用中です登録済みのデータ" });
+        FontManager.PreloadSkinMain(new[] { "使用するデータを選んでくださいプレイヤー123記録なしおに裏譜面クリアフルコンボドンダフル記録が読めません左右カッえらぶドン決定戻る終了EDCBAS読み込み中読み込みが完了しました新しく遊ぶ別のプレイヤーが使用中です登録済みのデータゲストモードでプレイします。プレイヤーデータを新規作成します。どんちゃん" });
         PrepareGuide();
         for (int i = 0; i < 3; i++)
         {
@@ -113,9 +118,13 @@ public sealed class PlayerJoin
             { errors[i] = "記録が読めません"; Console.WriteLine($"[Entry] {i + 1}: {ex.Message}"); }
         }
         // 最初は、前に使っていたデータ。ほかの人が使っていたら、空いている最初のデータ
-        int start = LocalSession.Joined[side] ? LocalSession.Profiles[side] : LocalSession.Count == 0 ? SongHistory.ActiveProfile : 0;
-        if (start < 1 || start > 3 || taken.Contains(start)) start = Enumerable.Range(1, 3).First(s => !taken.Contains(s));
-        cursor = start - 1;
+        int start = LocalSession.Joined[side] ? LocalSession.Profiles[side] : LocalSession.Count == 0 ? SongHistory.ActiveProfile : -1;
+        if (PlayerDataStore.IsGuest(start)) cursor = GuestIndex;
+        else
+        {
+            if (start < 1 || start > 3 || taken.Contains(start)) start = Enumerable.Range(1, 3).First(s => !taken.Contains(s));
+            cursor = start - 1;
+        }
     }
 
     public void Dispose()
@@ -150,7 +159,7 @@ public sealed class PlayerJoin
             { successVoice = true; MenuVoice.Play("Sound/Entry/DataLoadSuccess.ogg"); }
             if (communication < CommunicationEnd) return Result.None;
             // ここで初めて参加したことにする
-            LocalSession.Join(side, keySet, cursor + 1);
+            LocalSession.Join(side, keySet, Slot);
             Active = false;
             return Result.Finished;
         }
@@ -162,7 +171,7 @@ public sealed class PlayerJoin
                 {
                     var plate = PlayerDataStore.Copy(PlayerDataStore.NamePlate(cursor + 1));
                     plate.Name = nameInput.Value;
-                    PlayerDataStore.Save(cursor + 1, plate);
+                    PlayerDataStore.Save(Slot, plate);
                     registered[cursor] = true;
                     naming = false;
                     OpenSetup();
@@ -199,7 +208,7 @@ public sealed class PlayerJoin
 
     private void Move(int step)
     {
-        int next = Math.Clamp(cursor + step, 0, 2);
+        int next = Math.Clamp(cursor + step, 0, EntryCount - 1);
         if (next == cursor) return;
         cursor = next;
         selectionChanged = true;
@@ -211,10 +220,13 @@ public sealed class PlayerJoin
     {
         if (communication >= 0 || selectionChanged) return;
         if (opened < .2f) return;
-        if (!string.IsNullOrEmpty(errors[cursor])) { error = errors[cursor]; return; }
-        if (taken.Contains(cursor + 1)) { error = "別のプレイヤーが使用中です"; return; }
-        if (!PlayerDataStore.HasName(cursor + 1)) { naming = true; nameInput.Open(); return; }
-        try { PlayerDataStore.NamePlate(cursor + 1); }
+        if (!IsGuestCursor)
+        {
+            if (!string.IsNullOrEmpty(errors[cursor])) { error = errors[cursor]; return; }
+            if (taken.Contains(cursor + 1)) { error = "別のプレイヤーが使用中です"; return; }
+            if (!PlayerDataStore.HasName(cursor + 1)) { naming = true; nameInput.Open(); return; }
+        }
+        try { PlayerDataStore.NamePlate(Slot); }
         catch (Exception ex) when (ex is IOException or UnauthorizedAccessException or JsonException)
         { error = "名前の設定が読めません：" + ex.Message; return; }
         try
@@ -222,8 +234,8 @@ public sealed class PlayerJoin
             // メニューを動かす人（最初に入った人）のデータだけ「今のデータ」にする。
             // あとから入る人は読めるかを確かめるだけ（選曲の途中で、今のデータを入れ替えない）
             bool controller = LocalSession.Count == 0 || LocalSession.Joined[side] && LocalSession.Controller == side;
-            if (controller) SongHistory.SelectProfile(cursor + 1);
-            else SongHistory.PreviewProfile(cursor + 1, ConfigManager.Game.RecordGroup);
+            if (controller) SongHistory.SelectProfile(Slot);
+            else SongHistory.PreviewProfile(Slot, ConfigManager.Game.RecordGroup);
         }
         catch (Exception ex) when (ex is IOException or UnauthorizedAccessException or JsonException)
         { error = "記録が読めません"; Console.WriteLine($"[Entry] {ex.Message}"); return; }
@@ -268,7 +280,7 @@ public sealed class PlayerJoin
     {
         setup = false;
         ConfigManager.Game.HitSound = hitSoundBefore;
-        PlayerSettings.Save(cursor + 1, setupFile);
+        PlayerSettings.Save(Slot, setupFile);
         opened = 1f;   // すぐ決定できるように（Decide は、開いた直後の 0.2秒は受け付けない）
         Decide();
     }
@@ -337,7 +349,7 @@ public sealed class PlayerJoin
         SmoothShapes.Rectangle(panel, 24f, Gui.PanelColor);
         SmoothShapes.Border(panel, 24f, 1.5f, Gui.BorderColor);
         FontManager.Draw("はじめの設定", panel.X + 60, panel.Y + 44, 46, Gui.TextColor);
-        FontManager.Draw($"{PlayerDataStore.DisplayName(cursor + 1)} さんの設定です。あとで、設定と演奏オプションから変えられます", panel.X + 60, panel.Y + 112, 24, Gui.SubTextColor);
+        FontManager.Draw($"{PlayerDataStore.DisplayName(Slot)} さんの設定です。あとで、設定と演奏オプションから変えられます", panel.X + 60, panel.Y + 112, 24, Gui.SubTextColor);
 
         string[] labels = { "音符のはやさ", "音色（ドン・カッの音）", "音量（全体）" };
         for (int i = 0; i < 3; i++)
@@ -372,7 +384,22 @@ public sealed class PlayerJoin
         Rectangle card = Layout.DataCard;
         if (!MenuSkin.Whole(Folder + "PlayerData_Panel.png", card, Fade(Color.White, alpha)))
             SmoothShapes.Rounded(card, .07f, 12, Fade(new Color(155, 50, 48, 255), alpha));
-        if (registered[cursor])
+        if (IsGuestCursor || !registered[cursor])
+        {
+            // ゲスト／まだ名前が無いデータ（11/13 たけらいのスクショ・TaikøNauts と同じ）：
+            //   赤いカードの上の方に白い字で一文、その下に白い長丸の名札（ゲストは「どんちゃん」、新規作成は空）
+            //   場所はスクショ（1920×1080）で測った：字は中心 x 960・y 551〜575（高さ 24px）、
+            //   名札は黒いふち (804,626)〜(1123,697)・白い中 (809,631)、名前の字は高さ 48px
+            string message = IsGuestCursor ? "ゲストモードでプレイします。" : "プレイヤーデータを新規作成します。";
+            Outlined(message, new Rectangle(card.X, 540, card.Width, 46), 31, Fade(Color.White, alpha), Fade(Color.Black, alpha));
+            Rectangle pill = new(804, 626, 320, 72);
+            SmoothShapes.Rounded(new Rectangle(pill.X, pill.Y + 3, pill.Width, pill.Height), 1f, 16, Fade(new Color(0, 0, 0, 70), alpha));   // 下の影
+            SmoothShapes.Rounded(pill, 1f, 16, Fade(Color.Black, alpha));
+            SmoothShapes.Rounded(new Rectangle(pill.X + 5, pill.Y + 5, pill.Width - 10, pill.Height - 10), 1f, 16, Fade(Color.White, alpha));
+            if (IsGuestCursor)
+                Outlined(PlayerDataStore.GuestName, pill, 40, Fade(Color.White, alpha), Fade(Color.Black, alpha));
+        }
+        else
         {
             Outlined($"データ {cursor + 1}", Layout.DataTitle, 36, Fade(Color.White, alpha), Fade(Color.Black, alpha));
             Outlined("登録済みのデータ", Layout.DataSubtitle, 27, Fade(Color.White, alpha), Fade(Color.Black, alpha));
@@ -385,13 +412,8 @@ public sealed class PlayerJoin
                 Rlgl.PopMatrix();
             }
         }
-        else
-        {
-            // まだ名前が無いデータ：「新しく遊ぶ」だけ（名前・スコアランク・王冠の集計は出さない）
-            Outlined("新しく遊ぶ", card, 72, Fade(Color.White, alpha), Fade(Color.Black, alpha));
-        }
         DrawArrow(false, Layout.Previous, cursor > 0, interactive, alpha);
-        DrawArrow(true, Layout.Next, cursor < 2, interactive, alpha);
+        DrawArrow(true, Layout.Next, cursor < EntryCount - 1, interactive, alpha);
         Rlgl.PushMatrix();
         try
         {
@@ -400,8 +422,8 @@ public sealed class PlayerJoin
         }
         finally { Rlgl.PopMatrix(); }
         if (interactive && !selectionChanged && Gui.Clicked(ConfirmArea)) Decide();
-        if (error.Length > 0 || !string.IsNullOrEmpty(errors[cursor]))
-            Outlined(error.Length > 0 ? error : errors[cursor], new(450, 758, 1020, 45), 27, Color.Red, Color.Black);
+        string shownError = error.Length > 0 ? error : IsGuestCursor ? "" : errors[cursor];
+        if (shownError.Length > 0) Outlined(shownError, new(450, 758, 1020, 45), 27, Color.Red, Color.Black);
     }
 
     private void DrawCommunication()

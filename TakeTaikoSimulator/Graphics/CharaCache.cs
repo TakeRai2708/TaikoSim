@@ -275,7 +275,7 @@ namespace TakeTaikoSimulator.Graphics
             string root = Path.Combine(skinPath, "Image", "99.Common", "Chara");
             string[] ids = CosmeticCatalog.Folders(root, "Config.json");
             var unique = new Dictionary<string, Bake>(StringComparer.Ordinal);
-            for (int slot = 1; slot <= 3; slot++)
+            for (int slot = PlayerDataStore.GuestSlot; slot <= 3; slot++)   // 0 はゲスト（初期値のどんちゃん）
             {
                 PlayerAppearanceConfig appearance;
                 try { appearance = PlayerDataStore.Appearance(slot); }

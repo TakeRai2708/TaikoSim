@@ -258,7 +258,7 @@ namespace TakeTaikoSimulator.Scenes
         // オートのときは段位の記録を残していないので、帯で知らせる（右下。段位の絵に重ならない所）
         private void DrawAutoNotice()
         {
-            if (dan.AutoPlayed) InfoBar.Draw(InfoBar.PlayX, 950f, InfoBar.NotSavedText);
+            if (dan.AutoPlayed || SongHistory.IsGuest) InfoBar.Draw(InfoBar.PlayX, 950f, InfoBar.NotSavedText);
         }
 
         // A-Style：プレートは明るくなってから 0.33秒で、0.2秒かけて出る（六段の動画）

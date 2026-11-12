@@ -205,7 +205,7 @@ namespace TakeTaikoSimulator.UI
                 // Bar_Overlay.png の中の板(70,20 から 792×84)だけを切り取って、plate に伸ばす
                 if (movedPlate && plate!.Value.Height > 0)
                     MenuSkin.NPatchPart(Folder + "Bar_Overlay.png", new Rectangle(70, 20, 792, 84), plate.Value, 8, MenuSkin.White(alpha));
-                DrawRimLight(area, alpha);
+                // ハイライトは描かない（絵にもう描いてある。11/13 たけらい「ボックスの右側がまた黒い線」→ 絵と重ねていたのをやめた）
                 return inner;
             }
 

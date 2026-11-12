@@ -33,8 +33,11 @@ namespace TakeTaikoSimulator.Charts
 
         public static int ActiveProfile { get; private set; } = 1;
         public static string ProfileName(int slot) => PlayerDataStore.DisplayName(slot);
+        /// <summary>今のデータがゲストか（記録は残さない。Configs/PlayerDataStore.cs）</summary>
+        public static bool IsGuest => PlayerDataStore.IsGuest(ActiveProfile);
         public static string ProfilePath(int slot)
         {
+            if (PlayerDataStore.IsGuest(slot)) throw new InvalidOperationException("ゲストには記録のファイルがありません");
             if (slot < 1 || slot > 3) throw new ArgumentOutOfRangeException(nameof(slot));
             // 1枠目は従来の保存先を使う。移動や上書きなしで記録を引き継ぐ。
             return slot == 1 ? Path.Combine(ConfigManager.ConfigFolder, FileName)
@@ -44,6 +47,7 @@ namespace TakeTaikoSimulator.Charts
 
         private static SongHistoryFile ReadProfile(int slot)
         {
+            if (PlayerDataStore.IsGuest(slot)) return new SongHistoryFile();   // ゲスト：いつも空
             string path = ProfilePath(slot);
             if (!File.Exists(path)) return new SongHistoryFile();
             var loaded = JsonSerializer.Deserialize(File.ReadAllText(path), AppJsonContext.Default.SongHistoryFile)
@@ -259,6 +263,7 @@ namespace TakeTaikoSimulator.Charts
         public static void ClearProfile(int slot, bool records, bool danRecords, bool favorites, bool recent)
         {
             if (!records && !danRecords && !favorites && !recent) return;
+            if (PlayerDataStore.IsGuest(slot)) return;
             string path = ProfilePath(slot);
             if (records && danRecords && favorites && recent)
             {
@@ -292,6 +297,7 @@ namespace TakeTaikoSimulator.Charts
 
         private static SongHistoryFile Load()
         {
+            if (IsGuest) return new SongHistoryFile();
             try
             {
                 if (File.Exists(FilePath))
@@ -309,6 +315,8 @@ namespace TakeTaikoSimulator.Charts
 
         private static bool Save()
         {
+            // ゲスト：遊んでいる間は覚えておくが、ファイルには書かない（エントリーに戻ると消える）
+            if (IsGuest) return true;
             try
             {
                 Directory.CreateDirectory(Path.GetDirectoryName(FilePath)!);

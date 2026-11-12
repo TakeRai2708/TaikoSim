@@ -18,7 +18,7 @@ namespace TakeTaikoSimulator.Scenes
         public PlayStats Stats = new();   // スコア・魂ゲージ・ノルマ(演奏画面のものをそのまま使う)
         public int Good, Ok, Bad, RollHits, MaxCombo;
         public SongRecordUpdate? RecordUpdate;
-        public bool AutoPlayed;   // オートで演奏した（記録は残していない。リザルトに帯で知らせる）
+        public bool AutoPlayed;   // オートで演奏した・ゲストだった（記録は残していない。リザルトに帯で知らせる）
     }
 
     // リザルト画面

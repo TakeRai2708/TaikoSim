@@ -904,7 +904,7 @@ namespace TakeTaikoSimulator.Scenes
             DebugLog.Event("演奏", $"演奏が終わった：{chart?.Title}　{end.Result}　スコア {stats.Score}");
             PlayResultData data = new()
             {
-                AutoPlayed = autoPlay,
+                AutoPlayed = autoPlay || SongHistory.IsGuest,   // ゲストも記録を残さない
                 Title = chart?.Title ?? "",
                 Course = course?.Type ?? CourseType.Oni,
                 Result = end.Result,
@@ -1932,7 +1932,8 @@ namespace TakeTaikoSimulator.Scenes
                 FontManager.Draw(diagnosticMessage, InfoX, InfoTop - 34, 22, Color.SkyBlue);
 
             // オートのときは記録を残さないので、始まってからしばらく、右上に帯で知らせる（TaikøNauts と同じ場所・同じ文）
-            if (autoPlay && !isTraining && !localPlay)
+            //   ゲストのときも同じ（記録を残さない）
+            if ((autoPlay || SongHistory.IsGuest) && !isTraining && !localPlay)
                 InfoBar.Draw(InfoBar.PlayX, InfoBar.PlayY, InfoBar.NotSavedText, InfoBar.AlphaAt(infoBarAge, InfoBar.PlaySeconds));
 
             DrawPause();   // 一時停止のメニュー・再開のカウント（いちばん上に）

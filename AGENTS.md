@@ -1159,3 +1159,9 @@ Order:
 - `BarList.DrawRimLight`: top highlight / bottom shade line just inside the black rim of code-drawn bars (seen on A-Style `01.Entry/Bar/Bar/0.png`).
 - `Gui.Notice(text)`: the notice banner (mode select / dan select / song select toasts), top centre, Gui palette.
 - `PlayerNameInput.Draw` restyled with the Gui palette. Dressing back plays `MenuSounds.Cancel`. Mode select decide plays the Don-chan song-start jump (`PlayHold(SongStartAnim…)`), restored with `CharaBackToLoop`.
+
+## Entry order + guest (11/13, たけらい)
+- Entry flow is now: yellow bars (Don of key set 0/1) → data select → 通信中 → 完了 → 「どちらの太鼓で」 (with Don-chan `songselect_loop` at (735,225)×0.55 and the nameplate at (800,578)×0.95, measured on `2026-11-11 23-40-44.mp4` 104.5 s; Don-chan position is an estimate) → mode select. The player first joins the side equal to the key set, then `LocalSession.MoveSide` moves them to the chosen side. つかわない / Esc → back to the yellow bars with a full reset.
+- Data select has 4 entries: データ1–3 then ゲスト. Empty slots show 「プレイヤーデータを新規作成します。」 + an empty white pill; guest shows 「ゲストモードでプレイします。」 + 「どんちゃん」 (pill at (804,626) 320×72, text ~31 px at y 540, from たけらい's screenshots).
+- Guest = slot 0 (`PlayerDataStore.GuestSlot`): name どんちゃん, default appearance, no files. Everything saved during play (nameplate/appearance/dan rank via `PlayerDataStore.Save`, settings via `PlayerSettings`, records via `SongHistory`) is kept in memory only and dropped on `Reload` / `Deactivate` (entry screen). `SongHistory.IsGuest` → the 「記録されません」 bar in play, result and dan result. `CharaBaker`/`NamePlate.Preload` include slot 0. `PlayerSettings.ActiveSlot` is now -1 when nobody is active (0 is the guest).
+- `BarList.DrawBody` no longer draws `DrawRimLight` over the skin's bar images (caused a dark line on the right edge); it stays for code-drawn bars.

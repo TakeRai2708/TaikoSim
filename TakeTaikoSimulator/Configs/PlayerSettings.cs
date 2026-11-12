@@ -44,11 +44,14 @@ public static class PlayerSettings
 {
     public const string FileName = "PlayerSettings.json";
 
-    /// <summary>今、設定を持ち主のファイルにも書いているデータ（0 = だれのでもない）</summary>
-    public static int ActiveSlot { get; private set; }
+    /// <summary>今、設定を持ち主のファイルにも書いているデータ（-1 = だれのでもない、0 = ゲスト）</summary>
+    public static int ActiveSlot { get; private set; } = -1;
 
     public static string PathFor(int slot) => Path.Combine(PlayerDataStore.Folder(slot), FileName);
-    public static bool Exists(int slot) => File.Exists(PathFor(slot));
+    public static bool Exists(int slot) => !PlayerDataStore.IsGuest(slot) && File.Exists(PathFor(slot));
+
+    // ゲストの設定（遊んでいる間だけ覚える。ファイルには書かない）
+    private static PlayerSettingsFile? guest;
 
     /// <summary>今の設定（ConfigManager.Game / Sound）から作る</summary>
     public static PlayerSettingsFile FromCurrent()
@@ -70,6 +73,7 @@ public static class PlayerSettings
     /// <summary>そのデータの設定。ファイルが無い・読めないときは、今の設定</summary>
     public static PlayerSettingsFile Load(int slot)
     {
+        if (PlayerDataStore.IsGuest(slot)) return guest ??= ForNewData();
         try
         {
             string path = PathFor(slot);
@@ -88,6 +92,7 @@ public static class PlayerSettings
 
     public static bool Save(int slot, PlayerSettingsFile file)
     {
+        if (PlayerDataStore.IsGuest(slot)) { guest = file; return true; }
         try
         {
             string path = PathFor(slot);
@@ -124,16 +129,21 @@ public static class PlayerSettings
         ConfigManager.Game.Fix();
         ConfigManager.Sound.Fix();
         ActiveSlot = slot;
-        if (!Exists(slot)) Save(slot, FromCurrent());
+        if (!PlayerDataStore.IsGuest(slot) && !Exists(slot)) Save(slot, FromCurrent());
         Scenes.SceneManager.Current?.ApplyVolume();   // 今鳴っている曲に、その人の音量をかける
     }
 
-    public static void Deactivate() => ActiveSlot = 0;
+    /// <summary>エントリーに戻ったとき：だれのファイルにも書かない。ゲストの設定も忘れる</summary>
+    public static void Deactivate()
+    {
+        ActiveSlot = -1;
+        guest = null;
+    }
 
-    /// <summary>設定を保存するとき（ConfigManager から）：持ち主のファイルにも書く</summary>
+    /// <summary>設定を保存するとき（ConfigManager から）：持ち主のファイル（ゲストなら覚えているだけ）にも書く</summary>
     public static void SaveActive()
     {
-        if (ActiveSlot != 0) Save(ActiveSlot, FromCurrent());
+        if (ActiveSlot >= 0) Save(ActiveSlot, FromCurrent());
     }
 
     /// <summary>起動のとき：名前はあるのに設定のファイルが無いデータに、今の共通の設定を写す</summary>
@@ -145,9 +155,10 @@ public static class PlayerSettings
 
     public static void Delete(int slot)
     {
+        if (PlayerDataStore.IsGuest(slot)) return;
         string path = PathFor(slot);
         if (File.Exists(path)) File.Delete(path);
-        if (ActiveSlot == slot) ActiveSlot = 0;
+        if (ActiveSlot == slot) ActiveSlot = -1;
     }
 
     public static void ApplyGame(PlayerSettingsFile file, GameConfig game)

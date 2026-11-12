@@ -5,8 +5,16 @@ using TakeTaikoSimulator.Charts;
 namespace TakeTaikoSimulator.Configs;
 
 // 記録ファイルは移動しない。名前と着せ替えだけを各データ枠の下に置く。
+//
+//   ゲスト（11/13 たけらい「ゲストプレイを実装しようか」「遊んでる時だけ記録」）：
+//     データ番号 0 がゲスト。名前は「どんちゃん」、着せ替えは初期値。ファイルは持たない。
+//     遊んでいる間に変えたもの（着せ替え・段位・設定）は、ゲームを閉じる・エントリーに戻るまでは覚えている（Reload で消える）
 public static class PlayerDataStore
 {
+    public const int GuestSlot = 0;
+    public const string GuestName = "どんちゃん";
+    public static bool IsGuest(int slot) => slot == GuestSlot;
+
     private static readonly Dictionary<int, NamePlateConfig> plates = new();
     private static readonly Dictionary<int, PlayerAppearanceConfig> appearances = new();
     public static int Generation { get; private set; }
@@ -17,7 +25,7 @@ public static class PlayerDataStore
     }
     public static string NamePath(int slot) => Path.Combine(Folder(slot), "NamePlateConfig.json");
     public static string AppearancePath(int slot) => Path.Combine(Folder(slot), "PlayerConfig.json");
-    public static bool HasName(int slot) => File.Exists(NamePath(slot));
+    public static bool HasName(int slot) => IsGuest(slot) || File.Exists(NamePath(slot));
     public static void Reload()
     {
         plates.Clear(); appearances.Clear(); Generation++;
@@ -26,7 +34,8 @@ public static class PlayerDataStore
     {
         if (!plates.TryGetValue(slot, out var data))
         {
-            data = Read(NamePath(slot), AppJsonContext.Default.NamePlateConfig) ?? new() { Name = $"プレイヤー{slot}" };
+            data = IsGuest(slot) ? new() { Name = GuestName }
+                : Read(NamePath(slot), AppJsonContext.Default.NamePlateConfig) ?? new() { Name = $"プレイヤー{slot}" };
             data.Fix(slot); plates[slot] = data;
         }
         return data;
@@ -34,7 +43,8 @@ public static class PlayerDataStore
     public static PlayerAppearanceConfig Appearance(int slot)
     {
         if (!appearances.TryGetValue(slot, out var data))
-            appearances[slot] = data = Read(AppearancePath(slot), AppJsonContext.Default.PlayerAppearanceConfig) ?? new();
+            appearances[slot] = data = IsGuest(slot) ? new()
+                : Read(AppearancePath(slot), AppJsonContext.Default.PlayerAppearanceConfig) ?? new();
         return data;
     }
     public static string DisplayName(int slot)
@@ -50,13 +60,13 @@ public static class PlayerDataStore
     public static void Save(int slot, NamePlateConfig data)
     {
         var copy = Copy(data); copy.Fix(slot);
-        Write(NamePath(slot), copy, AppJsonContext.Default.NamePlateConfig);
+        if (!IsGuest(slot)) Write(NamePath(slot), copy, AppJsonContext.Default.NamePlateConfig);   // ゲストは覚えるだけ
         plates[slot] = copy; Generation++;
     }
     public static void Save(int slot, PlayerAppearanceConfig data)
     {
         var copy = Copy(data);
-        Write(AppearancePath(slot), copy, AppJsonContext.Default.PlayerAppearanceConfig);
+        if (!IsGuest(slot)) Write(AppearancePath(slot), copy, AppJsonContext.Default.PlayerAppearanceConfig);
         appearances[slot] = copy; Generation++;
     }
     private static T? Read<T>(string path, JsonTypeInfo<T> info) where T : class => !File.Exists(path) ? null

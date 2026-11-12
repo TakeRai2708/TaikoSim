@@ -28,7 +28,7 @@ public sealed class NamePlateConfig
     public void Fix(int slot)
     {
         Name = CleanText(Name, 24);
-        if (Name.Length == 0) Name = $"プレイヤー{slot}";
+        if (Name.Length == 0) Name = slot == PlayerDataStore.GuestSlot ? PlayerDataStore.GuestName : $"プレイヤー{slot}";
         Title = CleanText(Title, 48);
         Rank = CleanText(Rank, 24);
         NamePlateId = CosmeticCatalog.SafeId(NamePlateId) ? NamePlateId : "00";

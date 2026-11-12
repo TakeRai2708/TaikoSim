@@ -25,6 +25,22 @@ public static class LocalSession
     public static int MenuPlayer => InputOverride ?? Controller;
     public static GameConfig? OptionsContext { get; private set; }
     public static int Count => Joined.Count(x => x);
+    /// <summary>その側の人がゲストか（記録を残さない）</summary>
+    public static bool IsGuest(int side) => Joined[side] && PlayerDataStore.IsGuest(Profiles[side]);
+
+    /// <summary>
+    /// エントリーの「どちらの太鼓で」：from の側に入っていた人を to の側に移す（データ・キーの組・設定はそのまま）。
+    ///   11/13 たけらい：データ選択 → 通信中 → どちらの太鼓 の順にしたので、側はデータを選んだあとで決まる
+    /// </summary>
+    public static void MoveSide(int from, int to)
+    {
+        if (from == to || !Joined[from]) return;
+        Joined[to] = true; Joined[from] = false;
+        Profiles[to] = Profiles[from];
+        KeySets[to] = KeySets[from]; KeySets[from] = 1 - KeySets[to];
+        Options[to] = Options[from]; Options[from] = ConfigManager.Copy(ConfigManager.Game);
+        if (Controller == from) Controller = to;
+    }
     public static int[] Players => Enumerable.Range(0, 2).Where(p => Joined[p]).ToArray();
 
     public static void Reset()
