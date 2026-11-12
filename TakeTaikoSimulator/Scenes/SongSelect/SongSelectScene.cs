@@ -1949,10 +1949,7 @@ namespace TakeTaikoSimulator.Scenes
 
         private void DrawToast()
         {
-            float width = Measure(toast, 28).X;
-            Rectangle box = new Rectangle(Screen.Width / 2f - width / 2f - 30, 140, width + 60, 52);
-            SmoothShapes.Rounded(box, 0.4f, 8, new Color(0, 0, 0, 210));
-            Text(toast, box.X + 30, box.Y + 11, 28, new Color(255, 220, 120, 255));
+            Gui.Notice(toast);
         }
 
         // 曲を読み込み中(「読み込んだ数 / 曲ファイルの総数」とバー)

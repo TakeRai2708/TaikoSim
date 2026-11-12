@@ -57,6 +57,23 @@ namespace TakeTaikoSimulator.UI
             }
         }
 
+        // お知らせ（「このモードは1人プレイ専用です」など）。画面の上のまん中に出す
+        //   11/12 たけらい「注意書きのポップアップUIも今のに合わせてほしい」
+        //   前は画面ごとに、黒い帯に黄色い字（モード選択・段位は左はし、選曲はまん中）だった。
+        //   設定画面と同じ見た目（パネルの色・線・朱色のしるし）にして、場所もまん中にそろえた
+        public static void Notice(string text, float y = 140f)
+        {
+            const float size = 28f, height = 64f, pad = 34f;
+            float width = FontManager.Measure(text, size).X + pad * 2 + 14f;
+            Rectangle box = new Rectangle((1920f - width) / 2f, y, width, height);
+            SmoothShapes.Rectangle(new Rectangle(box.X, box.Y + 6f, box.Width, box.Height), 16f, new Color(0, 0, 0, 90));   // 影
+            Glow(box, 16f, AccentColor, 0.5f);
+            SmoothShapes.Rectangle(box, 16f, PanelColor);
+            SmoothShapes.Border(box, 16f, 1.5f, BorderColor);
+            SmoothShapes.Rectangle(new Rectangle(box.X + 18f, box.Y + 18f, 6f, height - 36f), 3f, AccentColor);   // 左の朱色のしるし
+            FontManager.Draw(text, box.X + pad + 14f, box.Y + (height - FontManager.Measure(text, size).Y) / 2f, size, TextColor);
+        }
+
         // 丸のまわりの光(スライダーのつまみ)
         public static void GlowCircle(Vector2 center, float radius, Color color, float amount, float spread = GlowSpread * 0.8f)
         {

@@ -174,6 +174,7 @@ namespace TakeTaikoSimulator.Scenes
                 deciding = null;
                 list.EndDecide();
                 LoopItemVoice();
+                CharaBackToLoop();
                 return;
             }
             SceneManager.Simple(new EntryScene());
@@ -223,6 +224,7 @@ namespace TakeTaikoSimulator.Scenes
                 deciding = null;
                 list.EndDecide();
                 Open(item);
+                CharaBackToLoop();   // 画面が替わらなかったとき（設定など）のため
                 return;
             }
 
@@ -296,6 +298,16 @@ namespace TakeTaikoSimulator.Scenes
             deciding = item;
             list.StartDecide();
             MenuVoice.Play(ModeSelectedVoice);
+            // どんちゃんがジャンプして止まる（選曲で難易度を決めたときと同じ動き）
+            //   11/12 たけらい「モード選択時も選択したらどんちゃんが難易度選んだ時みたいに動いてほしい」
+            if (chara.Config is CharaConfig cc && chara.HasAnim(CharaBaker.SongStartAnim))
+                chara.PlayHold(CharaBaker.SongStartAnim, cc.SongSelectSongStartTime, cc.SongSelectSongStartJumpIndex);
+        }
+
+        // どんちゃんを、いつものくり返しの動きに戻す（決定をやめたとき・設定のように同じ画面に残るとき）
+        private void CharaBackToLoop()
+        {
+            if (chara.Config is CharaConfig cc) chara.Loop("songselect_loop", cc.SongSelectLoopTime);
         }
 
         // カテゴリの吹き出し：カッ・←→で選ぶ、ドンで決める（決めると板が光って段位道場へ）
@@ -630,12 +642,7 @@ namespace TakeTaikoSimulator.Scenes
             Text(hint, 44, y, size, color ?? new Color(220, 224, 236, 255));
         }
 
-        private static void DrawBanner(string text, Color color)
-        {
-            float width = Measure(text, 26).X;
-            Raylib.DrawRectangle(0, 130, (int)width + 40, 46, new Color(0, 0, 0, 210));
-            Text(text, 20, 140, 26, color);
-        }
+        private static void DrawBanner(string text, Color color) => Gui.Notice(text);
     }
 }
 

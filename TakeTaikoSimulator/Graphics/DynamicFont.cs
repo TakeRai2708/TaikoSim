@@ -521,6 +521,8 @@ namespace TakeTaikoSimulator.Graphics
         //   pxPerUnit：距離の 1.0(画像の 0〜255 全部)が画面の何 px か
         //   dilate    ：文字を太らせる量(画面の px)。縁取りのときに使う
         //   ふちの前後 0.5px だけを半透明にするので、どの大きさでもくっきりする
+        //   11/12 たけらい「フォントがちょっとギザギザしてる。演奏ゲームとかの（大きい）文字はきれい」
+        //   → 小さい字のために、1px の中を4か所読んで平均するようにした（大きい字の見た目はほぼ変わらない）
         private static class SdfShader
         {
             private const string Fragment = @"#version 330
@@ -531,10 +533,20 @@ uniform vec4 colDiffuse;
 uniform float pxPerUnit;
 uniform float dilate;
 out vec4 finalColor;
+float cover(vec2 uv, float w)
+{
+    float d = (texture(texture0, uv).r - 0.5) * pxPerUnit + dilate;
+    return clamp(d / w + 0.5, 0.0, 1.0);
+}
 void main()
 {
     float d = (texture(texture0, fragTexCoord).r - 0.5) * pxPerUnit + dilate;
-    float a = clamp(d / max(fwidth(d), 0.00001) + 0.5, 0.0, 1.0);
+    float w = max(fwidth(d), 0.00001);
+    // 画面の1px の中を4か所（少し回した十字）読んで平均する
+    //   小さい字（距離の画像 48px を縮めて描くとき）は、1px に画像の何 px 分も入るので、1か所だけ読むとギザギザになる
+    vec2 dx = dFdx(fragTexCoord), dy = dFdy(fragTexCoord);
+    float a = 0.25 * (cover(fragTexCoord - 0.375 * dx - 0.125 * dy, w) + cover(fragTexCoord + 0.125 * dx - 0.375 * dy, w)
+                    + cover(fragTexCoord + 0.375 * dx + 0.125 * dy, w) + cover(fragTexCoord - 0.125 * dx + 0.375 * dy, w));
     vec4 c = fragColor * colDiffuse;
     finalColor = vec4(c.rgb, c.a * a);
 }

@@ -1152,3 +1152,10 @@ Order:
   Measured on `2026-10-29_09-28-06.mp4` (auto play): appears instantly at 87.48 s, gone by 94.15 s (≈6.6 s, 0.05 s fade).
 - Shown: play screen for 6.6 s when auto (not training / 2-player); ResultScene the whole time when `PlayResultData.AutoPlayed`; DanResultScene at (998, 950) when `dan.AutoPlayed`; PlayOptionsPanel for 4 s right of the panel when オートプレイ is switched to する.
 - TaikøNauts' result screen showed no such bar in that recording (only the option icons on the black tab); the result bar is our own addition at たけらい's request.
+
+## 11/12 polish (たけらい)
+- Menu BGM loop: `SkinConfig.json` keys `entryBGMIntroTimeMs` / `songSelectBGMIntroTimeMs` (TaikøNauts names; A-Style 2500 / 1000) → after the first pass the BGM jumps back to the intro time instead of 0 (`MenuBgmPlayer.Update(..., introMs, loopEndMs)`). Own optional keys `entryBGMLoopEndMs` / `songSelectBGMLoopEndMs` (default = file end). Waveform notes: Entry.ogg is 89.15 s, music ends 88.56 s, phrase grid 3.75 s from 2.5 s (a grid-exact loop end would be 88750); SongSelect.ogg is 3.079 s with beats at 1.0/1.5/2.05/2.55 (bar-exact end ≈ 3000). Without the keys the old behaviour stays (`Scene.MenuBgmLoopMs`).
+- `DynamicFont` SDF shader takes 4 samples per pixel (rotated grid) so small text is not jagged.
+- `BarList.DrawRimLight`: top highlight / bottom shade line just inside the black rim of code-drawn bars (seen on A-Style `01.Entry/Bar/Bar/0.png`).
+- `Gui.Notice(text)`: the notice banner (mode select / dan select / song select toasts), top centre, Gui palette.
+- `PlayerNameInput.Draw` restyled with the Gui palette. Dressing back plays `MenuSounds.Cancel`. Mode select decide plays the Don-chan song-start jump (`PlayHold(SongStartAnim…)`), restored with `CharaBackToLoop`.

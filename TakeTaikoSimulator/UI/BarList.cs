@@ -205,6 +205,7 @@ namespace TakeTaikoSimulator.UI
                 // Bar_Overlay.png の中の板(70,20 から 792×84)だけを切り取って、plate に伸ばす
                 if (movedPlate && plate!.Value.Height > 0)
                     MenuSkin.NPatchPart(Folder + "Bar_Overlay.png", new Rectangle(70, 20, 792, 84), plate.Value, 8, MenuSkin.White(alpha));
+                DrawRimLight(area, alpha);
                 return inner;
             }
 
@@ -216,6 +217,7 @@ namespace TakeTaikoSimulator.UI
             Rectangle innerPlate = movedPlate ? plate!.Value : inner;
             if (!plain && innerPlate.Height > 0)
                 SmoothShapes.Rounded(innerPlate, MenuDraw.Roundness(innerPlate, 8), 8, MenuDraw.Fade(MenuDraw.Tint(color, 0.6f), alpha));
+            DrawRimLight(area, alpha);
             return inner;
         }
 
@@ -227,6 +229,37 @@ namespace TakeTaikoSimulator.UI
         private const float RimDarken = -0.28f, RimWidth = 12f;
         private const int ShadowLayers = 5;
         private const float ShadowSpread = 12f, ShadowDrop = 5f, ShadowAlpha = 0.07f;
+
+        // 黒いふちのすぐ内側の、上のハイライト（白い細い線）と、下の影（暗い細い線）
+        //   11/12 たけらい「黒縁じゃなくて、その中の縁の上のハイライトがない。だから違和感ある」
+        //   A-Style の板（01.Entry/Bar/Bar/0.png）を拡大して見た：黒いふちの内側に、上と左上の角だけ白〜クリーム色の細い線、
+        //   下に暗い細い線がある。同じ場所に、上の辺＋左右の上の角＋横の辺の上の方（だんだん消える）を描く
+        private const float InkWidth = 6f, LightWidth = 3f, LightRadius = 17f;
+        private static void DrawRimLight(Rectangle area, float alpha)
+        {
+            if (alpha <= 0.01f || area.Height < 50f) return;
+            Rectangle r = new Rectangle(area.X + InkWidth, area.Y + InkWidth, area.Width - InkWidth * 2, area.Height - InkWidth * 2);
+            float rad = LightRadius, mid = LightWidth / 2f;
+            Color light = new Color(255, 250, 235, (int)(215 * alpha));
+            Color shade = new Color(0, 0, 0, (int)(60 * alpha));
+            // 上の辺と、左上・右上の角
+            SmoothShapes.Line(new System.Numerics.Vector2(r.X + rad, r.Y + mid), new System.Numerics.Vector2(r.X + r.Width - rad, r.Y + mid), LightWidth, light);
+            SmoothShapes.Ring(new System.Numerics.Vector2(r.X + rad, r.Y + rad), rad - LightWidth, rad, 180f, 270f, 12, light);
+            SmoothShapes.Ring(new System.Numerics.Vector2(r.X + r.Width - rad, r.Y + rad), rad - LightWidth, rad, 270f, 360f, 12, light);
+            // 横の辺は、上から 1/3 くらいまで、3段でうすくしていく
+            float side = Math.Min((r.Height - rad * 2) * 0.45f, 60f);
+            for (int i = 0; i < 3 && side > 3f; i++)
+            {
+                float y0 = r.Y + rad + side * i / 3f, y1 = r.Y + rad + side * (i + 1) / 3f;
+                Color c = new Color(light.R, light.G, light.B, (int)(light.A * (0.75f - 0.25f * i)));
+                SmoothShapes.Line(new System.Numerics.Vector2(r.X + mid, y0), new System.Numerics.Vector2(r.X + mid, y1), LightWidth, c);
+                SmoothShapes.Line(new System.Numerics.Vector2(r.X + r.Width - mid, y0), new System.Numerics.Vector2(r.X + r.Width - mid, y1), LightWidth, c);
+            }
+            // 下の辺と、下の角の影
+            SmoothShapes.Line(new System.Numerics.Vector2(r.X + rad, r.Y + r.Height - mid), new System.Numerics.Vector2(r.X + r.Width - rad, r.Y + r.Height - mid), LightWidth, shade);
+            SmoothShapes.Ring(new System.Numerics.Vector2(r.X + rad, r.Y + r.Height - rad), rad - LightWidth, rad, 90f, 180f, 12, shade);
+            SmoothShapes.Ring(new System.Numerics.Vector2(r.X + r.Width - rad, r.Y + r.Height - rad), rad - LightWidth, rad, 0f, 90f, 12, shade);
+        }
 
         private static Rectangle RimInset(Rectangle area) =>
             new Rectangle(area.X + RimWidth, area.Y + RimWidth, area.Width - RimWidth * 2, area.Height - RimWidth * 2);

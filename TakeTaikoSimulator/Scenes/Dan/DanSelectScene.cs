@@ -824,9 +824,7 @@ namespace TakeTaikoSimulator.Scenes
 
         private static void DrawBanner(string text)
         {
-            float width = Measure(text, 26).X;
-            Raylib.DrawRectangle(0, 200, (int)width + 40, 46, new Color(0, 0, 0, 210));
-            Text(text, 20, 210, 26, new Color(255, 200, 60, 255));
+            Gui.Notice(text);
         }
 
         private void DrawEmpty()

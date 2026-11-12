@@ -22,9 +22,18 @@ public sealed class MenuBgmPlayer(Func<string, IMenuBgmTrack?> load) : IDisposab
     private double elapsedMs;
     private bool wasMuted;
 
+    // くり返し方は3つ：
+    //   ・loopPeriodMs > 0：その長さごとに、頭から鳴らし直す（前からある作り）
+    //   ・introMs > 0 か loopEndMs > 0：最後（loopEndMs。0 なら曲の終わり）まで行ったら、introMs の所に戻る
+    //       11/12 たけらい「BGM がループしてるけど切れてるとこがおかしい」
+    //       TaikøNauts のスキンの SkinConfig.json に entryBGMIntroTimeMs（A-Style は 2500）・songSelectBGMIntroTimeMs（1000）がある。
+    //       曲の頭の「イントロ」は最初の1回だけで、2周目からはイントロのあとをくり返す、という作りの曲だった
+    //       （前は、エントリーは毎回イントロから、選曲は 4.06秒ごとに頭から鳴らしていた）
+    //   ・どちらも 0：曲をそのままくり返す
     public void Update(string? file, int skinGeneration, int audioGeneration, bool muted, float volume,
-        float dt, double loopPeriodMs = 0)
+        float dt, double loopPeriodMs = 0, double introMs = 0, double loopEndMs = 0)
     {
+        bool introLoop = loopPeriodMs <= 0 && (introMs > 0 || loopEndMs > 0);
         bool changed = file != currentFile || skin != skinGeneration || audio != audioGeneration;
         if (changed)
         {
@@ -38,7 +47,7 @@ public sealed class MenuBgmPlayer(Func<string, IMenuBgmTrack?> load) : IDisposab
             if (file != null) track = load(file);
             if (track != null)
             {
-                track.SetLoop(loopPeriodMs <= 0);
+                track.SetLoop(loopPeriodMs <= 0 && !introLoop);
                 track.SetVolume(muted ? 0 : volume);
                 if (!muted) track.Play(0);
             }
@@ -61,6 +70,17 @@ public sealed class MenuBgmPlayer(Func<string, IMenuBgmTrack?> load) : IDisposab
             {
                 elapsedMs %= period;
                 track.Play(0);
+            }
+        }
+        if (!muted && introLoop)
+        {
+            double end = loopEndMs > 0 ? Math.Min(loopEndMs, track.LengthMs) : track.LengthMs;
+            double start = Math.Clamp(introMs, 0, Math.Max(0, end - 100));
+            if (end > 0 && elapsedMs >= end)
+            {
+                // 行きすぎた分だけ先から鳴らす（コマの長さの分、音がずれないように）
+                elapsedMs = start + (elapsedMs - end) % (end - start);
+                track.Play(elapsedMs);
             }
         }
         track.SetVolume(muted ? 0 : Math.Clamp(volume, 0, 1));
@@ -105,8 +125,13 @@ public static class MenuBgm
         string? path = scene?.MenuBgmFile is string file && SkinManager.CurrentPath is string root && AudioManager.IsAvailable
             ? Path.Combine(root, file) : null;
         var config = ConfigManager.Sound;
+        // スキンの SkinConfig.json にイントロの長さが書いてあれば、そちらのくり返し方を使う
+        bool entry = scene?.MenuBgmFile == EntryFile;
+        double intro = entry ? SkinManager.EntryBgmIntroMs : SkinManager.SongSelectBgmIntroMs;
+        double loopEnd = entry ? SkinManager.EntryBgmLoopEndMs : SkinManager.SongSelectBgmLoopEndMs;
+        bool introLoop = intro > 0 || loopEnd > 0;
         player.Update(path, SkinManager.Generation, AudioManager.Generation, scene?.MenuBgmMuted ?? false,
-            config.GetFinalVolume(config.BgmVolume), dt, scene?.MenuBgmLoopMs ?? 0);
+            config.GetFinalVolume(config.BgmVolume), dt, introLoop ? 0 : scene?.MenuBgmLoopMs ?? 0, intro, loopEnd);
     }
 
     public static void Shutdown()

@@ -167,6 +167,13 @@ namespace TakeTaikoSimulator.Graphics
         //   11/11 たけらい「コンフィグ作ってそこで指定にしよう」
         //   mainFont：曲名・ネームプレートなどの太い字(無ければ今までどおり Font/default.ttf か .otf)
         //   systemFont：設定画面・説明などのふつうの字(無ければ今までどおり Assets/Fonts のフォント)
+        // メニューの BGM のくり返し方（Audio/MenuBgm.cs）。TaikøNauts の SkinConfig.json と同じ名前のキーを読む
+        //   entryBGMIntroTimeMs・songSelectBGMIntroTimeMs：イントロの長さ（ミリ秒）。2周目からは、ここに戻ってくり返す
+        //   entryBGMLoopEndMs・songSelectBGMLoopEndMs：くり返しの終わり（TakeTaikoSimulator だけのキー。無ければ曲の終わり）
+        public static double EntryBgmIntroMs { get; private set; }
+        public static double SongSelectBgmIntroMs { get; private set; }
+        public static double EntryBgmLoopEndMs { get; private set; }
+        public static double SongSelectBgmLoopEndMs { get; private set; }
         public static string? MainFontFile { get; private set; }
         public static string? SystemFontFile { get; private set; }
 
@@ -540,6 +547,9 @@ namespace TakeTaikoSimulator.Graphics
             whiteTextures.Clear();
         }
 
+        private static double ReadMs(JsonElement root, string key) =>
+            root.TryGetProperty(key, out JsonElement value) && value.ValueKind == JsonValueKind.Number && value.TryGetDouble(out double ms) && ms > 0 ? ms : 0;
+
         // スキンの SkinConfig.json から名前・バージョン・説明を読む
         private static void ReadSkinInfo()
         {
@@ -548,6 +558,7 @@ namespace TakeTaikoSimulator.Graphics
             Description = "";
             MainFontFile = null;
             SystemFontFile = null;
+            EntryBgmIntroMs = SongSelectBgmIntroMs = EntryBgmLoopEndMs = SongSelectBgmLoopEndMs = 0;
 
             if (CurrentPath == null) return;
 
@@ -566,6 +577,10 @@ namespace TakeTaikoSimulator.Graphics
                     MainFontFile = mainFont.GetString();
                 if (root.TryGetProperty("systemFont", out JsonElement systemFont) && systemFont.ValueKind == JsonValueKind.String)
                     SystemFontFile = systemFont.GetString();
+                EntryBgmIntroMs = ReadMs(root, "entryBGMIntroTimeMs");
+                SongSelectBgmIntroMs = ReadMs(root, "songSelectBGMIntroTimeMs");
+                EntryBgmLoopEndMs = ReadMs(root, "entryBGMLoopEndMs");
+                SongSelectBgmLoopEndMs = ReadMs(root, "songSelectBGMLoopEndMs");
             }
             catch (Exception ex) when (ex is JsonException || ex is IOException || ex is InvalidOperationException)
             {

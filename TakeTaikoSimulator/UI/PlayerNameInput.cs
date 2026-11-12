@@ -44,16 +44,26 @@ public sealed class PlayerNameInput
     private static float FittedSize(string text) => 40 * Math.Min(1, 830 / Math.Max(1, FontManager.Measure(text, 40).X));
     public void Draw()
     {
-        Raylib.DrawRectangle(0, 0, 1920, 1080, new Color(0, 0, 0, 165));
-        SmoothShapes.Rounded(new(440, 250, 1040, 570), .02f, 8, new Color(13, 23, 38, 255));
-        FontManager.Draw("プレイヤー名を入力", 520, 300, 48, Color.White);
-        FontManager.Draw("24文字まで。着せ替えやNamePlateConfig.jsonで変更できます", 520, 390, 25, Color.LightGray);
-        SmoothShapes.Rounded(Box, .06f, 8, new Color(26, 40, 59, 255));
+        // 11/12 たけらい「プレイヤー名入力が旧UIになってる」→ 設定画面と同じ見た目（Gui.cs の色・角丸・光）に合わせた
+        //   前は紺色の板に水色の字だった
+        Raylib.DrawRectangle(0, 0, 1920, 1080, new Color(0, 0, 0, 175));
+        Rectangle panel = new(440, 250, 1040, 570);
+        SmoothShapes.Rectangle(new Rectangle(panel.X, panel.Y + 8, panel.Width, panel.Height), 24, new Color(0, 0, 0, 90));   // 影
+        SmoothShapes.Rectangle(panel, 24, Gui.PanelColor);
+        SmoothShapes.Border(panel, 24, 1.5f, Gui.BorderColor);
+        FontManager.Draw("プレイヤー名を入力", 520, 300, 44, Gui.TextColor);
+        FontManager.Draw("24文字まで。あとで着せ替えの「名前・段位」から変えられます", 520, 384, 24, Gui.SubTextColor);
+        // 入力の箱：朱色の線と、ひかえめな光（入力中なのが分かるように）
+        Gui.Glow(Box, 12, Gui.AccentColor, 0.7f);
+        SmoothShapes.Rectangle(Box, 12, Gui.BoxColor);
+        SmoothShapes.Border(Box, 12, 2f, Gui.AccentColor);
         string text = Value + WindowsIme.CompositionText;
         float size = FittedSize(text);
-        FontManager.Draw(text, Box.X + 25, Box.Y + 18, size, Color.White);
-        Raylib.DrawRectangle((int)(Box.X + 25 + FontManager.Measure(text, size).X), (int)Box.Y + 20, 2, 52, Color.SkyBlue);
-        FontManager.Draw(editing ? "Enter：変更をプレビュー　Esc：キャンセル" : "Enter：作成　Esc：データ選択へ", 520, 660, 30, Color.SkyBlue);
-        if (Error.Length > 0) FontManager.Draw(Error, 520, 730, 27, Color.Orange);
+        FontManager.Draw(text, Box.X + 25, Box.Y + 18, size, Gui.TextColor);
+        // カーソルは 0.5秒ごとに点滅
+        if (Raylib.GetTime() % 1.0 < 0.5)
+            Raylib.DrawRectangle((int)(Box.X + 25 + FontManager.Measure(text, size).X) + 2, (int)Box.Y + 22, 2, 52, Gui.SakuraColor);
+        FontManager.Draw(editing ? "Enter：変更をプレビュー　　Esc：キャンセル" : "Enter：作成　　Esc：データ選択へ", 520, 664, 26, Gui.SubTextColor);
+        if (Error.Length > 0) FontManager.Draw(Error, 520, 730, 26, new Color(255, 120, 110, 255));
     }
 }

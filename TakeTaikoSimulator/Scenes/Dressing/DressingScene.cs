@@ -167,6 +167,8 @@ public sealed class DressingScene : Scene
     public override void OnBack()
     {
         if (naming) { if (!WindowsIme.IsComposing) naming = false; return; }
+        // 戻る音は、ほかの画面と同じ（MenuSounds.Cancel）。11/12 たけらい「戻るボタンの効果音はいつものやつ」
+        MenuSounds.Cancel();
         if (asking) { asking = false; return; }
         if (drafts.Values.Any(d => d.Dirty)) asking = true;
         else SceneManager.Simple(new ModeSelectScene());
