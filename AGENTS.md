@@ -1146,3 +1146,9 @@ Order:
 - `PlayOptionsPanel`: 8 rows per page, more rows go to page 2 (「1/2」 at top right, PageUp/PageDown, Don walks through). `Kind.Choice` and `Kind.Disabled` (演奏スキップ is shown greyed out; 音符位置調整 is not shown).
 - `OptionBadges.DrawGrid`: order はやさ → ドロン → あべこべ → ランダム → AUTO → 演奏速度, packed. Play screen: 3 per row from (170, 353). Song select: one row under each nameplate.
 - Scoreboard (演奏情報表示) moved from the bottom-left corner to (8, 540) under the nameplate, 1.1×.
+
+## "Not recorded" notice for auto play (11/12, たけらい)
+- `UI/InfoBar.cs` draws A-Style `04.EnsoGame/Information_Bar.png` (940×110) at (998, 119), shrunk 19 px in width, with 「特定の演奏オプションが使用されたため、今回のプレイは記録されません。」 (white, black outline, ~23 px).
+  Measured on `2026-10-29_09-28-06.mp4` (auto play): appears instantly at 87.48 s, gone by 94.15 s (≈6.6 s, 0.05 s fade).
+- Shown: play screen for 6.6 s when auto (not training / 2-player); ResultScene the whole time when `PlayResultData.AutoPlayed`; DanResultScene at (998, 950) when `dan.AutoPlayed`; PlayOptionsPanel for 4 s right of the panel when オートプレイ is switched to する.
+- TaikøNauts' result screen showed no such bar in that recording (only the option icons on the black tab); the result bar is our own addition at たけらい's request.

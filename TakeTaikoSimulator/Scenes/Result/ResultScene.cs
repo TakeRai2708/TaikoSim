@@ -18,6 +18,7 @@ namespace TakeTaikoSimulator.Scenes
         public PlayStats Stats = new();   // スコア・魂ゲージ・ノルマ(演奏画面のものをそのまま使う)
         public int Good, Ok, Bad, RollHits, MaxCombo;
         public SongRecordUpdate? RecordUpdate;
+        public bool AutoPlayed;   // オートで演奏した（記録は残していない。リザルトに帯で知らせる）
     }
 
     // リザルト画面
@@ -305,6 +306,8 @@ namespace TakeTaikoSimulator.Scenes
             if (elapsed >= BalloonTime) DrawBalloon();
             NamePlate.Draw(SongHistory.ActiveProfile, LocalSession.Controller, 16, 950);
             PuchiChara.Draw(SongHistory.ActiveProfile, LocalSession.Controller, "result");
+            // オートのときは記録を残していないので、帯で知らせる（演奏画面と同じ場所。リザルトではずっと出す）
+            if (data.AutoPlayed) UI.InfoBar.Draw(UI.InfoBar.PlayX, UI.InfoBar.PlayY, UI.InfoBar.NotSavedText);
 
             // 最初は真っ暗からだんだん明るく。戻るときはだんだん暗く
             float black = elapsed < FadeInStart ? 1f : 1f - Math.Clamp((elapsed - FadeInStart) / (FadeInEnd - FadeInStart), 0f, 1f);

@@ -164,6 +164,8 @@ namespace TakeTaikoSimulator.Scenes
         //   演奏速度：曲そのものの速さ。段位道場・2人プレイ・特訓モードでは 1.0 のまま
         //     （段位は試験、2人プレイは曲が1つ、特訓は自分の速度の切り替えがある）
         private double playSpeed = 1.0;
+        // 「今回のプレイは記録されません」の帯を出してからの秒（オートのとき。UI/InfoBar.cs）
+        private float infoBarAge;
         private readonly Random noteRandom = new();
 
         private enum Judge { Good, Ok, Bad } // 良・可・不可(Judge.png の上から順)
@@ -655,6 +657,7 @@ namespace TakeTaikoSimulator.Scenes
             if (course != null) judges = new Judge?[course.Notes.Count];
             nextHittable = 0;
             goodCount = okCount = badCount = combo = maxCombo = 0;
+            infoBarAge = 0f;
             if (course != null)
             {
                 stats.Reset(course, dan?.TotalNotes());
@@ -757,6 +760,7 @@ namespace TakeTaikoSimulator.Scenes
             }
 
             frameCount++;
+            infoBarAge += dt;
             if (diagnosticMessageTimer > 0f) diagnosticMessageTimer -= dt;
 
             // 元の時計と補正はそのまま。診断中だけ補正量とフレーム時間を調べる。
@@ -900,6 +904,7 @@ namespace TakeTaikoSimulator.Scenes
             DebugLog.Event("演奏", $"演奏が終わった：{chart?.Title}　{end.Result}　スコア {stats.Score}");
             PlayResultData data = new()
             {
+                AutoPlayed = autoPlay,
                 Title = chart?.Title ?? "",
                 Course = course?.Type ?? CourseType.Oni,
                 Result = end.Result,
@@ -1925,6 +1930,10 @@ namespace TakeTaikoSimulator.Scenes
             }
             if (diagnosticMessageTimer > 0f)
                 FontManager.Draw(diagnosticMessage, InfoX, InfoTop - 34, 22, Color.SkyBlue);
+
+            // オートのときは記録を残さないので、始まってからしばらく、右上に帯で知らせる（TaikøNauts と同じ場所・同じ文）
+            if (autoPlay && !isTraining && !localPlay)
+                InfoBar.Draw(InfoBar.PlayX, InfoBar.PlayY, InfoBar.NotSavedText, InfoBar.AlphaAt(infoBarAge, InfoBar.PlaySeconds));
 
             DrawPause();   // 一時停止のメニュー・再開のカウント（いちばん上に）
 

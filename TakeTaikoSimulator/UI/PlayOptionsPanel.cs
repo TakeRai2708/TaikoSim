@@ -161,6 +161,8 @@ namespace TakeTaikoSimulator.UI
         private const int PercentStep = 5;
 
         private int cursor;            // 選んでいる項目
+        private float autoNoticeAge = -1f;   // 「オートプレイ中は記録されません」を出してからの秒（-1 なら出していない）
+        private const float AutoNoticeSeconds = 4f;
         private int editRow = -1;      // 数字を入力中の項目(-1 ならしていない)
         private string editText = "";
         private bool editSelectAll, editInvalid;
@@ -177,6 +179,7 @@ namespace TakeTaikoSimulator.UI
             cursor = 0;
             editRow = -1;
             caretTimer = 0f;
+            autoNoticeAge = -1f;
             MenuSounds.Option();
         }
 
@@ -204,6 +207,7 @@ namespace TakeTaikoSimulator.UI
             if (!IsOpen) return;
             float step = Math.Min(dt, 1f / 30f);
             caretTimer += dt;
+            if (autoNoticeAge >= 0f) autoNoticeAge += dt;
             HitSounds.Update(dt); // 音色の試し聞きのカッ
             if (Closing)
             {
@@ -259,6 +263,7 @@ namespace TakeTaikoSimulator.UI
         private void Change(int row, int dir)
         {
             Item item = items[row];
+            bool autoBefore = Cfg.AutoPlay;
             switch (item.Kind)
             {
                 case Kind.Disabled:
@@ -312,6 +317,9 @@ namespace TakeTaikoSimulator.UI
                     break;
                 }
             }
+            // オートプレイを「する」にした：記録が残らないことを、板の右に帯で知らせる（UI/InfoBar.cs）
+            if (Cfg.AutoPlay && !autoBefore) autoNoticeAge = 0f;
+            else if (!Cfg.AutoPlay) autoNoticeAge = -1f;
             SaveOptions();
             MenuSounds.Ka();
         }
@@ -530,6 +538,9 @@ namespace TakeTaikoSimulator.UI
                     MenuSounds.Ka();
                 }
             }
+
+            // オートプレイを「する」にしたときのお知らせ（板の右どなり・画面の下の方）
+            InfoBar.Draw(PanelWidth + 4f, 950f, InfoBar.AutoOnText, InfoBar.AlphaAt(autoNoticeAge, AutoNoticeSeconds));
 
             // 入力中に、ほかの場所をクリックしたら決定する
             if (pressed && editRow >= 0 && !Raylib.CheckCollisionPointRec(mouse, Offset(ValueBox, RowArea(editRow, px, py))))

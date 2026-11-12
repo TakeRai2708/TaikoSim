@@ -230,6 +230,7 @@ namespace TakeTaikoSimulator.Scenes
                 PuchiChara.Draw(SongHistory.ActiveProfile, LocalSession.Controller, "danResult");
                 NamePlate.Draw(SongHistory.ActiveProfile, LocalSession.Controller, 16, 950);
                 DrawFooter();
+                DrawAutoNotice();
                 return;
             }
             Raylib.DrawRectangleGradientV(0, 0, Screen.Width, Screen.Height, new Color(40, 70, 130, 255), new Color(20, 36, 80, 255));
@@ -251,6 +252,13 @@ namespace TakeTaikoSimulator.Scenes
             DrawStamp(StampX + StampSize / 2f, StampY + StampSize * 0.3f);
             DrawShodan();
             DrawFooter();
+            DrawAutoNotice();
+        }
+
+        // オートのときは段位の記録を残していないので、帯で知らせる（右下。段位の絵に重ならない所）
+        private void DrawAutoNotice()
+        {
+            if (dan.AutoPlayed) InfoBar.Draw(InfoBar.PlayX, 950f, InfoBar.NotSavedText);
         }
 
         // A-Style：プレートは明るくなってから 0.33秒で、0.2秒かけて出る（六段の動画）
