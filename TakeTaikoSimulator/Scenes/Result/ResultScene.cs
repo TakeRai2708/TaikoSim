@@ -290,6 +290,7 @@ namespace TakeTaikoSimulator.Scenes
             DrawBackground();
             SkinManager.Draw(HeaderImage, 0, 0);
             DrawTitle();
+            UI.SongCounter.DrawPlate(UI.SongCounter.ResultX, UI.SongCounter.ResultY, UI.SongCounter.Number(LocalSession.SongsPlayed));
             if (SkinManager.GetTexture(PanelImage) is Texture2D panel)
                 Raylib.DrawTexturePro(panel, new Rectangle(0, 0, 960, 1080), new Rectangle(0, 0, 960, 1080),
                     Vector2.Zero, 0f, Color.White);

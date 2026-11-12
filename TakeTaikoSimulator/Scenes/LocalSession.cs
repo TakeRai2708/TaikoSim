@@ -43,9 +43,13 @@ public static class LocalSession
     }
     public static int[] Players => Enumerable.Range(0, 2).Where(p => Joined[p]).ToArray();
 
+    /// <summary>エントリーしてから始めた曲の数（UI/SongCounter.cs の「何曲目」。エントリーに戻ると 0）</summary>
+    public static int SongsPlayed { get; set; }
+
     public static void Reset()
     {
         Array.Clear(Joined);
+        SongsPlayed = 0;
         Controller = 0;
         Profiles[0] = 1; Profiles[1] = 2;
         KeySets[0] = 0; KeySets[1] = 1;

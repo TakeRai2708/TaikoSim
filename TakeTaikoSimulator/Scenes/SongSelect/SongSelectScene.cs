@@ -1274,6 +1274,8 @@ namespace TakeTaikoSimulator.Scenes
             if (diffOpen) DrawDifficulty();
             DrawSavedSongRecords();
             NamePlate.DrawPlayers(900, ReturnAlpha);
+            // 右上：次は何曲目か（特訓モードは出さない）
+            if (!training) SongCounter.DrawPlate(SongCounter.SongSelectX, SongCounter.SongSelectY, SongCounter.Number(LocalSession.SongsPlayed + 1), ReturnAlpha);
             // 名札の下に、つけている演奏オプションのアイコンを横1列で（11/12 たけらいのスクショ。左から約76px・名札のすぐ下）
             foreach (int side in LocalSession.Players)
             {
