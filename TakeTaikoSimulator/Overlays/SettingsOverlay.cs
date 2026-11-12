@@ -434,6 +434,7 @@ namespace TakeTaikoSimulator.Overlays
                 DrawKeySection();
                 DrawSkinSection();
             }
+            EndCard();
             contentHeight = cursorY + 40;
             switchShift = 0f;
 
@@ -901,9 +902,53 @@ namespace TakeTaikoSimulator.Overlays
 
         // ===== 行の部品 =====
 
+        // ===== カード(同じ仲間の行を、少し明るい角丸の箱にまとめる) =====
+        //   11/12 たけらい「設定画面がごちゃごちゃしてる」→ 見くらべの絵を見て「A(カード＋横並びの切り替え)」
+        //   前は、線で区切った行が上から下へずっと並んでいて、どこまでが同じ仲間か分かりにくかった。
+        //   見出し(Section)と小見出し(SubHeader)のあとから、次の見出しまでを1つのカードにする。
+        //   行は上から順に描いていくので、箱の高さは描き終わるまで分からない。そこで、前のフレームで分かった高さで箱を先に描く
+        //   (開いた直後や、行が増えた瞬間の1フレームだけ、箱が無い・高さが古いことがある)
+        private const float CardPadTop = 14f, CardPadBottom = 4f, CardGap = 26f, CardRadius = 16f;
+        private static readonly Color CardColor = new Color(33, 20, 25, 255);          // パネルより少し明るく、ボタンの箱より暗い
+        private static readonly Color CardLineColor = new Color(58, 37, 48, 255);      // カードの中の、行と行の間の線
+        private readonly Dictionary<string, float> cardHeights = new();
+        private string? cardKey;
+        private float cardTop;
+        private int cardRows;
+
+        private void BeginCard(string key)
+        {
+            EndCard();
+            cardKey = key;
+            cardTop = cursorY;
+            cardRows = 0;
+            if (cardHeights.TryGetValue(key, out float height) && height > CardPadTop + CardPadBottom + 1f)
+                SmoothShapes.Rectangle(new Rectangle(SectionX, ToScreenY(cardTop), RightEdge + 14f - SectionX, height), CardRadius, CardColor);
+            cursorY += CardPadTop;
+        }
+
+        private void EndCard()
+        {
+            if (cardKey == null) return;
+            bool empty = cursorY - cardTop <= CardPadTop + 1f;
+            if (empty) cursorY = cardTop;                 // 中身が無いカードは、場所を取らない
+            else cursorY += CardPadBottom;
+            cardHeights[cardKey] = cursorY - cardTop;
+            cardKey = null;
+            if (!empty) cursorY += CardGap;
+        }
+
+        // 行と行の間の線(カードの中で2行目からだけ引く。前は全部の行の下に引いていた)
+        private void RowDivider(float y)
+        {
+            if (cardRows++ > 0)
+                Raylib.DrawLine((int)LabelX, (int)(y - 6), (int)RightEdge, (int)(y - 6), CardLineColor);
+        }
+
         // 見出し
         private void Section(Category category, string title)
         {
+            EndCard();
             if (category != Category.General && !fullScreen) cursorY += 24;
             sectionPos[category] = cursorY;
             float y = ToScreenY(cursorY);
@@ -912,6 +957,7 @@ namespace TakeTaikoSimulator.Overlays
             Raylib.DrawLine((int)SectionX, (int)(y + 55), (int)RightEdge,
                 (int)(y + 55), Gui.BorderColor);
             cursorY += 72;
+            BeginCard("sec:" + title);
         }
 
         // チェックボックスの行
@@ -920,7 +966,7 @@ namespace TakeTaikoSimulator.Overlays
             float y = ToScreenY(cursorY);
             bool result = Gui.Checkbox(new Rectangle(LabelX, y, RightEdge - LabelX, 40), label, value);
             RememberRow(label, y);
-            Raylib.DrawLine((int)LabelX, (int)(y + RowHeight - 6), (int)RightEdge, (int)(y + RowHeight - 6), Gui.BorderColor);
+            RowDivider(y);
             cursorY += RowHeight;
             return result;
         }
@@ -936,7 +982,7 @@ namespace TakeTaikoSimulator.Overlays
             Rectangle box = new Rectangle(BoxX, y + 3, RightEdge - BoxX, 36);
             int result = Gui.Slider(id, bar, box, value, min, max);
 
-            Raylib.DrawLine((int)LabelX, (int)(y + RowHeight - 6), (int)RightEdge, (int)(y + RowHeight - 6), Gui.BorderColor);
+            RowDivider(y);
             cursorY += RowHeight;
             return result;
         }
@@ -948,9 +994,13 @@ namespace TakeTaikoSimulator.Overlays
             Gui.Label(label, LabelX, y + 4, 26);
             RememberRow(label, y);
 
-            int result = Gui.Dropdown(id, new Rectangle(ControlX, y + 3, RightEdge - ControlX, 36), options, selected);
+            // 2〜4個で字が短いものは、横に並んだ切り替えにする(1回で変えられる)。それ以外はプルダウンのまま
+            Rectangle control = new Rectangle(ControlX, y + 1, RightEdge - ControlX, 40);
+            int result = Gui.FitsSegmented(control, options)
+                ? Gui.Segmented(id, control, options, selected)
+                : Gui.Dropdown(id, new Rectangle(ControlX, y + 3, RightEdge - ControlX, 36), options, selected);
 
-            Raylib.DrawLine((int)LabelX, (int)(y + RowHeight - 6), (int)RightEdge, (int)(y + RowHeight - 6), Gui.BorderColor);
+            RowDivider(y);
             cursorY += RowHeight;
             return result;
         }
@@ -1072,9 +1122,11 @@ namespace TakeTaikoSimulator.Overlays
         // 小見出し(「叩くキー」とか)
         private void SubHeader(string text)
         {
-            // 小見出しは桜色(11/12。どこからどこまでが同じ仲間か、ひと目で分かるように)
-            FontManager.Draw(text, SectionX + 10, ToScreenY(cursorY), 28, Gui.SakuraColor);
-            cursorY += 44;
+            // 小見出しは桜色の小さい字。その下から、次の見出しまでが1つのカード
+            EndCard();
+            FontManager.Draw(text, SectionX + 6, ToScreenY(cursorY), 23, Gui.SakuraColor);
+            cursorY += 36;
+            BeginCard("sub:" + text);
         }
 
         // 叩く場所1つ分(開閉できる見出し＋キー一覧＋追加ボタン)

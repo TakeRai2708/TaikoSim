@@ -482,6 +482,39 @@ namespace TakeTaikoSimulator.UI
             return value;
         }
 
+        // 横に並んだ切り替え(2〜4個から1つ選ぶ)。選び直されたら新しい番号を返す
+        //   11/12 たけらい「A(カード＋横並びの切り替え)」。プルダウンは「押す → 開く → 選ぶ」の2回だけど、
+        //   これは選べる物が最初から全部見えて、1回で変えられる。選んでいる所の朱色の板は、0.1秒くらいですべって動く
+        public static int Segmented(string id, Rectangle area, string[] options, int selected)
+        {
+            SmoothShapes.Rectangle(area, ControlRadius, BackgroundColor);
+            SmoothShapes.Border(area, ControlRadius, 1.5f, BorderColor);
+            float cell = (area.Width - 6f) / options.Length;
+            float pos = Approach($"seg:{id}", Math.Clamp(selected, 0, options.Length - 1), 20f);
+            if (selected >= 0 && selected < options.Length)
+                SmoothShapes.Rectangle(new Rectangle(area.X + 3f + pos * cell, area.Y + 3f, cell, area.Height - 6f), ControlRadius - 3f, AccentColor);
+            int result = selected;
+            for (int i = 0; i < options.Length; i++)
+            {
+                Rectangle item = new Rectangle(area.X + 3f + i * cell, area.Y + 3f, cell, area.Height - 6f);
+                bool hover = !blocked && IsMouseOver(item);
+                float h = Approach($"seg:{id}:{i}", hover && i != selected ? 1f : 0f, 18f);
+                DrawCentered(options[i], item, 22, i == selected ? Color.White : Lerp(SubTextColor, TextColor, h));
+                if (Clicked(item)) result = i;
+            }
+            return result;
+        }
+
+        // 横に並べても字が入るか(入らなければプルダウンにする)
+        public static bool FitsSegmented(Rectangle area, string[] options)
+        {
+            if (options.Length < 2 || options.Length > 4) return false;
+            float cell = (area.Width - 6f) / options.Length;
+            foreach (string option in options)
+                if (FontManager.Measure(option, 22).X + 24f > cell) return false;
+            return true;
+        }
+
         // プルダウン。選び直されたら新しい番号を返す
         public static int Dropdown(string id, Rectangle area, string[] options, int selected, int maxVisibleRows = int.MaxValue)
         {
