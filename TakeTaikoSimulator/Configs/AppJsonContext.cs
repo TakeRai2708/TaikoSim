@@ -23,6 +23,7 @@ namespace TakeTaikoSimulator.Configs
         AllowTrailingCommas = true)]
     [JsonSerializable(typeof(NamePlateConfig))]
     [JsonSerializable(typeof(PlayerAppearanceConfig))]
+    [JsonSerializable(typeof(PlayerSettingsFile))]
     [JsonSerializable(typeof(GameConfig))]
     [JsonSerializable(typeof(SoundConfig))]
     [JsonSerializable(typeof(KeyConfig))]

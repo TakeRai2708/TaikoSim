@@ -252,6 +252,40 @@ namespace TakeTaikoSimulator.Charts
             Save();
         }
 
+        /// <summary>
+        /// プレイヤーデータの初期化：選んだ物だけ消して保存する（設定画面から。Configs/PlayerSettings.cs の PlayerDataReset）。
+        /// 全部消すときは、ファイルごと消す（中身が壊れていて読めないデータも初期化できるように）
+        /// </summary>
+        public static void ClearProfile(int slot, bool records, bool danRecords, bool favorites, bool recent)
+        {
+            if (!records && !danRecords && !favorites && !recent) return;
+            string path = ProfilePath(slot);
+            if (records && danRecords && favorites && recent)
+            {
+                if (File.Exists(path)) File.Delete(path);
+            }
+            else if (File.Exists(path))
+            {
+                SongHistoryFile file = ReadProfile(slot);
+                if (records) file.Records.Clear();
+                if (danRecords) file.DanRecords.Clear();
+                if (favorites) file.Favorites.Clear();
+                if (recent) file.Recent.Clear();
+                string temp = path + ".tmp";
+                File.WriteAllText(temp, JsonSerializer.Serialize(file, AppJsonContext.Default.SongHistoryFile));
+                File.Move(temp, path, overwrite: true);
+            }
+            // 覚えている中身を捨てる（次に使うとき、ファイルから読み直す）
+            profileViews.Remove(slot);
+            InvalidateGroups(slot);
+            if (slot == ActiveProfile)
+            {
+                data = null;
+                summary = null;
+                courseSummaries.Clear();
+            }
+        }
+
         private static SongRecordEntry? FindRecord(string key, CourseType course) =>
             Data.Records.FirstOrDefault(r => r.Course == (int)course
                                              && string.Equals(r.Key, key, StringComparison.OrdinalIgnoreCase));

@@ -85,6 +85,16 @@ namespace TakeTaikoSimulator.UI
 
         private static GameConfig Cfg => TakeTaikoSimulator.Scenes.LocalSession.OptionsContext ?? ConfigManager.Game;
 
+        // 変えた値を保存する
+        //   1人プレイ：いつもの設定に保存（今遊んでいる人のデータにも書かれる）
+        //   2人プレイ：その人のデータの設定にだけ保存（11/12 たけらい「プレイヤーデータごとに設定」）
+        private static void SaveOptions()
+        {
+            if (TakeTaikoSimulator.Scenes.LocalSession.OptionsContext is not GameConfig own) { ConfigManager.SaveAll(); return; }
+            int side = TakeTaikoSimulator.Scenes.LocalSession.MenuPlayer;
+            PlayerSettings.Save(TakeTaikoSimulator.Scenes.LocalSession.Profiles[side], own);
+        }
+
         private readonly Item[] items =
         {
             new Item { Label = "オート演奏", Kind = Kind.Toggle,
@@ -102,7 +112,7 @@ namespace TakeTaikoSimulator.UI
         // カッで変えるときの段階
         //   HS倍率は OpenTaiko と同じ(0.5, 1.0〜2.0 は 0.1 ずつ, 2.5〜4.0 は 0.5 ずつ)
         //   オート連打と精度は OpenTaiko に無いので、TakeTaikoSimulator で決めた
-        private static readonly float[] HiSpeedSteps =
+        internal static readonly float[] HiSpeedSteps =
             { 0.5f, 1.0f, 1.1f, 1.2f, 1.3f, 1.4f, 1.5f, 1.6f, 1.7f, 1.8f, 1.9f, 2.0f, 2.5f, 3.0f, 3.5f, 4.0f };
         private static readonly int[] AutoRollSteps = { 0, 5, 8, 10, 12, 15, 18, 20, 25, 30, 40, 50, 60, 80, 100 };
         private const int PercentStep = 5;
@@ -208,7 +218,7 @@ namespace TakeTaikoSimulator.UI
                     var list = HitSounds.List;
                     int next = ((HitSounds.List.FindIndex(e => e.Key == Cfg.HitSound) + dir) % list.Count + list.Count) % list.Count;
                     Cfg.HitSound = list[next].Key;
-                    if (TakeTaikoSimulator.Scenes.LocalSession.OptionsContext == null) ConfigManager.SaveAll();
+                    SaveOptions();
                     ConfigManager.Game.HitSound = Cfg.HitSound;
                     HitSounds.PlayPreview();
                     return;
@@ -240,7 +250,7 @@ namespace TakeTaikoSimulator.UI
                     break;
                 }
             }
-            if (TakeTaikoSimulator.Scenes.LocalSession.OptionsContext == null) ConfigManager.SaveAll();
+            SaveOptions();
             MenuSounds.Ka();
         }
 
@@ -300,7 +310,7 @@ namespace TakeTaikoSimulator.UI
                     item.SetInt(percent);
                     break;
             }
-            if (TakeTaikoSimulator.Scenes.LocalSession.OptionsContext == null) ConfigManager.SaveAll();
+            SaveOptions();
             editInvalid = false;
             return true;
         }

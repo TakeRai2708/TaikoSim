@@ -1124,3 +1124,10 @@ Order:
 - Solo player on みぎ looks like 2P in menus; the play screen keeps the 1P layout (PlayScene draws the nameplate/puchi with side 0).
 - Leaving 2-player = going back to the entry screen (it resets the session).
 - An unregistered data slot shows only 「新しく遊ぶ」 (no name, score rank, or crown summary).
+
+## Per-player settings, new-data setup, data reset (11/12, たけらい)
+- `Configs/PlayerSettings.cs`: `Config/PlayerData/<slot>/PlayerSettings.json` holds the personal settings (HiSpeed, HitSound, auto options, ShowScoreboard, RecordGroup, 5 volumes). Drum keys, window, skin, input mode, debug, Discord, offsets and audio output stay shared (たけらい: 「全員共通でいったん行こうか」 for keys).
+- The rest of the game still reads `ConfigManager.Game/Sound`. `LocalSession.Join(side, keySet, profile)` calls `PlayerSettings.Activate` for the controller (copies the file into the live config); `ConfigManager.SaveAll/SaveSound` also write the active player's file (`SaveActive`). The 2nd player only gets their own play options in `LocalSession.Options[side]`; volumes follow the controller. `LocalSession.Reset` deactivates.
+- `PlayerSettings.Migrate()` at startup copies the current shared settings into every named slot that has no file yet.
+- New data: after the name input, `PlayerJoin` shows 「はじめの設定」 (speed, hit sound, master volume) before 通信中, also when joining from mode/song select.
+- Reset: Settings → 一般 → プレイヤーデータ. Pick a slot, then 全部初期化 or 選んで初期化 (checkbox list, `PlayerDataParts`), then a confirm dialog. `PlayerDataReset.Run` + `SongHistory.ClearProfile`. If the slot is in use (or the entry screen is open) the game returns to the entry screen.

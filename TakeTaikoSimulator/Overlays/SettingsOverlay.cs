@@ -137,6 +137,14 @@ namespace TakeTaikoSimulator.Overlays
 
         // ===== 閉じるときの確認ダイアログ =====
         private bool confirmOpen = false;
+
+        // ===== プレイヤーデータの初期化（11/12 たけらい） =====
+        //   一般 →「プレイヤーデータ」：データを選ぶ →［全部初期化］か［選んで初期化］
+        //   resetStep：0 出していない、1 消す物をチェックで選ぶ、2 「本当に消しますか？」
+        private int resetSlot = 1;
+        private int resetStep;
+        private bool resetAll;                       // ［全部初期化］から来たか（確認で Esc を押したとき、どこに戻るか）
+        private PlayerDataParts resetParts;
         private List<DrumPart> confirmEmptyParts = new();
 
         // クリックを全部無効にするための「大きさ0の範囲」
@@ -204,6 +212,7 @@ namespace TakeTaikoSimulator.Overlays
             messageTimer = 0f;
             confirmOpen = false;
             unsavedOpen = false;
+            resetStep = 0;
             fullScreen = false;
             skinPreview.Unload(); // プレビューの画像を片付ける
             draftGame = savedGame = null;
@@ -315,6 +324,12 @@ namespace TakeTaikoSimulator.Overlays
             }
 
             // 未保存の確認は Esc で閉じて、編集中の画面に戻る
+            if (resetStep != 0)
+            {
+                // 確認から Esc：選ぶ画面に戻る（［全部初期化］から来たときは閉じる）
+                if (InputManager.IsBackPressed()) resetStep = resetStep == 2 && !resetAll ? 1 : 0;
+                return;
+            }
             if (unsavedOpen)
             {
                 if (InputManager.IsBackPressed()) unsavedOpen = false;
@@ -382,7 +397,7 @@ namespace TakeTaikoSimulator.Overlays
 
             Rectangle content = new Rectangle(SidebarWidth + 18, HeaderHeight + 16,
                 CurrentWidth - SidebarWidth - 42, Screen.Height - HeaderHeight - HintHeight - 32);
-            if (!confirmOpen && !unsavedOpen && !animating) UpdateScroll(content);
+            if (!confirmOpen && !unsavedOpen && resetStep == 0 && !animating) UpdateScroll(content);
 
             // 後ろを暗くする(開き具合に合わせて)。全画面は開ききったら後ろが見えないので、動いている間だけ
             float open = OpenAmount();
@@ -403,7 +418,7 @@ namespace TakeTaikoSimulator.Overlays
 
             // はみ出しを切る範囲は、横にずらした分も足す(切る範囲は Translatef の影響を受けないので)
             Screen.BeginScissorMode((int)(content.X + slideX), (int)content.Y, (int)content.Width, (int)content.Height);
-            Gui.SetClip(confirmOpen || unsavedOpen ? NoClickArea : content);
+            Gui.SetClip(confirmOpen || unsavedOpen || resetStep != 0 ? NoClickArea : content);
 
             // カテゴリを変えた直後：中身を 8px 下から戻す(ToScreenY が switchShift を足す。#057)
             float swEase = Math.Clamp((switchTime - SwitchDelay) / SwitchSeconds, 0f, 1f);   // #057：中身は等速でじわっと
@@ -446,16 +461,17 @@ namespace TakeTaikoSimulator.Overlays
             Screen.EndScissorMode();
             DrawScrollbar(content);
 
-            if (confirmOpen || unsavedOpen) Gui.SetClip(NoClickArea);
+            if (confirmOpen || unsavedOpen || resetStep != 0) Gui.SetClip(NoClickArea);
             DrawHeader();
             DrawSidebar();
             DrawHint();
             Gui.ResetClip();
-            if (!confirmOpen && !unsavedOpen) DrawTips();
+            if (!confirmOpen && !unsavedOpen && resetStep == 0) DrawTips();
 
             DrawMessage();
 
-            if (confirmOpen) DrawConfirmDialog();
+            if (resetStep != 0) DrawResetDialog();
+            else if (confirmOpen) DrawConfirmDialog();
             else if (unsavedOpen) DrawUnsavedDialog();
             else Gui.DrawPopups();
 
@@ -529,6 +545,108 @@ namespace TakeTaikoSimulator.Overlays
             }
             cursorY += 52;
             NoteRow("※ 曲を入れたり消したりしたら［曲の一覧を更新］を押してください");
+
+            // ----- プレイヤーデータの初期化 -----
+            SubHeader("プレイヤーデータ");
+            float slotWidth = (RightEdge - LabelX - 20) / 3f;
+            y = ToScreenY(cursorY);
+            for (int slot = 1; slot <= 3; slot++)
+            {
+                string name = PlayerDataStore.HasName(slot) ? PlayerDataStore.DisplayName(slot) : "（新しく遊ぶ）";
+                Rectangle box = new Rectangle(LabelX + (slot - 1) * (slotWidth + 10), y, slotWidth, 44);
+                bool clicked = slot == resetSlot ? Gui.PrimaryButton(box, $"{slot}：{name}") : Gui.Button(box, $"{slot}：{name}");
+                if (clicked) resetSlot = slot;
+            }
+            cursorY += 56;
+            y = ToScreenY(cursorY);
+            if (Gui.Button(new Rectangle(LabelX, y, buttonWidth, 40), "全部初期化"))
+            {
+                resetAll = true;
+                resetParts = PlayerDataParts.All;
+                resetStep = 2;
+                Gui.Reset();
+            }
+            if (Gui.Button(new Rectangle(LabelX + buttonWidth + 10, y, buttonWidth, 40), "選んで初期化"))
+            {
+                resetAll = false;
+                resetParts = PlayerDataParts.None;
+                resetStep = 1;
+                Gui.Reset();
+            }
+            cursorY += 52;
+            NoteRow("上でデータを選んでから押します。消す前に確認が出ます。消したデータは元に戻せません");
+        }
+
+        // プレイヤーデータの初期化の確認（1：消す物を選ぶ、2：本当に消すか）
+        private void DrawResetDialog()
+        {
+            Raylib.DrawRectangle(0, 0, Screen.Width, Screen.Height, new Color(0, 0, 0, 175));
+            string who = $"データ{resetSlot}（{(PlayerDataStore.HasName(resetSlot) ? PlayerDataStore.DisplayName(resetSlot) : "新しく遊ぶ")}）";
+            if (resetStep == 1)
+            {
+                Rectangle box = new Rectangle(510, 200, 900, 680);
+                SmoothShapes.Rectangle(box, 20, Gui.PanelColor);
+                SmoothShapes.Border(box, 20, 1.5f, Gui.BorderColor);
+                FontManager.Draw($"{who} の初期化", box.X + 50, box.Y + 40, 36, Color.White);
+                FontManager.Draw("消す物にチェックを入れてください", box.X + 50, box.Y + 96, 24, Gui.SubTextColor);
+                float y = box.Y + 150;
+                foreach (var (part, label) in PlayerDataReset.Items)
+                {
+                    bool on = Gui.Checkbox(new Rectangle(box.X + 50, y, box.Width - 100, 44), label, resetParts.HasFlag(part));
+                    resetParts = on ? resetParts | part : resetParts & ~part;
+                    y += 56;
+                }
+                Rectangle cancel = new Rectangle(box.X + 50, box.Y + box.Height - 100, 380, 62);
+                Rectangle next = new Rectangle(box.X + box.Width - 430, box.Y + box.Height - 100, 380, 62);
+                if (Gui.Button(cancel, "やめる")) resetStep = 0;
+                else if (resetParts != PlayerDataParts.None)
+                {
+                    if (Gui.PrimaryButton(next, "次へ")) { resetStep = 2; Gui.Reset(); }
+                }
+                else
+                {
+                    SmoothShapes.Rectangle(next, 10f, Gui.BoxColor);
+                    Gui.DrawCentered("次へ", next, 26, Gui.MutedTextColor);
+                }
+                return;
+            }
+
+            Rectangle confirm = new Rectangle(510, 300, 900, 480);
+            SmoothShapes.Rectangle(confirm, 20, Gui.PanelColor);
+            SmoothShapes.Border(confirm, 20, 1.5f, Gui.BorderColor);
+            FontManager.Draw("！ 本当に初期化しますか？", confirm.X + 50, confirm.Y + 40, 36, ErrorColor);
+            FontManager.Draw(who, confirm.X + 50, confirm.Y + 108, 30, Color.White);
+            string what = resetParts == PlayerDataParts.All ? "全部（名前・着せ替え・記録・お気に入り・設定）"
+                : string.Join("・", PlayerDataReset.Items.Where(i => resetParts.HasFlag(i.Part)).Select(i => i.Label.Split('（')[0]));
+            float used = SettingTexts.DrawWrapped("消す物：" + what, confirm.X + 50, confirm.Y + 160, confirm.Width - 100, 26, Color.White, 36);
+            FontManager.Draw("消したデータは元に戻せません。", confirm.X + 50, confirm.Y + 172 + used, 24, ErrorColor);
+            FontManager.Draw("このデータで遊んでいる途中なら、エントリー画面に戻ります。", confirm.X + 50, confirm.Y + 208 + used, 24, Gui.SubTextColor);
+            Rectangle back = new Rectangle(confirm.X + 50, confirm.Y + confirm.Height - 100, 380, 62);
+            Rectangle run = new Rectangle(confirm.X + confirm.Width - 430, confirm.Y + confirm.Height - 100, 380, 62);
+            if (Gui.PrimaryButton(back, "やめる")) resetStep = resetAll ? 0 : 1;
+            else if (Gui.Button(run, "初期化する")) RunPlayerDataReset();
+        }
+
+        private void RunPlayerDataReset()
+        {
+            resetStep = 0;
+            int slot = resetSlot;
+            bool inUse = LocalSession.Players.Any(side => LocalSession.Profiles[side] == slot);
+            try
+            {
+                PlayerDataReset.Run(slot, resetParts);
+            }
+            catch (Exception ex) when (ex is IOException || ex is UnauthorizedAccessException || ex is System.Text.Json.JsonException)
+            {
+                Console.WriteLine($"[PlayerData] データ{slot} を初期化できませんでした: {ex.Message}");
+                ShowMessage("初期化できませんでした：" + ex.Message, ErrorColor);
+                return;
+            }
+            NamePlate.Clear();
+            SongSelectScene.ResetForProfile();
+            // このデータで遊んでいる途中・データを選んでいる途中なら、エントリー画面からやり直す（消えたデータのまま続けない）
+            if (inUse || SceneManager.Current is EntryScene) SceneManager.Simple(new EntryScene());
+            ShowMessage(inUse ? $"データ{slot} を初期化しました（エントリー画面に戻ります）" : $"データ{slot} を初期化しました", SuccessColor);
         }
 
         // Songs フォルダをエクスプローラーで開く(無ければ作る)
@@ -1264,7 +1382,8 @@ namespace TakeTaikoSimulator.Overlays
         private void DrawHint()
         {
             string hint;
-            if (confirmOpen) hint = "Esc：設定に戻る";
+            if (resetStep != 0) hint = "Esc：やめる";
+            else if (confirmOpen) hint = "Esc：設定に戻る";
             else if (unsavedOpen) hint = "Esc：確認を閉じる";
             else if (waitingTarget != null) hint = "キーを押すと登録　Esc：キャンセル";
             else if (Gui.IsEditing) hint = "数字を入力　Enter：決定　Esc：キャンセル";

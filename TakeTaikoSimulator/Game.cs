@@ -43,6 +43,7 @@ namespace TakeTaikoSimulator
         {
             // 設定を全部読み込む
             ConfigManager.LoadAll();
+            PlayerSettings.Migrate();   // 前からあるプレイヤーデータに、今の設定を写す（最初の1回だけ）
 
             // 設定の解像度でウィンドウを作る
             Raylib.InitWindow(ConfigManager.Game.WindowWidth, ConfigManager.Game.WindowHeight, "TakeTaikoSimulator");

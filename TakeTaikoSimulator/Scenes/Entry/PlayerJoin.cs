@@ -22,6 +22,9 @@ namespace TakeTaikoSimulator.Scenes;
 //   ・LocalSession に参加させるのは「完了」が消えたとき。途中で Esc でやめても、参加したことにならない
 //   ・11/12 たけらい「新しいスロットの表示は新しく遊ぶみたいな表示だけにする。スコアランク、王冠記録、名前は表示しない」
 //     → 名前がまだ無いデータは、赤いカードの中に「新しく遊ぶ」だけを書く
+//   ・11/12 たけらい「作った後に、初期セットアップ画面流れるようにして」（③A・④B）
+//     → 新しいデータは、名前を入れたあとに「はじめの設定」（はやさ・音色・音量）を出す。途中参加のときも、その場で出す。
+//       叩くキーと画面は全員共通なので、ここでは聞かない。決めた値は、そのデータの設定（Configs/PlayerSettings.cs）に保存する
 //   ・時間は前のまま（参考動画 32.9〜37.3秒を測ったもの）：0.3秒で板が消える → 通信中 → 2.2秒で完了 → 4.4秒で終わり
 public sealed class PlayerJoin
 {
@@ -56,7 +59,15 @@ public sealed class PlayerJoin
     /// <summary>名前を入力中か（画面側は IsWaitingKey を true にする）</summary>
     public bool Naming => Active && naming;
     /// <summary>通信中か（戻れない・設定も開けない）</summary>
-    public bool Busy => Active && communication >= 0;
+    public bool Busy => Active && (communication >= 0 || setup);
+
+    // ===== 新しいデータの「はじめの設定」 =====
+    private const int SetupRows = 4;                 // はやさ・音色・音量・「これではじめる」
+    private static readonly Rectangle SetupPanel = new(440, 230, 1040, 620);
+    private bool setup;
+    private int setupRow;
+    private PlayerSettingsFile setupFile = new();
+    private string hitSoundBefore = "";              // 音色の試し聞きのために変えた設定を、終わったら戻す
     public int Side => side;
 
     /// <summary>まだ参加していない方のキーのドンが押されたか（1人で遊んでいるときだけ）</summary>
@@ -154,13 +165,15 @@ public sealed class PlayerJoin
                     PlayerDataStore.Save(cursor + 1, plate);
                     registered[cursor] = true;
                     naming = false;
-                    Decide();
+                    OpenSetup();
                 }
                 catch (Exception ex) when (ex is IOException or UnauthorizedAccessException or JsonException)
                 { nameInput.Error = "保存できませんでした：" + ex.Message; }
             }
             return Result.None;
         }
+
+        if (setup) { UpdateSetup(dt); return Result.None; }
 
         int move = 0;
         if (Raylib.IsKeyPressed(KeyboardKey.Left) || InputManager.IsKeySetPressed(DrumPart.LeftKa, keySet)) move--;
@@ -177,6 +190,8 @@ public sealed class PlayerJoin
         if (!Active) return false;
         if (naming) { if (!WindowsIme.IsComposing) naming = false; return false; }
         if (communication >= 0) return false;
+        // はじめの設定：1つ上の行に戻るだけ（名前はもう保存してあるので、やめても「新しく遊ぶ」には戻らない）
+        if (setup) { if (setupRow > 0) { setupRow--; MenuSounds.Ka(); } return false; }
         Active = false;
         MenuSounds.Ka();
         return true;
@@ -237,7 +252,114 @@ public sealed class PlayerJoin
         Raylib.DrawRectangle(0, 0, 1920, 1080, new Color(0, 0, 0, (int)(DimAlpha * Dim)));
         if (communication >= 0) DrawCommunication();
         else if (naming) nameInput.Draw();
+        else if (setup) DrawSetup(interactive && !Game.IsSettingsOpen);
         else DrawProfiles(interactive && !Game.IsSettingsOpen, overlay ? Math.Clamp(opened / DimFadeSeconds, 0f, 1f) : 1f);
+    }
+
+    private void OpenSetup()
+    {
+        setup = true;
+        setupRow = 0;
+        setupFile = PlayerSettings.ForNewData();
+        hitSoundBefore = ConfigManager.Game.HitSound;
+    }
+
+    private void CloseSetup()
+    {
+        setup = false;
+        ConfigManager.Game.HitSound = hitSoundBefore;
+        PlayerSettings.Save(cursor + 1, setupFile);
+        opened = 1f;   // すぐ決定できるように（Decide は、開いた直後の 0.2秒は受け付けない）
+        Decide();
+    }
+
+    private void UpdateSetup(float dt)
+    {
+        HitSounds.Update(dt);   // 音色の試し聞きのカッ
+        if (Raylib.IsKeyPressed(KeyboardKey.Up) && setupRow > 0) { setupRow--; MenuSounds.Ka(); return; }
+        if (Raylib.IsKeyPressed(KeyboardKey.Down) && setupRow < SetupRows - 1) { setupRow++; MenuSounds.Ka(); return; }
+        int change = 0;
+        if (Raylib.IsKeyPressed(KeyboardKey.Left) || InputManager.IsKeySetPressed(DrumPart.LeftKa, keySet)) change--;
+        if (Raylib.IsKeyPressed(KeyboardKey.Right) || InputManager.IsKeySetPressed(DrumPart.RightKa, keySet)) change++;
+        if (change != 0) { ChangeSetup(setupRow, change); return; }
+        if (Raylib.IsKeyPressed(KeyboardKey.Enter) || Raylib.IsKeyPressed(KeyboardKey.KpEnter) || InputManager.IsKeySetDonPressed(keySet))
+        {
+            if (setupRow < SetupRows - 1) { setupRow++; MenuSounds.Don(); }
+            else CloseSetup();
+        }
+    }
+
+    private void ChangeSetup(int row, int direction)
+    {
+        switch (row)
+        {
+            case 0:
+            {
+                // 演奏オプションの「はやさ」と同じ段階（0 は「譜面どおり」＝1.0倍）
+                float[] steps = PlayOptionsPanel.HiSpeedSteps;
+                float now = setupFile.HiSpeed > 0f ? setupFile.HiSpeed : 1f;
+                setupFile.HiSpeed = direction > 0
+                    ? steps.FirstOrDefault(s => s > now + 0.0001f, steps[^1])
+                    : steps.LastOrDefault(s => s < now - 0.0001f, steps[0]);
+                MenuSounds.Ka();
+                break;
+            }
+            case 1:
+            {
+                var list = HitSounds.List;
+                if (list.Count == 0) break;
+                int next = ((list.FindIndex(e => e.Key == setupFile.HitSound) + direction) % list.Count + list.Count) % list.Count;
+                setupFile.HitSound = list[next].Key;
+                // 試し聞き（ドン → カッ）。HitSounds は今の設定を見るので、その間だけ入れておく
+                ConfigManager.Game.HitSound = setupFile.HitSound;
+                HitSounds.PlayPreview();
+                break;
+            }
+            case 2:
+                setupFile.MasterVolume = Math.Clamp(setupFile.MasterVolume + direction * 5, 0, 100);
+                MenuSounds.Ka();
+                break;
+        }
+    }
+
+    private string SetupValue(int row) => row switch
+    {
+        0 => (setupFile.HiSpeed > 0f ? setupFile.HiSpeed : 1f).ToString("0.0", System.Globalization.CultureInfo.InvariantCulture) + " 倍",
+        1 => HitSounds.List.FirstOrDefault(e => e.Key == setupFile.HitSound)?.Name ?? "スキン",
+        _ => setupFile.MasterVolume.ToString(),
+    };
+
+    // はじめの設定（名前入力と同じく、どのスキンでも自前の見た目）
+    private void DrawSetup(bool interactive)
+    {
+        Rectangle panel = SetupPanel;
+        SmoothShapes.Rectangle(new Rectangle(panel.X, panel.Y + 8f, panel.Width, panel.Height), 24f, new Color(0, 0, 0, 90));
+        SmoothShapes.Rectangle(panel, 24f, Gui.PanelColor);
+        SmoothShapes.Border(panel, 24f, 1.5f, Gui.BorderColor);
+        FontManager.Draw("はじめの設定", panel.X + 60, panel.Y + 44, 46, Gui.TextColor);
+        FontManager.Draw($"{PlayerDataStore.DisplayName(cursor + 1)} さんの設定です。あとで、設定と演奏オプションから変えられます", panel.X + 60, panel.Y + 112, 24, Gui.SubTextColor);
+
+        string[] labels = { "音符のはやさ", "音色（ドン・カッの音）", "音量（全体）" };
+        for (int i = 0; i < 3; i++)
+        {
+            Rectangle row = new(panel.X + 50, panel.Y + 180 + i * 92, panel.Width - 100, 76);
+            bool selected = i == setupRow;
+            if (interactive && Gui.IsMouseOver(row) && Raylib.GetMouseDelta() != Vector2.Zero) setupRow = i;
+            if (selected) Gui.Glow(row, 14f, Gui.AccentColor, .7f);
+            SmoothShapes.Rectangle(row, 14f, selected ? Gui.BoxHoverColor : Gui.BoxColor);
+            SmoothShapes.Border(row, 14f, selected ? 2f : 1f, selected ? Gui.AccentColor : Gui.BorderColor);
+            FontManager.Draw(labels[i], row.X + 28, row.Y + 22, 30, Gui.TextColor);
+            Rectangle left = new(row.X + row.Width - 420, row.Y + 14, 56, 48);
+            Rectangle right = new(row.X + row.Width - 76, row.Y + 14, 56, 48);
+            Gui.DrawCentered(SetupValue(i), new Rectangle(left.X + left.Width, row.Y, right.X - left.X - left.Width, row.Height), 30, Gui.TextColor);
+            bool minus = Gui.Button(left, "◀"), plus = Gui.Button(right, "▶");
+            if (interactive && (minus || plus)) { setupRow = i; ChangeSetup(i, plus ? 1 : -1); }
+        }
+        Rectangle start = new(panel.X + panel.Width / 2 - 220, panel.Y + 470, 440, 72);
+        if (interactive && Gui.IsMouseOver(start) && Raylib.GetMouseDelta() != Vector2.Zero) setupRow = SetupRows - 1;
+        bool go = setupRow == SetupRows - 1 ? Gui.PrimaryButton(start, "これではじめる") : Gui.Button(start, "これではじめる");
+        if (interactive && go) { CloseSetup(); return; }
+        FontManager.Draw("カッ・←→：変える　　ドン・Enter：次へ　　↑↓：えらぶ　　Esc：1つ戻る", panel.X + 60, panel.Y + panel.Height - 52, 22, Gui.SubTextColor);
     }
 
     private void DrawProfiles(bool interactive, float alpha = 1)

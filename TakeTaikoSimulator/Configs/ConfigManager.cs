@@ -71,6 +71,7 @@ namespace TakeTaikoSimulator.Configs
             Save(GameConfig.FileName, Game, AppJsonContext.Default.GameConfig);
             Save(KeyConfig.FileName, Key, AppJsonContext.Default.KeyConfig);
             Save(SkinConfig.FileName, Skin, AppJsonContext.Default.SkinConfig);
+            PlayerSettings.SaveActive();   // 今遊んでいる人のデータにも書く（Configs/PlayerSettings.cs）
         }
 
         // スキンの設定だけ、すぐ保存する(設定パネルでスキンやスキンフォルダを変えたとき)
@@ -93,6 +94,7 @@ namespace TakeTaikoSimulator.Configs
             try
             {
                 Save(SoundConfig.FileName, Sound, AppJsonContext.Default.SoundConfig);
+                PlayerSettings.SaveActive();
             }
             catch (Exception ex) when (ex is IOException || ex is UnauthorizedAccessException)
             {

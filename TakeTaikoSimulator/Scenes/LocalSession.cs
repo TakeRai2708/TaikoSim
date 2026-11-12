@@ -33,6 +33,7 @@ public static class LocalSession
         Controller = 0;
         Profiles[0] = 1; Profiles[1] = 2;
         KeySets[0] = 0; KeySets[1] = 1;
+        PlayerSettings.Deactivate();   // だれもいない間は、設定をだれのデータにも書かない
         Options = new[] { ConfigManager.Copy(ConfigManager.Game), ConfigManager.Copy(ConfigManager.Game) };
     }
 
@@ -45,7 +46,24 @@ public static class LocalSession
         Joined[side] = true;
         KeySets[side] = keySet;
         KeySets[1 - side] = 1 - keySet;
-        if (profile is int slot) Profiles[side] = slot;
+        if (profile is not int slot) return;
+        Profiles[side] = slot;
+        // その人の設定（Configs/PlayerSettings.cs）
+        if (side == Controller)
+        {
+            // メニューを動かす人：今の設定そのものを、その人の値にする
+            PlayerSettings.Activate(slot);
+            Options[side] = ConfigManager.Copy(ConfigManager.Game);
+        }
+        else
+        {
+            // あとから入った人：演奏オプションだけ自分の値（音量などは、メニューを動かす人のもの）
+            Options[Controller] = ConfigManager.Copy(ConfigManager.Game);   // 1人で遊んでいる間に変えた分を写す
+            GameConfig own = ConfigManager.Copy(ConfigManager.Game);
+            PlayerSettings.ApplyGame(PlayerSettings.Load(slot), own);
+            own.Fix();
+            Options[side] = own;
+        }
     }
 
     private static (bool Auto, float Speed, int Roll, string Sound, bool Fixed, bool Board) ReadOptions(GameConfig cfg)
@@ -67,6 +85,9 @@ public static class LocalSession
         OptionsContext = Options[player];
         InputOverride = player;
         try { action(); }
-        finally { WriteOptions(current, previous); OptionsContext = oldOptions; InputOverride = oldInput; }
+        finally
+        {
+            // メニューを動かす人の分は、変えた値をそのまま今の設定に残す（その人のデータに保存されるので、古い値に戻さない）
+            WriteOptions(current, player == Controller ? ReadOptions(Options[player]) : previous); OptionsContext = oldOptions; InputOverride = oldInput; }
     }
 }
