@@ -482,6 +482,8 @@ namespace TakeTaikoSimulator.Scenes
             caretTimer += dt;
             if (toastTimer > 0f) toastTimer -= dt;
             if (skipLock > 0f) skipLock -= dt;
+            if (skipLock > 0f || searchFocused || options.IsOpen || diffOpen || returnTime >= 0f
+                || list.Deciding || flipTime >= 0f || SongList.IsScanning) skipGesture.Reset();
             PreloadListText();
             preview.Update(dt);
             options.Update(dt);
@@ -606,24 +608,23 @@ namespace TakeTaikoSimulator.Scenes
             if (inSongs && InputManager.IsSystemPressed(SystemAction.Favorite) && CurrentItem is { Kind: Kind.Song } fav)
                 ToggleFavorite(fav.Song!);
 
-            // 動かす：カッ(左縁)・↑・ホイール上 で上、カッ(右縁)・↓・ホイール下 で下
-            //   カーソルが動いている途中(前の 0.15秒の動きが終わる前)に、カッか ↑↓ をもう一度押すと、7曲まとめて飛ぶ
-            //   (OpenTaiko の CStageSongSelect と同じ：スクロール中の LeftChange/RightChange で tカーソルスキップ を7回、Skip.ogg)
-            //   ↑↓ は押しっぱなしのくり返しでは飛ばない(押し直したときだけ)。ホイールも飛ばない
-            int move = 0;
-            bool fresh = false; // 押し直した(飛べる)入力
-            if (InputManager.IsDrumPressed(DrumPart.LeftKa) || Raylib.IsKeyPressed(KeyboardKey.Up)) { move--; fresh = true; }
-            else if (KeyPressed(KeyboardKey.Up)) move--;
-            if (InputManager.IsDrumPressed(DrumPart.RightKa) || Raylib.IsKeyPressed(KeyboardKey.Down)) { move++; fresh = true; }
-            else if (KeyPressed(KeyboardKey.Down)) move++;
+            // 同方向の押し直しを0.25秒以内に3回で7項目スキップ。左右混在・長押し・ホイールは数えない。
+            bool freshUp = InputManager.IsDrumPressed(DrumPart.LeftKa) || Raylib.IsKeyPressed(KeyboardKey.Up);
+            bool freshDown = InputManager.IsDrumPressed(DrumPart.RightKa) || Raylib.IsKeyPressed(KeyboardKey.Down);
+            bool up = freshUp || KeyPressed(KeyboardKey.Up);
+            bool down = freshDown || KeyPressed(KeyboardKey.Down);
+            int move = (down ? 1 : 0) - (up ? 1 : 0);
             float wheel = Raylib.GetMouseWheelMove();
             if (wheel > 0) move--;
             else if (wheel < 0) move++;
-            // スキップ後1秒は、カッ・矢印の押し直し/長押し・ホイールで一覧を動かさない。
+            bool breakGesture = wheel != 0 || (up && down) || (!freshUp && !freshDown && (up || down));
+            if (breakGesture) skipGesture.Reset();
+            // ロック中の入力は捨てる。ドン・Enterによる決定は下で受け付ける。
             if (move != 0 && skipLock <= 0f)
             {
-                bool scrolling = list.Shown != CurrentPos;
-                if (fresh && scrolling) { Move(Math.Sign(move), SkipCount); skipLock = SkipInterval; }
+                bool skip = !breakGesture && (freshUp != freshDown)
+                    && skipGesture.Register(Math.Sign(move), Raylib.GetTime());
+                if (skip) { Move(Math.Sign(move), SkipCount); skipLock = SkipInterval; }
                 else Move(move);
             }
 
@@ -633,10 +634,10 @@ namespace TakeTaikoSimulator.Scenes
 
         // まとめて飛ぶ曲の数(OpenTaiko と同じ)
         private const int SkipCount = 7;
-        // スキップ後、次の移動を受け付けるまで。11/12の指定で0.5秒から1秒へ。
-        // この間の移動入力は捨て、解除後にまとめて実行しない。ドン・Enterの決定は使える。
-        private const float SkipInterval = 1f;
+        // スキップ後0.5秒は一覧の移動を止める。ドン・Enterの決定は使える。
+        private const float SkipInterval = 0.5f;
         private float skipLock;
+        private readonly SongSelectSkipGesture skipGesture = new();
 
         // steps 回ぶん動かす(見出しの板は飛ばす)。2回以上ならスキップの音
         private void Move(int direction, int steps = 1)
@@ -1278,6 +1279,7 @@ namespace TakeTaikoSimulator.Scenes
                     if (selected) Decide();
                     else if (skipLock <= 0f)
                     {
+                        skipGesture.Reset();
                         SetPos(pos);
                         MenuSounds.Ka();
                     }
