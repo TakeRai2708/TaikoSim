@@ -158,7 +158,7 @@ namespace TakeTaikoSimulator.Scenes
         private (CourseType? Course, int? Stars, string? Genre) searchFilterBefore;
         private string[] searchGenres = { "すべてのジャンル" };
         private int[] searchLevels = Array.Empty<int>();
-        private string[] searchLevelLabels = { "すべての★" };
+        private string[] searchLevelLabels = { "すべて" };
         private List<SongCategory>? searchCacheSource;
         private (string, CourseType?, int?, string?) searchCacheKey;
         private List<(SongEntry, SongCategory)> searchCache = new();
@@ -595,7 +595,7 @@ namespace TakeTaikoSimulator.Scenes
                     .Distinct(StringComparer.OrdinalIgnoreCase).OrderBy(g => g, StringComparer.Ordinal)).ToArray();
                 searchLevels = Enumerable.Range(0, 11).Concat(SongList.Categories.SelectMany(c => c.Songs).SelectMany(s => s.Courses)
                     .Where(c => c.Type <= CourseType.Edit).Select(c => c.Level)).Distinct().OrderBy(n => n).ToArray();
-                searchLevelLabels = new[] { "すべての★" }.Concat(searchLevels.Select(n => $"★{n}")).ToArray();
+                searchLevelLabels = new[] { "すべて" }.Concat(searchLevels.Select(n => $"★{n}")).ToArray();
                 Gui.ClosePopup();
                 searchSubmitQueued = false;
                 caretTimer = 0f;

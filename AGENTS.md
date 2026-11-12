@@ -136,18 +136,17 @@ This file (AGENTS.md) is where we record **values we actually measured** from vi
 TakeTaikoSimulator/
   Program.cs, Game.cs          … startup, main loop
   Scenes/                      … screens
-    ModeSelectScene.cs         … mode select (first screen after boot)
-    SongSelectScene.cs         … song select (genre → song → difficulty)
-    PlayScene.cs               … play screen (judging, notes, lane)
-    PlayHUD.cs                 … top of the play screen (score, gauge, title)
-    PlayerEffects.cs           … play effects (fireworks, mini taiko, combo number, sparkles, go-go)
-    PlayEnd.cs                 … end-of-song effects (clear, full combo, donderful combo, confetti)
-    ResultScene.cs             … result
-    SongLoading.cs             … song loading screen (curtain)
-    DanSelectScene.cs, DanSelectAStyle.cs        … dan select
-    DanPanel.cs, DanPanelAStyle.cs, DanShutter.cs … dan play (condition panel, doors between songs)
-    DanLoading.cs              … dan loading screen (dojo picture)
-    DanResultScene.cs          … dan result
+    Scene.cs, SceneManager.cs, LocalSession.cs … shared scene lifecycle / local player session
+    Entry/                    … EntryScene: joining, data selection, name entry, data-load animation
+    ModeSelect/               … ModeSelectScene: modes and entry-to-mode intro
+    SongSelect/               … SongSelectScene, LocalDifficultyScene, SongLoading
+    Play/                     … PlayScene + Local, LocalPlayScene, HUD, effects, ending, character, branch, score helpers
+    Training/                 … TrainingScene, TrainingTimeline, TrainingScrollMotion
+    Result/                   … ResultScene
+    Dan/                      … DanSelectScene/AStyle, DanPanel/AStyle, DanLoading, DanShutter, DanResultScene/AStyle
+    Dressing/                 … DressingScene
+    Startup/                  … LoadScene, SetupScene
+    Credits/                  … CreditsScene
   UI/
     BarList.cs                 … the diagonal "bars" motion shared by mode select and song select
     MenuDraw.cs                … drawing helpers (bold text with round outline, etc.)
@@ -166,12 +165,15 @@ tools/dan-check/               … runs the dan parser on a real dan folder (+ b
 tools/build-check/             … compile check without NuGet
 ```
 
+Japanese navigation guide: [SOURCE-MAP.md](SOURCE-MAP.md). Keep scene-specific files in the matching folder above.
+Shared UI/graphics/configuration stay in their existing shared folders. Folder grouping does not change the `TakeTaikoSimulator.Scenes` namespace.
+
 ---
 
 ## 6. Skin rules
 
 - Skins live in `Skins/<skin name>/`. The folder structure is **the same as TaikøNauts**
-  - `Image/02.SongSelect/` (song select), `Image/03.SongLoading/` (song loading screen, `Scenes/SongLoading.cs`; see "Song loading screen" in §9)
+  - `Image/02.SongSelect/` (song select), `Image/03.SongLoading/` (song loading screen, `Scenes/SongSelect/SongLoading.cs`; see "Song loading screen" in §9)
   - `Image/04.EnsoGame/` (play), `Image/05.Result/` (result)
   - `Image/01.Entry/` (mode select; this is TaikøNauts' real name. Simple still uses `Image/01.ModeSelect/`)
     - Inside: `Bar/Bar/<n>.png` (bars), `Bar/Title/<n>.png` (titles), `Bar/Overlay.png`, `Bar/Selected.png`, `Bar/Pop/<n>.png`,
@@ -263,7 +265,7 @@ python dan.py         # dan dojo images (20 dan plates)
 - Difficulty card (inside the 196×354 image): star center (77.5, 263.5), number center (108, 264), star-row dots x = 30, 45, …, 165, y = 293
 - Tag on the opened song bar (inside 176×86): number center (146, 43)
 
-### Mode select (`Scenes/ModeSelectScene.cs`; A-Style `Image/01.Entry/`)
+### Mode select (`Scenes/ModeSelect/ModeSelectScene.cs`; A-Style `Image/01.Entry/`)
 - The list **does not wrap** (stops at the first and last item)
 - Bars are spaced **50 px** further apart vertically than song select. When opening they spread **23 px** up and down each
 - Bar images are 980×160. When open, only the base is stretched; the title (`Title/<n>.png`) is placed on top at native size
@@ -281,7 +283,7 @@ python dan.py         # dan dojo images (20 dan plates)
 - Placed bottom-center at native size it fits (x = 374, y = 884; body y905–1062, shadow to y1073)
   - **y = 884 was not measured on real hardware** (no screenshot/video; just chosen so the shadow fits on screen)
 
-### Song-select text (`Scenes/SongSelectScene.cs` `DrawHeader` / `DrawEmpty`)
+### Song-select text (`Scenes/SongSelect/SongSelectScene.cs` `DrawHeader` / `DrawEmpty`)
 - The top-left "演奏ゲーム" / "ジャンルをえらぶ" is **not drawn**: it overlapped skin images (removed 10/30).
   The bars themselves show which genre you're in. The top-right "F3：検索" and "○曲" stay
 - When there are no songs, the folder path uses pale yellow (255, 236, 160) because light grey (`Gui.SubTextColor`) was unreadable
@@ -303,7 +305,7 @@ In A-Style they look like **sideways taiko drums** (Don-chan = red face, light-b
     (plus the first 4 frames of every animation, kept permanently so one-shots start instantly); the main thread only `UpdateTexture`s (≈300 KB).
     A frame that isn't decoded yet keeps showing the previous one
   - `Image` operations (LoadImage/ImageCrop/ImageResize/ExportImage/LoadImageFromMemory) are CPU-only and run on worker threads. Textures only on the main thread
-- Play screen (`Scenes/PlayChara.cs`, 11/7) — port of OpenTaiko `CActImplCharacter` with TaikøNauts motion names:
+- Play screen (`Scenes/Play/PlayChara.cs`, 11/7) — port of OpenTaiko `CActImplCharacter` with TaikøNauts motion names:
   - Position: the 820×599 frame's top-left at `ensoGameX/Y[0]` = (-83, -111), scale 0.81. **Checked on video b (11/5) at 26 s: mean pixel diff 2.3** (match)
   - Drawn after the background, before the lane (the lane's top border hides the feet, as in the video). Balloon motions at (213, -8) ×0.95, drawn after the balloon
   - One loop = `motionBeat` beats at the current BPM. `balloon_breaking` (11/9, as OpenTaiko): **restarts from frame 0 on every balloon hit** (`PlayChara.OnBalloonHit`), reaches the last frame in 0.2 s and holds it (no loop). Before, it looped every 0.65 s regardless of hits (たけらい 「叩くたびに左右に動く」 → A)
@@ -375,12 +377,12 @@ In A-Style they look like **sideways taiko drums** (Don-chan = red face, light-b
 
 #### Original's look (measured from the 10/31 video `2026-10-31_01-44-20.mp4`; 1920×1080, 60 fps, 9 min)
 **Rebuilt to this look on 10/31** (`DanSelectScene`, `DanPanel`, `DanResultScene`).
-- Dan select: `Scenes/DanSelectScene.cs` (choose the plate with ←→ / ka, category with ↑↓. Decide → confirm popup)
-- During play: `Scenes/DanPanel.cs`. `PlayScene` calls `DrawBottom()` (lower half) right after the background and `DrawTop()` after the title.
+- Dan select: `Scenes/Dan/DanSelectScene.cs` (choose the plate with ←→ / ka, category with ↑↓. Decide → confirm popup)
+- During play: `Scenes/Dan/DanPanel.cs`. `PlayScene` calls `DrawBottom()` (lower half) right after the background and `DrawTop()` after the title.
   The current song's stats go into `DanPlay` every frame via `PlayScene.SyncDanLive()`. The bottom-left scoreboard is hidden during dan
   - With 4+ conditions, pages of 3 switch every 4 s (unknown how the original handles it)
   - Bar colors follow **the same rules as OpenTaiko's `Dan_Cert.UpdateReachStatus`** (`DanPlay.Reach()` → `DanReach`; see the 10/31 九段 video section)
-- Result: `Scenes/DanResultScene.cs`. ① per-song breakdown (3.6 s) → ② summary (gauge fills over 1 s, conditions appear 0.3 s apart, stamp)
+- Result: `Scenes/Dan/DanResultScene.cs`. ① per-song breakdown (3.6 s) → ② summary (gauge fills over 1 s, conditions appear 0.3 s apart, stamp)
 - **This video also revealed the real position of the play-option badge (AUTO)**: left panel, right of the difficulty mark, 40×40 native, top-left (170, 353)
 
 **Dan select screen (original)**
@@ -420,7 +422,7 @@ In A-Style they look like **sideways taiko drums** (Don-chan = red face, light-b
 - The soul-gauge bar has a 「99 以上」 marker and a 「魂」 flame icon at the end
 
 #### Findings from the 10/31 九段 video (`2026-10-31_03-04-03.mp4`; たけらい failed on 不可)
-- **Between songs** (`Scenes/DanShutter.cs`; door timings from OpenTaiko `Dan_Cert.cs`): doors close in 1.0 s → stay closed 2.3 s (next song swapped in at 0.8 s) →
+- **Between songs** (`Scenes/Dan/DanShutter.cs`; door timings from OpenTaiko `Dan_Cert.cs`): doors close in 1.0 s → stay closed 2.3 s (next song swapped in at 0.8 s) →
   open in 0.27 s → title on the lane (center y388, 52 px) and artist (y447, 30 px) for 2.9 s (fades out over 0.5 s from 2.0 s)
   - The doors cover the lane x498–1920, y288–476 (the 「ドン・カッ」 strip below stays visible). Two halves
   - Simple draws its own **fusuma** (sliding paper doors: wood frame 9 px, washi paper with faint lines and two thin rails, round brass pull near the seam, 6 px wood-colored seam).
@@ -466,14 +468,14 @@ In A-Style they look like **sideways taiko drums** (Don-chan = red face, light-b
   - Coming back from a dan: no intro; start from the dojo picture (last frame of the aup2)
   - **Simple (no aup2)**: no doors or text effects. Plates wipe in from the left (0.7 s) and the panel slides in (0.2 s), starting 0.2 s into the fade-in (≈1.1 s total; `SimpleLeadFrames`)
 
-#### Dan loading screen (11/5; `Scenes/DanLoading.cs`)
+#### Dan loading screen (11/5; `Scenes/Dan/DanLoading.cs`)
 Measured on the 11/5 六段 video (`2026-11-05_09-32-24.mp4`, 17.8–23.6 s). Replaces the song-loading curtain after 「挑戦する」
 - Dan select fades out 0.47 s → black 0.6 s → dojo picture fades in 0.47 s → shown 3.2 s (longer if loading is slow; at least 0.3 s after loading) → fades out 0.53 s → play screen fades in 0.5 s (doors closed)
 - A-Style: `07.DanLoading/Background.png` (1920×1300) scrolls up at **73.5 px/s** from the start of the fade-in and stops at 220 px (bottom edge). Dan plate at top right at native size: `Dan_Plate.png` 190×371 with top-left (1620, 140) (11/8: たけらい 「段プレートが小さい」; the old 150×320 box made it 0.79×)
 - Simple: dark gradient, 「段位道場」 and the dan name, plus the plate. Nothing copied from the original picture
 - F2 retry still uses the normal song-loading curtain (5 s of dojo picture on every retry felt too long; ask たけらい if he wants otherwise)
 
-#### Dan select drawn with A-Style images (11/1; `Scenes/DanSelectAStyle.cs`)
+#### Dan select drawn with A-Style images (11/1; `Scenes/Dan/DanSelectAStyle.cs`)
 Positions found by template-matching the images onto frames 34 s (初段) and 50 s (confirm) of video 01-44-20 (OpenCV matchTemplate). Skins without the images keep the code-drawn look
 - Plates `MiniPlate.png` (six 80×168 colors: kyu / 初–五段 / 六–十段 / 玄人–超人 / 達人 = gold / 外伝): top-left (190 + danIndex×68 − 8, 26).
   **Empty slots also show the name, with color ×0.5** (the original's 五級–一級 and 玄人–外伝 are exactly half brightness). Names in black 39 px; first character centered 88.5 px below the plate top, 40.5 px per character (11/8 remeasured: たけらい 「文字が下すぎ」; before 36 px / 100 / 37 was 11 px too low)
@@ -492,7 +494,7 @@ Positions found by template-matching the images onto frames 34 s (初段) and 50
 - Mini plates always show the slot's standard name (五級…外伝, `DanSelectAStyle.SlotName`), not the dan.json title (11/7: 2026段位道場's 玄人/名人 titles start with 「2026段位道場」)
 - No control hints and no category name at the bottom of dan select (たけらい, 11/7)
 
-#### Dan play drawn with A-Style images (11/1; `Scenes/DanPanelAStyle.cs` and others)
+#### Dan play drawn with A-Style images (11/1; `Scenes/Dan/DanPanelAStyle.cs` and others)
 Measured by overlaying images on frames of the 九段 video (03-04-03 at 20 s, 250 s, 164 s, 311 s). Rows are 159 px apart
 - Lower-half background `ConditionPanel/Background.png` (0,540); row background `Base.png` (with tab) (123, 579); label text center (305, 598)
 - `Context.png` (220×65: coin / 1st / 2nd / 3rd) (135, 633); 「120 未満」 right edge x478, center y664
@@ -542,7 +544,7 @@ Measured by overlaying images on frames of the 九段 video (03-04-03 at 20 s, 2
     The original uses 8 millisecond parameters + `Anime.aup2` (see `TAIKONAUTS-SPEC.md`)
   - (done 11/5) Dan result with skin images — see "Dan result drawn with skin images" below
 
-#### Dan result drawn with skin images (11/5; `Scenes/DanResultAStyle.cs`)
+#### Dan result drawn with skin images (11/5; `Scenes/Dan/DanResultAStyle.cs`)
 Measured on the 11/5 六段 video (`2026-11-05_09-32-24.mp4`, 423.9–445 s) by template-matching the `09.DanResult` images onto frames. Used when the skin has `09.DanResult/` (A-Style and Simple); otherwise `DanResultScene` code-draws as before.
 t = 0 when the result fades in (fade 0.07 s).
 - Background `Background.png` (0,0). Plate (same box as before) appears at 0.33 s over 0.2 s
@@ -666,7 +668,7 @@ Found by cross-correlating every A-Style `Sound/*.ogg` against the audio of Taik
   For that, SDF `Spread` went 8 → 12
 - Simple's song-select images were remade with the A-Style layout (digit images, ★, cards)
 
-- Song loading screen (`Scenes/SongLoading.cs`; between choosing a difficulty and play; called via `SceneManager.ToPlayWithLoading`)
+- Song loading screen (`Scenes/SongSelect/SongLoading.cs`; between choosing a difficulty and play; called via `SceneManager.ToPlayWithLoading`)
   - Measured frame by frame on the TaikøNauts video (10/29 A.mp4, 82.4–87.9 s):
     wait after deciding: **2.53 s when Don is shown** (11/8 remeasured: decide 141.53 → curtain 144.07 in `2026-11-08 00-39-05.mp4`; 10/29 video 80.27 → 83.03; the old 0.4 s was measured from a later event), 0.4 s for skins without Don → the curtain (left and right halves of `Background_Fade.png`) closes in 0.48 s (constant speed) →
     hint 0.15 s, Don and Katsu drop in from the outer top 0.3 s, plate widens over 0.28 s starting 0.02 s later → when fully wide the title appears instantly →
@@ -849,7 +851,7 @@ Order:
 - Validation: Linux source compile succeeded (0 errors, 253 existing dependency/platform warnings), and 16 record checks passed, including per-difficulty totals and cache invalidation after promotion. Windows rendering/audio and Native AOT publish still need the user's PC.
 
 ### Entry / three record profiles (Codex, 2026-11-10)
-- `Scenes/EntryScene.cs` is now the destination after boot/setup: 1-player start, then choose one of three data slots with left/right ka or arrow keys; don/Enter confirms. The list stops at its ends. Esc closes data selection, then exits from the start screen.
+- `Scenes/Entry/EntryScene.cs` is now the destination after boot/setup: 1-player start, then choose one of three data slots with left/right ka or arrow keys; don/Enter confirms. The list stops at its ends. Esc closes data selection, then exits from the start screen.
 - Reference inspected: `TaikoNauts_エントリー画面_1109.mp4` (57.03 s). At 25 s the dimmed festival background has the yellow data-selection panel and one centered red profile card with arrows. Use A-Style `01.Entry/Background.png`, `Header.png`, `CreditBar.png` (2 rows), `DataLoad_Panel.png` (2 rows), `DataLoad_Text.png` (3 rows), `PlayerData_Panel.png`, `Cursor_Left/Right.png`. Reference assets remain local; never commit them.
 - Data-panel destination (248,292,1423,490), profile-card destination (563,461,794,288); summary uses the existing selection panel at (962,503). These were composed against the video frame; game rendering is not verified. The attract/title jukebox, network communication, play-side assignment and simultaneous 2P are not implemented by this change.
 - Slot 1 keeps `Config/SongHistory.json` in place (no migration or overwrite). Slots 2/3 use `Config/PlayerData/2|3/SongHistory.json`; they are written when records/favorites/recent changes are saved. Best score, crown/rank, dan records, recent and favorites are isolated; display names currently default to プレイヤー1–3. Shared game/input settings remain shared. No play-count feature was added.
@@ -1056,3 +1058,9 @@ Order:
 - User wants to make small position adjustments personally to reduce AI/token usage. Added UI/LayoutAdjustments.cs with Japanese section labels and per-item comments for shared name-plate internals, menu plate positions, record counts/best-score offsets, Entry panels/messages/arrows/guide and Dressing previews/list, plus Free Play. COORDINATE-GUIDE.md is the Japanese purpose-to-field map and before/after examples. It explicitly says edit/save/rebuild/restart; these are C# constants/readonly values, not runtime JSON or F5 reload settings. Values use1920x1080 logical coordinates, and comments distinguish origins, centers, local plate coordinates and offsets.
 - Initial values preserve the current layout. Existing name horizontal-fit, skin PlateConfig adjustX/Y, atlas source rectangles and all animations/input/save/history/AOT rules remain. TitleArtOffset adds to both static/Aup2 title origins; missing-art blue fallback is unchanged. Records SummaryOffset/BestOffset move whole groups; per-number centers remain separately adjustable. Entry start rows/arrows and Dressing list rows use the same rectangles for draw/click; GuideOffset also moves its confirmation hitbox. No extra screen/settings controls or new dependencies. Scope is these frequently adjusted elements, not every game coordinate; song-select's explicit plateY900 and other scene-specific caller placements are documented and retained.
 - Reviewed diffs against master d80703b26c05c56810c6a17a2fe0a83cc2bcaa60, including Claude's newer entry/mode/result work. Static audit resolved57Layout member references, compared30default position tuples,3record-number rows and the Entry/Dressing relative placement calculations against the former values. This is NOT compilation or a render/input test. The former .NET SDK/dependency workspace remains missing; direct SDK-download attempt timed out. No build, regression executable, Windows launch/visual/input check or Native AOT publish was performed for this refactor. Do not describe the earlier0-error builds as validation of these files.
+
+
+### Scene folders and shorter star-filter label (2026-11-12)
+- User requested the star-filter default label be simply「すべて」and related scene source files be grouped. Moved32files under Scenes/Play, SongSelect, Entry, ModeSelect, Dan, Training, Result, Dressing, Startup and Credits. Only Scene.cs, SceneManager.cs and LocalSession.cs remain at the root. SOURCE-MAP.md is the Japanese navigation guide; README links it and the existing coordinate guide. Updated explicit source paths and this file's main folder map. Shared UI/Graphics/Configs remain shared.
+- Retained filenames, types, partial-class identities, the TakeTaikoSimulator.Scenes namespace and all gameplay/data/skin/AOT behavior. Only C# text changes are the two default star-filter labels in Scenes/SongSelect/SongSelectScene.cs. Other difficulty/genre labels and actual star filters are unchanged. Existing SDK implicit inclusion and build-check's SrcDir**/*.cs already include nested files; no project edits are needed.
+- Static audit against master9095ac3: all120tracked C# files byte-identical after reversing those two label edits;32moves,104production C# sources remain included,13project/solution files unchanged, no stale moved-source path references,18SOURCE-MAP links resolve. These are static checks, not a successful build. dotnet build tools/build-check/Check.csproj --no-restore was attempted and failed because dotnet is absent (exit127). Windows launch/input/audio/rendering and Native AOT publish remain unverified. Earlier successful builds do not validate this reorganization.
