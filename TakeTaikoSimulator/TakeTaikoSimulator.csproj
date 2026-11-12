@@ -6,6 +6,7 @@
 		<RootNamespace>TakeTaikoSimulator</RootNamespace>
 		<AssemblyTitle>TakeTaikoSimulator</AssemblyTitle>
 		<Product>TakeTaikoSimulator</Product>
+		<ApplicationIcon>Assets/Branding/AppIcon.ico</ApplicationIcon>
 		<!-- exe横の既存データを引き継ぐため、ビルド出力先は旧プロジェクトと同じ場所にする -->
 		<BaseOutputPath>$(MSBuildThisFileDirectory)../TaikoSim/bin/</BaseOutputPath>
 		<TargetFramework>net10.0-windows</TargetFramework>
@@ -27,6 +28,10 @@
 		<!-- JSON のソース生成を使う(Configs/AppJsonContext.cs)。AOT に必要 -->
 		<JsonSerializerIsReflectionEnabledByDefault>false</JsonSerializerIsReflectionEnabledByDefault>
 	</PropertyGroup>
+
+	<ItemGroup>
+		<EmbeddedResource Include="Assets/Branding/AppIcon.png" LogicalName="TakeTaikoSimulator.AppIcon.png" />
+	</ItemGroup>
 
 	<ItemGroup>
 		<PackageReference Include="Raylib-cs" Version="8.1.0" />

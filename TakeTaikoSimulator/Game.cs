@@ -46,6 +46,7 @@ namespace TakeTaikoSimulator
 
             // 設定の解像度でウィンドウを作る
             Raylib.InitWindow(ConfigManager.Game.WindowWidth, ConfigManager.Game.WindowHeight, "TakeTaikoSimulator");
+            Platform.AppIcon.Apply();
 
             // Escで勝手にウィンドウが閉じないようにする(Escは「戻る」に使う)
             Raylib.SetExitKey(KeyboardKey.Null);

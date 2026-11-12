@@ -13,6 +13,7 @@
     <Nullable>enable</Nullable>
     <AllowUnsafeBlocks>true</AllowUnsafeBlocks>
     <LangVersion>latest</LangVersion>
+    <ApplicationIcon>$(MSBuildThisFileDirectory)../../TakeTaikoSimulator/Assets/Branding/AppIcon.ico</ApplicationIcon>
     <EnableDefaultCompileItems>false</EnableDefaultCompileItems>
     <NoWarn>$(NoWarn);CS1591;CS1573;CS1572;CS0618;CS8632;CA1416</NoWarn>
     <GenerateAssemblyInfo>false</GenerateAssemblyInfo>
@@ -26,6 +27,7 @@
   </PropertyGroup>
   <ItemGroup>
     <Compile Include="stub.cs" />
+    <EmbeddedResource Include="$(SrcDir)Assets/Branding/AppIcon.png" LogicalName="TakeTaikoSimulator.AppIcon.png" />
     <Compile Include="$(SrcDir)**/*.cs" Exclude="$(SrcDir)obj/**;$(SrcDir)bin/**" />
     <Compile Include="$(DepsDir)raylib/Raylib-cs/**/*.cs" Exclude="$(DepsDir)raylib/Raylib-cs/obj/**" />
     <Compile Include="$(DepsDir)bass/src/Bass/Portable/**/*.cs" Exclude="$(DepsDir)bass/src/Bass/Portable/obj/**" />
