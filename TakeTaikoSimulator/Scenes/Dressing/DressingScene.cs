@@ -175,8 +175,8 @@ public sealed class DressingScene : Scene
     {
         Gui.BeginFrame();
         Gui.ResetClip(); // 前の画面のクリック範囲を引き継がない
-        Raylib.ClearBackground(new Color(10, 17, 28, 255));
-        FontManager.Draw("着せ替え", 80, 55, 48, Color.White);
+        Raylib.ClearBackground(Gui.BackgroundColor);   // 11/12：設定と同じ色にそろえた
+        FontManager.Draw("着せ替え", 80, 55, 48, Gui.TextColor);
         for (int player = 0; player < 2; player++)
         {
             if (!LocalSession.Joined[player]) continue;
@@ -191,7 +191,8 @@ public sealed class DressingScene : Scene
             if (clicked && !asking && !readFailed && !naming)
             { category = i; SyncCursor(); }
         }
-        Raylib.DrawRectangleRounded(List, .02f, 8, new Color(21, 32, 49, 255));
+        SmoothShapes.Rectangle(List, 18, Gui.PanelColor);
+        SmoothShapes.Border(List, 18, 1.5f, Gui.BorderColor);
         if (drafts.ContainsKey(Slot))
         {
             // 描画途中で選択・スクロールを変えると、同じクリックが別の行にも当たる。
@@ -199,19 +200,25 @@ public sealed class DressingScene : Scene
             for (int i = visibleTop; i < Math.Min(Count, visibleTop + 9); i++)
             {
                 Rectangle row = new(List.X + 20, List.Y + 15 + (i - visibleTop) * 65, List.Width - 50, 59);
-                if (i == cursor) Raylib.DrawRectangleRec(row, new Color(44, 88, 132, 255));
+                // 選んでいる行：少し明るい箱＋左に朱色の印(設定の左のメニューと同じ形)
+                if (i == cursor)
+                {
+                    SmoothShapes.Rectangle(row, 10, Gui.BoxHoverColor);
+                    SmoothShapes.Rounded(new Rectangle(row.X + 6, row.Y + 14, 5, row.Height - 28), 1f, 4, Gui.AccentColor);
+                }
+                else if (!asking && !readFailed && !naming && Gui.IsMouseOver(row)) SmoothShapes.Rectangle(row, 10, Gui.BoxColor);
                 string label = Label(i);
                 float size = 30 * Math.Min(1, (row.Width - 44) / Math.Max(1, FontManager.Measure(label, 30).X));
-                FontManager.Draw(label, row.X + 22, row.Y + (row.Height - size) / 2, size, Color.White);
+                FontManager.Draw(label, row.X + 22, row.Y + (row.Height - size) / 2, size, i == cursor ? Gui.TextColor : Gui.SubTextColor);
                 if (!asking && !readFailed && !naming && Gui.Clicked(row))
                 clickedRow = i;
             }
-            if (Count == 0) FontManager.Draw("このスキンには素材がありません", List.X + 36, List.Y + 40, 28, Color.LightGray);
+            if (Count == 0) FontManager.Draw("このスキンには素材がありません", List.X + 36, List.Y + 40, 28, Gui.SubTextColor);
             if (Count > 9)
             {
-                Raylib.DrawRectangle((int)(List.X + List.Width - 15), (int)(List.Y + 15), 5, 585, new Color(45, 58, 75, 255));
+                SmoothShapes.Rounded(new Rectangle(List.X + List.Width - 15, List.Y + 15, 5, 585), 1f, 4, Gui.TrackColor);
                 float h = 585f * 9 / Count;
-                Raylib.DrawRectangle((int)(List.X + List.Width - 15), (int)(List.Y + 15) + (int)((585 - h) * top / (Count - 9)), 5, (int)h, Color.SkyBlue);
+                SmoothShapes.Rounded(new Rectangle(List.X + List.Width - 15, List.Y + 15 + (585 - h) * top / (Count - 9), 5, h), 1f, 4, Gui.AccentColor);
             }
             // 一覧を描き終えてから、一つの行だけ選択する。
             if (clickedRow >= 0)
@@ -229,17 +236,17 @@ public sealed class DressingScene : Scene
             if (category == 1)
             {
                 PuchiChara.Draw(Slot, side, "entry");
-                FontManager.Draw(puchi.Length == 0 ? "ぷちキャラの素材を追加すると選べます" : "選択したぷちキャラは適用後に反映されます", 890, 570, 28, Color.LightGray);
+                FontManager.Draw(puchi.Length == 0 ? "ぷちキャラの素材を追加すると選べます" : "選択したぷちキャラは適用後に反映されます", 890, 570, 28, Gui.SubTextColor);
             }
             if (category == 3)
             {
-                FontManager.Draw("段位は、このデータで合格したものから選べます", 890, 570, 28, Color.LightGray);
-                FontManager.Draw("金合格・色も、獲得済みの範囲で変更できます", 890, 620, 28, Color.LightGray);
-                if (rankChoices[Slot].Length == 1) FontManager.Draw("まだ合格した段位がありません", 890, 690, 28, Color.SkyBlue);
+                FontManager.Draw("段位は、このデータで合格したものから選べます", 890, 570, 28, Gui.SubTextColor);
+                FontManager.Draw("金合格・色も、獲得済みの範囲で変更できます", 890, 620, 28, Gui.SubTextColor);
+                if (rankChoices[Slot].Length == 1) FontManager.Draw("まだ合格した段位がありません", 890, 690, 28, Gui.SakuraColor);
             }
         }
         if (error.Length > 0) FontManager.Draw(error, 80, 885, 26, Color.Orange);
-        FontManager.Draw("←→：種類　↑↓・カッ：選択　Tab：プレイヤー　ドン・Enter：適用", 80, 970, 26, Color.LightGray);
+        FontManager.Draw("←→：種類　↑↓・カッ：選択　Tab：プレイヤー　ドン・Enter：適用", 80, 970, 26, Gui.SubTextColor);
         if (Gui.Button(new(1280, 900, 240, 65), "戻る") && !asking && !naming) OnBack();
         if (Gui.PrimaryButton(new(1560, 900, 240, 65), "適用") && !asking && !readFailed && !naming) Apply();
         if (appliedAge >= 0 && !asking && !naming)
@@ -248,15 +255,17 @@ public sealed class DressingScene : Scene
             float enter = Math.Clamp(appliedAge / .15f, 0, 1);
             float alpha = enter * Math.Clamp((2 - appliedAge) / .2f, 0, 1);
             Rectangle toast = new(1510, 810 + 6 * MathF.Pow(1 - enter, 3), 290, 62);
-            Raylib.DrawRectangleRounded(toast, .13f, 8, Raylib.ColorAlpha(new Color(25, 60, 91, 255), alpha));
+            SmoothShapes.Rectangle(toast, 12, Raylib.ColorAlpha(Gui.BoxHoverColor, alpha));
+            SmoothShapes.Border(toast, 12, 1.5f, Raylib.ColorAlpha(Gui.AccentColor, alpha));
             Gui.DrawCentered("適用しました", toast, 28, Raylib.ColorAlpha(Color.White, alpha));
         }
         if (naming) { nameInput.Draw(); return; }
         if (!asking) return;
         Raylib.DrawRectangle(0, 0, 1920, 1080, new Color(0, 0, 0, 190));
-        Raylib.DrawRectangleRounded(new(450, 350, 1020, 350), .025f, 8, new Color(21, 32, 49, 255));
+        SmoothShapes.Rectangle(new(450, 350, 1020, 350), 20, Gui.PanelColor);
+        SmoothShapes.Border(new(450, 350, 1020, 350), 20, 1.5f, Gui.BorderColor);
         if (Gui.Button(new(470, 365, 60, 50), "×")) asking = false;
-        FontManager.Draw("保存していない設定があります", 580, 440, 40, Color.White);
+        FontManager.Draw("保存していない設定があります", 580, 440, 40, Gui.TextColor);
         if (Gui.Button(new(530, 570, 370, 70), "保存しないで戻る")) SceneManager.Simple(new ModeSelectScene());
         if (Gui.PrimaryButton(new(1020, 570, 370, 70), "保存して戻る") && Apply()) SceneManager.Simple(new ModeSelectScene());
     }

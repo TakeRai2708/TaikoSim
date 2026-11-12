@@ -14,19 +14,64 @@ namespace TakeTaikoSimulator.UI
     public static class Gui
     {
         // ===== 色 =====
-        public static readonly Color TextColor = new Color(244, 247, 252, 255);
-        public static readonly Color SubTextColor = new Color(170, 181, 200, 255);
-        public static readonly Color BoxColor = new Color(23, 34, 53, 255);
-        public static readonly Color BoxHoverColor = new Color(34, 52, 79, 255);
-        public static readonly Color FillColor = new Color(59, 130, 246, 255);
-        public static readonly Color AccentColor = new Color(59, 130, 246, 255);
-        public static readonly Color BackgroundColor = new Color(11, 15, 20, 255);
-        public static readonly Color PanelColor = new Color(17, 24, 39, 255);
-        public static readonly Color BorderColor = new Color(37, 50, 71, 255);
-        private static readonly Color PrimaryHoverColor = new Color(84, 153, 255, 255);
-        private static readonly Color TrackHoverColor = new Color(52, 68, 96, 255);
-        private static readonly Color BubbleTextColor = new Color(17, 24, 39, 255);
-        private const float ControlRadius = 6;
+        //   11/12 たけらい「色使いをもっとプロが作ったかのように。アイコンの色に合わせて、まるまる真似じゃなく似せて」
+        //   アイコン(TakeTaiko の丸い絵)の色＝黒・深い赤・朱色・桜色・白っぽいピンク を、見やすいように落ち着かせた：
+        //     背景やパネルは、ほぼ黒に赤みを少しだけ。朱色は「選んでいる物」「決定」だけ。桜色は見出しと光だけ
+        //   前は 紺の背景＋青のアクセントだった
+        public static readonly Color TextColor = new Color(252, 238, 242, 255);       // 文字
+        public static readonly Color SubTextColor = new Color(191, 165, 174, 255);    // うすい文字
+        public static readonly Color MutedTextColor = new Color(125, 103, 112, 255);  // もっとうすい文字(補足)
+        public static readonly Color BoxColor = new Color(38, 23, 29, 255);           // 箱
+        public static readonly Color BoxHoverColor = new Color(51, 32, 42, 255);      // マウスを乗せた箱
+        public static readonly Color FillColor = new Color(226, 58, 94, 255);         // スライダーの塗り
+        public static readonly Color AccentColor = new Color(226, 58, 94, 255);       // 朱色(選んでいる物・決定)
+        public static readonly Color AccentDeepColor = new Color(163, 4, 27, 255);    // 押したとき
+        public static readonly Color SakuraColor = new Color(249, 188, 206, 255);     // 桜色(見出し・光)
+        public static readonly Color BackgroundColor = new Color(18, 10, 13, 255);    // 背景
+        public static readonly Color PanelColor = new Color(27, 16, 20, 255);         // パネル
+        public static readonly Color BorderColor = new Color(67, 42, 53, 255);        // 線
+        public static readonly Color TrackColor = new Color(74, 50, 60, 255);         // スイッチ・スライダーの溝
+        private static readonly Color PrimaryHoverColor = new Color(240, 96, 127, 255);
+        private static readonly Color TrackHoverColor = new Color(92, 62, 74, 255);
+        private static readonly Color BubbleTextColor = new Color(27, 16, 20, 255);
+        private const float ControlRadius = 10;
+
+        // ===== 光(glow) =====
+        //   11/12 たけらい「いい感じに glow つけて。ボタンに合わせたら輪郭が光るとか」
+        //   マウスを乗せたボタン・さわっているスライダーのつまみ・開いているプルダウンだけ、まわりが朱色にぼんやり光る。
+        //   強さは GlowStrength の数字1つで変えられる(0 で光らない。0.6 がひかえめ、1 がふつう、1.6 がつよめ)
+        public const float GlowStrength = 1.0f;
+        private const int GlowLayers = 6;
+        private const float GlowSpread = 14f;   // 光が広がる幅(px)
+
+        // area のまわりに、うすい色を少しずつ大きく重ねて、ぼんやりした光にする(amount：0〜1。部品を描く前に呼ぶ)
+        public static void Glow(Rectangle area, float radius, Color color, float amount)
+        {
+            float a = amount * GlowStrength;
+            if (a <= 0.01f) return;
+            for (int i = GlowLayers; i >= 1; i--)
+            {
+                float e = GlowSpread * i / GlowLayers;
+                Rectangle r = new Rectangle(area.X - e, area.Y - e, area.Width + e * 2, area.Height + e * 2);
+                SmoothShapes.Rectangle(r, radius + e, WithAlpha(color, 0.075f * a));
+            }
+        }
+
+        // 丸のまわりの光(スライダーのつまみ)
+        public static void GlowCircle(Vector2 center, float radius, Color color, float amount)
+        {
+            float a = amount * GlowStrength;
+            if (a <= 0.01f) return;
+            for (int i = GlowLayers; i >= 1; i--)
+                SmoothShapes.Circle(center, radius + GlowSpread * 0.8f * i / GlowLayers, WithAlpha(color, 0.085f * a));
+        }
+
+        // 押している間、ほんの少し(2%)小さくする
+        private static Rectangle Pressed(Rectangle area, float press)
+        {
+            float k = 0.02f * press;
+            return new Rectangle(area.X + area.Width * k / 2f, area.Y + area.Height * k / 2f, area.Width * (1f - k), area.Height * (1f - k));
+        }
 
         // ===== 動き(じわっと変わる値) =====
         // 部品ごとに「今の値」を覚えておいて、毎フレーム目標の値に近づける
@@ -207,18 +252,26 @@ namespace TakeTaikoSimulator.UI
         {
             bool hover = !blocked && IsMouseOver(area);
             float h = HoverAnim("btn", area, text, hover);
-            SmoothShapes.Rectangle(area, ControlRadius, Lerp(BoxColor, BoxHoverColor, h));
-            DrawCentered(text, area, 26, TextColor);
+            float press = HoverAnim("btnp", area, text, hover && mouseDown);
+            Rectangle body = Pressed(area, press);
+            Glow(body, ControlRadius, AccentColor, h * 0.7f);
+            SmoothShapes.Rectangle(body, ControlRadius, Lerp(BoxColor, BoxHoverColor, h));
+            SmoothShapes.Border(body, ControlRadius, 1.5f, Lerp(BorderColor, AccentColor, h));
+            DrawCentered(text, body, 26, TextColor);
             return Clicked(area);
         }
 
-        // 決定・適用など、主な操作の青いボタン
+        // 決定・適用など、主な操作の朱色のボタン
         public static bool PrimaryButton(Rectangle area, string text)
         {
             bool hover = !blocked && IsMouseOver(area);
             float h = HoverAnim("pbtn", area, text, hover);
-            SmoothShapes.Rectangle(area, ControlRadius, Lerp(AccentColor, PrimaryHoverColor, h));
-            DrawCentered(text, area, 26, Color.White);
+            float press = HoverAnim("pbtnp", area, text, hover && mouseDown);
+            Rectangle body = Pressed(area, press);
+            Glow(body, ControlRadius, AccentColor, h);
+            SmoothShapes.Rectangle(body, ControlRadius, Lerp(Lerp(AccentColor, PrimaryHoverColor, h), AccentDeepColor, press));
+            SmoothShapes.Border(body, ControlRadius, 1.5f, WithAlpha(SakuraColor, h));
+            DrawCentered(text, body, 26, Color.White);
             return Clicked(area);
         }
 
@@ -232,7 +285,8 @@ namespace TakeTaikoSimulator.UI
             Rectangle track = new Rectangle(area.X + area.Width - 70, area.Y + (area.Height - 34) / 2f, 66, 34);
             float on = Approach($"chk:{text}", value ? 1f : 0f, 22f);
             float h = HoverAnim("chk", area, text, hover);
-            Color off = Lerp(BoxColor, BoxHoverColor, h);
+            Color off = Lerp(TrackColor, TrackHoverColor, h);
+            Glow(track, 17f, AccentColor, h * on * 0.6f);
             SmoothShapes.Rounded(track, 1f, 16, Lerp(off, AccentColor, on));
             Vector2 knob = new Vector2(track.X + 18 + 30 * on, track.Y + 17);
             SmoothShapes.Circle(knob + new Vector2(0, 1.5f), 13.5f, new Color(0, 0, 0, 70)); // うすい影
@@ -294,20 +348,21 @@ namespace TakeTaikoSimulator.UI
             // ----- 細いバー(6px) -----
             float cy = bar.Y + bar.Height / 2f;
             float h = Approach($"sl:h:{id}", barHover || dragging ? 1f : 0f, 18f);
-            SmoothShapes.Rounded(new Rectangle(bar.X, cy - 3, bar.Width, 6), 1f, 8, Lerp(BorderColor, TrackHoverColor, h));
+            SmoothShapes.Rounded(new Rectangle(bar.X, cy - 3, bar.Width, 6), 1f, 8, Lerp(TrackColor, TrackHoverColor, h));
             if (zeroRatio > 0f) // 0 の場所に小さい目印
                 SmoothShapes.Rounded(new Rectangle(bar.X + bar.Width * zeroRatio - 1, cy - 8, 2, 16), 1f, 4, WithAlpha(SubTextColor, 0.6f));
             float fillWidth = bar.Width * (fillTo - fillFrom);
             if (fillWidth > 0.5f)
                 SmoothShapes.Rounded(new Rectangle(bar.X + bar.Width * fillFrom, cy - 3, fillWidth, 6), 1f, 8, FillColor);
 
-            // ----- つまみ(白い丸)。さわると大きく、選択中・ドラッグ中は細い青枠 -----
+            // ----- つまみ(白い丸に朱色の点)。さわると大きく、まわりが朱色に光る -----
             Vector2 knob = new Vector2(bar.X + bar.Width * shown, cy);
             float radius = Approach($"sl:r:{id}", dragging ? 13f : barHover ? 12f : 10f, 20f);
             float glow = Approach($"sl:g:{id}", dragging || focused ? 1f : 0f, 16f);
-            if (glow > 0.01f) SmoothShapes.Ring(knob, radius + 3, radius + 5, WithAlpha(AccentColor, 0.5f * glow));
+            GlowCircle(knob, radius, AccentColor, Math.Max(glow, h));
             SmoothShapes.Circle(knob + new Vector2(0, 2f), radius + 1.5f, new Color(0, 0, 0, 90)); // うすい影
             SmoothShapes.Circle(knob, radius, Color.White);
+            SmoothShapes.Circle(knob, radius * 0.42f, AccentColor);
 
             // ----- 数字の吹き出し(さわっている間だけ、少し下からふわっと出る) -----
             float bubble = Approach($"sl:b:{id}", dragging || barHover ? 1f : 0f, 18f);
@@ -398,7 +453,8 @@ namespace TakeTaikoSimulator.UI
             // 数字の箱は角を丸くして、細いふち
             bool boxHover = !blocked && IsMouseOver(box);
             float bhov = HoverAnim("slbox", box, id, boxHover);
-            SmoothShapes.Rectangle(box, ControlRadius, editing ? new Color(18, 22, 36, 255) : Lerp(BoxColor, BoxHoverColor, bhov));
+            if (editing) Glow(box, ControlRadius, AccentColor, 0.7f);
+            SmoothShapes.Rectangle(box, ControlRadius, editing ? BackgroundColor : Lerp(BoxColor, BoxHoverColor, bhov));
             SmoothShapes.Border(box, ControlRadius, editing ? 2f : 1f, editing ? AccentColor : BorderColor);
 
             if (editing)
@@ -406,10 +462,10 @@ namespace TakeTaikoSimulator.UI
 
                 if (editSelectAll)
                 {
-                    // 全選択中：文字の後ろを青くハイライト
+                    // 全選択中：文字の後ろを朱色でハイライト
                     Vector2 size = FontManager.Measure(editText, 26);
                     Rectangle highlight = new Rectangle(box.X + (box.Width - size.X) / 2f - 3, box.Y + (box.Height - size.Y) / 2f, size.X + 6, size.Y);
-                    Raylib.DrawRectangleRec(highlight, new Color(50, 100, 200, 255));
+                    SmoothShapes.Rectangle(highlight, 4f, AccentDeepColor);
                     DrawCentered(editText, box, 26, TextColor);
                 }
                 else
@@ -438,12 +494,18 @@ namespace TakeTaikoSimulator.UI
             bool open = popupId == id;
             bool hover = !blocked && IsMouseOver(area);
             float h = HoverAnim("dd", area, id, hover || open);
+            float openGlow = Approach($"dd:o:{id}", open ? 1f : 0f, 16f);
+            Glow(area, ControlRadius, AccentColor, openGlow * 0.7f);
             SmoothShapes.Rectangle(area, ControlRadius, Lerp(BoxColor, BoxHoverColor, h));
+            SmoothShapes.Border(area, ControlRadius, 1.5f, Lerp(BorderColor, AccentColor, openGlow));
 
             string text = (selected >= 0 && selected < options.Length) ? options[selected] : "-";
             FontManager.Draw(FitDropdownText(text, area.Width - 58), area.X + 16,
                 area.Y + (area.Height - FontManager.Measure(text, 26).Y) / 2f, 26, TextColor);
-            FontManager.Draw("▼", area.X + area.Width - 32, area.Y + (area.Height - 20) / 2f, 20, SubTextColor);
+            // 下向きの「く」の字(線で描く。字の「▼」より細くてきれい)
+            Vector2 chevron = new Vector2(area.X + area.Width - 28, area.Y + area.Height / 2f + 3);
+            SmoothShapes.Line(chevron + new Vector2(-8, -8), chevron, 2.5f, SubTextColor);
+            SmoothShapes.Line(chevron + new Vector2(8, -8), chevron, 2.5f, SubTextColor);
 
             if (options.Length > 0 && Clicked(area))
             {
@@ -473,8 +535,11 @@ namespace TakeTaikoSimulator.UI
                 list.Y = popupAnchor.Y - list.Height;
             }
 
-            Raylib.DrawRectangleRec(list, new Color(14, 17, 27, 250));
-            Raylib.DrawRectangleLinesEx(list, 1, new Color(90, 100, 130, 255));
+            // 一覧の箱(角を丸く、なめらかに。前はカクカクの四角だった)
+            list.Y += list.Y >= popupAnchor.Y ? 6 : -6;
+            SmoothShapes.Rectangle(new Rectangle(list.X, list.Y + 4, list.Width, list.Height), ControlRadius, new Color(0, 0, 0, 90));   // 影
+            SmoothShapes.Rectangle(list, ControlRadius, new Color(33, 20, 26, 255));
+            SmoothShapes.Border(list, ControlRadius, 1.5f, BorderColor);
 
             if (Raylib.CheckCollisionPointRec(mouse, list))
                 popupFirst = Math.Clamp(popupFirst - Math.Sign(Raylib.GetMouseWheelMove()), 0, Math.Max(0, popupOptions.Length - popupRows));
@@ -484,11 +549,12 @@ namespace TakeTaikoSimulator.UI
                 Rectangle item = new Rectangle(list.X, list.Y + row * itemHeight, list.Width, itemHeight);
                 bool hover = Raylib.CheckCollisionPointRec(mouse, item);
 
-                if (i == popupSelected) Raylib.DrawRectangleRec(item, new Color(40, 70, 140, 255));
-                else if (hover) Raylib.DrawRectangleRec(item, BoxHoverColor);
+                Rectangle pill = new Rectangle(item.X + 5, item.Y + 3, item.Width - 10, item.Height - 6);
+                if (i == popupSelected || hover) SmoothShapes.Rectangle(pill, 7f, i == popupSelected ? BoxHoverColor : BoxColor);
+                if (i == popupSelected) SmoothShapes.Rounded(new Rectangle(pill.X, pill.Y + 8, 4, pill.Height - 16), 1f, 4, AccentColor);
 
                 FontManager.Draw(FitDropdownText(popupOptions[i], item.Width - 32), item.X + 16,
-                    item.Y + (item.Height - FontManager.Measure(popupOptions[i], 26).Y) / 2f, 26, TextColor);
+                    item.Y + (item.Height - FontManager.Measure(popupOptions[i], 26).Y) / 2f, 26, i == popupSelected || hover ? TextColor : SubTextColor);
 
                 if (hover && mousePressed && !popupJustOpened)
                 {
@@ -501,8 +567,7 @@ namespace TakeTaikoSimulator.UI
             if (popupOptions.Length > popupRows)
             {
                 float thumb = list.Height * popupRows / popupOptions.Length;
-                Raylib.DrawRectangleRec(new(list.X + list.Width - 6, list.Y, 6, list.Height), BoxColor);
-                Raylib.DrawRectangleRec(new(list.X + list.Width - 6, list.Y + (list.Height - thumb) * popupFirst / (popupOptions.Length - popupRows), 6, thumb), AccentColor);
+                SmoothShapes.Rounded(new(list.X + list.Width - 7, list.Y + 6 + (list.Height - 12 - thumb) * popupFirst / (popupOptions.Length - popupRows), 4, Math.Max(12, thumb)), 1f, 4, AccentColor);
             }
 
             // 一覧の外をクリックしたら閉じる(開いた瞬間のクリックは無視)

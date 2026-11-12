@@ -1868,17 +1868,21 @@ namespace TakeTaikoSimulator.Scenes
         {
             Gui.ResetClip();
             Raylib.DrawRectangle(0, 0, 1920, 1080, new Color(0, 0, 0, 170));
-            SmoothShapes.Rectangle(new(360, 210, 1200, 610), 6, new Color(16, 24, 39, 255));
-            FontManager.Draw("曲を検索", 410, 250, 36, Color.White);
+            // 11/12：設定と同じ色と形にそろえた(パネル・細いふち・桜色の小見出し)
+            Rectangle searchPanel = new(360, 210, 1200, 610);
+            SmoothShapes.Rectangle(searchPanel, 20, Gui.PanelColor);
+            SmoothShapes.Border(searchPanel, 20, 1.5f, Gui.BorderColor);
+            FontManager.Draw("曲を検索", 410, 250, 36, Gui.TextColor);
             if (Gui.Button(new(1460, 238, 50, 50), "×")) { OnBack(); return; }
-            SmoothShapes.Rectangle(SearchBox, 6, new Color(25, 38, 58, 255));
-            SmoothShapes.Border(SearchBox, 6, 1, Gui.AccentColor);
+            Gui.Glow(SearchBox, 10, Gui.AccentColor, 0.6f);
+            SmoothShapes.Rectangle(SearchBox, 10, Gui.BackgroundColor);
+            SmoothShapes.Border(SearchBox, 10, 1.5f, Gui.AccentColor);
             string composition = WindowsIme.CompositionText;
             Screen.BeginScissorMode((int)SearchBox.X + 12, (int)SearchBox.Y + 4, (int)SearchBox.Width - 24, (int)SearchBox.Height - 8);
             float width = Measure(searchText + composition, SearchFontSize).X;
             float x = SearchTextX - Math.Max(0, width - SearchBox.Width + 60);
             if (searchText.Length == 0 && composition.Length == 0)
-                FontManager.Draw("曲名・アーティスト・フォルダ名", x, SearchTextY, 28, Gui.SubTextColor);
+                FontManager.Draw("曲名・アーティスト・フォルダ名", x, SearchTextY, 28, Gui.MutedTextColor);
             Text(searchText, x, SearchTextY, SearchFontSize, Color.White);
             float endX = x + Measure(searchText, SearchFontSize).X;
             if (composition.Length > 0)
@@ -1889,9 +1893,9 @@ namespace TakeTaikoSimulator.Scenes
             }
             if ((caretTimer % 1f) < .5f) Text("|", endX, SearchTextY, SearchFontSize, Color.White);
             Screen.EndScissorMode();
-            FontManager.Draw("難易度", 410, 435, 24, Gui.SubTextColor);
-            FontManager.Draw("★", 785, 435, 24, Gui.SubTextColor);
-            FontManager.Draw("ジャンル", 1160, 435, 24, Gui.SubTextColor);
+            FontManager.Draw("難易度", 410, 435, 24, Gui.SakuraColor);
+            FontManager.Draw("★", 785, 435, 24, Gui.SakuraColor);
+            FontManager.Draw("ジャンル", 1160, 435, 24, Gui.SakuraColor);
             int course = Gui.Dropdown("search/course", new(410, 475, 350, 56), SearchCourses, searchCourse == null ? 0 : (int)searchCourse + 1, 8);
             searchCourse = course == 0 ? null : (CourseType)(course - 1);
             int star = Gui.Dropdown("search/stars", new(785, 475, 350, 56), searchLevelLabels,
@@ -1901,7 +1905,7 @@ namespace TakeTaikoSimulator.Scenes
                 searchGenre == null ? 0 : Math.Max(0, Array.IndexOf(searchGenres, searchGenre)), 8);
             searchGenre = genre == 0 ? null : searchGenres[genre];
             int count = SearchResults().Count;
-            FontManager.Draw($"一致する曲：{count}曲", 410, 600, 28, count == 0 ? Gui.SubTextColor : Color.White);
+            FontManager.Draw($"一致する曲：{count}曲", 410, 600, 28, count == 0 ? Gui.SubTextColor : Gui.TextColor);
             FontManager.Draw("指定しない項目は「すべて」のままで検索できます", 410, 650, 24, Gui.SubTextColor);
             if (Gui.Button(new(410, 725, 200, 56), "条件をクリア"))
             { searchText = ""; searchCourse = null; searchStars = null; searchGenre = null; }

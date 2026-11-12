@@ -39,8 +39,8 @@ namespace TakeTaikoSimulator.Scenes
         // メッセージの色
         private static readonly Color SuccessColor = new Color(110, 220, 130, 255);
         private static readonly Color ErrorColor = new Color(255, 110, 100, 255);
-        private static readonly Color NeutralColor = new Color(200, 205, 215, 255);
-        private static readonly Color PendingColor = new Color(110, 115, 130, 255);
+        private static readonly Color NeutralColor = new Color(205, 190, 196, 255);
+        private static readonly Color PendingColor = new Color(125, 103, 112, 255);
 
         private Step step = Step.Welcome;
 
@@ -562,7 +562,7 @@ namespace TakeTaikoSimulator.Scenes
             else
             {
                 // 押せない状態(灰色)
-                Raylib.DrawRectangleRec(nextRect, new Color(40, 42, 50, 255));
+                SmoothShapes.Rectangle(nextRect, 10, Gui.TrackColor);
                 Gui.DrawCentered(nextText, nextRect, 26, PendingColor);
             }
         }

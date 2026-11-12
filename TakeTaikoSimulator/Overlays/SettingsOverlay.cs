@@ -130,7 +130,7 @@ namespace TakeTaikoSimulator.Overlays
         // メッセージの色
         private static readonly Color SuccessColor = new Color(110, 220, 130, 255);
         private static readonly Color ErrorColor = new Color(255, 110, 100, 255);
-        private static readonly Color NeutralColor = new Color(200, 205, 215, 255);
+        private static readonly Color NeutralColor = new Color(205, 190, 196, 255);
 
         // キー入力待ち中か(Game がスクショキーを無視するのに使う)
         public bool IsWaitingKey => waitingTarget != null;
@@ -893,7 +893,7 @@ namespace TakeTaikoSimulator.Overlays
 
             float previewY = ToScreenY(cursorY);
             Rectangle previewBox = new Rectangle(LabelX, previewY, RightEdge - LabelX, 110);
-            SmoothShapes.Rounded(previewBox, 0.12f, 8, new Color(12, 13, 17, 255));
+            SmoothShapes.Rounded(previewBox, 0.12f, 8, Gui.BackgroundColor);
             if (!skinPreview.Draw(previewBox))
                 Gui.DrawCentered("画像を読み込めませんでした", previewBox, 22, ErrorColor);
             cursorY += 122;
@@ -1072,7 +1072,8 @@ namespace TakeTaikoSimulator.Overlays
         // 小見出し(「叩くキー」とか)
         private void SubHeader(string text)
         {
-            FontManager.Draw(text, SectionX + 10, ToScreenY(cursorY), 28, Gui.SubTextColor);
+            // 小見出しは桜色(11/12。どこからどこまでが同じ仲間か、ひと目で分かるように)
+            FontManager.Draw(text, SectionX + 10, ToScreenY(cursorY), 28, Gui.SakuraColor);
             cursorY += 44;
         }
 
@@ -1178,8 +1179,9 @@ namespace TakeTaikoSimulator.Overlays
         // キー入力待ちの箱(点滅)
         private void DrawWaitingBox(Rectangle area, string text)
         {
-            SmoothShapes.Rounded(area, 0.18f, 8, Gui.BoxColor);
-            Raylib.DrawRectangleLinesEx(area, 2, Gui.AccentColor);
+            Gui.Glow(area, 10, Gui.AccentColor, 0.8f);
+            SmoothShapes.Rectangle(area, 10, Gui.BoxColor);
+            SmoothShapes.Border(area, 10, 2, Gui.AccentColor);
 
             if ((blinkTimer % 1f) < 0.7f)
             {
@@ -1243,8 +1245,8 @@ namespace TakeTaikoSimulator.Overlays
         {
             Raylib.DrawRectangle(0, 0, Screen.Width, Screen.Height, new Color(0, 0, 0, 175));
             Rectangle box = new Rectangle(530, 360, 860, 330);
-            SmoothShapes.Rounded(box, 0.025f, 8, Gui.PanelColor);
-            Raylib.DrawRectangleLinesEx(box, 1, Gui.BorderColor);
+            SmoothShapes.Rectangle(box, 20, Gui.PanelColor);
+            SmoothShapes.Border(box, 20, 1.5f, Gui.BorderColor);
 
             Rectangle close = new Rectangle(box.X + 20, box.Y + 18, 50, 48);
             if (Gui.Button(close, "×")) unsavedOpen = false;
@@ -1269,8 +1271,8 @@ namespace TakeTaikoSimulator.Overlays
             Raylib.DrawRectangle(0, 0, Screen.Width, Screen.Height, new Color(0, 0, 0, 160));
 
             Rectangle box = new Rectangle(560, 340, 800, 400);
-            SmoothShapes.Rounded(box, 0.025f, 8, Gui.PanelColor);
-            Raylib.DrawRectangleLinesEx(box, 1, Gui.BorderColor);
+            SmoothShapes.Rectangle(box, 20, Gui.PanelColor);
+            SmoothShapes.Border(box, 20, 1.5f, Gui.BorderColor);
 
             string names = string.Join("・", confirmEmptyParts.Select(KeyConfig.GetDrumPartName));
             FontManager.Draw("！ キーが設定されていない場所があります", box.X + 40, box.Y + 40, 34, ErrorColor);
@@ -1533,8 +1535,8 @@ namespace TakeTaikoSimulator.Overlays
                 if (h > 0.01f) SmoothShapes.Rounded(area, 0.12f, 8, Gui.WithAlpha(Gui.BoxColor, h));
             }
             Rectangle band = new Rectangle(target.X, indicatorY, target.Width, target.Height);
-            SmoothShapes.Rounded(band, 0.12f, 8, new Color(24, 42, 67, 255));
-            Raylib.DrawRectangle((int)band.X, (int)(band.Y + 10), 3, (int)band.Height - 20, Gui.AccentColor);
+            SmoothShapes.Rounded(band, 0.12f, 8, Gui.BoxHoverColor);
+            SmoothShapes.Rounded(new Rectangle(band.X + 4, band.Y + 12, 5, band.Height - 24), 1f, 4, Gui.AccentColor);
 
             for (int i = 0; i < categories.Length; i++)
             {

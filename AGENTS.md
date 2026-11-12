@@ -1092,3 +1092,14 @@ Order:
 ### Close-to-close skip from an initial close item (2026-11-12)
 - User added a starting-position exception: a skip started while the cursor is on「とじる」should land on the next「とじる」in that direction. Capture CurrentPos/Kind.Back BEFORE the first ordinary one-step move. On the second same-side tap, use that original position to search for the next Back item, bounded by one full list traversal, wrap included. A single Back item can wrap to itself. Exactly one skip sound on landing; existing0.5s lock remains.
 - Starting from a song retains the prior seven counted-item skip excluding Back/Label. First-side input ownership,250ms double-tap condition, modal/input resets and all BarList animation code remain unchanged. README adds explicit native navigation cases. Static source/diff review only; SDK is still absent, so build, gesture executable, actual close-to-close UI/input/audio and Windows/AOT verification are unexecuted.
+
+## Own UI look (11/12, たけらい approved the mock)
+- Palette follows the mascot icon, toned down for legibility (Gui.cs): near-black with a wine tint for background/panels,
+  crimson `AccentColor` (226,58,94) only for the selected thing and primary buttons, `SakuraColor` for sub-headers and highlights.
+  Do not bring back the navy/blue palette. Use the Gui colour constants instead of hard-coded colours in own screens.
+- Glow: `Gui.Glow` / `Gui.GlowCircle` on hovered buttons, the active slider knob, open dropdowns, focused inputs. One knob: `Gui.GlowStrength`.
+- Every rounded shape in own UI goes through `SmoothShapes` (anti-aliased). No `DrawRectangleRounded` / `DrawRectangleLinesEx` for visible boxes.
+- The setting 「?」 help tips stay. Dressing stays a separate screen with the same look. Song search uses the same panel style.
+- Loading screen: the round logo (`Assets/Branding/Logo.png`, embedded) centred with a subtle pulsing glow; % and bar below it.
+- A Linux raylib binary download for `tools/ui-aa-check` was blocked by the safety classifier, so none of this was rendered here.
+

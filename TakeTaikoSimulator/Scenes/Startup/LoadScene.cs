@@ -35,14 +35,63 @@ namespace TakeTaikoSimulator.Scenes
         private const float Left = 160;
         private const float Right = 1760;
 
-        private static readonly Color BackColor = new Color(20, 22, 32, 255);
-        private static readonly Color SubColor = new Color(150, 156, 175, 255);
-        private static readonly Color BarColor = new Color(255, 200, 60, 255);
+        private static readonly Color BackColor = UI.Gui.BackgroundColor;
+        private static readonly Color SubColor = UI.Gui.SubTextColor;
+        private static readonly Color BarColor = UI.Gui.AccentColor;
+
+        // ===== まんなかのロゴ(11/12) =====
+        //   たけらい「TakeTaikoSimulator の字になってるけど、これ(丸いアイコン)を真ん中において、周りを控えめなグローに」
+        //   絵は Assets/Branding/Logo.png(640×640。exe に埋め込み。スキンを読む前でも出せる)。画面には 400×400 で出す。
+        //   光：絵のうしろに、朱色のうすい丸を少しずつ大きく重ねる。4秒かけて、ゆっくり明るくなったり暗くなったりする(±15%)
+        private const float LogoSize = 400f, LogoCenterY = 370f;
+        private const float LogoGlowSpread = 70f, LogoGlowAlpha = 0.045f;
+        private const int LogoGlowLayers = 10;
+        private static Texture2D logo;
+        private static bool logoTried;
+        private static float logoClock;
+
+        private static void DrawLogo(float cx)
+        {
+            if (!logoTried)
+            {
+                logoTried = true;
+                using Stream? stream = typeof(LoadingScene).Assembly.GetManifestResourceStream("TakeTaikoSimulator.Logo.png");
+                if (stream != null)
+                {
+                    using MemoryStream bytes = new();
+                    stream.CopyTo(bytes);
+                    Image image = Raylib.LoadImageFromMemory(".png", bytes.ToArray());
+                    if (image.Width > 0)
+                    {
+                        logo = Raylib.LoadTextureFromImage(image);
+                        Raylib.GenTextureMipmaps(ref logo);
+                        Raylib.SetTextureFilter(logo, TextureFilter.Trilinear);
+                        Raylib.UnloadImage(image);
+                    }
+                }
+            }
+            if (logo.Id == 0)
+            {
+                // 絵が読めなかったときは、前と同じ字
+                Vector2 name = FontManager.Measure("TakeTaikoSimulator", 80);
+                FontManager.Draw("TakeTaikoSimulator", cx - name.X / 2f, 330, 80, Color.White);
+                return;
+            }
+
+            logoClock += Raylib.GetFrameTime();
+            float pulse = 1f + 0.15f * MathF.Sin(logoClock * MathF.PI * 2f / 4f);
+            Vector2 center = new Vector2(cx, LogoCenterY);
+            for (int i = LogoGlowLayers; i >= 1; i--)
+                SmoothShapes.Circle(center, LogoSize * 0.46f + LogoGlowSpread * i / LogoGlowLayers,
+                    UI.Gui.WithAlpha(UI.Gui.AccentColor, LogoGlowAlpha * pulse));
+            Raylib.DrawTexturePro(logo, new Rectangle(0, 0, logo.Width, logo.Height),
+                new Rectangle(cx - LogoSize / 2f, LogoCenterY - LogoSize / 2f, LogoSize, LogoSize), Vector2.Zero, 0f, Color.White);
+        }
         private static readonly Color ErrorColor = new Color(255, 110, 100, 255);
 
         // ===== 見た目（Motion Prompt #089 ローディング画面。11/10） =====
         // Motion Prompt #089 · MIT License (c) 2026 Shohei Ohtaki · https://showheyohtaki.github.io/motion-prompt/#089
-        //   暗い画面のまんなかに、ロゴ・大きな % ・細いバー。読み終わったら、画面ごと上へ抜けて（0.55秒・easeInOutCubic）、
+        //   暗い画面のまんなかに、ロゴ(11/12 から丸いアイコンの絵)・% ・細いバー。読み終わったら、画面ごと上へ抜けて（0.55秒・easeInOutCubic）、
         //   下から次の画面が明るくなって出てくる（0.6秒）。
         //   #089 は % が決まった時間で 0→100 に進むけど、TakeTaikoSimulator は本当の進み具合（スキン半分・曲半分）を、なめらかに追いかけて出す。
         //   スキン・曲の細かい進み具合は、前と同じ内容を小さい字で下に残す（cdc7b38 の進捗バー）
@@ -73,19 +122,23 @@ namespace TakeTaikoSimulator.Scenes
         {
             Raylib.DrawRectangle(0, 0, Screen.Width, Screen.Height, BackColor);
             float cx = Screen.Width / 2f;
-            Vector2 logo = FontManager.Measure("TakeTaikoSimulator", 80);
-            FontManager.Draw("TakeTaikoSimulator", cx - logo.X / 2f, 330, 80, Color.White);
+            DrawLogo(cx);
+            // ロゴの下に、% と細いバー(ロゴが主役なので、% は前より小さく)
             string percent = $"{(int)MathF.Round(progress * 100f)}%";
-            Vector2 p = FontManager.Measure(percent, 96);
-            FontManager.Draw(percent, cx - p.X / 2f, 470, 96, Color.White);
-            Rectangle bar = new(cx - BarWidth / 2f, 610, BarWidth, BarHeight);
-            Raylib.DrawRectangleRounded(bar, 1f, 8, new Color(255, 255, 255, 38));   // #089：白 15%
+            Vector2 p = FontManager.Measure(percent, 44);
+            FontManager.Draw(percent, cx - p.X / 2f, 630, 44, UI.Gui.TextColor);
+            Rectangle bar = new(cx - BarWidth / 2f, 700, BarWidth, BarHeight);
+            SmoothShapes.Rounded(bar, 1f, 8, UI.Gui.TrackColor);
             if (progress > 0f)
-                Raylib.DrawRectangleRounded(new Rectangle(bar.X, bar.Y, BarWidth * progress, BarHeight), 1f, 8, BarColor);
+            {
+                Rectangle fill = new Rectangle(bar.X, bar.Y, Math.Max(BarHeight, BarWidth * progress), BarHeight);
+                UI.Gui.Glow(fill, BarHeight / 2f, UI.Gui.AccentColor, 0.5f);
+                SmoothShapes.Rounded(fill, 1f, 8, BarColor);
+            }
             if (skinLine.Length > 0)
             {
                 Vector2 s = FontManager.Measure(skinLine, 26);
-                FontManager.Draw(skinLine, cx - s.X / 2f, 650, 26, SubColor);
+                FontManager.Draw(skinLine, cx - s.X / 2f, 740, 26, SubColor);
             }
             detail?.Invoke();
         }
@@ -194,14 +247,14 @@ namespace TakeTaikoSimulator.Scenes
                     : SongList.ScanTotal < 0 ? "曲：曲ファイルを探しています…"
                     : $"曲：{(step >= Step.Done ? SongList.ScanTotal : Math.Min(SongList.ScanDone, SongList.ScanTotal))} / {SongList.ScanTotal}";
                 Vector2 m = FontManager.Measure(songText, 26);
-                FontManager.Draw(songText, Screen.Width / 2f - m.X / 2f, 690, 26, SubColor);
+                FontManager.Draw(songText, Screen.Width / 2f - m.X / 2f, 780, 26, SubColor);
 
                 // 読めなかった曲があれば、数を出す
                 if (step >= Step.Done && SongList.ErrorCount > 0)
                 {
                     string error = $"読めなかった曲：{SongList.ErrorCount}曲（選曲画面に赤い字で出ます）";
                     Vector2 em = FontManager.Measure(error, 30);
-                    FontManager.Draw(error, Screen.Width / 2f - em.X / 2f, 760, 30, ErrorColor);
+                    FontManager.Draw(error, Screen.Width / 2f - em.X / 2f, 850, 30, ErrorColor);
                     FontManager.Draw("Enter：次へ", Left, 1000, 26, SubColor);
                 }
             });
