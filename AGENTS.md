@@ -1131,3 +1131,8 @@ Order:
 - `PlayerSettings.Migrate()` at startup copies the current shared settings into every named slot that has no file yet.
 - New data: after the name input, `PlayerJoin` shows 「はじめの設定」 (speed, hit sound, master volume) before 通信中, also when joining from mode/song select.
 - Reset: Settings → 一般 → プレイヤーデータ. Pick a slot, then 全部初期化 or 選んで初期化 (checkbox list, `PlayerDataParts`), then a confirm dialog. `PlayerDataReset.Run` + `SongHistory.ClearProfile`. If the slot is in use (or the entry screen is open) the game returns to the entry screen.
+
+
+### Discord application ID configured (2026-11-12)
+- User supplied Application ID1570361696688799856 from their Discord application. Set Platform/DiscordPresence.cs ApplicationId to that exact string, enabling the existing IPC worker when the shared DiscordPresence setting is ON. No token/client secret or new permissions are used; protocol, scene activity content, background connection logic and AOT configuration are unchanged.
+- Existing large-image key is logo; upload the desired image under that key in the application's Rich Presence assets to show it. Desktop Discord must be running and activity sharing enabled. Source diff confirms the exact ID string is the only runtime-code change. SDK/build, actual Windows IPC connection/activity display and Native AOT publish remain unverified; do not claim connected merely because the ID is configured.

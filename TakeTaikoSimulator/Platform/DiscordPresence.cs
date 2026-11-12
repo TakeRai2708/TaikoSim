@@ -25,7 +25,7 @@ namespace TakeTaikoSimulator.Platform
         /// Discord Developer Portal で作ったアプリの Application ID（数字の列）。
         /// 空のあいだは何もしない。ここに貼ってビルドし直すと動く。
         /// </summary>
-        public const string ApplicationId = "";
+        public const string ApplicationId = "1570361696688799856";
 
         // Discord の「Rich Presence → Art Assets」に上げた画像の名前
         private const string LogoAsset = "logo";
