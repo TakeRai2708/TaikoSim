@@ -332,15 +332,14 @@ public sealed class EntryScene : Scene
 
     private void DrawGuide(float alpha = 1)
     {
-        // 動画24秒の操作案内：Smallの500×124を0.75倍にして中央に置く。
+        // 操作の案内：Small（500×124）を原寸で、左上を (710, 796) に置く。
+        //   11/12 たけらい「下の操作の表示が重なってる」：Base.png に「えらぶ」「決定」の字がもう描いてあるのに、
+        //   プログラムでも同じ字を書いていた。字を書くのをやめた。
+        //   場所と大きさは 11/11 の録画（2026-11-11 23-40-44.mp4 の 30秒）で測った：白い板が 778〜1141・814〜901
+        //   ＝ Base.png の白い所（68〜431・18〜105）と同じ大きさ。前は 0.75倍で (772.5, 806) に置いていた
         if (controlGuide != null && !SkinManager.SystemSkin)
         {
-            Rlgl.PushMatrix();
-            Rlgl.Translatef(772.5f, 806, 0); Rlgl.Scalef(.75f, .75f, 1);
-            controlGuide.Draw(controlGuide.LoopedFrameAt(elapsed), alpha: alpha);
-            Centered("えらぶ", new(174, 46, 92, 40), 28, Fade(Color.Black, alpha));
-            Centered("決定", new(350, 46, 115, 40), 28, Fade(Color.Black, alpha));
-            Rlgl.PopMatrix();
+            controlGuide.Draw(controlGuide.LoopedFrameAt(elapsed), new System.Numerics.Vector2(710, 796), alpha);
         }
         else
         {

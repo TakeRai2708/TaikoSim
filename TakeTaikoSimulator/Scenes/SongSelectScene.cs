@@ -1444,7 +1444,9 @@ namespace TakeTaikoSimulator.Scenes
                 Outlined(sub, new Rectangle(inner.X + 20, inner.Y + 96, inner.Width - 40, 34), 24, Fade(song.HasError ? ErrorColor : Color.White, a), Fade(ink, a));
 
             // 下：難易度と★
-            DrawCourseChips(song, new Rectangle(inner.X, inner.Y + inner.Height - 100, inner.Width, 85), a);
+            //   11/12：札は原寸の 176×86 で、上が 572（開いた板の下 695 から 123px 上）。11/11 の録画に札の絵を重ねて合わせた。
+            //   前は 175×85 に少し縮めて 573 に置いていたので、★と数字が 1px ずれて、ぼやけていた
+            DrawCourseChips(song, new Rectangle(inner.X, inner.Y + inner.Height - 101, inner.Width, 86), a);
         }
 
         // 難易度の札(左に名前、右に★レベル)を、真ん中にそろえて並べる
@@ -1459,7 +1461,7 @@ namespace TakeTaikoSimulator.Scenes
             bool alternate = hasOni && courses.Any(c => c.Type == CourseType.Edit);
             if (alternate) courses.RemoveAll(c => c.Type == CourseType.Edit); // 裏はおにの場所に出す
 
-            const float chipWidth = 175, gap = 7;
+            const float chipWidth = 176, gap = 6;   // 札の絵と同じ大きさ。となりの札とは 182px ごと（絵の並びと同じ）
             float total = courses.Count * chipWidth + (courses.Count - 1) * gap;
             float x = area.X + (area.Width - total) / 2f;
             foreach (var (type, level) in courses)
@@ -1695,11 +1697,8 @@ namespace TakeTaikoSimulator.Scenes
             // 名前・★レベル・★の列
             string name = type == CourseType.Edit ? "裏おに" : Chart.GetCourseName(type);
             Outlined(name, new Rectangle(body.X + 6, box.Y + 198 * scale, body.Width - 12, 44 * scale), 36 * scale, Fade(Color.White, alpha), ink);
-            if (!exists)
-            {
-                Outlined("なし", new Rectangle(body.X, box.Y + 240 * scale, body.Width, 44 * scale), 32 * scale, Fade(Color.White, alpha), ink);
-                return;
-            }
+            // 無い難易度は、灰色にするだけ（11/12 たけらい「なしって書いてあるけどなくして、ただのグレーアウトに」）
+            if (!exists) return;
             Rectangle strip = new Rectangle(body.X + 8, box.Y + 280 * scale, body.Width - 16, 22 * scale);
             Raylib.DrawRectangleRounded(strip, 1f, 8, Fade(Raylib.ColorBrightness(color, -0.45f), alpha));
             DrawCardLevel(index, type, box, alpha, scale, emptyDots: true);
@@ -1780,8 +1779,8 @@ namespace TakeTaikoSimulator.Scenes
                 Color tint = has ? MenuSkin.White(alpha) : Fade(MissingCardTint, alpha);
                 MenuSkin.Part(sheet, new Rectangle(265 + 215 * (int)course, 1, 196, 354), box, tint);
                 if (has) DrawCardLevel(course, box, alpha);
-                else if (!MenuSkin.Digits(Tn + "Difficulty_Select/Difficulty_Level_Number.png", "0", box.X + CardNumberX * box.Width / 196f, box.Y + CardNumberY * box.Height / 354f, CardNumberAdvance, box.Width / 196f, tint))
-                    Outlined("なし", new Rectangle(box.X, box.Y + 236 * scale, box.Width, 48 * scale), 32 * scale, Fade(Color.White, alpha), Fade(InkColor, alpha));
+                // 無い難易度：「なし」は書かない（11/12 たけらい）。TaikøNauts と同じく、カードの★の横に暗い「0」だけ出す
+                else MenuSkin.Digits(Tn + "Difficulty_Select/Difficulty_Level_Number.png", "0", box.X + CardNumberX * box.Width / 196f, box.Y + CardNumberY * box.Height / 354f, CardNumberAdvance, box.Width / 196f, tint);
                 return true;
             }
 
@@ -1811,9 +1810,7 @@ namespace TakeTaikoSimulator.Scenes
                 Vector2 at = new(DiffHintBox.X + (DiffHintBox.Width - guide.Width) / 2f,
                     DiffHintBox.Y + (DiffHintBox.Height - guide.Height) / 2f);
                 guide.Draw(guide.LoopedFrameAt(Math.Max(0f, diffTime - PanelInStart)), at, alpha);
-                // 素材の太鼓の中心はおよそ(112,67)と(285,67)。文字はそれぞれの右へ。
-                Centered("えらぶ", new Rectangle(at.X + 174, at.Y + 46, 92, 40), 28, Fade(InkColor, alpha));
-                Centered("決定", new Rectangle(at.X + 350, at.Y + 46, 115, 40), 28, Fade(InkColor, alpha));
+                // 「えらぶ」「決定」の字は Base.png にもう描いてあるので、プログラムでは書かない（11/12。書くと重なる）
                 return;
             }
             if (MenuSkin.Whole(MenuSkin.SongFolder + "Hint.png", DiffHintBox, MenuSkin.White(alpha))) return;
