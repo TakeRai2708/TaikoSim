@@ -1040,5 +1040,13 @@ Order:
 - Positions found by overlaying the skin images on the video in 0.5 px steps: card number centre (111.5, 263), dot-row star (31 + 15n, 292),
   bar chip number centre (147.5, 43.5). Missing courses: card and digit "0" at 50 % brightness (no 「なし」 text).
 - Esc from the song list uses the same blink → flip as deciding 「とじる」 (TaikøNauts' own Esc behaviour was not recorded).
-- Not yet done from this recording: クリア失敗 text, failed result, best-score update, entry → mode select animation.
+- Best-score update (result): at RevealTime a gold ribbon replaces the 「スコア」 label (x 75–497, y 277–318) with a black pill "+gain↑";
+  rises 11 px for 0.13 s then lands by 0.20; text 「ベストスコア更新！」 0.23–0.28; yellow flash 0.32–0.47; white diagonal shine 0.50–0.78.
+  `BestScore_1P.ogg` plays together with ScoreDon. Not shown on a first play (no previous record). Drawn by code — the A-Style image name is unknown.
+  ChatGPT's dark info box on the right was removed (not in TaikøNauts).
+- クリア失敗 (play end) and the failed result matched the existing implementation (PlayEnd.cs / ResultScene.cs); nothing changed there.
+- Entry → mode select: no black fade. `ModeSelectScene(intro: true)`: selected bar + nameplate at 0.07 s, Don-chan slides in 0.33–0.53,
+  top-left guide fades in 0.47–0.62, other bars slide in from outside 0.55–0.67. The mode select also shows the Large control guide.
+  TaikøNauts has a 「どちらの太鼓でつかいますか」 step (ひだり／つかわない／みぎ) before this; TakeTaikoSimulator does not.
+- Seen but not implemented: after a result TaikøNauts returns to the genre list and flips the genre open again; other mode bars flash pale ~1.1 s after the intro.
 

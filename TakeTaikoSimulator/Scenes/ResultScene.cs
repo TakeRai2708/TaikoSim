@@ -83,7 +83,8 @@ namespace TakeTaikoSimulator.Scenes
         private PlayBackground.Aup2Clip[] clearParts = Array.Empty<PlayBackground.Aup2Clip>();
 
         private Song? bgm;
-        private SoundEffect? scoreSound, rankSound, crownSound, balloonSound, donSound;
+        private SoundEffect? scoreSound, rankSound, crownSound, balloonSound, donSound, bestSound;
+        private bool bestPlayed;
         private bool scorePlayed, rankPlayed, crownPlayed, balloonPlayed, bgmStarted;
 
         private readonly string scoreText;
@@ -121,8 +122,8 @@ namespace TakeTaikoSimulator.Scenes
             chara.Dispose();
             bgm?.Dispose();
             bgm = null;
-            foreach (SoundEffect? sound in new[] { scoreSound, rankSound, crownSound, balloonSound, donSound }) sound?.Dispose();
-            scoreSound = rankSound = crownSound = balloonSound = donSound = null;
+            foreach (SoundEffect? sound in new[] { scoreSound, rankSound, crownSound, balloonSound, donSound, bestSound }) sound?.Dispose();
+            scoreSound = rankSound = crownSound = balloonSound = donSound = bestSound = null;
         }
 
         // 背景のアニメ(aup2)と、白く光らせる画像を準備する
@@ -168,6 +169,8 @@ namespace TakeTaikoSimulator.Scenes
             SoundEffect? Load(string file) => SoundEffect.Load(Path.Combine(skin, file), out _, 1);
 
             scoreSound = Load(SoundDir + "ScoreDon.ogg");
+            // ベストスコア更新の声（11/11 の録画：スコアが出るのと同時。ScoreDon と重なって鳴る）
+            if (ShowsBestUpdate) bestSound = Load(SoundDir + "BestScore_1P.ogg");
             rankSound = Load(SoundDir + "ScoreRank.ogg");
             crownSound = Load(SoundDir + data.Result switch
             {
@@ -207,6 +210,7 @@ namespace TakeTaikoSimulator.Scenes
                 bgmStarted = true;
             }
             PlayAt(ref scorePlayed, RevealTime, scoreSound, false);
+            PlayAt(ref bestPlayed, RevealTime, bestSound, true);
             if (Rank >= 0) PlayAt(ref rankPlayed, RankTime + SoundDelay, rankSound, false);
             if (IsClear) PlayAt(ref crownPlayed, CrownTime + SoundDelay, crownSound, false);
             PlayAt(ref balloonPlayed, BalloonTime + SoundDelay, balloonSound, true);
@@ -308,18 +312,86 @@ namespace TakeTaikoSimulator.Scenes
             if (black > 0f) Raylib.DrawRectangle(0, 0, Screen.Width, Screen.Height, Raylib.ColorAlpha(Color.Black, black));
         }
 
-        // 自己ベスト更新のアニメは後日。今回は確定した記録を文字で知らせる。
+        // ===== ベストスコア更新（スコアの上の「スコア」の字の所に、金色の帯が出る） =====
+        //   11/11 の録画（2026-11-11 23-46-22.mp4。1回目 100点 → 2回目 12200点）を 1/60秒ずつ見た。スコアが出た時（RevealTime）を 0 として：
+        //     0        金色の帯が 11px 上に出る（右に黒い札「12100↑」＝前の自己ベストから増えた点）。BestScore_1P の声（ScoreDon と同時）
+        //     0.13〜0.20 帯が下りて、元の場所に止まる
+        //     0.23〜0.28 「ベストスコア更新！」の字が出る
+        //     0.32〜0.47 帯が黄色く光って、消えていく
+        //     0.50〜0.78 白い光が、左から右へななめに横切る
+        //   初めて遊んだ曲（前の記録が無い）ときは出ない（1回目のリザルトは「スコア」の字のままだった）。
+        //   帯は A-Style の画像の名前が分からないので、プログラムで描いている（色と場所は録画から測った）。
+        //   前は、右側に暗い四角を出して文字で知らせていた（チャッピーの仮の表示）。本家に無いのでやめた
+        private static readonly Rectangle BestRibbon = new Rectangle(75, 277, 422, 41);
+        private static readonly Rectangle BestPill = new Rectangle(356, 283, 138, 29);
+        private const float BestRise = 11f, BestHoldEnd = 0.13f, BestLandEnd = 0.20f;
+        private const float BestTextStart = 0.23f, BestTextEnd = 0.28f;
+        private const float BestFlashStart = 0.317f, BestFlashEnd = 0.467f;
+        private const float BestShineStart = 0.50f, BestShineEnd = 0.78f, BestShineWidth = 120f, BestShineSlant = 40f;
+
+        private bool ShowsBestUpdate => data.RecordUpdate is SongRecordUpdate u && u.Saved && u.IsNewBest && u.Before.Score > 0;
+
         private void DrawBestRecord()
         {
             if (data.RecordUpdate is not SongRecordUpdate update) return;
-            Raylib.DrawRectangle(1100, 340, 700, 230, new Color(16, 24, 38, 235));
-            string title = !update.Saved ? "記録を保存できませんでした"
-                : update.IsNewBest ? "自己ベスト更新！" : "自己ベスト";
-            FontManager.Draw(title, 1130, 365, 32, update.IsNewBest && update.Saved ? Color.Gold : Color.White);
-            long score = update.Saved ? update.After.Score : update.Before.Score;
-            SongClearType clear = update.Saved ? update.After.Clear : update.Before.Clear;
-            FontManager.Draw(score.ToString("N0") + " 点", 1130, 418, 44, Color.White);
-            FontManager.Draw(SongBestRecord.ClearName(clear), 1130, 492, 30, Color.SkyBlue);
+            if (!update.Saved)
+            {
+                // 記録を保存できなかったときだけ、下に小さく知らせる
+                FontManager.Draw("記録を保存できませんでした", 1340, 1030, 26, new Color(255, 120, 110, 255));
+                return;
+            }
+            if (!ShowsBestUpdate) return;
+
+            float t = elapsed - RevealTime;
+            float lift = t < BestHoldEnd ? BestRise : BestRise * (1f - Math.Clamp((t - BestHoldEnd) / (BestLandEnd - BestHoldEnd), 0f, 1f));
+            float alpha = Math.Clamp(t / 0.033f, 0f, 1f);
+            Rectangle ribbon = new Rectangle(BestRibbon.X, BestRibbon.Y - lift, BestRibbon.Width, BestRibbon.Height);
+            Rectangle pill = new Rectangle(BestPill.X, BestPill.Y - lift, BestPill.Width, BestPill.Height);
+
+            // 帯：白いふち → 金色（上がこい金、下が明るい）
+            Raylib.DrawRectangleRounded(ribbon, 1f, 12, Raylib.ColorAlpha(Color.White, alpha));
+            Rectangle gold = new Rectangle(ribbon.X + 3, ribbon.Y + 3, ribbon.Width - 6, ribbon.Height - 6);
+            Raylib.DrawRectangleRounded(gold, 1f, 12, Raylib.ColorAlpha(new Color(255, 236, 150, 255), alpha));
+            Screen.BeginScissorMode((int)gold.X, (int)gold.Y, (int)gold.Width, (int)(gold.Height * 0.55f));
+            Raylib.DrawRectangleRounded(gold, 1f, 12, Raylib.ColorAlpha(new Color(236, 180, 24, 255), alpha));
+            Screen.EndScissorMode();
+
+            // 黒い札：増えた点と、上向きの矢印
+            Raylib.DrawRectangleRounded(pill, 1f, 10, Raylib.ColorAlpha(new Color(24, 20, 16, 255), alpha));
+            string gain = (update.After.Score - update.Before.Score).ToString();
+            const float gainSize = 26f;
+            float arrowX = pill.X + pill.Width - 18f, midY = pill.Y + pill.Height / 2f;
+            Vector2 gm = FontManager.Measure(gain, gainSize);
+            FontManager.Draw(gain, arrowX - 9f - gm.X, midY - gm.Y / 2f, gainSize, Raylib.ColorAlpha(Color.White, alpha));
+            Color arrow = Raylib.ColorAlpha(Color.White, alpha);
+            Raylib.DrawTriangle(new Vector2(arrowX, midY - 9f), new Vector2(arrowX - 7f, midY - 1f), new Vector2(arrowX + 7f, midY - 1f), arrow);
+            Raylib.DrawRectangleRec(new Rectangle(arrowX - 3f, midY - 1f, 6f, 9f), arrow);
+
+            // 「ベストスコア更新！」
+            float textAlpha = Math.Clamp((t - BestTextStart) / (BestTextEnd - BestTextStart), 0f, 1f);
+            if (textAlpha > 0f)
+                UI.MenuDraw.Outlined("ベストスコア更新！", new Rectangle(ribbon.X + 30, ribbon.Y, 250, ribbon.Height), 28,
+                    Raylib.ColorAlpha(Color.White, textAlpha), Raylib.ColorAlpha(new Color(40, 24, 0, 255), textAlpha));
+
+            // 黄色く光る
+            if (t >= BestFlashStart && t < BestFlashEnd)
+                Raylib.DrawRectangleRounded(ribbon, 1f, 12,
+                    Raylib.ColorAlpha(new Color(255, 255, 0, 255), 0.9f * (1f - (t - BestFlashStart) / (BestFlashEnd - BestFlashStart))));
+
+            // 白い光が、左から右へ（帯の中だけ）
+            if (t >= BestShineStart && t < BestShineEnd)
+            {
+                float p = (t - BestShineStart) / (BestShineEnd - BestShineStart);
+                float lead = ribbon.X + p * (ribbon.Width + BestShineWidth + BestShineSlant);
+                float top = ribbon.Y, bottom = ribbon.Y + ribbon.Height;
+                Screen.BeginScissorMode((int)ribbon.X, (int)ribbon.Y, (int)ribbon.Width, (int)ribbon.Height);
+                // ななめの帯（上が右に寄った平行四辺形）を、三角形2つで
+                Vector2 a = new Vector2(lead - BestShineWidth, top), b = new Vector2(lead, top);
+                Vector2 c = new Vector2(lead - BestShineSlant, bottom), d = new Vector2(lead - BestShineWidth - BestShineSlant, bottom);
+                Raylib.DrawTriangle(a, d, c, Color.White);
+                Raylib.DrawTriangle(a, c, b, Color.White);
+                Screen.EndScissorMode();
+            }
         }
 
         private void DrawBackground()

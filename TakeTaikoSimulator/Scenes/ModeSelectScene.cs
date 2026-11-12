@@ -87,6 +87,30 @@ namespace TakeTaikoSimulator.Scenes
 
         private readonly MenuChara chara = new();   // 左下のどんちゃん（A-Style だけ。MenuChara.cs）
 
+        // ===== エントリーから入ってきたときの出かた =====
+        //   11/11 の録画（2026-11-11 23-40-44.mp4 の 105.9秒〜）を 1/60秒ずつ見た。エントリーの板が消えきった時を 0 として：
+        //     0.07     選んでいる板（閉じた形）とネームプレートが出る
+        //     0.33〜0.48 板が開く（BarList のいつもの動き。ここでは 0.43〜0.53秒になる）
+        //     0.33〜0.53 どんちゃんが左からすべって入ってくる
+        //     0.47〜0.62 左上の太鼓の案内が、じわっと出る
+        //     0.55〜0.67 ほかの板が、上と下の外からすべって入ってくる
+        //   その間は操作できない。暗い幕（エントリーの板のうしろ）は、最初の 0.2秒で消える
+        //   本家は板がじわっと出る（0.07〜0.2秒）けど、ここではパッと出している
+        private const float IntroBarAt = 0.07f, IntroCharaStart = 0.33f, IntroCharaEnd = 0.53f, IntroCharaShift = 400f;
+        private const float IntroGuideStart = 0.47f, IntroGuideEnd = 0.62f;
+        private const float IntroOthersStart = 0.55f, IntroOthersEnd = 0.67f, IntroOthersShift = 500f, IntroEnd = 0.70f;
+        private const float IntroDimSeconds = 0.2f;
+        private float introTime = -1f;   // 入ってきてからの秒（-1 なら、ふつうに全部出す）
+
+        // 左上の太鼓の案内（選曲画面と同じ Control_Guide/Large。11/11 の録画でモード選択にも出ていた）
+        private Aup2? controlGuide;
+        private float guideClock;
+
+        public ModeSelectScene(bool intro = false)
+        {
+            introTime = intro ? 0f : -1f;
+        }
+
         public override void Enter()
         {
             NamePlate.Preload();
@@ -97,6 +121,18 @@ namespace TakeTaikoSimulator.Scenes
             list.Reset(cursor);
             deciding = null;
             backgroundTime = 0f;
+            guideClock = 0f;
+            controlGuide?.Unload();
+            controlGuide = null;
+            if (SkinManager.CurrentPath is string skinPath && !SkinManager.SystemSkin)
+            {
+                controlGuide = Aup2.Load(Path.Combine(skinPath, "Image", "99.Common", "Control_Guide", "Large", "Anime.aup2"));
+                if (controlGuide != null)
+                {
+                    controlGuide.Preload();
+                    if (!controlGuide.HasAllImages) { controlGuide.Unload(); controlGuide = null; }
+                }
+            }
             MenuSkin.Preload(MenuSkin.ModeFolder, MenuSkin.BarImages.Concat(new[] { "Background.png", "Background/0.png" }));
             MenuSkin.Preload(EntryFolder, new[] { "Background.png", "Header.png", "Background_Fireworks.png" });
             MenuSkin.Preload(EntryBarFolder, new[] { "Bar/0.png", "Bar/1.png", "Title/0.png", "Title/1.png",
@@ -112,6 +148,8 @@ namespace TakeTaikoSimulator.Scenes
         public override void Exit()
         {
             chara.Dispose();
+            controlGuide?.Unload();
+            controlGuide = null;
             MenuVoice.CancelPending();
             MenuVoice.StopLoop();
         }
@@ -141,6 +179,14 @@ namespace TakeTaikoSimulator.Scenes
             chara.Update(dt);
             if (toastTimer > 0f) toastTimer -= dt;
             list.Update(dt, cursor);
+            guideClock += dt;
+            if (introTime >= 0f)
+            {
+                // 入ってくる動きの間は、何もできない
+                introTime += dt;
+                if (introTime >= IntroEnd) introTime = -1f;
+                else return;
+            }
             if (itemVoicePending && list.Expand > 0 && deciding == null && !choosingCategory)
             {
                 itemVoicePending = false;
@@ -303,7 +349,16 @@ namespace TakeTaikoSimulator.Scenes
             }
 
             // どんちゃん：モード選択も選曲と同じ songselect_loop（11/8 の録画で確かめた。板より奥）
-            if (CharaBaker.Config is CharaConfig ec) chara.DrawPlayers(ec.EntryX, ec.EntryY, ec.EntryScale, LocalSession.Players);
+            if (CharaBaker.Config is CharaConfig ec && (introTime < 0f || introTime >= IntroCharaStart))
+            {
+                // 入ってきたとき：左の外からすべって入ってくる（だんだんゆっくり）
+                float slide = introTime < 0f ? 0f
+                    : IntroCharaShift * (1f - EaseOut(Math.Clamp((introTime - IntroCharaStart) / (IntroCharaEnd - IntroCharaStart), 0f, 1f)));
+                Rlgl.PushMatrix();
+                Rlgl.Translatef(-slide, 0f, 0f);
+                chara.DrawPlayers(ec.EntryX, ec.EntryY, ec.EntryScale, LocalSession.Players);
+                Rlgl.PopMatrix();
+            }
 
             DrawList();
 
@@ -320,8 +375,18 @@ namespace TakeTaikoSimulator.Scenes
                 DrawHint("テスト：.tja ファイルをウィンドウにドラッグ＆ドロップすると譜面が流れます", 984, new Color(240, 205, 120, 255), 20);
             }
 
-            NamePlate.DrawPlayers();
+            // 左上の太鼓の案内
+            if (controlGuide is Aup2 guide && deciding == null && !hideDecidedList)
+            {
+                float guideAlpha = introTime < 0f ? 1f : Math.Clamp((introTime - IntroGuideStart) / (IntroGuideEnd - IntroGuideStart), 0f, 1f);
+                if (guideAlpha > 0f) guide.Draw(guide.LoopedFrameAt(guideClock), System.Numerics.Vector2.Zero, guideAlpha);
+            }
+
+            if (introTime < 0f || introTime >= IntroBarAt) NamePlate.DrawPlayers();
             PuchiChara.DrawPlayers("entry");
+            // エントリーの板のうしろにあった暗い幕が、消えていく
+            if (introTime >= 0f && introTime < IntroDimSeconds)
+                Raylib.DrawRectangle(0, 0, Screen.Width, Screen.Height, new Color(0, 0, 0, (int)(150 * (1f - introTime / IntroDimSeconds))));
             foreach (int side in LocalSession.Players)
                 if (!Game.IsSettingsOpen && deciding == null && !choosingCategory && Gui.Clicked(NamePlate.MenuArea(side)))
                 { SceneManager.Simple(new EntryScene(selectData: true)); break; }
@@ -391,7 +456,7 @@ namespace TakeTaikoSimulator.Scenes
         private void DrawList()
         {
             if (hideDecidedList || deciding?.Title == "演奏ゲーム" && list.DecideTime >= BarList.BlinkEnd) return;
-            bool clickable = deciding == null;
+            bool clickable = deciding == null && introTime < 0f;
             bool entryLayout = EntryBarType(Items[0]) >= 0;
             int selectedPos = cursor;
 
@@ -418,7 +483,16 @@ namespace TakeTaikoSimulator.Scenes
                     }
                     selectedArea = openedArea;
                 }
-                else DrawItem(item, area, 0f);
+                else if (introTime < 0f) DrawItem(item, area, 0f);
+                else if (introTime >= IntroOthersStart)
+                {
+                    // 入ってきたとき：上の板は上から、下の板は下から、すべって入ってくる
+                    float p = Math.Clamp((introTime - IntroOthersStart) / (IntroOthersEnd - IntroOthersStart), 0f, 1f);
+                    Rlgl.PushMatrix();
+                    Rlgl.Translatef(0f, MathF.Sign(distance) * IntroOthersShift * (1f - p) * (1f - p), 0f);
+                    DrawItem(item, area, 0f);
+                    Rlgl.PopMatrix();
+                }
 
                 // クリック：ほかの項目なら選ぶ、選んでいる項目なら決定
                 if (clickable && Gui.Clicked(selected && selectedArea is Rectangle open ? open : area))
@@ -433,7 +507,7 @@ namespace TakeTaikoSimulator.Scenes
                 }
             }
 
-            if (selectedArea is Rectangle sel)
+            if (selectedArea is Rectangle sel && (introTime < 0f || introTime >= IntroBarAt))
             {
                 Item selectedItem = Items[selectedPos];
                 int entryType = EntryBarType(selectedItem);

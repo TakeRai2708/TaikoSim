@@ -196,7 +196,9 @@ public sealed class EntryScene : Scene
         SongHistory.SelectProfile(LocalSession.Profiles[LocalSession.Controller]);
         leaving = true;
         SongSelectScene.ResetForProfile();
-        SceneManager.Simple(new ModeSelectScene());
+        // 黒くしないで、そのままモード選択へ。板やどんちゃんが順番に出てくる（ModeSelectScene の「エントリーから入ってきたときの出かた」）
+        //   11/11 の録画：エントリーとモード選択は同じ背景のままつながっていた。前は 0.3秒ずつ黒くしていた
+        SceneManager.ChangeScene(new ModeSelectScene(intro: true));
     }
 
     public override void OnBack()
