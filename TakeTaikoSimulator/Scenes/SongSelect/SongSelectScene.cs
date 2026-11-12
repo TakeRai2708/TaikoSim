@@ -141,6 +141,10 @@ namespace TakeTaikoSimulator.Scenes
         //   11/11 の録画：画面の左上 (0, 0) に原寸で出る。たたいても変わらず、この画面に入った時からずっとくり返す。
         //   曲を決めて 0.77秒で消え、難易度をえらんでいる間は出ない
         private Aup2? largeControlGuide;
+        // 置く場所は (0.5, 0.5)。この絵の白い板(Base.png)は、アニメの中で半ピクセルずれた所(-0.5)に置いてある。
+        //   そのまま (0, 0) に出すと、絵の右はしに、左はしの色がにじんで縦の線が出た(11/12 たけらい「横に縦の黒い線がある」)。
+        //   半ピクセル足して、ぴったり画面の点に合わせる
+        internal static readonly Vector2 GuideOffset = new Vector2(0.5f, 0.5f);
         private readonly PlayOptionsPanel options = new();
 
         // ===== 検索 =====
@@ -1267,7 +1271,7 @@ namespace TakeTaikoSimulator.Scenes
             // 左上の太鼓の案内(難易度をえらんでいる間・検索の箱が出ている間は出さない)
             if (!SkinManager.SystemSkin && largeControlGuide is Aup2 guide && !(diffOpen && diffTime >= GuideHideAt)
                 && !SongList.IsScanning && SongList.Categories.Count > 0)
-                guide.Draw(guide.LoopedFrameAt(guideClock), Vector2.Zero, ReturnAlpha);
+                guide.Draw(guide.LoopedFrameAt(guideClock), GuideOffset, ReturnAlpha);
             // 左上の「演奏ゲーム」「ジャンルをえらぶ」は出さない(スキンの画像とかぶって、じゃまになる)。
             // どのジャンルにいるかは一覧の板そのもので分かるので、文字は要らない
 
@@ -1471,8 +1475,9 @@ namespace TakeTaikoSimulator.Scenes
 
             float a = alpha * open; // 開くあいだに、だんだん出す
 
-            // 上：カテゴリ名(特別な一覧のときだけ)とお気に入り
-            if (openSpecial != Special.None && openSpecial != Special.Recent) Text(item.CategoryTitle, inner.X + 16, inner.Y + 8, 20, Fade(ink, a));
+            // 上：お気に入りの印
+            //   11/12 たけらい「検索結果の板の左上のジャンルはいらない。板の色で分かるから。最近遊んだ曲もそう」
+            //   前は、検索・最近追加・お気に入りの一覧で、左上にジャンル名を書いていた
             if (favorite) Text("♥ お気に入り", inner.X + inner.Width - 150, inner.Y + 8, 20, Fade(new Color(230, 80, 130, 255), a));
 
             // 曲名・サブタイトル(TaikøNauts と同じく板の上の方)

@@ -379,7 +379,7 @@ namespace TakeTaikoSimulator.Scenes
             if (controlGuide is Aup2 guide && deciding == null && !hideDecidedList)
             {
                 float guideAlpha = introTime < 0f ? 1f : Math.Clamp((introTime - IntroGuideStart) / (IntroGuideEnd - IntroGuideStart), 0f, 1f);
-                if (guideAlpha > 0f) guide.Draw(guide.LoopedFrameAt(guideClock), System.Numerics.Vector2.Zero, guideAlpha);
+                if (guideAlpha > 0f) guide.Draw(guide.LoopedFrameAt(guideClock), SongSelectScene.GuideOffset, guideAlpha);
             }
 
             if (introTime < 0f || introTime >= IntroBarAt) NamePlate.DrawPlayers();

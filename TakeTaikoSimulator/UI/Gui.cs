@@ -58,12 +58,12 @@ namespace TakeTaikoSimulator.UI
         }
 
         // 丸のまわりの光(スライダーのつまみ)
-        public static void GlowCircle(Vector2 center, float radius, Color color, float amount)
+        public static void GlowCircle(Vector2 center, float radius, Color color, float amount, float spread = GlowSpread * 0.8f)
         {
             float a = amount * GlowStrength;
             if (a <= 0.01f) return;
             for (int i = GlowLayers; i >= 1; i--)
-                SmoothShapes.Circle(center, radius + GlowSpread * 0.8f * i / GlowLayers, WithAlpha(color, 0.085f * a));
+                SmoothShapes.Circle(center, radius + spread * i / GlowLayers, WithAlpha(color, 0.085f * a));
         }
 
         // 押している間、ほんの少し(2%)小さくする
@@ -359,8 +359,9 @@ namespace TakeTaikoSimulator.UI
             Vector2 knob = new Vector2(bar.X + bar.Width * shown, cy);
             float radius = Approach($"sl:r:{id}", dragging ? 13f : barHover ? 12f : 10f, 20f);
             float glow = Approach($"sl:g:{id}", dragging || focused ? 1f : 0f, 16f);
-            GlowCircle(knob, radius, AccentColor, Math.Max(glow, h));
-            SmoothShapes.Circle(knob + new Vector2(0, 2f), radius + 1.5f, new Color(0, 0, 0, 90)); // うすい影
+            // 光は、つまみのまわり 7px だけ(11/12：広いと、上の数字の吹き出しに上半分が隠れて、下にずれて見えた)
+            GlowCircle(knob, radius, AccentColor, Math.Max(glow, h), 7f);
+            SmoothShapes.Circle(knob + new Vector2(0, 1f), radius + 1f, new Color(0, 0, 0, 70)); // うすい影(下に 1px だけ。大きいと光が下にずれて見える)
             SmoothShapes.Circle(knob, radius, Color.White);
             SmoothShapes.Circle(knob, radius * 0.42f, AccentColor);
 
@@ -371,7 +372,7 @@ namespace TakeTaikoSimulator.UI
                 string text = value.ToString();
                 Vector2 size = FontManager.Measure(text, 20);
                 float w = Math.Max(44f, size.X + 20f), bh = 30f;
-                float by = cy - radius - 14f - bh + 6f * (1f - bubble);
+                float by = cy - radius - 22f - bh + 6f * (1f - bubble);   // つまみの光にかぶらないように、少し上に
                 Rectangle tip = new Rectangle(knob.X - w / 2f, by, w, bh);
                 Color white = WithAlpha(Color.White, bubble);
                 SmoothShapes.Rectangle(tip, ControlRadius, white);
