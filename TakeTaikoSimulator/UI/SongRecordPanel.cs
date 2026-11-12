@@ -1,6 +1,7 @@
 using System.Globalization;
 using System.Numerics;
 using Raylib_cs;
+using Layout = TakeTaikoSimulator.UI.LayoutAdjustments.Records;
 using TakeTaikoSimulator.Charts;
 using TakeTaikoSimulator.Configs;
 using TakeTaikoSimulator.Graphics;
@@ -20,7 +21,7 @@ public static class SongRecordPanel
 
     public static void DrawSummary(RecordGroup group, float alpha, SongRecordSummary? records = null, int? profile = null, int side = 0)
     {
-        using var placement = SidePlacement(side);
+        using var placement = SidePlacement(side, Layout.SummaryOffset);
         SongRecordSummary totals = records ?? SongHistory.GetSummary(group, profile);
         int row = (int)group;
         Rectangle panel = new(16, 306, 340, 200);
@@ -38,20 +39,19 @@ public static class SongRecordPanel
             for (int i = 0; i < 3; i++) CrownFallback((SongClearType)(i + 1), new(42 + i * 94, 452, 36, 30), alpha);
         }
         // パネルの絵に印が入っているので、ここでは数字だけを重ねる。
-        Number("ScorePanel_Number.png", totals.Ranks[6], 300, 346, 18, 22, 16, 70, alpha);
+        Count(totals.Ranks[6], Layout.HighestCount, alpha);
         for (int i = 0; i < 3; i++)
         {
-            float x = 110 + i * 94;
-            Number("ScorePanel_Number.png", totals.Ranks[3 + i], x, 385, 18, 22, 16, 70, alpha);
-            Number("ScorePanel_Number.png", totals.Ranks[i], x, 424, 18, 22, 16, 70, alpha);
+            Count(totals.Ranks[3 + i], Layout.UpperCounts[i], alpha);
+            Count(totals.Ranks[i], Layout.LowerCounts[i], alpha);
             int crowns = i == 0 ? totals.Cleared : i == 1 ? totals.FullCombo : totals.DondaFullCombo;
-            Number("ScorePanel_Number.png", crowns, x, 462, 18, 22, 16, 70, alpha);
+            Count(crowns, Layout.CrownCounts[i], alpha);
         }
     }
 
     public static void DrawBest(SongEntry song, CourseType course, float alpha, int? profile = null, int side = 0)
     {
-        using var placement = SidePlacement(side);
+        using var placement = SidePlacement(side, Layout.BestOffset);
         var record = SongHistory.GetRecord(profile ?? SongHistory.ActiveProfile, song.Key, course);
         Rectangle panel = new(20, 575, 332, 90);
         if (!MenuSkin.Whole(Folder + "BestScorePanel/Panel.png", panel, MenuSkin.White(alpha)))
@@ -72,10 +72,10 @@ public static class SongRecordPanel
             Label(Chart.GetCourseName(course), new(34, 606, 90, 35), 18, Color.White, alpha);
 
         string score = record.Score.ToString(CultureInfo.InvariantCulture);
-        float width = 24 + Math.Max(0, score.Length - 1) * 22;
-        float scale = Math.Min(1, 190 / width);
-        Number("BestScorePanel/Number.png", record.Score, 308 - width * scale / 2,
-            626, 24, 28, 22, 190, alpha);
+        float width = Layout.BestDigitWidth + Math.Max(0, score.Length - 1) * Layout.BestDigitSpacing;
+        float scale = Math.Min(1, Layout.BestMaxWidth / width);
+        Number("BestScorePanel/Number.png", record.Score, Layout.BestNumberRight - width * scale / 2,
+            Layout.BestNumberY, Layout.BestDigitWidth, Layout.BestDigitHeight, Layout.BestDigitSpacing, Layout.BestMaxWidth, alpha);
     }
 
     public static void DrawCard(string key, CourseType course, Rectangle card, float alpha, int? profile = null)
@@ -97,13 +97,16 @@ public static class SongRecordPanel
         }
     }
 
-    private static Placement SidePlacement(int side) => new(side);
+    private static void Count(long value, Vector2 center, float alpha) =>
+        Number("ScorePanel_Number.png", value, center.X, center.Y, Layout.CountWidth, Layout.CountHeight, Layout.CountSpacing, Layout.CountMaxWidth, alpha);
+
+    private static Placement SidePlacement(int side, Vector2 offset) => new(side, offset);
     private readonly struct Placement : IDisposable
     {
-        public Placement(int side)
+        public Placement(int side, Vector2 offset)
         {
             Rlgl.PushMatrix();
-            if (side == 1) Rlgl.Translatef(1548, 0, 0);
+            Rlgl.Translatef(offset.X + (side == 1 ? Layout.Player2OffsetX : 0), offset.Y, 0);
         }
         public void Dispose() => Rlgl.PopMatrix();
     }

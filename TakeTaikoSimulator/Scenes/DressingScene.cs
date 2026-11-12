@@ -1,6 +1,7 @@
 using System.Numerics;
 using System.Text.Json;
 using Raylib_cs;
+using Layout = TakeTaikoSimulator.UI.LayoutAdjustments.Dressing;
 using TakeTaikoSimulator.Audio;
 using TakeTaikoSimulator.Charts;
 using TakeTaikoSimulator.Configs;
@@ -38,7 +39,7 @@ public sealed class DressingScene : Scene
     {
         public string Label => Name.Length == 0 ? "段位を表示しない" : $"{Name}　{(Gold ? "金合格" : "赤合格")}　{new[] { "銀", "金", "虹" }[Type]}";
     }
-    private static readonly Rectangle List = new(80, 240, 710, 620);
+    private static readonly Rectangle List = Layout.List;
     private static readonly string[] Categories = { "どんちゃん", "ぷちキャラ", "ネームプレート", "名前・段位" };
     public override bool CanOpenSettings => false;
     public override bool IsWaitingKey => naming;
@@ -197,33 +198,33 @@ public sealed class DressingScene : Scene
             int visibleTop = top, clickedRow = -1;
             for (int i = visibleTop; i < Math.Min(Count, visibleTop + 9); i++)
             {
-                Rectangle row = new(100, 255 + (i - visibleTop) * 65, 660, 59);
+                Rectangle row = new(List.X + 20, List.Y + 15 + (i - visibleTop) * 65, List.Width - 50, 59);
                 if (i == cursor) Raylib.DrawRectangleRec(row, new Color(44, 88, 132, 255));
                 string label = Label(i);
-                float size = 30 * Math.Min(1, 616 / Math.Max(1, FontManager.Measure(label, 30).X));
+                float size = 30 * Math.Min(1, (row.Width - 44) / Math.Max(1, FontManager.Measure(label, 30).X));
                 FontManager.Draw(label, row.X + 22, row.Y + (row.Height - size) / 2, size, Color.White);
                 if (!asking && !readFailed && !naming && Gui.Clicked(row))
                 clickedRow = i;
             }
-            if (Count == 0) FontManager.Draw("このスキンには素材がありません", 116, 280, 28, Color.LightGray);
+            if (Count == 0) FontManager.Draw("このスキンには素材がありません", List.X + 36, List.Y + 40, 28, Color.LightGray);
             if (Count > 9)
             {
-                Raylib.DrawRectangle(775, 255, 5, 585, new Color(45, 58, 75, 255));
+                Raylib.DrawRectangle((int)(List.X + List.Width - 15), (int)(List.Y + 15), 5, 585, new Color(45, 58, 75, 255));
                 float h = 585f * 9 / Count;
-                Raylib.DrawRectangle(775, 255 + (int)((585 - h) * top / (Count - 9)), 5, (int)h, Color.SkyBlue);
+                Raylib.DrawRectangle((int)(List.X + List.Width - 15), (int)(List.Y + 15) + (int)((585 - h) * top / (Count - 9)), 5, (int)h, Color.SkyBlue);
             }
             // 一覧を描き終えてから、一つの行だけ選択する。
             if (clickedRow >= 0)
             { Select(clickedRow); if (category == 3 && clickedRow == 0) BeginNameEdit(); }
             string title = $"{side + 1}P  {Current.Plate.Name}";
-            FontManager.Draw(title, 890, 245, 36 * Math.Min(1, 910 / Math.Max(1, FontManager.Measure(title, 36).X)), Color.White);
-            NamePlate.Draw(Slot, side, 1385, 710, preview: Current.Plate);
+            FontManager.Draw(title, Layout.PreviewTitle.X, Layout.PreviewTitle.Y, 36 * Math.Min(1, 910 / Math.Max(1, FontManager.Measure(title, 36).X)), Color.White);
+            NamePlate.Draw(Slot, side, Layout.PlatePosition.X, Layout.PlatePosition.Y, preview: Current.Plate);
             string? rel = category == 0 && characters.Length > 0 ? "Image/99.Common/Chara/" + characters[cursor] + "/songselect_loop/0.png" : null;
             if (rel != null && SkinManager.GetTexture(rel) is Texture2D tex)
             {
-                float scale = Math.Min(720f / tex.Width, 370f / tex.Height);
+                float scale = Math.Min(Layout.CharacterMaxSize.X / tex.Width, Layout.CharacterMaxSize.Y / tex.Height);
                 // 添付のオレンジ枠へ。A-Styleの透明余白を含む820×599画像が基準。
-                Raylib.DrawTextureEx(tex, new(1295, 240), 0, scale, Color.White);
+                Raylib.DrawTextureEx(tex, Layout.Character, 0, scale, Color.White);
             }
             if (category == 1)
             {

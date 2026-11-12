@@ -1,6 +1,7 @@
 using System.Numerics;
 using System.Text.Json;
 using Raylib_cs;
+using Layout = TakeTaikoSimulator.UI.LayoutAdjustments.Plate;
 using TakeTaikoSimulator.Configs;
 using TakeTaikoSimulator.Scenes;
 
@@ -45,7 +46,7 @@ public static class NamePlate
             { Console.WriteLine($"[NamePlate] {id}：{ex.Message}"); }
         }
         string? image = SkinManager.GetTexture(rel + "Base.png") != null ? rel + "Base.png" : null;
-        return art[id] = new(anime, image, x, y);
+        return art[id] = new(anime, image, x + Layout.TitleArtOffset.X, y + Layout.TitleArtOffset.Y);
     }
     public static void Preload()
     {
@@ -62,8 +63,8 @@ public static class NamePlate
         }
     }
     // 参考のモード画面では、どんちゃんの足元にプレートがある。左右の余白を揃える。
-    public static Rectangle MenuArea(int side) => new(side == 0 ? 60 : 1522, 920, 338, 80);
-    public static void DrawPlayers(float y = 920, float alpha = 1)
+    public static Rectangle MenuArea(int side) => new(side == 0 ? Layout.Menu1PX : Layout.Menu2PX, Layout.MenuY, 338, 80);
+    public static void DrawPlayers(float y = Layout.MenuY, float alpha = 1)
     {
         for (int side = 0; side < 2; side++)
             if (LocalSession.Joined[side]) Draw(LocalSession.Profiles[side], side, MenuArea(side).X, y, 1, alpha);
@@ -97,7 +98,7 @@ public static class NamePlate
                 Raylib.DrawRectangle(0, 0, 6, 80, Raylib.ColorAlpha(side == 0 ? Color.Red : Color.SkyBlue, alpha));
                 Text($"{side + 1}P", new(10, 19, 48, 44), 36, white, Raylib.ColorAlpha(Color.Black, alpha));
             }
-            Text(data.Title, new(75, 6, 248, 28), 26, Raylib.ColorAlpha(Color.Black, alpha), Raylib.ColorAlpha(Color.White, alpha));
+            Text(data.Title, Layout.TitleText, Layout.TitleTextSize, Raylib.ColorAlpha(Color.Black, alpha), Raylib.ColorAlpha(Color.White, alpha));
             bool rank = data.Rank.Length > 0;
             if (rank)
             {
@@ -105,19 +106,19 @@ public static class NamePlate
                 if (SkinManager.GetTexture(Root + "NamePlate_Base.png") is Texture2D rankSheet
                     && rankSheet.Width >= 328 && rankSheet.Height >= 523)
                 {
-                    Raylib.DrawTexturePro(rankSheet, new(12, 241, 131, 34), new(12, 37, 131, 34), Vector2.Zero, 0, white);
+                    Raylib.DrawTexturePro(rankSheet, new(12, 241, 131, 34), Layout.RankBacking, Vector2.Zero, 0, white);
                     int type = Math.Clamp(data.RankType, 0, 2);
-                    Raylib.DrawTexturePro(rankSheet, new(72, 323 + 82 * type, 70, 36), new(72, 35, 70, 36), Vector2.Zero, 0, white);
+                    Raylib.DrawTexturePro(rankSheet, new(72, 323 + 82 * type, 70, 36), Layout.RankOrnament, Vector2.Zero, 0, white);
                 }
-                else Raylib.DrawRectangleRec(new(73, 37, 76, 34), Raylib.ColorAlpha(Color.Black, alpha));
+                else Raylib.DrawRectangleRec(Layout.RankFallback, Raylib.ColorAlpha(Color.Black, alpha));
                 // 金合格は段位文字の色。rankTypeは上の飾りの種類で、文字色とは別。
                 Color rankColor = data.IsRankGold ? new Color(255, 218, 85, 255) : new Color(225, 233, 240, 255);
-                Text(data.Rank, new(76, 37, 69, 33), 24, Raylib.ColorAlpha(rankColor, alpha), Raylib.ColorAlpha(Color.Black, alpha));
+                Text(data.Rank, Layout.RankText, Layout.RankTextSize, Raylib.ColorAlpha(rankColor, alpha), Raylib.ColorAlpha(Color.Black, alpha));
             }
             // 段位欄の上にバッジを重ねる。各バッジは82px刻みで、80pxでは右端が切れる。
             if (SkinManager.GetTexture(Root + "NamePlate_Base.png") is Texture2D badgeSheet)
-                Raylib.DrawTexturePro(badgeSheet, new(side == 0 ? 0 : 164, 80, 82, 80), new(0, -1, 82, 80), Vector2.Zero, 0, white);
-            NameText(data.Name, new(rank ? 151 : 76, 37, rank ? 174 : 249, 33), white, Raylib.ColorAlpha(Color.Black, alpha));
+                Raylib.DrawTexturePro(badgeSheet, new(side == 0 ? 0 : 164, 80, 82, 80), Layout.PlayerBadge, Vector2.Zero, 0, white);
+            NameText(data.Name, rank ? Layout.NameWithRank : Layout.NameWithoutRank, white, Raylib.ColorAlpha(Color.Black, alpha));
         }
         finally { Rlgl.PopMatrix(); }
     }
@@ -125,7 +126,7 @@ public static class NamePlate
     private static void NameText(string text, Rectangle area, Color fill, Color outline)
     {
         if (text.Length == 0) return;
-        const float size = 25, edge = 3, padding = 2;
+        const float size = Layout.NameSize, edge = Layout.NameOutline, padding = 2;
         Rectangle ink = FontManager.MeasureSkinMainInk(text, size);
         float scaleX = Math.Min(1, (area.Width - 2 * padding) / Math.Max(1, ink.Width + 2 * edge));
         Rlgl.PushMatrix();
@@ -141,7 +142,7 @@ public static class NamePlate
     private static void Text(string text, Rectangle area, float size, Color fill, Color outline)
     {
         if (text.Length == 0) return;
-        const float edge = 2, padding = 2;
+        const float edge = Layout.OtherTextOutline, padding = 2;
         Rectangle ink = FontManager.MeasureSkinMainInk(text, size);
         float factor = Math.Min(1, Math.Min((area.Width - 2 * (edge + padding)) / Math.Max(1, ink.Width),
             (area.Height - 2 * edge) / Math.Max(1, ink.Height)));

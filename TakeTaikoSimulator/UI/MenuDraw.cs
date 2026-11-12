@@ -1,5 +1,6 @@
 ﻿using System.Numerics;
 using Raylib_cs;
+using Layout = TakeTaikoSimulator.UI.LayoutAdjustments.FreePlay;
 using TakeTaikoSimulator.Graphics;
 
 namespace TakeTaikoSimulator.UI
@@ -20,9 +21,9 @@ namespace TakeTaikoSimulator.UI
         public static void FreePlay()
         {
             const string text = "フリープレイ";
-            const float size = 45, outline = 5;
+            const float size = Layout.Size, outline = Layout.Outline;
             Rectangle ink = FontManager.MeasureSkinMainInk(text, size);
-            FontManager.DrawSkinMainOutlined(text, 960 - ink.X - ink.Width / 2, 1052 - ink.Y - ink.Height / 2,
+            FontManager.DrawSkinMainOutlined(text, Layout.Center.X - ink.X - ink.Width / 2, Layout.Center.Y - ink.Y - ink.Height / 2,
                 size, Color.White, Color.Black, outline);
         }
 

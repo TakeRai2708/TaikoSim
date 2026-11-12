@@ -1,6 +1,7 @@
 using System.Numerics;
 using System.Text.Json;
 using Raylib_cs;
+using Layout = TakeTaikoSimulator.UI.LayoutAdjustments.Entry;
 using TakeTaikoSimulator.Audio;
 using TakeTaikoSimulator.Charts;
 using TakeTaikoSimulator.Configs;
@@ -36,10 +37,10 @@ public sealed class EntryScene : Scene
     private Aup2? controlGuide;
     private int guideSkin = -1;
     private static readonly NamePlateConfig NewDataPlate = new() { Name = "新しいデータ" };
-    private static readonly Rectangle ConfirmArea = new(960, 810, 184, 94);
+    private static Rectangle ConfirmArea => new(960 + Layout.GuideOffset.X, 810 + Layout.GuideOffset.Y, 184, 94);
     public override bool IsWaitingKey => naming;
     public override bool CanOpenSettings => !naming && communication < 0;
-    private static readonly Rectangle DataPanel = new(249, 295, 1423, 490);
+    private static readonly Rectangle DataPanel = Layout.DataPanel;
 
     public override string? MenuBgmFile => MenuBgm.EntryFile;
 
@@ -247,7 +248,7 @@ public sealed class EntryScene : Scene
         float fade = joiningTransition < 0 ? 1 : 1 - Math.Clamp(joiningTransition / .5f, 0, 1);
         for (int i = 0; i < 2; i++)
         {
-            Rectangle row = new(380, 404 + i * 190, 1172, 190);
+            Rectangle row = new(Layout.StartRow.X, Layout.StartRow.Y + i * Layout.StartRowSpacing, Layout.StartRow.Width, Layout.StartRow.Height);
             bool enabled = LocalSession.Count < 2 || i == 1;
             Color tint = MenuSkin.White(fade * (enabled ? 1 : .55f));
             if (!MenuSkin.Cell(Folder + "CreditBar.png", i, 1, 2, row, tint))
@@ -259,12 +260,13 @@ public sealed class EntryScene : Scene
                 : i == 0 ? LocalSession.Count == 1 ? $"{LocalSession.Controller + 1}P参加中　もう一度ドンで決定" : "2人プレイを選択中"
                 : LocalSession.Count == 1 ? $"{2 - LocalSession.Controller}Pのドンで2人プレイ" : "もう一度ドンで決定";
             // CreditBarの焼き込み文字は、2行目だけセル内で14px上にある。
-            Rectangle area = new(row.X + 470, row.Y + 61 - i * 14, 630, 77);
-            Rectangle ink = FontManager.MeasureSkinMainInk(message, 54);
-            float size = 54 * Math.Min(1, (area.Width - 12) / Math.Max(1, ink.Width));
+            Rectangle messageBox = i == 0 ? Layout.StartMessage1 : Layout.StartMessage2;
+            Rectangle area = new(row.X + messageBox.X, row.Y + messageBox.Y, messageBox.Width, messageBox.Height);
+            Rectangle ink = FontManager.MeasureSkinMainInk(message, Layout.StartMessageSize);
+            float size = Layout.StartMessageSize * Math.Min(1, (area.Width - 12) / Math.Max(1, ink.Width));
             ink = FontManager.MeasureSkinMainInk(message, size);
             FontManager.DrawSkinMainOutlined(message, area.X + (area.Width - ink.Width) / 2 - ink.X,
-                area.Y + (area.Height - ink.Height) / 2 - ink.Y, size, Fade(Color.White, fade), Fade(Color.Black, fade), 5);
+                area.Y + (area.Height - ink.Height) / 2 - ink.Y, size, Fade(Color.White, fade), Fade(Color.Black, fade), Layout.StartMessageOutline);
             if (interactive && enabled && Gui.Clicked(row)) { ClickStart(i + 1); interactive = false; }
         }
         if (joiningTransition >= 0) Raylib.DrawRectangle(0, 0, 1920, 1080, new Color(0, 0, 0, (int)(150 * (1 - fade))));
@@ -294,22 +296,28 @@ public sealed class EntryScene : Scene
             Raylib.DrawRectangleRounded(DataPanel, .08f, 12, Fade(player == 0 ? new Color(238, 192, 55, 255) : new Color(135, 190, 65, 255), alpha));
         if (!MenuSkin.Cell(Folder + "DataLoad_Text.png", 0, 1, 3, DataPanel, Fade(Color.White, alpha)))
             Outlined("使用するデータを選んでください", new(360, 385, 1200, 75), 52, Fade(Color.White, alpha), Fade(Color.Black, alpha));
-        Rectangle card = new(563, 461, 794, 288);
+        Rectangle card = Layout.DataCard;
         if (!MenuSkin.Whole(Folder + "PlayerData_Panel.png", card, Fade(Color.White, alpha)))
             Raylib.DrawRectangleRounded(card, .07f, 12, Fade(new Color(155, 50, 48, 255), alpha));
-        Outlined($"データ {cursor + 1}", new(628, 515, 320, 52), 36, Fade(Color.White, alpha), Fade(Color.Black, alpha));
-        Outlined(registered[cursor] ? "登録済みのデータ" : "決定すると名前入力", new(628, 568, 320, 48), 27, Fade(Color.White, alpha), Fade(Color.Black, alpha));
-        NamePlate.Draw(cursor + 1, player, 620, 626, alpha: alpha, preview: registered[cursor] ? null : NewDataPlate);
+        Outlined($"データ {cursor + 1}", Layout.DataTitle, 36, Fade(Color.White, alpha), Fade(Color.Black, alpha));
+        Outlined(registered[cursor] ? "登録済みのデータ" : "決定すると名前入力", Layout.DataSubtitle, 27, Fade(Color.White, alpha), Fade(Color.Black, alpha));
+        NamePlate.Draw(cursor + 1, player, Layout.PlatePosition.X, Layout.PlatePosition.Y, alpha: alpha, preview: registered[cursor] ? null : NewDataPlate);
         if (totals[cursor] != null)
         {
             Rlgl.PushMatrix();
-            Rlgl.Translatef(946, 197, 0);
+            Rlgl.Translatef(Layout.SummaryOffset.X, Layout.SummaryOffset.Y, 0);
             SongRecordPanel.DrawSummary(ConfigManager.Game.RecordGroup, alpha, SongHistory.GetSummary(ConfigManager.Game.RecordGroup, cursor + 1));
             Rlgl.PopMatrix();
         }
-        DrawArrow(false, new(464, 550, 88, 100), cursor > 0, interactive, alpha);
-        DrawArrow(true, new(1330, 550, 88, 100), cursor < 2, interactive, alpha);
-        DrawGuide(alpha);
+        DrawArrow(false, Layout.Previous, cursor > 0, interactive, alpha);
+        DrawArrow(true, Layout.Next, cursor < 2, interactive, alpha);
+        Rlgl.PushMatrix();
+        try
+        {
+            Rlgl.Translatef(Layout.GuideOffset.X, Layout.GuideOffset.Y, 0);
+            DrawGuide(alpha);
+        }
+        finally { Rlgl.PopMatrix(); }
         if (interactive && !selectionChanged && Gui.Clicked(ConfirmArea)) Decide();
         if (error.Length > 0 || !string.IsNullOrEmpty(errors[cursor]))
             Outlined(error.Length > 0 ? error : errors[cursor], new(450, 758, 1020, 45), 27, Color.Red, Color.Black);
