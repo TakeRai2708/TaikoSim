@@ -379,6 +379,7 @@ namespace TakeTaikoSimulator.Scenes
                     string song = showTitle && chart.Title.Length > 0 ? $"{dan.SongIndex + 1}曲目：{chart.Title}" : $"{dan.SongIndex + 1}曲目 / {dan.Tallies.Length}";
                     return new(dan.Course.Title.Length > 0 ? dan.Course.Title : "段位道場", song, end);
                 }
+                if (PauseActive) return new(title, $"{level}（一時停止中）");
                 if (isTraining)
                     return trainingPaused ? new(title, $"特訓モード · {level}（一時停止中）") : new(title, $"特訓モード · {level}", end);
                 return new(title, autoPlay ? $"{level} · オート" : level, end);
@@ -721,6 +722,7 @@ namespace TakeTaikoSimulator.Scenes
                 }
                 return;
             }
+            if (UpdatePause(dt)) return;   // 一時停止中は、時計も判定も進めない
             danPanel?.Update(dt);
             danShutter?.Update(dt);
             danBackgroundTime += dt;
@@ -1722,7 +1724,15 @@ namespace TakeTaikoSimulator.Scenes
         }
 
         // Esc で選曲画面(ドロップで来たときはモード選択、段位道場のときは段位選択画面)に戻る
+        // Esc：ふつうの演奏・段位では、まず一時停止のメニューを開く（Scenes/Play/PlayPause.cs）
         public override void OnBack()
+        {
+            if (HandlePauseBack()) return;
+            QuitPlay();
+        }
+
+        // 演奏をやめて、前の画面へ戻る
+        private void QuitPlay()
         {
             StopSong(); // 念のため、すぐ止める
             if (dan != null)
@@ -1894,6 +1904,8 @@ namespace TakeTaikoSimulator.Scenes
             }
             if (diagnosticMessageTimer > 0f)
                 FontManager.Draw(diagnosticMessage, InfoX, InfoTop - 34, 22, Color.SkyBlue);
+
+            DrawPause();   // 一時停止のメニュー・再開のカウント（いちばん上に）
 
             // 演奏が終わって次の画面へ行く前に、だんだん暗くする
             if (!localPlay && endFadeElapsed > 0f)

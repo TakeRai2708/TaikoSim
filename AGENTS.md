@@ -1108,3 +1108,11 @@ Order:
 - Bars drawn without the A-Style bar art (`BarList.DrawBody`) now get a soft drop shadow and a darker rim band inside the outline,
   because たけらい found the Simple skin bars flat next to A-Style. Unverified on screen.
 
+## Pause during play (11/12) — `Scenes/Play/PlayPause.cs`
+- Esc opens a pause menu in normal play and dan (not in training, 2-player, or after the end sequence started).
+  Normal: つづける / 最初からやりなおす / 曲選択にもどる. Dan: つづける / やめる only (たけらい's decision).
+- つづける counts 3-2-1 before the clock and song resume (たけらい: 「俺は優しいから」). The song is stopped and restarted by UpdateSongSync.
+- Look: skin art if the skin has it, otherwise own UI. The A-Style pause art names are still unknown, so every skin uses the own UI for now.
+- Settings rows are grouped into cards (`BeginCard`/`EndCard` in SettingsOverlay.cs); `Gui.Segmented` replaces a dropdown automatically
+  when it has 2–4 short options (no current setting qualifies).
+
