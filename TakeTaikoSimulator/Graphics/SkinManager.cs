@@ -286,6 +286,28 @@ namespace TakeTaikoSimulator.Graphics
         //   読み込んだ画像は捨てないので、false に戻すとすぐ元のスキンに戻る
         public static bool SystemSkin { get; set; }
 
+        // フォルダの中の PNG（下のフォルダは見ない）を全部読んで、GetTexture と同じ名前でしまっておく。読んだ枚数を返す
+        //   relativeFolder は "Image/04.EnsoGame/Popup/" のように、最後に / をつける
+        public static int PreloadFolder(string relativeFolder)
+        {
+            if (CurrentPath == null || SystemSkin) return 0;
+            string full = Path.Combine(CurrentPath, relativeFolder.Replace('/', Path.DirectorySeparatorChar));
+            if (!Directory.Exists(full)) return 0;
+            int count = 0;
+            try
+            {
+                foreach (string file in Directory.EnumerateFiles(full, "*.png"))
+                {
+                    string key = relativeFolder + Path.GetFileName(file);
+                    if (textures.ContainsKey(key)) continue;
+                    GetTexture(key);
+                    count++;
+                }
+            }
+            catch (Exception ex) when (ex is IOException || ex is UnauthorizedAccessException) { }
+            return count;
+        }
+
         public static Texture2D? GetWhiteTexture(string relativePath)
         {
             if (SystemSkin) return null;

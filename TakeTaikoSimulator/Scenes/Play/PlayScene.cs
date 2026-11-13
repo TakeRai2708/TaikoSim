@@ -472,6 +472,7 @@ namespace TakeTaikoSimulator.Scenes
             if (!localPlay || localLeader) LoadSong();
             LoadHitSounds();
             PrepareJudge();
+            PreloadPlayImages();
             chara.Load(IsDan);
             Restart();
             if (isTraining && course != null) trainingTimeline = new TrainingTimeline(course);
@@ -1469,9 +1470,12 @@ namespace TakeTaikoSimulator.Scenes
         // 同じキーが2か所に登録されていたら、DrumPart の並びが上の方を使う(KeyConfig の決まりと同じ)
         private bool TryGetDrumPart(KeyboardKey key, out DrumPart part)
         {
-            foreach (DrumPart candidate in Enum.GetValues<DrumPart>().Take(4))
+            // 叩くたびに配列や LINQ を作らないように、0〜3 を数字で回す
+            int keySetOffset = LocalSession.KeySets[localPlay ? localPlayer : LocalSession.MenuPlayer] * 4;
+            for (int i = 0; i < 4; i++)
             {
-                if (ConfigManager.Key.DrumKeys.TryGetValue((DrumPart)((int)candidate + LocalSession.KeySets[localPlay ? localPlayer : LocalSession.MenuPlayer] * 4), out List<KeyboardKey>? keys) && keys.Contains(key))
+                DrumPart candidate = (DrumPart)i;
+                if (ConfigManager.Key.DrumKeys.TryGetValue((DrumPart)(i + keySetOffset), out List<KeyboardKey>? keys) && keys.Contains(key))
                 {
                     part = candidate;
                     return true;
@@ -2308,10 +2312,32 @@ namespace TakeTaikoSimulator.Scenes
         }
 
         // 音符1つ（顔つき。その顔の絵が無いスキンは 0 番）
-        private Texture2D? GetNoteTexture(string file)
+        //   ファイル名は最初に作っておく（毎コマ・音符ごとに文字列を作るとゴミが出て、GC で止まることがある）
+        private static readonly string[][] NotePaths = Enumerable.Range(0, 3)
+            .Select(face => Enumerable.Range(0, 11).Select(n => NotesRoot + face + "/" + n + ".png").ToArray()).ToArray();
+        private Texture2D? GetNoteTexture(int number)
         {
-            if (noteFace != 0 && SkinManager.GetTexture(NotesRoot + noteFace + "/" + file) is Texture2D faced) return faced;
-            return SkinManager.GetTexture(NotesDir + file);
+            if (noteFace != 0 && SkinManager.GetTexture(NotePaths[noteFace][number]) is Texture2D faced) return faced;
+            return SkinManager.GetTexture(NotePaths[0][number]);
+        }
+
+        // 演奏の途中で初めて使う絵を、曲が始まる前に全部読んでおく
+        //   スキンの絵は初めて使った瞬間にディスクから読むので、10・100コンボ（音符の顔）、最初の連打（Popup）、
+        //   ゴーゴー（Effects・Lane）、魂ゲージの虹（Gauge）、自己ベスト・分岐（MiniTaiko）などで、そのコマだけ止まっていた
+        //   止まっているあいだに叩いた音があとでまとめて鳴るので、「詰まった・同時押しみたい」に感じる原因になる
+        private static readonly string[] PlayImageFolders =
+        {
+            NotesRoot + "0/", NotesRoot + "1/", NotesRoot + "2/",
+            "Image/04.EnsoGame/Popup/", "Image/04.EnsoGame/Effects/", "Image/04.EnsoGame/Lane/",
+            "Image/04.EnsoGame/Gauge/", "Image/04.EnsoGame/MiniTaiko/", "Image/04.EnsoGame/Genre/",
+            "Image/04.EnsoGame/Scoreboard/", "Image/04.EnsoGame/End/",
+        };
+        private static void PreloadPlayImages()
+        {
+            long started = Stopwatch.GetTimestamp();
+            int count = 0;
+            foreach (string folder in PlayImageFolders) count += SkinManager.PreloadFolder(folder);
+            DebugLog.Event("画像", $"演奏の絵を先に {count} 枚読んだ", Stopwatch.GetElapsedTime(started).TotalMilliseconds, 0);
         }
 
         // 今のコマの顔を決める（コンボ数と、拍のどこか）
@@ -2346,7 +2372,7 @@ namespace TakeTaikoSimulator.Scenes
                 if (x - NoteHalf > Screen.Width) return;
 
                 // 風船の画像は横長(390×195)。左の丸の中心が音符の位置
-                if (GetNoteTexture("10.png") is Texture2D balloon)
+                if (GetNoteTexture(10) is Texture2D balloon)
                     Raylib.DrawTextureEx(balloon, new Vector2(x - NoteHalf, NoteY - NoteHalf), 0f, 1f, Color.White);
                 else
                 {
@@ -2362,9 +2388,9 @@ namespace TakeTaikoSimulator.Scenes
                 if (x - NoteHalf > Screen.Width || endX + NoteHalf < 0) return;
 
                 bool big = note.IsBig;
-                Texture2D? head = GetNoteTexture((big ? "7" : "4") + ".png");
-                Texture2D? body = GetNoteTexture((big ? "8" : "5") + ".png");
-                Texture2D? tail = GetNoteTexture((big ? "9" : "6") + ".png");
+                Texture2D? head = GetNoteTexture(big ? 7 : 4);
+                Texture2D? body = GetNoteTexture(big ? 8 : 5);
+                Texture2D? tail = GetNoteTexture(big ? 9 : 6);
 
                 if (head is Texture2D h && body is Texture2D b && tail is Texture2D t)
                 {
@@ -2391,16 +2417,16 @@ namespace TakeTaikoSimulator.Scenes
             // ----- ドン・カッ・大ドン・大カッ -----
             if (x - NoteHalf > Screen.Width || x + NoteHalf < 0) return;
 
-            string image = note.Type switch
+            int image = note.Type switch
             {
-                NoteType.Don => "0",
-                NoteType.Ka => "1",
-                NoteType.BigDon => "2",
-                NoteType.BigKa => "3",
-                _ => "0",
+                NoteType.Don => 0,
+                NoteType.Ka => 1,
+                NoteType.BigDon => 2,
+                NoteType.BigKa => 3,
+                _ => 0,
             };
 
-            if (GetNoteTexture(image + ".png") is Texture2D texture)
+            if (GetNoteTexture(image) is Texture2D texture)
                 Raylib.DrawTextureEx(texture, new Vector2(x - NoteHalf, NoteY - NoteHalf), 0f, 1f, Color.White);
             else
             {
