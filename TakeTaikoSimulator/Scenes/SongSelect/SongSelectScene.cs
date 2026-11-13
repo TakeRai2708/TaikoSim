@@ -1491,11 +1491,13 @@ namespace TakeTaikoSimulator.Scenes
                     //   曲の数は、板の上の吹き出しに出す(DrawGenrePop)
                     float topPad = inner.Y - area.Y;
                     Rectangle titleArea = new Rectangle(inner.X, inner.Y, inner.Width, BarList.BarHeight - topPad * 2);
-                    Outlined(item.Title, titleArea, 46, Fade(Color.White, alpha), Fade(ink, alpha));
+                    using (UseOutlineRatio(GenreTitleOutline / GenreTitleSize))
+                        Outlined(item.Title, titleArea, GenreTitleSize, Fade(Color.White, alpha), Fade(ink, alpha));
                     break;
 
                 case Kind.Back:
-                    Outlined(item.Title, inner, open > 0f ? 56 : 46, Fade(Color.White, alpha), Fade(BackBoxColor, alpha));
+                    using (UseOutlineRatio(6f / 45f))
+                        Outlined(item.Title, inner, open > 0f ? 56 : 45, Fade(Color.White, alpha), Fade(BackBoxColor, alpha));
                     break;
 
                 case Kind.Random:
@@ -1508,6 +1510,22 @@ namespace TakeTaikoSimulator.Scenes
             }
         }
 
+        // 文字の大きさと縁（11/14 たけらいがくれた TaikøNauts のスクショ 1920×1080 を 1px ずつ測った）
+        //   曲の板の曲名：白い字の高さ 37〜38px・縁 5px。開いた板の曲名も同じ。サブタイトル：高さ 21px・縁 3px
+        //   ジャンルの板の名前：高さ 47〜49px・縁 7〜8px（曲名より大きい）
+        //   うちのフォントは 大きさ×0.84 くらいが白い字の高さなので、そこから大きさを決めた
+        private const float SongTitleSize = 45f, SongTitleOutline = 5f;
+        private const float GenreTitleSize = 57f, GenreTitleOutline = 7.5f;
+
+        // 曲名の縁の色：板の色を「あざやかで暗め」にした色（TaikøNauts：オレンジの板 (238,116,49) に (149,31,0)）
+        //   前は板の色を 65% 暗くしていたので、ほぼ黒で太く見えていた。灰色っぽい板は、今まで通り暗くするだけ
+        private static Color SongInk(Color bar)
+        {
+            System.Numerics.Vector3 hsv = Raylib.ColorToHSV(bar);
+            if (hsv.Y < 0.15f) return Raylib.ColorBrightness(bar, -0.6f);
+            return Raylib.ColorFromHSV(hsv.X, 1f, 0.58f);
+        }
+
         private void DrawSongBar(Item item, Rectangle inner, float open, Color ink, float alpha)
         {
             SongEntry song = item.Song!;
@@ -1516,7 +1534,8 @@ namespace TakeTaikoSimulator.Scenes
 
             if (open <= 0f)
             {
-                Outlined(song.Title, new Rectangle(inner.X + 30, inner.Y, inner.Width - 60, inner.Height), 46, Fade(titleColor, alpha), Fade(ink, alpha));
+                using (UseOutlineRatio(SongTitleOutline / SongTitleSize))
+                    Outlined(song.Title, new Rectangle(inner.X + 30, inner.Y, inner.Width - 60, inner.Height), SongTitleSize, Fade(titleColor, alpha), Fade(SongInk(item.Color), alpha));
                 if (favorite) Text("♥", inner.X + inner.Width - 36, inner.Y + inner.Height / 2f - 14, 26, Fade(new Color(230, 80, 130, 255), alpha));
                 return;
             }
@@ -1529,11 +1548,13 @@ namespace TakeTaikoSimulator.Scenes
             if (favorite) Text("♥ お気に入り", inner.X + inner.Width - 150, inner.Y + 8, 20, Fade(new Color(230, 80, 130, 255), a));
 
             // 曲名・サブタイトル(TaikøNauts と同じく板の上の方)
-            Outlined(song.Title, new Rectangle(inner.X + 20, inner.Y + 32, inner.Width - 40, 66), 48, Fade(titleColor, alpha), Fade(ink, alpha));
+            using (UseOutlineRatio(SongTitleOutline / SongTitleSize))
+                Outlined(song.Title, new Rectangle(inner.X + 20, inner.Y + 32, inner.Width - 40, 66), SongTitleSize, Fade(titleColor, alpha), Fade(SongInk(item.Color), alpha));
             string sub = song.HasError ? song.Error : song.Subtitle;
             if (sub.Length > 0)
                 // サブタイトルは曲名と同じスキンのメインのフォント（11/14 たけらい「フォント違う」。細かい字のフォントは曲数・ジャンルなどの方）
-                Outlined(sub, new Rectangle(inner.X + 20, inner.Y + 96, inner.Width - 40, 34), 24, Fade(song.HasError ? ErrorColor : Color.White, a), Fade(ink, a));   // 縁は曲名と同じ板の色の濃い色（11/14 たけらい「黒で固定はめっちゃ違和感」）
+                using (UseOutlineRatio(3f / 25f))
+                    Outlined(sub, new Rectangle(inner.X + 20, inner.Y + 96, inner.Width - 40, 34), 25, Fade(song.HasError ? ErrorColor : Color.White, a), Fade(SongInk(item.Color), a));   // 縁は曲名と同じ板の色の濃い色（11/14 たけらい「黒で固定はめっちゃ違和感」）
 
             // 下：難易度と★
             //   11/12：札は原寸の 176×86 で、上が 572（開いた板の下 695 から 123px 上）。11/11 の録画に札の絵を重ねて合わせた。
@@ -1690,12 +1711,13 @@ namespace TakeTaikoSimulator.Scenes
             Color ink = Raylib.ColorBrightness(diffColor, -0.7f);
             // 曲名・サブタイトル：スキンのメインのフォントに真っ黒の縁（11/14 たけらい：細かい字のフォントは曲数・ジャンルなどの方）
             //   縁の太さは前と同じ（曲名 6px、サブタイトル 4px）
-            using (UseOutlineRatio(6f / 64f))
-                Outlined(diffSong.Title, new Rectangle(titleBox.X + 30, titleBox.Y + 55 * scale, titleBox.Width - 60, 80 * scale), 64 * scale,
+            //   11/14 TaikøNauts のスクショ：曲名は白い字の高さ 50px・縁 7px、サブタイトルは高さ 30px・縁 4px（どちらも黒）
+            using (UseOutlineRatio(7f / 60f))
+                Outlined(diffSong.Title, new Rectangle(titleBox.X + 30, titleBox.Y + 55 * scale, titleBox.Width - 60, 80 * scale), 60 * scale,
                     Fade(Color.White, alpha), Fade(Color.Black, alpha));
             if (diffSong.Subtitle.Length > 0)
-                using (UseOutlineRatio(4f / 32f))
-                    Outlined(diffSong.Subtitle, new Rectangle(titleBox.X + 30, titleBox.Y + 135 * scale, titleBox.Width - 60, 40 * scale), 32 * scale,
+                using (UseOutlineRatio(4f / 36f))
+                    Outlined(diffSong.Subtitle, new Rectangle(titleBox.X + 30, titleBox.Y + 135 * scale, titleBox.Width - 60, 40 * scale), 36 * scale,
                         Fade(Color.White, alpha), Fade(Color.Black, alpha));
 
             // 箱：戻る・オプション・かんたん〜おに

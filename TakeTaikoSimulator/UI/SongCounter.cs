@@ -94,7 +94,8 @@ namespace TakeTaikoSimulator.UI
                 float g = 1f - countAlpha;
                 if (!MenuSkin.Whole(GenreFolder + "Bar.png", area, Fade(genreColor, g)))
                     SmoothShapes.Rounded(area, 1f, 12, Fade(genreColor, g));
-                OutlinedDetail(genre, new Rectangle(area.X + 10f, area.Y, area.Width - 20f, area.Height), 24f, Fade(Color.White, g), Fade(Color.Black, g), 3f);
+                // 11/14 TaikøNauts のスクショ：ジャンル名は白い字の高さ 17px・縁 4px（ナムコオリジナルの札はべたぬり (254,112,39)）
+                OutlinedDetail(genre, new Rectangle(area.X + 10f, area.Y, area.Width - 20f, area.Height), 21f, Fade(Color.White, g), Fade(Color.Black, g), 4f);
             }
         }
 

@@ -56,7 +56,8 @@ namespace TakeTaikoSimulator.Scenes
         // ===== 置き場所(1920×1080。TaikøNauts の動画を測った) =====
         // 板：Plate.png(1600×270)を 0.9倍で、真ん中 (960, 400) に(画面では 240〜1680 × 278〜521)
         private const float PlateScale = 0.9f, PlateCenterY = 400f;
-        private const float TitleCenterY = 390f, TitleSize = 62f, TitleOutline = 6f, TitleMaxWidth = 1300f;
+        private const float TitleCenterY = 390f, TitleSize = 62f, TitleOutline = 7f,   // 11/14 TaikøNauts のスクショで縁 8px（下で +1 している）
+        TitleMaxWidth = 1300f;
         private const float SubtitleCenterY = 478f, SubtitleSize = 34f;
         private static readonly Color SubtitleColor = new Color(34, 34, 34, 255);
 
