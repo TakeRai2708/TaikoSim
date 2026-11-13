@@ -535,8 +535,9 @@ namespace TakeTaikoSimulator.Scenes
                 return;
             }
 
-            // 曲と難易度ではプレビュー。「戻る」を選んでいる間は止め、選曲BGMへ戻す。
-            string? previewTja = diffOpen ? (diffCursor == 0 ? null : diffSong?.TjaPath)
+            // 曲と難易度ではプレビュー。難易度の画面では「とじる」にカーソルがあっても止めない
+            //   11/14 たけらい「難易度選択画面で閉じるにカーソル合わせると曲が止まる。前はそんなことなかった」
+            string? previewTja = diffOpen ? diffSong?.TjaPath
                 : inSongs && CurrentItem is { Kind: Kind.Song } now ? now.Song!.TjaPath : null;
             preview.Request(previewTja, diffOpen || list.Expand > 0f);
             if (returnTime >= 0f) { DiscardTypedChars(); return; }
@@ -1522,7 +1523,8 @@ namespace TakeTaikoSimulator.Scenes
             Outlined(song.Title, new Rectangle(inner.X + 20, inner.Y + 32, inner.Width - 40, 66), 48, Fade(titleColor, alpha), Fade(ink, alpha));
             string sub = song.HasError ? song.Error : song.Subtitle;
             if (sub.Length > 0)
-                OutlinedDetail(sub, new Rectangle(inner.X + 20, inner.Y + 96, inner.Width - 40, 34), 24, Fade(song.HasError ? ErrorColor : Color.White, a), Fade(Color.Black, a), 3f);
+                // サブタイトルは曲名と同じスキンのメインのフォント（11/14 たけらい「フォント違う」。細かい字のフォントは曲数・ジャンルなどの方）
+                Outlined(sub, new Rectangle(inner.X + 20, inner.Y + 96, inner.Width - 40, 34), 24, Fade(song.HasError ? ErrorColor : Color.White, a), Fade(Color.Black, a));
 
             // 下：難易度と★
             //   11/12：札は原寸の 176×86 で、上が 572（開いた板の下 695 から 123px 上）。11/11 の録画に札の絵を重ねて合わせた。

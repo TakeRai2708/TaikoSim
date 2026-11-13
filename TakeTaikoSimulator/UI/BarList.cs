@@ -239,8 +239,10 @@ namespace TakeTaikoSimulator.UI
             SmoothShapes.Rounded(r, MenuDraw.Roundness(r, rad), 12, MenuDraw.Fade(dark, alpha));
             Rectangle lightArea = new Rectangle(r.X, r.Y, r.Width, r.Height - CodeBand);
             SmoothShapes.Rounded(lightArea, MenuDraw.Roundness(lightArea, rad), 12, MenuDraw.Fade(light, alpha));
+            // 右の下半分：右下の角まで同じ丸みで暗い帯をつなげる（前は四角で角の手前で切れて、黒い線に見えていた）
             float midY = r.Y + r.Height / 2f;
-            Raylib.DrawRectangleRec(new Rectangle(r.X + r.Width - CodeBand, midY, CodeBand, r.Y + r.Height - rad - midY), MenuDraw.Fade(dark, alpha));
+            Rectangle lowerRight = new Rectangle(r.X + r.Width / 2f, midY, r.Width / 2f, r.Y + r.Height - midY);
+            SmoothShapes.Rounded(lowerRight, MenuDraw.Roundness(lowerRight, rad), 12, MenuDraw.Fade(dark, alpha));
             Rectangle body = new Rectangle(r.X + CodeBand, r.Y + CodeBand, r.Width - CodeBand * 2, r.Height - CodeBand * 2);
             SmoothShapes.Rounded(body, MenuDraw.Roundness(body, rad - CodeBand), 12, MenuDraw.Fade(color, alpha));
         }
