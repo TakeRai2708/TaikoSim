@@ -13,6 +13,36 @@ public static class NamePlate
     public const string Root = "Image/99.Common/NamePlate/";
     private sealed record Art(Aup2? Anime, string? Base, float X, float Y);
     private static readonly Dictionary<string, Art> art = new();
+
+    // NamePlate_Base.png の左上 338×80 から、黒いふち（暗いところ）だけを取り出した絵（スキンが変わったら作り直す）
+    private static Texture2D? borderTexture;
+    private static int borderGeneration = -1;
+    private static Texture2D? BorderOnly(Texture2D sheet)
+    {
+        if (borderGeneration == SkinManager.Generation) return borderTexture;
+        if (borderTexture is Texture2D old) Raylib.UnloadTexture(old);
+        borderTexture = null;
+        borderGeneration = SkinManager.Generation;
+        Image full = Raylib.LoadImageFromTexture(sheet);
+        if (full.Width < 338 || full.Height < 80) { Raylib.UnloadImage(full); return null; }
+        Image img = Raylib.ImageFromImage(full, new Rectangle(0, 0, 338, 80));
+        Raylib.UnloadImage(full);
+        Raylib.ImageFormat(ref img, PixelFormat.UncompressedR8G8B8A8);
+        for (int y = 0; y < img.Height; y++)
+            for (int x = 0; x < img.Width; x++)
+            {
+                Color p = Raylib.GetImageColor(img, x, y);
+                float luma = 0.299f * p.R + 0.587f * p.G + 0.114f * p.B;
+                float keep = Math.Clamp((160f - luma) / 160f, 0f, 1f);
+                Raylib.ImageDrawPixel(ref img, x, y, new Color(p.R, p.G, p.B, (byte)(p.A * keep)));
+            }
+        Texture2D tex = Raylib.LoadTextureFromImage(img);
+        Raylib.UnloadImage(img);
+        if (tex.Id == 0) return null;
+        Raylib.SetTextureFilter(tex, TextureFilter.Bilinear);
+        Raylib.SetTextureWrap(tex, TextureWrap.Clamp);
+        return borderTexture = tex;
+    }
     private static int skinGeneration = -1;
     public static void Clear()
     {
@@ -91,6 +121,11 @@ public static class NamePlate
                 else if (image.Base != null && SkinManager.GetTexture(image.Base) is Texture2D plate)
                     Raylib.DrawTextureEx(plate, new(image.X, image.Y), 0, 1, white);
                 else Raylib.DrawRectangle(60, 7, 264, 29, Raylib.ColorAlpha(new Color(55, 95, 160, 255), alpha));
+                // 称号の背景のうえに、プレートの黒いふちだけをもう一度描く
+                //   11/14 たけらい「タイトルの右側、下と上で縁の太さ違う」：称号の背景の絵が右の黒いふちに 2px くらいかぶっていた
+                //   （かぶらないように左へずらすと、今度はすき間ができる）。ふちを上に重ねれば、どちらも起きない
+                if (BorderOnly(sheet) is Texture2D border)
+                    Raylib.DrawTexture(border, 0, 0, white);
             }
             else
             {
