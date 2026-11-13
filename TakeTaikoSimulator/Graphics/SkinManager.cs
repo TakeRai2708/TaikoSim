@@ -323,6 +323,7 @@ namespace TakeTaikoSimulator.Graphics
                 if (texture.Id != 0)
                 {
                     Raylib.SetTextureFilter(texture, TextureFilter.Bilinear);
+                    Raylib.SetTextureWrap(texture, TextureWrap.Clamp);
                     result = texture;
                 }
             }
@@ -392,6 +393,7 @@ namespace TakeTaikoSimulator.Graphics
                     if (texture.Id != 0)
                     {
                         Raylib.SetTextureFilter(texture, TextureFilter.Bilinear);
+                        Raylib.SetTextureWrap(texture, TextureWrap.Clamp);
                         soulExplosionDot = texture;
                         SoulExplosionRadius = center - (float)(weightedY / weight);
                     }
@@ -455,6 +457,7 @@ namespace TakeTaikoSimulator.Graphics
                         if (texture.Id != 0)
                         {
                             Raylib.SetTextureFilter(texture, TextureFilter.Bilinear);
+                            Raylib.SetTextureWrap(texture, TextureWrap.Clamp);
                             gaugeGlowCells[column] = texture;
                         }
                     }
@@ -534,6 +537,8 @@ namespace TakeTaikoSimulator.Graphics
                 Texture2D texture = Raylib.LoadTextureFromImage(image);
                 Raylib.UnloadImage(image);
                 Raylib.SetTextureFilter(texture, TextureFilter.Bilinear); // 拡大・縮小してもガタガタにしない
+                // はしは「くり返し」にしない（11/14 板の右に黒い線：Bar/番号.png の左はしの黒が、右はしになめらか描きでにじんでいた）
+                Raylib.SetTextureWrap(texture, TextureWrap.Clamp);
                 return texture;
             }
             catch (Exception ex) when (ex is IOException || ex is UnauthorizedAccessException)
