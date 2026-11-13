@@ -175,6 +175,7 @@ namespace TakeTaikoSimulator.Scenes
         // 「今回のプレイは記録されません」の帯を出してからの秒（オートのとき。UI/InfoBar.cs）
         private float infoBarAge;
         private string genreName = "";   // 曲名の下の札に出すジャンル（UI/SongCounter.cs）
+        private Color genreColor = Color.White;
         private readonly Random noteRandom = new();
 
         private enum Judge { Good, Ok, Bad } // 良・可・不可(Judge.png の上から順)
@@ -456,8 +457,8 @@ namespace TakeTaikoSimulator.Scenes
             playSpeed = isTraining || localPlay || dan != null ? 1.0 : ConfigManager.Game.PlaySpeed;
             // 何曲目かを数える（やりなおしでは数えない。Enter は曲ごとに1回）。段位・特訓は数えない
             if (!isTraining && dan == null) LocalSession.SongsPlayed++;
-            genreName = dan == null ? SongCounter.GenreOf(path) : "";
-            if (genreName.Length > 0) FontManager.PreloadSkinMain(new[] { genreName, "0123456789曲目" });
+            (genreName, genreColor) = dan == null ? SongCounter.GenreInfo(path) : ("", Color.White);
+            FontManager.PreloadDetail(new[] { genreName, "0123456789曲目" });   // 曲数・ジャンルの札は細かい字のフォント
             if (dan != null)
             {
                 // #DISABLEDCHEAT:true のカテゴリは、練習向けの機能（オート演奏・オート連打）を使えない
@@ -1939,7 +1940,7 @@ namespace TakeTaikoSimulator.Scenes
             hud.DrawSongTitle();
             // 曲名の下：「N曲目 / 3曲」とジャンルを2秒ずつ交互に（段位は DanPanel が出す。特訓は出さない）
             if (dan == null && !isTraining)
-                SongCounter.DrawPlay(SongCounter.Number(LocalSession.SongsPlayed), genreName, infoBarAge);
+                SongCounter.DrawPlay(SongCounter.Number(LocalSession.SongsPlayed), genreName, genreColor, infoBarAge);
             PuchiChara.Draw(localPlay ? LocalSession.Profiles[localPlayer] : SongHistory.ActiveProfile, localPlay ? localPlayer : 0, "ensoGame");
             NamePlate.Draw(localPlay ? LocalSession.Profiles[localPlayer] : SongHistory.ActiveProfile, localPlay ? localPlayer : 0, 0, 450, .96f);
             branchLane.DrawPopup();  // 「レベルアップ／レベルダウン」

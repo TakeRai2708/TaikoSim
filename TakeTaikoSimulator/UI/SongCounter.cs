@@ -62,7 +62,10 @@ namespace TakeTaikoSimulator.UI
         }
 
         /// <summary>演奏画面：曲数とジャンルを交互に。clock は演奏画面に入ってからの秒</summary>
-        public static void DrawPlay(int number, string genre, float clock)
+        //   11/14 たけらい：曲数とジャンルの字は細かい字のフォント（曲名のほうが太い字）。ジャンルの札は、そのジャンルの色
+        //   録画（09-41-48 の1秒）：アニメの札はべたぬりのピンク (253,146,223) に、白い字と黒い縁
+        //   スキンの Genre/Bar.png は1枚だけ（どのジャンルでも同じ）なので、白い札にジャンルの色をかけて描いている（推測）
+        public static void DrawPlay(int number, string genre, Color genreColor, float clock)
         {
             float countAlpha = 1f;
             if (genre.Length > 0)
@@ -83,31 +86,30 @@ namespace TakeTaikoSimulator.UI
                 }
                 // 録画：「1曲目」は x 1643〜1704、「3曲」は x 1789〜1838、高さ y 107〜131（ふち込み）
                 float thick = 2.5f;
-                using (UseOutlineRatio(thick / 22f))
-                {
-                    Outlined($"{number}曲目", new Rectangle(1623.5f, PlayY, 100f, 40f), 22f, Fade(Color.Black, countAlpha), a);
-                    Outlined($"{SongsPerPlay}曲", new Rectangle(1763.5f, PlayY, 100f, 40f), 22f, Fade(Color.Black, countAlpha), a);
-                }
+                OutlinedDetail($"{number}曲目", new Rectangle(1623.5f, PlayY, 100f, 40f), 22f, Fade(Color.Black, countAlpha), a, thick);
+                OutlinedDetail($"{SongsPerPlay}曲", new Rectangle(1763.5f, PlayY, 100f, 40f), 22f, Fade(Color.Black, countAlpha), a, thick);
             }
             if (genre.Length > 0 && countAlpha < 1f)
             {
                 float g = 1f - countAlpha;
-                if (!MenuSkin.Whole(GenreFolder + "Bar.png", area, Fade(Color.White, g)))
-                    SmoothShapes.Rounded(area, 1f, 12, Fade(new Color(255, 236, 240, 220), g));
-                using (UseOutlineRatio(3f / 24f))
-                    Outlined(genre, new Rectangle(area.X + 10f, area.Y, area.Width - 20f, area.Height), 24f, Fade(Color.White, g), Fade(Color.Black, g));
+                if (!MenuSkin.Whole(GenreFolder + "Bar.png", area, Fade(genreColor, g)))
+                    SmoothShapes.Rounded(area, 1f, 12, Fade(genreColor, g));
+                OutlinedDetail(genre, new Rectangle(area.X + 10f, area.Y, area.Width - 20f, area.Height), 24f, Fade(Color.White, g), Fade(Color.Black, g), 3f);
             }
         }
 
         /// <summary>譜面のファイルから、ジャンル名（カテゴリの Genre、無ければカテゴリの名前）を探す</summary>
-        public static string GenreOf(string tjaPath)
+        public static string GenreOf(string tjaPath) => GenreInfo(tjaPath).Name;
+
+        /// <summary>ジャンル名と、そのジャンルの色（選曲の板と同じ色）</summary>
+        public static (string Name, Color Color) GenreInfo(string tjaPath)
         {
             foreach (SongCategory category in SongList.Categories)
                 foreach (SongEntry song in category.Songs)
                     if (string.Equals(song.TjaPath, tjaPath, StringComparison.OrdinalIgnoreCase))
-                        return category.IsLoose || category.Title == SongList.OthersTitle ? ""
-                            : string.IsNullOrWhiteSpace(category.Genre) ? category.Title : category.Genre;
-            return "";
+                        return category.IsLoose || category.Title == SongList.OthersTitle ? ("", Color.White)
+                            : (string.IsNullOrWhiteSpace(category.Genre) ? category.Title : category.Genre, category.Color);
+            return ("", Color.White);
         }
     }
 }

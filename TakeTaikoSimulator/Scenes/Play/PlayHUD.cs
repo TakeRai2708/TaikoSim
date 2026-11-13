@@ -101,19 +101,15 @@ namespace TakeTaikoSimulator.Scenes
             FontManager.Measure(courseText, 22);
             songTitle = title.Replace('\r', ' ').Replace('\n', ' ').Trim();
             FontManager.PrepareSkinMainText(songTitle);
-            FontManager.PreloadDetail(new[] { songTitle });
             PrepareSongTitleLayout();
         }
 
-        // 11/13：曲名はスキンの細かい字のフォント（Default2.ttf）に黒い 6px の縁（TaikøNauts の録画で、縁こみの右はし x 1869・
-        //   高さ y 34〜95。無いスキンは今までどおり太い字）
-        private static bool TitleUsesDetail => FontManager.HasSkinDetail;
-        private const float DetailTitleOutline = 6f;
-
+        // 曲名はスキンのメインのフォント（太い字）に黒い縁
+        //   11/14 たけらい「演奏画面のタイトル名の文字、曲数のフォント逆」：11/13 に細かい字のフォントにしたのが逆だった。
+        //   細かい字のフォントは、曲数・ジャンルの札のほう（UI/SongCounter.cs）
         private void PrepareSongTitleLayout()
         {
-            float width = TitleUsesDetail ? FontManager.MeasureDetail(songTitle, SongTitleFontSize).X
-                : FontManager.MeasureSkinMain(songTitle, SongTitleFontSize).X;
+            float width = FontManager.MeasureSkinMain(songTitle, SongTitleFontSize).X;
             float scale = width > SongTitleMaxWidth ? SongTitleMaxWidth / width : 1f;
             songTitleSize = SongTitleFontSize * scale;
             songTitleX = SongTitleRight - width * scale;
@@ -126,10 +122,7 @@ namespace TakeTaikoSimulator.Scenes
             // スキン適用時にフォントと必要な文字は準備済み。ここでは幅だけを再計算する。
             if (songTitleSkinGeneration != SkinManager.Generation) PrepareSongTitleLayout();
             // 黒い縁 → 白い文字(SDF フォントで2回。前は8方向にずらして9回描いていた)
-            if (TitleUsesDetail)
-                FontManager.DrawDetailOutlined(songTitle, songTitleX, SongTitleY, songTitleSize, Color.White, Color.Black,
-                    Math.Min(DetailTitleOutline * songTitleSize / SongTitleFontSize, DynamicFont.MaxOutline(songTitleSize)));
-            else FontManager.DrawSkinMainOutlined(songTitle, songTitleX, SongTitleY, songTitleSize, Color.White, Color.Black, SongTitleOutline);
+            FontManager.DrawSkinMainOutlined(songTitle, songTitleX, SongTitleY, songTitleSize, Color.White, Color.Black, SongTitleOutline);
         }
 
         // ===== 「ベストスコア更新」の札（11/13 たけらい） =====
