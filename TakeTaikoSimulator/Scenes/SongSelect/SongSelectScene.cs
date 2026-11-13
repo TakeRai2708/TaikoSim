@@ -1576,7 +1576,6 @@ namespace TakeTaikoSimulator.Scenes
         {
             Color color = CourseColor(type);
             Color ink = Fade(Raylib.ColorBrightness(color, -0.7f), alpha);
-            Rectangle right = new Rectangle(chip.X + 92, chip.Y + 6, chip.Width - 98, chip.Height - 12);
             // TaikøNauts のスキン：Difficulty_Panel.png(横に5つ。1つ 176×86、182px ごと。★まで描いてある)
             //   数字は Difficulty_Level_Number.png(0〜9。1文字 31×37)で、★のすぐ右に書く(TaikøNauts の動画で測った場所)
             if (MenuSkin.Part(Tn + "Difficulty_Panel.png", new Rectangle(3 + 182 * (int)type, 2, 176, 86), chip, MenuSkin.White(alpha)))
@@ -1586,13 +1585,35 @@ namespace TakeTaikoSimulator.Scenes
                     Outlined(level.ToString(), new Rectangle(chip.X + 128, chip.Y + 20, 44, 46), 36, Fade(Color.White, alpha), Fade(InkColor, alpha));
                 return;
             }
-            // 画像が無いとき(システムのスキンなど)はプログラムで描く
-            Raylib.DrawRectangleRec(chip, Fade(color, alpha));
-            SmoothShapes.Rounded(right, 0.2f, 6, Fade(Raylib.ColorBrightness(color, -0.25f), alpha));
-            Outlined(CourseMark(type), new Rectangle(chip.X + 6, chip.Y + 4, 82, 50), 40, Fade(Color.White, alpha), ink);
-            Outlined(type == CourseType.Edit ? "裏おに" : Chart.GetCourseName(type), new Rectangle(chip.X + 4, chip.Y + 56, 86, 26), 20, Fade(Color.White, alpha), ink);
-            StarLevel(level, right, 36, 2f, Fade(Color.White, alpha), ink);
+            // 画像が無いとき(シンプルスキンなど)はプログラムで描く
+            //   11/14 たけらいが見せてくれた TaikøNauts の SimpleStyle の Difficulty_Panel.png（1枚 63×102）のまね：
+            //     上から下へ少し暗くなる板（角の丸み 8）→ 上の 45% に英語の難易度名（明るい字に細い黒ふち）
+            //     → 下に一段暗い角丸の箱（左右 4px あけ、丸み 6）→ その中に白い★と数字
+            //   絵は使わず、プログラムで同じ形を描いている（絵は TaikøNauts のものなので入れない）
+            //   本家の字はななめ（イタリック）だけど、今のフォントの描き方ではななめにできないので、まっすぐのまま
+            SmoothShapes.Rounded(chip, Roundness(chip, 8), 8, Fade(color, alpha));
+            Rectangle shade = new Rectangle(chip.X + 3, chip.Y + chip.Height * 0.5f, chip.Width - 6, chip.Height * 0.5f - 3);
+            Raylib.DrawRectangleGradientV((int)shade.X, (int)shade.Y, (int)shade.Width, (int)shade.Height,
+                Fade(new Color(0, 0, 0, 0), alpha), Fade(new Color(0, 0, 0, 40), alpha));
+            float wordH = chip.Height * 0.42f;
+            using (UseOutlineRatio(2f / 22f))
+                Outlined(CourseWord(type), new Rectangle(chip.X + 4, chip.Y + 2, chip.Width - 8, wordH), 22,
+                    Fade(MenuDraw.Tint(color, 0.35f), alpha), Fade(Color.Black, alpha));
+            Rectangle box = new Rectangle(chip.X + 4, chip.Y + wordH + 2, chip.Width - 8, chip.Height - wordH - 6);
+            SmoothShapes.Rounded(box, Roundness(box, 6), 6, Fade(Raylib.ColorBrightness(color, -0.32f), alpha));
+            StarLevel(level, box, 30, 6f, Fade(Color.White, alpha), ink);
         }
+
+        // 難易度の英語の名前（TaikøNauts の SimpleStyle と同じ書き方）
+        private static string CourseWord(CourseType type) => type switch
+        {
+            CourseType.Easy => "EASY",
+            CourseType.Normal => "NORMAL",
+            CourseType.Hard => "HARD",
+            CourseType.Oni => "ONI",
+            CourseType.Edit => "EDIT",
+            _ => "",
+        };
 
         // 「★4」を、★と数字それぞれのインク（実際に色がつく部分）の真ん中で、四角の高さの真ん中にそろえて書く
         //   11/14 たけらい「シンプルスキンの数字の表示が若干下」：1行まとめて書くと、フォントの数字が★より下に寄って見えていた
@@ -1623,16 +1644,6 @@ namespace TakeTaikoSimulator.Scenes
             _ => new Color(150, 150, 160, 255),
         };
 
-        // 難易度の印(絵の代わりの1文字)
-        private static string CourseMark(CourseType type) => type switch
-        {
-            CourseType.Easy => "易",
-            CourseType.Normal => "普",
-            CourseType.Hard => "難",
-            CourseType.Oni => "鬼",
-            CourseType.Edit => "裏",
-            _ => "",
-        };
 
         // ===== 難易度をえらぶ板 =====
 
@@ -1796,7 +1807,7 @@ namespace TakeTaikoSimulator.Scenes
             // 印(絵の代わり)
             Vector2 mark = new Vector2(body.X + body.Width / 2f, body.Y + 110 * scale);
             SmoothShapes.Circle(mark, 62 * scale, Fade(Color.White, alpha * 0.85f));
-            Outlined(CourseMark(type), new Rectangle(mark.X - 60 * scale, mark.Y - 50 * scale, 120 * scale, 100 * scale), 84 * scale, Fade(color, alpha), ink);
+            Outlined(CourseWord(type), new Rectangle(mark.X - 60 * scale, mark.Y - 50 * scale, 120 * scale, 100 * scale), 44 * scale, Fade(color, alpha), ink);
 
             // 名前・★レベル・★の列
             string name = type == CourseType.Edit ? "裏おに" : Chart.GetCourseName(type);
