@@ -17,7 +17,7 @@ public static class LayoutAdjustments
         public const float Menu1PX = 60, Menu2PX = 1522, MenuY = 920;
         // ↑モード・難易度選択の位置。選曲は呼び出し側でY=900を指定しています。
         // ↓内部の位置なので、プレート全体の位置を変えても一緒に動きます。
-        public static readonly Vector2 TitleArtOffset = new(0, 0); // 金色などのタイトル背景。スキンのadjustX/Yに加算
+        public static readonly Vector2 TitleArtOffset = new(4, 0); // 金色などのタイトル背景。スキンのadjustX/Yに加算（11/14 右はしに 4px すき間があったので右へ）
         public static readonly Rectangle TitleText = new(75, 6, 248, 28); // 上段の称号文字
         public const float TitleTextSize = 26;
         public static readonly Rectangle PlayerBadge = new(0, -1, 82, 80); // 丸い1P/2Pの絵
