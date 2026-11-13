@@ -355,6 +355,7 @@ namespace TakeTaikoSimulator.Scenes
             float t = elapsed - RevealTime;
             float lift = t < BestHoldEnd ? BestRise : BestRise * (1f - Math.Clamp((t - BestHoldEnd) / (BestLandEnd - BestHoldEnd), 0f, 1f));
             float alpha = Math.Clamp(t / 0.033f, 0f, 1f);
+            if (DrawBestRecordImages(update, t, lift, alpha)) return;
             Rectangle ribbon = new Rectangle(BestRibbon.X, BestRibbon.Y - lift, BestRibbon.Width, BestRibbon.Height);
             Rectangle pill = new Rectangle(BestPill.X, BestPill.Y - lift, BestPill.Width, BestPill.Height);
 
@@ -403,6 +404,63 @@ namespace TakeTaikoSimulator.Scenes
                 SmoothShapes.Triangle(a, c, b, Color.White);
                 Screen.EndScissorMode();
             }
+        }
+
+        // スキンの絵で描く（A-Style の 05.Result/BestScore_*.png）。絵が無ければ false（プログラムで描く）
+        //   11/13 たけらいの録画（2026-11-13_09-41-48.mp4 110秒）に絵を重ねて測った：
+        //     札 BestScore_Plate.png（437×54。右の黒い札と↑の矢印も入っている）の左上 (71,272)
+        //     数字 BestScore_Number.png（15×18 が10個、14px おき）は右はし 札+394、上 札+14
+        //     「ベストスコア更新!」は丸い字に黒いふち、真ん中 札+(142, 23.5)、縁こみの高さ 27px
+        //     黄色い光 BestScore_Effect.png（444×72）は札の真ん中にそろえる。白い光 BestScore_SlashEffect.png（185×56）は左から右へ
+        //   出かたの時間は前に測ったまま（Best* の数字）
+        private const string BestPlateImage = "Image/05.Result/BestScore_Plate.png";
+        private const string BestNumberImage = "Image/05.Result/BestScore_Number.png";
+        private const string BestEffectImage = "Image/05.Result/BestScore_Effect.png";
+        private const string BestSlashImage = "Image/05.Result/BestScore_SlashEffect.png";
+
+        private bool DrawBestRecordImages(SongRecordUpdate update, float t, float lift, float alpha)
+        {
+            if (SkinManager.GetTexture(BestPlateImage) is not Texture2D plate) return false;
+            float px = 71f, py = 272f - lift;
+            Color white = Raylib.ColorAlpha(Color.White, alpha);
+            Raylib.DrawTextureV(plate, new Vector2(px, py), white);
+
+            string gain = (update.After.Score - update.Before.Score).ToString();
+            if (SkinManager.GetTexture(BestNumberImage) is Texture2D num)
+            {
+                for (int i = 0; i < gain.Length; i++)
+                {
+                    int d = gain[i] - '0';
+                    float x = px + 394f - 15f - (gain.Length - 1 - i) * 14f;
+                    Raylib.DrawTexturePro(num, new Rectangle(d * 15, 0, 15, 18), new Rectangle(x, py + 14f, 15, 18), Vector2.Zero, 0f, white);
+                }
+            }
+            else
+            {
+                Vector2 gm = FontManager.MeasureDetail(gain, 22f);
+                FontManager.DrawDetail(gain, px + 394f - gm.X, py + 27f - gm.Y / 2f, 22f, Raylib.ColorAlpha(new Color(250, 240, 190, 255), alpha));
+            }
+
+            float textAlpha = Math.Clamp((t - BestTextStart) / (BestTextEnd - BestTextStart), 0f, 1f);
+            if (textAlpha > 0f)
+                using (UI.MenuDraw.UseOutlineRatio(3f / 24f))
+                    UI.MenuDraw.Outlined("ベストスコア更新!", new Rectangle(px + 22f, py + 7f, 240f, 33f), 24f,
+                        Raylib.ColorAlpha(Color.White, textAlpha), Raylib.ColorAlpha(Color.Black, textAlpha));
+
+            if (t >= BestFlashStart && t < BestFlashEnd && SkinManager.GetTexture(BestEffectImage) is Texture2D flash)
+            {
+                float a = 1f - (t - BestFlashStart) / (BestFlashEnd - BestFlashStart);
+                Raylib.DrawTextureV(flash, new Vector2(px + 218.5f - flash.Width / 2f, py + 27f - flash.Height / 2f), Raylib.ColorAlpha(Color.White, a));
+            }
+            if (t >= BestShineStart && t < BestShineEnd && SkinManager.GetTexture(BestSlashImage) is Texture2D slash)
+            {
+                float p = (t - BestShineStart) / (BestShineEnd - BestShineStart);
+                float x = px - slash.Width + p * (plate.Width + slash.Width);
+                Screen.BeginScissorMode((int)px, (int)py, plate.Width, plate.Height);
+                Raylib.DrawTextureV(slash, new Vector2(x, py - 1f), Color.White);
+                Screen.EndScissorMode();
+            }
+            return true;
         }
 
         private void DrawBackground()
