@@ -53,7 +53,10 @@ public static class SongRecordPanel
     {
         using var placement = SidePlacement(side, Layout.BestOffset);
         var record = SongHistory.GetRecord(profile ?? SongHistory.ActiveProfile, song.Key, course);
-        Rectangle panel = new(20, 575, 332, 90);
+        // 11/14 たけらい「自己ベストの数字ちょっと大きい」：録画（2026-11-13_09-37-49.mp4 76秒）に絵を重ねて測りなおした
+        //   パネル Panel.png（340×105）は原寸で (16,572)。前は 332×90 につぶして描いていたので、数字が大きく見えていた
+        //   難易度の印 CourseSymbol.png（54×40）は (55,611)、数字 Number.png（1文字 24×28）は原寸で、1けたのとき真ん中 (279.5, 632.5)
+        Rectangle panel = new(16, 572, 340, 105);
         if (!MenuSkin.Whole(Folder + "BestScorePanel/Panel.png", panel, MenuSkin.White(alpha)))
         {
             Background(panel, alpha);
@@ -64,18 +67,18 @@ public static class SongRecordPanel
         {
             // 80×80の各セルには難易度の印も入っている。
             if (!MenuSkin.Cell(Folder + "ScoreRank_Symbol.png", row * 7 + record.Rank - 1, 7, 5,
-                new(54, 598, 54, 54), MenuSkin.White(alpha)))
-                RankFallback(record.Rank, new(48, 604, 60, 40), alpha);
+                new(55, 607, 54, 54), MenuSkin.White(alpha)))
+                RankFallback(record.Rank, new(49, 613, 60, 40), alpha);
         }
         else if (!MenuSkin.Cell(Folder + "BestScorePanel/CourseSymbol.png", row, 1, 5,
-            new(54, 602, 54, 40), MenuSkin.White(alpha)))
-            Label(Chart.GetCourseName(course), new(34, 606, 90, 35), 18, Color.White, alpha);
+            new(55, 611, 54, 40), MenuSkin.White(alpha)))
+            Label(Chart.GetCourseName(course), new(35, 615, 90, 35), 18, Color.White, alpha);
 
         string score = record.Score.ToString(CultureInfo.InvariantCulture);
         float width = Layout.BestDigitWidth + Math.Max(0, score.Length - 1) * Layout.BestDigitSpacing;
         float scale = Math.Min(1, Layout.BestMaxWidth / width);
         Number("BestScorePanel/Number.png", record.Score, Layout.BestNumberRight - width * scale / 2,
-            Layout.BestNumberY, Layout.BestDigitWidth, Layout.BestDigitHeight, Layout.BestDigitSpacing, Layout.BestMaxWidth, alpha);
+            Layout.BestNumberY, Layout.BestDigitWidth, Layout.BestDigitHeight, Layout.BestDigitSpacing, Layout.BestMaxWidth, alpha, native: true);
     }
 
     public static void DrawCard(string key, CourseType course, Rectangle card, float alpha, int? profile = null)
@@ -147,7 +150,7 @@ public static class SongRecordPanel
     }
 
     private static void Number(string image, long value, float x, float y, float cellWidth, float height,
-        float advance, float maxWidth, float alpha)
+        float advance, float maxWidth, float alpha, bool native = false)
     {
         string digits = value.ToString(CultureInfo.InvariantCulture);
         float fit = Math.Min(1, maxWidth / (cellWidth + Math.Max(0, digits.Length - 1) * advance));
@@ -155,7 +158,10 @@ public static class SongRecordPanel
         if (SkinManager.GetTexture(path) is Texture2D texture && texture.Width >= 10)
         {
             DigitArt art = PrepareDigits(path, texture);
-            float scale = Math.Min(cellWidth / art.Ink.Width, height / art.Ink.Height) * fit;
+            // native：絵の1文字（ます目全体）を cellWidth×height に合わせる（原寸なら 1倍）。
+            //   ふだんは色のついた部分をます目いっぱいに広げるので、絵より少し大きくなる
+            float scale = (native ? Math.Min(cellWidth / art.CellWidth, height / (float)texture.Height)
+                : Math.Min(cellWidth / art.Ink.Width, height / art.Ink.Height)) * fit;
             float firstX = x - advance * fit * (digits.Length - 1) / 2;
             for (int i = 0; i < digits.Length; i++)
             {

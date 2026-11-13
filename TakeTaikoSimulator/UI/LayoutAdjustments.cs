@@ -60,7 +60,7 @@ public static class LayoutAdjustments
             new(298, 462), // ドンダフルコンボ数
         }; // 配列は3行のまま、new(...)の数字だけ変えてください。
         public const float CountWidth = 18, CountHeight = 22, CountSpacing = 16, CountMaxWidth = 70;
-        public const float BestNumberRight = 308, BestNumberY = 626; // 自己ベストの右端基準X / 数字の中心Y
+        public const float BestNumberRight = 291.5f, BestNumberY = 632.5f; // 自己ベストの右端基準X / 数字の中心Y（11/14 録画で測りなおし）
         public const float BestDigitWidth = 24, BestDigitHeight = 28, BestDigitSpacing = 22, BestMaxWidth = 190;
     }
 

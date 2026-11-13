@@ -83,7 +83,10 @@ namespace TakeTaikoSimulator.UI
         }
 
         // 縁の太さ(文字の大きさから決める。小さい字でも 2px はつける。フォントに持っている距離より太くはしない)
-        public static float OutlineWidth(float size) => Math.Min(Math.Max(2f, size * CurrentOutlineRatio), DynamicFont.MaxOutline(size));
+        //   11/14 たけらい「文字の縁が大きい気がする。1.5px 小さくして」：ふだんの割合（OutlineRatio）のときだけ 1.5px 引く
+        //   （段位など、録画で測って割合を決めてある画面は UseOutlineRatio で別の割合なので、そのまま）
+        public const float OutlineTrim = 1.5f;
+        public static float OutlineWidth(float size) => Math.Min(Math.Max(2f, size * CurrentOutlineRatio - (CurrentOutlineRatio == OutlineRatio ? OutlineTrim : 0f)), DynamicFont.MaxOutline(size));
 
         // 縁取りした文字を、四角の真ん中にはみ出さない大きさで書く
         //   縁は、まわりにぐるっと(円の上に)ずらした文字を描いて作る。8方向だとななめだけ飛び出してトゲトゲになるので、細かく回す
