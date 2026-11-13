@@ -303,10 +303,15 @@ namespace TakeTaikoSimulator.Scenes
         private const double BackCoef = 1.70158;
 
         // ===== 「レベルアップ／レベルダウン」の吹き出し =====
-        //   TaikøNauts の動画で測った値：0.1秒で出て(少し上から下りてくる)、0.9秒出して、0.1秒で消える
+        //   11/13 の録画（09-41-48 と 09-43-58 の 71 秒）を 1/60 秒ずつ測りなおした（真ん中を中心に大きさが変わる）：
+        //     0 → 0.067 秒：1.0 倍 → 1.2 倍にふくらみながら出てくる
+        //     0.067 → 0.133 秒：1.2 倍のまま
+        //     0.133 → 0.217 秒：1.0 倍にもどる
+        //     0.9 秒まで出したまま → 0.083 秒で消える（大きさはそのまま）
         private const string PopupImage = "Image/04.EnsoGame/MiniTaiko/Branch_Popup.png"; // 308×140 が縦2段(上:アップ 下:ダウン)
         private const float PopupX = 265f, PopupY = 181f;
-        private const float PopupIn = 0.1f, PopupDrop = 6f, PopupDropSeconds = 0.18f, PopupHold = 0.9f, PopupOut = 0.1f;
+        private const float PopupIn = 4f / 60f, PopupBigEnd = 8f / 60f, PopupShrinkEnd = 13f / 60f, PopupBig = 1.2f;
+        private const float PopupHold = 0.9f, PopupOut = 5f / 60f;
 
         private BranchType before = BranchType.Normal;
         private BranchType after = BranchType.Normal;
@@ -363,11 +368,16 @@ namespace TakeTaikoSimulator.Scenes
             if (SkinManager.GetTexture(PopupImage) is not Texture2D texture) return;
             float alpha = elapsed < PopupIn ? elapsed / PopupIn
                 : elapsed > PopupHold ? 1f - (elapsed - PopupHold) / PopupOut : 1f;
-            float drop = PopupDrop * (1f - Math.Clamp(elapsed / PopupDropSeconds, 0f, 1f));
+            float scale = elapsed < PopupIn ? 1f + (PopupBig - 1f) * elapsed / PopupIn
+                : elapsed < PopupBigEnd ? PopupBig
+                : elapsed < PopupShrinkEnd ? PopupBig - (PopupBig - 1f) * (elapsed - PopupBigEnd) / (PopupShrinkEnd - PopupBigEnd)
+                : 1f;
             int row = after > before ? 0 : 1;
             float height = texture.Height / 2f;
+            float w = texture.Width * scale, h = height * scale;
+            float cx = PopupX + texture.Width / 2f, cy = PopupY + height / 2f;
             Raylib.DrawTexturePro(texture, new Rectangle(0, row * height, texture.Width, height),
-                new Rectangle(PopupX, PopupY - drop, texture.Width, height), System.Numerics.Vector2.Zero, 0f,
+                new Rectangle(cx - w / 2f, cy - h / 2f, w, h), System.Numerics.Vector2.Zero, 0f,
                 Raylib.ColorAlpha(Color.White, Math.Clamp(alpha, 0f, 1f)));
         }
 
