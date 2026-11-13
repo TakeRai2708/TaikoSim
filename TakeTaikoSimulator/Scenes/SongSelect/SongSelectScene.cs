@@ -1189,14 +1189,24 @@ namespace TakeTaikoSimulator.Scenes
         //   TaikøNauts：Bar/番号.png(938×133。とじるは Bar/Back.png)＋ Bar/Overlay.png(中の板)＋ 番号0は Bar/Decoration.png(花の飾り)
         //   開いた板：土台と中の板は上下に伸ばす。飾りは伸ばさずに、閉じた板と同じ大きさで上にくっつける(TaikøNauts の動画と同じ)
         //   plate を渡すと、中の板(Bar/Overlay.png の 70,23 から 794×84)をその場所に描く(開いたジャンルの板)
+        private const string BarTemplate = Tn + "Bar/1.png";   // ぬりかえの元にする板（飾りの無い板）
         private Rectangle DrawBarBody(Item item, Rectangle area, float alpha, bool plain, Rectangle? plate = null)
         {
             int type = BarType(item);
             string? path = item.Kind == Kind.Back ? Tn + "Bar/Back.png" : type >= 0 ? Tn + $"Bar/{type}.png" : null;
-            if (path != null && SkinManager.GetTexture(path) != null)
+            Texture2D? body = path != null ? SkinManager.GetTexture(path) : null;
+            // 絵が無いジャンル（番号が決まらない・その番号の絵が無い）：スキンの Bar/1.png をジャンルの色にぬりかえて使う（Graphics/RecoloredBars.cs）
+            if (body == null && item.Kind != Kind.Back && SkinManager.GetTexture(BarTemplate) != null)
+                body = RecoloredBars.Get(BarTemplate, item.Color);
+            if (body is Texture2D bodyTexture)
             {
                 Rectangle dest = new Rectangle(area.X, area.Y - 1, area.Width + 6, area.Height + 9);
-                MenuSkin.NPatch(path, dest, 40, MenuSkin.White(alpha));
+                NPatchInfo info = new NPatchInfo
+                {
+                    Source = new Rectangle(0, 0, bodyTexture.Width, bodyTexture.Height),
+                    Left = 40, Top = 40, Right = 40, Bottom = 40, Layout = NPatchLayout.NinePatch,
+                };
+                Raylib.DrawTextureNPatch(bodyTexture, info, dest, System.Numerics.Vector2.Zero, 0f, MenuSkin.White(alpha));
                 if (!plain && plate is Rectangle p)
                 {
                     if (p.Height > 0)
@@ -1523,7 +1533,7 @@ namespace TakeTaikoSimulator.Scenes
             string sub = song.HasError ? song.Error : song.Subtitle;
             if (sub.Length > 0)
                 // サブタイトルは曲名と同じスキンのメインのフォント（11/14 たけらい「フォント違う」。細かい字のフォントは曲数・ジャンルなどの方）
-                Outlined(sub, new Rectangle(inner.X + 20, inner.Y + 96, inner.Width - 40, 34), 24, Fade(song.HasError ? ErrorColor : Color.White, a), Fade(Color.Black, a));
+                Outlined(sub, new Rectangle(inner.X + 20, inner.Y + 96, inner.Width - 40, 34), 24, Fade(song.HasError ? ErrorColor : Color.White, a), Fade(ink, a));   // 縁は曲名と同じ板の色の濃い色（11/14 たけらい「黒で固定はめっちゃ違和感」）
 
             // 下：難易度と★
             //   11/12：札は原寸の 176×86 で、上が 572（開いた板の下 695 から 123px 上）。11/11 の録画に札の絵を重ねて合わせた。
