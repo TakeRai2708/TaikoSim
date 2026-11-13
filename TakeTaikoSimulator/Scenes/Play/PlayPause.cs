@@ -135,11 +135,44 @@ public partial class PlayScene
         DrawPauseMenu();
     }
 
+    // スキンのポーズの絵（A-Style：04.EnsoGame/Pause/）
+    //   11/14 たけらいがくれた TaikøNauts のスクショ（1920×1080）に絵を重ねて測った：
+    //     Panel.png（1920×1080）… 画面全体にそのまま (0,0)。「ポーズメニュー」の字と黄色い板が入っている
+    //     Bar.png（1200×450）… えらんでいない項目。150px ずつ3段（つづける・やりなおす・曲選択）。i 段目を (360, 265 + 200×i)
+    //     Select_Bar.png（1300×450）… えらんでいる項目（オレンジ）。i 段目を (310, 265 + 200×i)
+    //     うしろの演奏画面は 0.7 倍の明るさ（黒を 30% 重ねる）
+    //   段位（つづける・やめる の2つ）は字が合わないので、今までの自前の UI のまま
+    private const string PauseFolder = "Image/04.EnsoGame/Pause/";
+    private bool DrawPauseImages(float ease, bool open)
+    {
+        if (dan != null || SkinManager.GetTexture(PauseFolder + "Panel.png") is not Texture2D panel
+            || SkinManager.GetTexture(PauseFolder + "Bar.png") is not Texture2D bar
+            || SkinManager.GetTexture(PauseFolder + "Select_Bar.png") is not Texture2D select) return false;
+        Raylib.DrawRectangle(0, 0, Screen.Width, Screen.Height, new Color(0, 0, 0, (int)(77 * ease)));
+        float rise = 8f * (1f - ease);
+        Color tint = new Color(255, 255, 255, (int)(255 * ease));
+        Raylib.DrawTexturePro(panel, new Rectangle(0, 0, panel.Width, panel.Height), new Rectangle(0, rise, Screen.Width, Screen.Height), Vector2.Zero, 0f, tint);
+        string[] items = PauseItems;
+        for (int i = 0; i < items.Length; i++)
+        {
+            bool on = i == pauseCursor;
+            Texture2D tex = on ? select : bar;
+            float x = on ? 310f : 360f, y = 265f + 200f * i + rise;
+            Raylib.DrawTexturePro(tex, new Rectangle(0, 150 * i, tex.Width, 150), new Rectangle(x, y, tex.Width, 150), Vector2.Zero, 0f, tint);
+            if (!open) continue;
+            Rectangle hit = new Rectangle(588f, y + 25f, 744f, 100f);   // 押せる場所（オレンジの板の大きさ）
+            if (Gui.IsMouseOver(hit) && Raylib.GetMouseDelta() != Vector2.Zero && pauseCursor != i) pauseCursor = i;
+            if (Gui.IsMouseOver(hit) && Raylib.IsMouseButtonPressed(MouseButton.Left)) { ChoosePause(i); return true; }
+        }
+        return true;
+    }
+
     // 自前の UI のメニュー（まんなかのパネル）
     private void DrawPauseMenu()
     {
         float open = Math.Clamp(pauseAge / PauseOpenSeconds, 0f, 1f);
         float ease = 1f - MathF.Pow(1f - open, 3f);   // easeOutCubic
+        if (DrawPauseImages(ease, open >= 1f)) return;
         Raylib.DrawRectangle(0, 0, Screen.Width, Screen.Height, new Color(0, 0, 0, (int)(165 * ease)));
 
         string[] items = PauseItems;
