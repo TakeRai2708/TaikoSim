@@ -317,12 +317,18 @@ namespace TakeTaikoSimulator.Scenes
         // どんちゃんを、いつものくり返しの動きに戻す（決定をやめたとき・設定のように同じ画面に残るとき）
         private void CharaBackToLoop() => CharaLoop();
 
-        // モード選択のどんちゃんの通常の動き：songselect_loop（「どちらの太鼓で」と同じ。1秒に1回ジャンプ）
-        //   11/13 たけらい「モード選択のどんちゃんドパガキｗ それはどの太鼓を使いますかと同じアニメーション」
-        //   いったん entry_loop（0.5秒で1周）にしたら、速すぎた。決めたときは、難易度を決めたときと同じ動き（Decide の PlayHold）
+        // モード選択のどんちゃんの通常の動き：演奏画面の normal（うんうん）
+        //   11/13 の録画（2026-11-13_09-37-49.mp4 の 23.6〜39 秒）を 1/60 秒ずつ測った：口を閉じたにっこり顔で、
+        //   ジャンプはせず、ちょうど 0.5 秒ごとに1回うなずいていた（顔の上下が 25.25, 25.75, 26.25 … 秒）
+        //   推測なんだけど、モード選択の BGM が 120 BPM で、normal を1拍0.5秒で回している。
+        //   normal は Config.json の normalMotionBeat 拍で1周なので、1周 = その拍数 × 500ms
+        //   normal が無いキャラは songselect_loop。決めたときは、難易度を決めたときと同じ動き（Decide の PlayHold）
+        private const float ModeSelectBeatMs = 500f;
         private void CharaLoop()
         {
-            if (chara.Config is CharaConfig cc) chara.Loop("songselect_loop", cc.SongSelectLoopTime);
+            if (chara.Config is not CharaConfig cc) return;
+            if (chara.HasAnim("normal")) chara.Loop("normal", (int)Math.Round(cc.NormalMotionBeat * ModeSelectBeatMs));
+            else chara.Loop("songselect_loop", cc.SongSelectLoopTime);
         }
 
         // カテゴリの吹き出し：カッ・←→で選ぶ、ドンで決める（決めると板が光って段位道場へ）
