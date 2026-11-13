@@ -1517,13 +1517,16 @@ namespace TakeTaikoSimulator.Scenes
         private const float SongTitleSize = 45f, SongTitleOutline = 5f;
         private const float GenreTitleSize = 57f, GenreTitleOutline = 7.5f;
 
-        // 曲名の縁の色：板の色を「あざやかで暗め」にした色（TaikøNauts：オレンジの板 (238,116,49) に (149,31,0)）
-        //   前は板の色を 65% 暗くしていたので、ほぼ黒で太く見えていた。灰色っぽい板は、今まで通り暗くするだけ
+        // 曲名の縁の色：板の色を、色合いはそのまま、少しだけあざやかにして暗くした色
+        //   TaikøNauts のナムコオリジナル（オレンジの板）は (146,26,0) のあざやかな暗い赤だった。
+        //   11/14 最初は全部の板を「あざやかさ100%・明るさ58%」にしたら、淡い色の板（ボーカロイド・アニメなど）が
+        //   どぎつい青やピンクになった（たけらい「色やばいｗ」）。なので、あざやかさは元の 1.15 倍まで、明るさは 45% にした
+        //   灰色っぽい板は、今まで通り暗くするだけ
         private static Color SongInk(Color bar)
         {
             System.Numerics.Vector3 hsv = Raylib.ColorToHSV(bar);
-            if (hsv.Y < 0.15f) return Raylib.ColorBrightness(bar, -0.6f);
-            return Raylib.ColorFromHSV(hsv.X, 1f, 0.58f);
+            if (hsv.Y < 0.15f) return Raylib.ColorBrightness(bar, -0.65f);
+            return Raylib.ColorFromHSV(hsv.X, Math.Min(1f, hsv.Y * 1.15f), 0.45f);
         }
 
         private void DrawSongBar(Item item, Rectangle inner, float open, Color ink, float alpha)
