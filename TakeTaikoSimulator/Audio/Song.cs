@@ -107,7 +107,12 @@ namespace TakeTaikoSimulator.Audio
             get
             {
                 if (handle == 0) return 0;
-                if (!inMixer) return Bass.ChannelBytes2Seconds(handle, Bass.ChannelGetPosition(handle)) * 1000.0;
+                if (!inMixer)
+                {
+                    // BASS / DirectSound：送り出した位置 − まだ聞こえていない分（機器の遅れ＋バッファ。AudioManager.BassOutputLatencyMs）
+                    double sentMs = Bass.ChannelBytes2Seconds(handle, Bass.ChannelGetPosition(handle)) * 1000.0;
+                    return Bass.ChannelIsActive(handle) == PlaybackState.Playing ? sentMs - AudioManager.BassOutputLatencyMs * playbackRate : sentMs;
+                }
 
                 double mixedMs = Bass.ChannelBytes2Seconds(handle, BassMix.ChannelGetPosition(handle)) * 1000.0;
                 return mixerPlaying ? mixedMs - AudioManager.OutputLatencyMs * playbackRate : mixedMs;
