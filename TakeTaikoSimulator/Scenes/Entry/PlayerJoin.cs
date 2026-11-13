@@ -148,6 +148,22 @@ public sealed class PlayerJoin
         Active = false;
     }
 
+    /// <summary>
+    /// 下の操作の表示（えらぶ・決定）だけを描く。dy はデータ選択のときの場所から下へずらす量
+    ///   「どちらの太鼓で」の画面用（11/14 たけらい：白い台だけ出ていて、中が空っぽだった）
+    /// </summary>
+    public void DrawGuideOnly(float dy, float alpha = 1)
+    {
+        PrepareGuide();
+        Rlgl.PushMatrix();
+        try
+        {
+            Rlgl.Translatef(Layout.GuideOffset.X, Layout.GuideOffset.Y + dy, 0);
+            DrawGuide(alpha);
+        }
+        finally { Rlgl.PopMatrix(); }
+    }
+
     private void PrepareGuide()
     {
         if (guideSkin == SkinManager.Generation) return;

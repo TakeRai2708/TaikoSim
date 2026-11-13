@@ -323,6 +323,7 @@ public sealed class EntryScene : Scene
     }
 
     // ③ どちらの太鼓で
+    private const float SideGuideDrop = 44f;
     private void DrawSide(bool interactive)
     {
         float open = Math.Clamp(sideAge / SideOpenSeconds, 0f, 1f);
@@ -352,6 +353,8 @@ public sealed class EntryScene : Scene
                 chara.Draw(554f, 76f, 1.02f);
                 NamePlate.Draw(profile, sideKeySet, 800f, 578f, 0.95f);
             }
+            // 下の操作の表示（えらぶ・決定）。本家のスクショで、白い台が x 778〜1142・y 865〜950（データ選択より 44px 下）
+            join.DrawGuideOnly(SideGuideDrop, open);
         }
         else
         {

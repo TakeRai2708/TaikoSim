@@ -1,4 +1,4 @@
-using System.Numerics;
+﻿using System.Numerics;
 using Raylib_cs;
 
 namespace TakeTaikoSimulator.UI;
@@ -21,14 +21,15 @@ public static class LayoutAdjustments
         public static readonly Rectangle TitleText = new(75, 6, 248, 28); // 上段の称号文字
         public const float TitleTextSize = 26;
         public static readonly Rectangle PlayerBadge = new(0, -1, 82, 80); // 丸い1P/2Pの絵
-        public static readonly Rectangle RankBacking = new(2, 37, 131, 34); // 段位の黒背景（11/14 本家は黒い欄の右はしが名前の白い欄の左はし x 133。前は 10px 右で、左にすき間があった）
-        // 11/14 TaikøNauts のスクショ（モード選択・1920×1080）で測りなおした：プレートの左上 (60,920) から
-        //   段位の字「七段」の真ん中 (98, 54)・銀の飾りの真ん中 (99, 54)・名前の字の真ん中 (221, 55)・名前の白い欄 x 133〜317
-        public static readonly Rectangle RankOrnament = new(64, 36, 70, 36); // 銀・金・虹の飾り
+        public static readonly Rectangle RankBacking = new(12, 37, 131, 34); // 段位の黒背景（右はし x 143 が名前の白い欄の左はし）
+        // 11/14 TaikøNauts のスクショ（モード選択）で測った。プレートの絵は左はし 16px が透明なので、本家のプレートの左上は (51, 920) くらい。そこから
+        //   段位の字「七段」の真ん中 x 107・銀の飾りの真ん中 x 108・名前の白い欄 x 142〜326（名前はその真ん中）
+        //   （一度、左上を (60,920) とまちがえて 10px 左にずらしたら、段位の字が 1P の丸に隠れて、黒い欄と白い欄の間にすき間ができた）
+        public static readonly Rectangle RankOrnament = new(73, 36, 70, 36); // 銀・金・虹の飾り
         public static readonly Rectangle RankFallback = new(73, 37, 76, 34); // スキン素材がないときの段位背景
-        public static readonly Rectangle RankText = new(64, 38, 69, 33); // 「七段」などの文字
+        public static readonly Rectangle RankText = new(73, 38, 69, 33); // 「七段」などの文字
         public const float RankTextSize = 24;
-        public static readonly Rectangle NameWithRank = new(133, 38, 184, 33); // 段位あり：名前を中央に収める範囲（＝名前の白い欄 x 133〜317。長い名前は縦はそのまま横だけ縮める）
+        public static readonly Rectangle NameWithRank = new(143, 38, 183, 33); // 段位あり：名前を中央に収める範囲（＝名前の白い欄。長い名前は縦はそのまま横だけ縮める）
         public static readonly Rectangle NameWithoutRank = new(76, 37, 249, 33); // 段位なし：名前を中央に収める範囲
         public const float NameSize = 25, NameOutline = 3; // 名前の大きさ / 黒縁の太さ
         public const float OtherTextOutline = 2; // 称号・段位・素材なしの1P/2P文字の縁
