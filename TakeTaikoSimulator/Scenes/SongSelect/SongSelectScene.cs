@@ -48,7 +48,7 @@ namespace TakeTaikoSimulator.Scenes
 
         // ===== 一覧の項目 =====
 
-        private enum Special { None, Recent, Added, Favorites, Search }
+        private enum Special { None, Recent, Added, Favorites, Search, DanSongs }
         private enum Kind { Genre, Label, Back, Song, Random }
 
         private sealed class Item
@@ -62,6 +62,7 @@ namespace TakeTaikoSimulator.Scenes
             public SongEntry? Song;            // 曲
             public SongCategory? Category;     // カテゴリ(ジャンルの板・曲のときだけ。スキンの板の番号を決めるのに使う)
             public string CategoryTitle = "";  // 曲：入っているカテゴリの名前
+            public DanCourse? Dan;             // 曲：「段位道場の課題曲」の中の曲のとき、どの段位の課題曲か
         }
 
         // 「最近追加された曲」に出す数
@@ -368,6 +369,8 @@ namespace TakeTaikoSimulator.Scenes
             List<SongCategory> categories = SongList.Categories;
 
             genres.Add(new Item { Kind = Kind.Genre, Special = Special.Recent, Title = "最近遊んだ曲", Color = new Color(70, 110, 170, 255), SongCount = Recent().Count });
+            if (DanCats.Count > 0)
+                genres.Add(new Item { Kind = Kind.Genre, Special = Special.DanSongs, Title = "段位道場の課題曲", Color = DanBarColor, SongCount = DanSongItems(danCat).Count });
             genres.Add(new Item { Kind = Kind.Genre, Special = Special.Added, Title = "最近追加された曲", Color = new Color(60, 140, 150, 255), SongCount = Added().Count });
             genres.Add(new Item { Kind = Kind.Genre, Special = Special.Favorites, Title = "お気に入り", Color = new Color(200, 110, 150, 255), SongCount = Favorites().Count });
             // 全部の曲からランダム（11/14 たけらい「ジャンルのところにもランダムに選ぶを追加したい」）
@@ -400,7 +403,8 @@ namespace TakeTaikoSimulator.Scenes
             {
                 own.Add(new Item { Kind = Kind.Song, Song = entry, Title = entry.Title, Color = category.Color, CategoryTitle = category.Title, Category = category });
             }
-            int count = list.Count;
+            if (openSpecial == Special.DanSongs) own.AddRange(DanSongItems(danCat));
+            int count = own.Count;
             for (int index = 0; index < count / BackInterval + 1; index++)
             {
                 own.Insert(Math.Min(index * (BackInterval + 1), own.Count), new Item { Kind = Kind.Back, Title = "とじる", Color = BackFillColor });
@@ -416,6 +420,101 @@ namespace TakeTaikoSimulator.Scenes
             ownCount = own.Count;
             songs.AddRange(own);
             if (genreIndex >= 0) songs.AddRange(genres.Skip(genreIndex + 1));
+        }
+
+        // ===== 段位道場の課題曲（11/14 たけらい。TaikøNauts と同じ） =====
+        //   ジャンルの一覧の「段位道場の課題曲」でドン → 吹き出しが「◀ 段位道場の名前 ▶」になって、カッ・←→ でどの段位道場か選ぶ → ドンで開く
+        //   曲は段位の高い順（十段 → 九段 …）。同じ曲が2つの段位にあるときは、高い方に1回だけ
+        //   曲の板の左に段位の札（DanIndicator/Plate_Bar_Side.png）、選んでいる曲の上に大きい札（Plate_Bar_Top.png）
+        //   遊ぶのはふつうの演奏（段位の合格判定はしない）
+        private static readonly Color DanBarColor = new Color(60, 100, 182, 255);   // A-Style の Bar/11.png の色
+        private const int DanBarType = 11;
+        private static int danCat;          // 選んでいる段位道場（DanList.Categories のうち、遊べる段位があるもの）
+        private bool danPick;               // 「◀ 段位道場 ▶」を選んでいる途中
+        private static List<DanCategory> DanCats => DanList.Categories.Where(c => c.Courses.Any(x => x.Playable)).ToList();
+
+        private static List<Item> DanSongItems(int cat)
+        {
+            var cats = DanCats;
+            List<Item> items = new();
+            if (cats.Count == 0) return items;
+            DanCategory category = cats[Mod(cat, cats.Count)];
+            HashSet<string> seen = new(StringComparer.OrdinalIgnoreCase);
+            foreach (DanCourse course in category.Courses.Where(c => c.Playable).OrderByDescending(c => c.DanIndex))
+                foreach (DanSong ds in course.Songs)
+                {
+                    if (ds.FullPath.Length == 0 || !seen.Add(ds.FullPath)) continue;
+                    SongEntry? entry = null;
+                    foreach (SongCategory sc in SongList.Categories)
+                    {
+                        entry = sc.Songs.FirstOrDefault(s => string.Equals(s.TjaPath, ds.FullPath, StringComparison.OrdinalIgnoreCase));
+                        if (entry != null) break;
+                    }
+                    entry ??= new SongEntry { TjaPath = ds.FullPath, Title = ds.Title, Subtitle = ds.Subtitle, Courses = new() { (ds.Course, ds.Level) } };
+                    items.Add(new Item { Kind = Kind.Song, Song = entry, Title = entry.Title, Color = DanBarColor, Dan = course });
+                }
+            return items;
+        }
+
+        private static string DanCatTitle => DanCats is { Count: > 0 } c ? c[Mod(danCat, c.Count)].Title : "";
+
+        // 段位の札の色（DanIndicator の絵の何番目か）：級 0・初〜五段 1・六〜十段 2・玄人 3・名人・超人・達人 4
+        private static int DanTier(DanCourse course)
+        {
+            string t = course.Title;
+            if (t.Contains('級')) return 0;
+            if (t.Contains("玄人")) return 3;
+            if (t.Contains("名人") || t.Contains("超人") || t.Contains("達人")) return 4;
+            foreach (string high in new[] { "六", "七", "八", "九", "十" }) if (t.Contains(high)) return 2;
+            return 1;
+        }
+        private static readonly Color[] DanTierColors =
+            { new(255, 210, 120, 255), new(75, 170, 190, 255), new(245, 85, 55, 255), new(200, 205, 215, 255), new(230, 190, 60, 255) };
+
+        // 札の中身：段位の名前（白い字に黒い縁）と、難易度のマーク
+        private static void DrawDanPlate(DanCourse course, Rectangle cell, string image, int cellWidth, int cellHeight, bool top, float alpha)
+        {
+            int tier = DanTier(course);
+            CourseType courseType = course.Songs.Count > 0 ? course.Songs[0].Course : CourseType.Oni;
+            if (!MenuSkin.Part(Tn + "DanIndicator/" + image, new Rectangle(tier * cellWidth, 0, cellWidth, cellHeight), cell, MenuSkin.White(alpha)))
+            {
+                Rectangle fill = top ? new Rectangle(cell.X + 39, cell.Y + 29, 222, 48) : new Rectangle(cell.X + 19, cell.Y + 19, 72, 72);
+                SmoothShapes.Rounded(new Rectangle(fill.X - 5, fill.Y - 5, fill.Width + 10, fill.Height + 10), 0.2f, 8, Fade(Color.Black, alpha));
+                SmoothShapes.Rounded(fill, 0.2f, 8, Fade(DanTierColors[tier], alpha));
+            }
+            int symbol = (int)courseType switch { 0 => 0, 1 => 1, 2 => 2, 3 => 3, _ => 4 };
+            using (UseOutlineRatio(4f / 30f))
+            {
+                if (top)
+                {
+                    Outlined(course.Title, new Rectangle(cell.X + 45, cell.Y + 30, 135, 46), 34, Fade(Color.White, alpha), Fade(Color.Black, alpha));
+                    MenuSkin.Part(Tn + "DanIndicator/CourseSymbol_Large.png", new Rectangle(symbol * 80, 0, 80, 56), new Rectangle(cell.X + 186, cell.Y + 24, 80, 56), MenuSkin.White(alpha));
+                }
+                else
+                {
+                    Outlined(course.Title, new Rectangle(cell.X + 19, cell.Y + 20, 72, 34), 26, Fade(Color.White, alpha), Fade(Color.Black, alpha));
+                    MenuSkin.Part(Tn + "DanIndicator/CourseSymbol.png", new Rectangle(symbol * 60, 0, 60, 40), new Rectangle(cell.X + 25, cell.Y + 52, 60, 40), MenuSkin.White(alpha));
+                }
+            }
+        }
+
+        // 「◀ 段位道場 ▶」を選んでいる間の操作
+        private void UpdateDanPick()
+        {
+            var cats = DanCats;
+            bool left = InputManager.IsDrumPressed(DrumPart.LeftKa) || KeyPressed(KeyboardKey.Left) || KeyPressed(KeyboardKey.Up);
+            bool right = InputManager.IsDrumPressed(DrumPart.RightKa) || KeyPressed(KeyboardKey.Right) || KeyPressed(KeyboardKey.Down);
+            if (cats.Count > 1 && (left || right))
+            {
+                danCat = Mod(danCat + (right ? 1 : -1), cats.Count);
+                if (CurrentItem is { Special: Special.DanSongs } g) g.SongCount = DanSongItems(danCat).Count;
+                MenuSounds.Ka();
+            }
+            if (InputManager.IsDonPressed() || Raylib.IsKeyPressed(KeyboardKey.Enter) || Raylib.IsKeyPressed(KeyboardKey.KpEnter))
+            {
+                danPick = false;
+                if (CurrentItem is Item item) OpenGenreItem(item);
+            }
         }
 
         // 開いているジャンルが、ジャンルの一覧の何番目か(検索の結果のときは -1)
@@ -513,6 +612,19 @@ namespace TakeTaikoSimulator.Scenes
                 if (returnTime >= ReturnOutSeconds + ReturnInSeconds) returnTime = -1f;
             }
 
+            // 段位の読み込み（モード選択で始めている）が終わったら、ジャンルの一覧に「段位道場の課題曲」を足す
+            if (DanList.IsScanning)
+            {
+                DanList.Update();
+                if (DanList.IsScanned && !inSongs && !list.Deciding && flipTime < 0f)
+                {
+                    Item? keep = CurrentItem;
+                    BuildGenres();
+                    if (keep != null) genrePos = Math.Max(0, genres.FindIndex(g => g.Kind == keep.Kind && g.Special == keep.Special && g.Cat == keep.Cat));
+                    list.Reset(genrePos);
+                }
+            }
+
             // 読み込みが終わったら一覧を作り直す
             bool scanning = SongList.IsScanning;
             if (wasScanning && !scanning) Rebuild(keepPlace: false);
@@ -572,6 +684,7 @@ namespace TakeTaikoSimulator.Scenes
             }
             DiscardTypedChars();
 
+            if (danPick) { UpdateDanPick(); return; }
             if (diffOpen)
             {
                 if (DiffReady) UpdateDifficulty();
@@ -741,6 +854,22 @@ namespace TakeTaikoSimulator.Scenes
         }
 
         // 決定
+        // ジャンルを開く（点滅 → 白 → ポンッ → めくれる → 曲の一覧。Update の flipTime で進める）
+        private void OpenGenreItem(Item item)
+        {
+            MenuSounds.Don();
+            if (selectPrompt) { MenuVoice.StopLoop(); selectPrompt = false; }
+            MenuVoice.CancelPending();
+            list.StartDecide();
+            flipFromBack = false;
+            flipOpen = () =>
+            {
+                // 曲をえらんでいるときに、ほかのジャンルを決定したら、そのジャンルに開き直す
+                if (inSongs) genrePos = Math.Max(0, genres.IndexOf(item));
+                OpenGenre(item.Special, item.Cat);
+            };
+        }
+
         private void Decide()
         {
             if (CurrentItem is not Item item) return;
@@ -753,18 +882,14 @@ namespace TakeTaikoSimulator.Scenes
                         ShowToast(item.Special == Special.Favorites ? "お気に入りはまだありません（曲をえらんで F4 で入れられます）" : "曲がありません");
                         return;
                     }
-                    MenuSounds.Don();
-                    if (selectPrompt) { MenuVoice.StopLoop(); selectPrompt = false; }
-                    MenuVoice.CancelPending();
-                    list.StartDecide();
-                    // 点滅 → 白 → ポンッ → めくれる → 曲の一覧(Update の flipTime で進める)
-                    flipFromBack = false;
-                    flipOpen = () =>
+                    if (item.Special == Special.DanSongs && !danPick)
                     {
-                        // 曲をえらんでいるときに、ほかのジャンルを決定したら、そのジャンルに開き直す
-                        if (inSongs) genrePos = Math.Max(0, genres.IndexOf(item));
-                        OpenGenre(item.Special, item.Cat);
-                    };
+                        // まず「◀ 段位道場 ▶」を選ぶ
+                        MenuSounds.Don();
+                        danPick = true;
+                        return;
+                    }
+                    OpenGenreItem(item);
                     break;
 
                 case Kind.Back:
@@ -869,6 +994,7 @@ namespace TakeTaikoSimulator.Scenes
         public override void OnBack()
         {
             if (join.Active) { join.Back(); return; }
+            if (danPick) { danPick = false; MenuSounds.Cancel(); return; }
             if (returnTime >= 0f) return;
             if (flipTime >= 0f) return; // ジャンルがめくれている途中は戻れない(途中で止めると一覧がおかしくなる)
             if (searchFocused)
@@ -1192,6 +1318,7 @@ namespace TakeTaikoSimulator.Scenes
 
         private static int BarType(Item item)
         {
+            if (item.Dan != null || item.Kind == Kind.Genre && item.Special == Special.DanSongs) return DanBarType;
             if (item.Kind == Kind.Genre && item.Category == null)
                 return item.Special switch { Special.Recent => 9, Special.Favorites => 10, _ => -1 };
             if (item.Kind is Kind.Random) return 0;
@@ -1387,6 +1514,9 @@ namespace TakeTaikoSimulator.Scenes
                     // めくれる前半：上の板は上へ、下の板は下へすべって消える
                     float shift = flip.Shift * Math.Sign(pos - selectedPos);
                     DrawBar(item, new Rectangle(area.X, area.Y + shift, area.Width, area.Height), 0f, alpha * flip.Others);
+                    // 段位道場の課題曲：板の左に段位の札（TaikøNauts のスクショ：札の左上は板の左はしから -124、上から +5）
+                    if (item.Dan is DanCourse dc)
+                        DrawDanPlate(dc, new Rectangle(area.X - 124, area.Y + shift + 5, 110, 110), "Plate_Bar_Side.png", 110, 110, false, alpha * flip.Others);
                 }
 
                 // クリック：選んでいる項目なら決定、ほかなら選ぶ
@@ -1416,8 +1546,15 @@ namespace TakeTaikoSimulator.Scenes
                     return;
                 }
                 if (!(diffOpen && diffTime >= FrameHideAt)) list.DrawFrame(sel, alpha); // 曲を決めたときは、白くなった枠が 0.65秒で消える
+                if (danPick) Raylib.DrawRectangle(0, 0, Screen.Width, Screen.Height, new Color(0, 0, 0, 110));   // 段位道場を選んでいる間は、まわりを暗く
                 DrawBar(selectedItem, sel, list.Expand, alpha, list.FrameShown);
                 if (selectedItem.Kind == Kind.Genre) DrawGenrePop(selectedItem, sel, alpha);
+                // 段位道場の課題曲：選んでいる曲の上に大きい札（TaikøNauts のスクショ：札の絵 300×120 を画面のまんなか、開いた板の上から -88）
+                if (selectedItem.Dan is DanCourse top && list.FrameShown)
+                {
+                    float a = alpha * Math.Clamp((list.OpenSeconds - BarList.ExpandSeconds) / BalloonFade, 0f, 1f);
+                    if (a > 0f) DrawDanPlate(top, new Rectangle(sel.X + sel.Width / 2f - 150f, sel.Y - 88f, 300, 120), "Plate_Bar_Top.png", 300, 120, true, a);
+                }
             }
         }
 
@@ -1483,6 +1620,18 @@ namespace TakeTaikoSimulator.Scenes
                 Rectangle fill = new Rectangle(body.X + 6, body.Y + 6, body.Width - 12, body.Height - 12);
                 SmoothShapes.Rounded(fill, 1f, 16, Fade(new Color(244, 244, 244, 255), a));
             }
+            if (item.Special == Special.DanSongs && danPick)
+            {
+                // 「◀ 段位道場の名前 ▶」（黄色い矢印は、カッで変えられる合図）
+                Centered(DanCatTitle, new Rectangle(balloon.X + 110, balloon.Y + 58 - 25, BalloonWidth - 220, 50), 36, Fade(BalloonTextColor, a));
+                Color arrow = Fade(new Color(255, 230, 0, 255), a);
+                using (UseOutlineRatio(3f / 44f))
+                {
+                    Outlined("◀", new Rectangle(balloon.X + 40, balloon.Y + 28, 60, 60), 44, arrow, Fade(Color.Black, a));
+                    Outlined("▶", new Rectangle(balloon.X + BalloonWidth - 100, balloon.Y + 28, 60, 60), 44, arrow, Fade(Color.Black, a));
+                }
+                return;
+            }
             string count = item.SongCount > 0 ? $"全 {item.SongCount} 曲" : "曲がありません";
             Centered(count, new Rectangle(balloon.X + 60, balloon.Y + 58 - 25, BalloonWidth - 120, 50), 36, Fade(BalloonTextColor, a));
         }
@@ -1521,6 +1670,13 @@ namespace TakeTaikoSimulator.Scenes
                     Rectangle titleArea = new Rectangle(inner.X, inner.Y, inner.Width, BarList.BarHeight - topPad * 2);
                     using (UseOutlineRatio(GenreTitleOutline / GenreTitleSize))
                         Outlined(item.Title, titleArea, GenreTitleSize, Fade(Color.White, alpha), Fade(ink, alpha));
+                    // 段位道場の課題曲の説明（TaikøNauts のスクショ：開いた板の上から +180・+230 が行のまんなか）
+                    if (item.Special == Special.DanSongs && open > 0.9f)
+                    {
+                        float da = alpha * Math.Clamp((open - 0.9f) / 0.1f, 0f, 1f);
+                        OutlinedDetail("課題曲をあつめたよ!", new Rectangle(area.X, area.Y + 180 - 25, area.Width, 50), 30, Fade(Color.White, da), Fade(ink, da), 4f);
+                        OutlinedDetail("※段位道場モードにはいけません", new Rectangle(area.X, area.Y + 230 - 25, area.Width, 50), 30, Fade(Color.White, da), Fade(ink, da), 4f);
+                    }
                     break;
 
                 case Kind.Back:
@@ -1557,7 +1713,7 @@ namespace TakeTaikoSimulator.Scenes
         {
             [0] = new Color(96, 6, 18, 255), [3] = new Color(150, 24, 96, 255), [4] = new Color(36, 48, 72, 255),
             [5] = new Color(78, 24, 114, 255), [6] = new Color(144, 30, 0, 255), [7] = new Color(96, 66, 42, 255),
-            [10] = new Color(71, 54, 0, 255),
+            [10] = new Color(71, 54, 0, 255), [11] = new Color(2, 26, 92, 255),
         };
 
         private static Color InkFor(Item item, bool song)
