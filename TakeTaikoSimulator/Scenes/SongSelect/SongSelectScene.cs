@@ -153,6 +153,8 @@ namespace TakeTaikoSimulator.Scenes
         private string searchBefore = "";              // 検索の箱を開く前の文字(Esc でやめたら戻す)
         private float caretTimer;
         private bool searchSubmitQueued;
+        private readonly TextInputBuffer searchInput = new();
+        private float searchScrollX;
         private static readonly Rectangle SearchBox = new Rectangle(410, 330, 1100, 60);
         private const float SearchTextX = 430, SearchTextY = 345, SearchFontSize = 28;
         private const int SearchMaxLength = 40;
@@ -740,6 +742,8 @@ namespace TakeTaikoSimulator.Scenes
             {
                 searchFocused = true;
                 searchBefore = searchText;
+                searchInput.Reset(searchText);
+                searchScrollX = 0f;
                 searchFilterBefore = (searchCourse, searchStars, searchGenre);
                 searchGenres = new[] { "すべてのジャンル" }.Concat(SongList.Categories.Select(c => string.IsNullOrWhiteSpace(c.Genre) ? c.Title : c.Genre)
                     .Distinct(StringComparer.OrdinalIgnoreCase).OrderBy(g => g, StringComparer.Ordinal)).ToArray();
@@ -1210,26 +1214,39 @@ namespace TakeTaikoSimulator.Scenes
 
         private void UpdateSearchInput()
         {
-            if (!Gui.IsPopupOpen) WindowsIme.RequestTextInput(SearchBox,
-                new Vector2(SearchTextX + Measure(searchText, SearchFontSize).X, SearchTextY));
+            // プルダウンを操作中の矢印や文字は、入力欄には渡さない。
+            if (Gui.IsPopupOpen) { DiscardTypedChars(); return; }
 
+            bool composing = WindowsIme.IsComposing;
+            bool changed = false;
             int c = Raylib.GetCharPressed();
             while (c > 0)
             {
-                AddSearchChar(c);
+                if (!composing && Rune.IsValid(c) && !Rune.IsControl(new Rune(c)))
+                    changed |= searchInput.Insert(char.ConvertFromUtf32(c), SearchMaxLength);
                 c = Raylib.GetCharPressed();
             }
             string imeResult = WindowsIme.TakeResultText();
-            foreach (Rune rune in imeResult.EnumerateRunes()) AddSearchChar(rune.Value);
+            changed |= searchInput.Insert(imeResult, SearchMaxLength);
 
-            if (!WindowsIme.IsComposing && imeResult.Length == 0 && KeyPressed(KeyboardKey.Backspace) && searchText.Length > 0)
+            // 変換中・変換を確定したフレームは、IMEのカーソルだけを動かす。
+            if (!composing && imeResult.Length == 0)
             {
-                int remove = searchText.Length >= 2 && char.IsLowSurrogate(searchText[^1]) ? 2 : 1;
-                searchText = searchText[..^remove];
+                if (KeyPressed(KeyboardKey.Left)) changed |= searchInput.MoveLeft();
+                if (KeyPressed(KeyboardKey.Right)) changed |= searchInput.MoveRight();
+                if (KeyPressed(KeyboardKey.Home)) changed |= searchInput.MoveHome();
+                if (KeyPressed(KeyboardKey.End)) changed |= searchInput.MoveEnd();
+                if (KeyPressed(KeyboardKey.Backspace)) changed |= searchInput.Backspace();
+                if (KeyPressed(KeyboardKey.Delete)) changed |= searchInput.Delete();
             }
+            searchText = searchInput.Text;
+            if (changed) caretTimer = 0f;
+            UpdateSearchScroll(WindowsIme.CompositionText);
+            WindowsIme.RequestTextInput(SearchBox,
+                new Vector2(SearchTextX - searchScrollX + SearchCaretWidth(WindowsIme.CompositionText), SearchTextY));
 
             // Enter：検索の結果を開く
-            if (imeResult.Length == 0 && !WindowsIme.IsComposing && !Gui.IsPopupOpen && (Raylib.IsKeyPressed(KeyboardKey.Enter) || Raylib.IsKeyPressed(KeyboardKey.KpEnter)))
+            if (imeResult.Length == 0 && !composing && !WindowsIme.IsComposing && (Raylib.IsKeyPressed(KeyboardKey.Enter) || Raylib.IsKeyPressed(KeyboardKey.KpEnter)))
                 searchSubmitQueued = true;
         }
 
@@ -1249,10 +1266,21 @@ namespace TakeTaikoSimulator.Scenes
             OpenGenre(Special.Search, -1);
         }
 
-        private static void AddSearchChar(int c)
+        private float SearchCaretWidth(string composition)
         {
-            bool usable = c >= 32 && c <= 0x10FFFF && (c < 0xD800 || c > 0xDFFF);
-            if (usable && searchText.Length < SearchMaxLength) searchText += char.ConvertFromUtf32(c);
+            int cursor = Math.Clamp(WindowsIme.CompositionCursor, 0, composition.Length);
+            if (cursor > 0 && cursor < composition.Length && char.IsLowSurrogate(composition[cursor])) cursor--;
+            return Measure(searchText[..searchInput.Caret] + composition[..cursor], SearchFontSize).X;
+        }
+
+        private void UpdateSearchScroll(string composition)
+        {
+            float visible = SearchBox.Width - (SearchTextX - SearchBox.X) * 2f - 4f;
+            float caret = SearchCaretWidth(composition);
+            float width = Measure(searchText.Insert(searchInput.Caret, composition), SearchFontSize).X;
+            if (caret < searchScrollX + 8f) searchScrollX = Math.Max(0f, caret - 8f);
+            if (caret > searchScrollX + visible - 8f) searchScrollX = caret - visible + 8f;
+            searchScrollX = Math.Clamp(searchScrollX, 0f, Math.Max(0f, width - visible + 8f));
         }
 
         private static void DiscardTypedChars()
@@ -2192,20 +2220,27 @@ namespace TakeTaikoSimulator.Scenes
             SmoothShapes.Rectangle(SearchBox, 10, Gui.BackgroundColor);
             SmoothShapes.Border(SearchBox, 10, 1.5f, Gui.AccentColor);
             string composition = WindowsIme.CompositionText;
+            if (!WindowsIme.IsComposing && Gui.Clicked(SearchBox))
+            {
+                searchInput.MoveToNearest(Screen.GetMousePosition().X - SearchTextX + searchScrollX,
+                    text => Measure(text, SearchFontSize).X);
+                caretTimer = 0f;
+            }
+            UpdateSearchScroll(composition);
             Screen.BeginScissorMode((int)SearchBox.X + 12, (int)SearchBox.Y + 4, (int)SearchBox.Width - 24, (int)SearchBox.Height - 8);
-            float width = Measure(searchText + composition, SearchFontSize).X;
-            float x = SearchTextX - Math.Max(0, width - SearchBox.Width + 60);
+            float x = SearchTextX - searchScrollX;
             if (searchText.Length == 0 && composition.Length == 0)
                 FontManager.Draw("曲名・アーティスト・フォルダ名", x, SearchTextY, 28, Gui.MutedTextColor);
-            Text(searchText, x, SearchTextY, SearchFontSize, Color.White);
-            float endX = x + Measure(searchText, SearchFontSize).X;
+            string before = searchText[..searchInput.Caret], after = searchText[searchInput.Caret..];
+            Text(before, x, SearchTextY, SearchFontSize, Color.White);
+            float insertX = x + Measure(before, SearchFontSize).X;
             if (composition.Length > 0)
             {
-                Text(composition, endX, SearchTextY, SearchFontSize, CompositionColor);
-                int cursor = Math.Clamp(WindowsIme.CompositionCursor, 0, composition.Length);
-                endX += Measure(composition[..cursor], SearchFontSize).X;
+                Text(composition, insertX, SearchTextY, SearchFontSize, CompositionColor);
             }
-            if ((caretTimer % 1f) < .5f) Text("|", endX, SearchTextY, SearchFontSize, Color.White);
+            Text(after, insertX + Measure(composition, SearchFontSize).X, SearchTextY, SearchFontSize, Color.White);
+            if ((caretTimer % 1f) < .5f)
+                SmoothShapes.Rectangle(new Rectangle(x + SearchCaretWidth(composition), SearchTextY + 2, 2, SearchFontSize), 0f, Color.White);
             Screen.EndScissorMode();
             FontManager.Draw("難易度", 410, 435, 24, Gui.SakuraColor);
             FontManager.Draw("★", 785, 435, 24, Gui.SakuraColor);
@@ -2222,7 +2257,7 @@ namespace TakeTaikoSimulator.Scenes
             FontManager.Draw($"一致する曲：{count}曲", 410, 600, 28, count == 0 ? Gui.SubTextColor : Gui.TextColor);
             FontManager.Draw("指定しない項目は「すべて」のままで検索できます", 410, 650, 24, Gui.SubTextColor);
             if (Gui.Button(new(410, 725, 200, 56), "条件をクリア"))
-            { searchText = ""; searchCourse = null; searchStars = null; searchGenre = null; }
+            { searchText = ""; searchInput.Reset(""); searchScrollX = caretTimer = 0f; searchCourse = null; searchStars = null; searchGenre = null; }
             if (Gui.Button(new(1060, 725, 200, 56), "戻る")) OnBack();
             if (Gui.PrimaryButton(new(1280, 725, 230, 56), "検索する")) SubmitSearch();
             Gui.DrawPopups();
@@ -2260,5 +2295,6 @@ namespace TakeTaikoSimulator.Scenes
         }
     }
 }
+
 
 
