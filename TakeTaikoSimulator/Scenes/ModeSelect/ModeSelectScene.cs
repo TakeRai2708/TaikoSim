@@ -118,6 +118,7 @@ namespace TakeTaikoSimulator.Scenes
         public override void Enter()
         {
             NamePlate.Preload();
+            FontManager.PreloadSkinMain(Items.Select(i => i.Title));
             FontManager.PreloadDetail(Items.Select(i => i.Description.Replace("\n", "")).Concat(new[] { "すきな曲や、むずかしさを", "えらんであそべるよ！" }).Concat(Items.SelectMany(i => i.Description.Split('\n'))));   // 説明は細かい字のフォント
             chara.Load();
             CharaConfig? cc = CharaBaker.Config;
@@ -599,19 +600,15 @@ namespace TakeTaikoSimulator.Scenes
             Color ink = Raylib.ColorBrightness(fill, -0.65f);
             Color text = item.Ready ? Color.White : new Color(215, 215, 225, 255);
 
-            // 名前の大きさは、絵の板（演奏ゲーム・段位道場の Title/番号.png）とそろえる
-            //   11/14 たけらい「もともとの素材は文字すごくデカい」：絵の名前は白い字の高さ 65px くらい・縁 8〜9px
-            //   （TaikøNauts のスクショ）。前はプログラムの名前が 50（閉じた板）・72（開いた板）で、小さく見えていた
+            // 演奏ゲームの画像と同じ、見える字の高さ・中心・二重の縁で描く。
+            // フォントの行の高さで中央に置くと、字形と太い縁が上下にはみ出す。
+            DrawCodeTitle(item.Title, area, open, text, fill);
             if (open <= 0f)
             {
-                using (UseOutlineRatio(CodeTitleOutline / CodeTitleSize))
-                    Outlined(item.Title, inner, CodeTitleSize, text, ink);
                 return;
             }
 
             // 開いた板：上に名前、下に説明
-            using (UseOutlineRatio(CodeTitleOutline / CodeTitleSize))
-                Outlined(item.Title, new Rectangle(inner.X + 20, inner.Y + 30, inner.Width - 40, 90), CodeTitleSize, text, ink);
             Rectangle pill = new Rectangle(inner.X + 60, inner.Y + inner.Height - 110, inner.Width - 120, 70);
             SmoothShapes.Rounded(pill, 1f, 12, Fade(new Color(255, 255, 255, 210), open));
             // スキンの画像が無いときの細い帯は1行しか入らないので、行をつなげて書く（はみ出すぶんは小さくなる）
@@ -619,7 +616,37 @@ namespace TakeTaikoSimulator.Scenes
         }
 
         private const float OpenTitleDrop = 10f, DescriptionSize = 30f;
-        private const float CodeTitleSize = 78f, CodeTitleOutline = 9f;
+
+        // A-Style Title/0.png を実測：白い字は高さ66px、黒い外縁まで85px。
+        // 980×160画像内の字の中心(485.5,81.5)を、板の原点へ直すと(幅/2-4.5,63.5)。
+        // 自前の名前も白い字65px＋色の縁5.5px＋黒い外縁4pxで、同じ位置に収める。
+        private const float CodeTitleInkHeight = 65f;
+        private const float CodeTitleInnerOutline = 5.5f, CodeTitleOuterOutline = 9.5f;
+        private const float CodeTitleCenterOffsetX = -4.5f, CodeTitleCenterY = 63.5f;
+
+        private static void DrawCodeTitle(string title, Rectangle bar, float open, Color text, Color barColor)
+        {
+            const float measureSize = 78f;
+            Rectangle ink = FontManager.MeasureSkinMainInk(title, measureSize);
+            if (ink.Width <= 0f || ink.Height <= 0f) return;
+
+            // 白い字の実際の高さを揃える。文字数やフォントが違っても、外縁まで板に収める。
+            float scale = CodeTitleInkHeight / ink.Height;
+            float maxWidth = Math.Max(1f, bar.Width - 140f - CodeTitleOuterOutline * 2f);
+            scale = Math.Min(scale, maxWidth / ink.Width);
+            float size = measureSize * scale;
+            float outer = Math.Min(CodeTitleOuterOutline, DynamicFont.MaxOutline(size));
+            float inner = Math.Min(CodeTitleInnerOutline, outer);
+            float centerX = bar.X + bar.Width / 2f + CodeTitleCenterOffsetX;
+            float centerY = bar.Y + CodeTitleCenterY + OpenTitleDrop * Math.Clamp(open, 0f, 1f);
+            float x = centerX - (ink.X + ink.Width / 2f) * scale;
+            float y = centerY - (ink.Y + ink.Height / 2f) * scale;
+            Color colorOutline = Raylib.ColorBrightness(barColor, -0.28f);
+
+            // 外から黒 → 板より少し濃い色 → 白。二つの縁は同じ字形・同じ位置に重ねる。
+            FontManager.DrawSkinMainOutlined(title, x, y, size, text, Color.Black, outer);
+            FontManager.DrawSkinMainOutlined(title, x, y, size, text, colorOutline, inner);
+        }
 
         // 980×160 の板とタイトル。開いたときは土台だけ伸ばし、タイトルは原寸で上に置く
         private static void DrawEntryBar(Item item, int type, Rectangle area, float open)

@@ -266,3 +266,11 @@ Windows実機での描画・入力・音声、Native AOT publishは未確認。
 参照：旧パスの残りなし。SOURCE-MAP.mdの18リンクを確認。名前空間とpartialの型は変更していない。
 環境：dotnet build tools/build-check/Check.csproj --no-restore は dotnet: command not found（終了127）。
 未確認：整理後のコンパイル、Windows実機の起動・操作・表示・音声、Native AOT publish。過去のビルド成功とは区別する。
+
+
+[UI-MODE-TITLE-20261114] モード選択4項目の文字高・位置と二重縁
+状態：修正ブランチcodex/mode-select-labelsに反映／ゲーム全体での最終確認待ち。
+対象：特訓モード・着せ替え・設定・クレジット。青丸の演奏ゲーム原本を計測し、字形基準で高さ・中央位置を合わせた。
+縁：外から黒9.5px（合計）→板色を28%濃くした色5.5px→白。画像製タイトルと共有文字描画は変更なし。
+検証：Windowsターゲットのビルド0エラー。実A-Styleフォント＋Windows Raylibの36描画ケースで、上下の枠内・中央位置・黒と色の二重縁を画素確認。閉じた一覧の修正前後も画像確認。
+未確認：ゲーム全体の実操作と最終画面照合、Native AOT publish。元のWindows作業ファイルへの直接書き込みは承認設定で拒否されたため、Gitブランチから取り込む必要がある。
