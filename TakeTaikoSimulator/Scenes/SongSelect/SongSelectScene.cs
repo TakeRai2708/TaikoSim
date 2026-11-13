@@ -1591,7 +1591,25 @@ namespace TakeTaikoSimulator.Scenes
             SmoothShapes.Rounded(right, 0.2f, 6, Fade(Raylib.ColorBrightness(color, -0.25f), alpha));
             Outlined(CourseMark(type), new Rectangle(chip.X + 6, chip.Y + 4, 82, 50), 40, Fade(Color.White, alpha), ink);
             Outlined(type == CourseType.Edit ? "裏おに" : Chart.GetCourseName(type), new Rectangle(chip.X + 4, chip.Y + 56, 86, 26), 20, Fade(Color.White, alpha), ink);
-            Outlined($"★{level}", right, 36, Fade(Color.White, alpha), ink);
+            StarLevel(level, right, 36, 2f, Fade(Color.White, alpha), ink);
+        }
+
+        // 「★4」を、★と数字それぞれのインク（実際に色がつく部分）の真ん中で、四角の高さの真ん中にそろえて書く
+        //   11/14 たけらい「シンプルスキンの数字の表示が若干下」：1行まとめて書くと、フォントの数字が★より下に寄って見えていた
+        private static void StarLevel(int level, Rectangle area, float size, float gap, Color fill, Color ink)
+        {
+            string number = level.ToString();
+            Rectangle star = FontManager.MeasureSkinMainInk("★", size), num = FontManager.MeasureSkinMainInk(number, size);
+            float total = star.Width + gap + num.Width, limit = area.Width - OutlineWidth(size) * 2;
+            if (total > limit && total > 0)
+            {
+                size *= limit / total; gap *= limit / total;
+                star = FontManager.MeasureSkinMainInk("★", size); num = FontManager.MeasureSkinMainInk(number, size);
+                total = star.Width + gap + num.Width;
+            }
+            float x = area.X + (area.Width - total) / 2f, cy = area.Y + area.Height / 2f;
+            OutlinedAt("★", x - star.X, cy - (star.Y + star.Height / 2f), size, fill, ink);
+            OutlinedAt(number, x + star.Width + gap - num.X, cy - (num.Y + num.Height / 2f), size, fill, ink);
         }
 
         // 難易度の色
@@ -1797,7 +1815,7 @@ namespace TakeTaikoSimulator.Scenes
             Color ink = Fade(Raylib.ColorBrightness(color, -0.7f), alpha);
             int level = LevelOf(type);
             Rectangle body = new Rectangle(box.X + 5, box.Y + 5, box.Width - 10, box.Height - 10);
-            Outlined($"★ {level}", new Rectangle(body.X, box.Y + 240 * scale, body.Width, 44 * scale), 36 * scale, Fade(Color.White, alpha), ink);
+            StarLevel(level, new Rectangle(body.X, box.Y + 240 * scale, body.Width, 44 * scale), 36 * scale, 10f * scale, Fade(Color.White, alpha), ink);
 
             Rectangle strip = new Rectangle(body.X + 8, box.Y + 280 * scale, body.Width - 16, 22 * scale);
             int stars = Math.Clamp(level, 0, 10);
