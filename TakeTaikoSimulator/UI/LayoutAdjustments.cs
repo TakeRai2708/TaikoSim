@@ -21,7 +21,7 @@ public static class LayoutAdjustments
         public static readonly Rectangle TitleText = new(75, 6, 248, 28); // 上段の称号文字
         public const float TitleTextSize = 26;
         public static readonly Rectangle PlayerBadge = new(0, -1, 82, 80); // 丸い1P/2Pの絵
-        public static readonly Rectangle RankBacking = new(12, 37, 131, 34); // 段位の黒背景
+        public static readonly Rectangle RankBacking = new(2, 37, 131, 34); // 段位の黒背景（11/14 本家は黒い欄の右はしが名前の白い欄の左はし x 133。前は 10px 右で、左にすき間があった）
         // 11/14 TaikøNauts のスクショ（モード選択・1920×1080）で測りなおした：プレートの左上 (60,920) から
         //   段位の字「七段」の真ん中 (98, 54)・銀の飾りの真ん中 (99, 54)・名前の字の真ん中 (221, 55)・名前の白い欄 x 133〜317
         public static readonly Rectangle RankOrnament = new(64, 36, 70, 36); // 銀・金・虹の飾り
