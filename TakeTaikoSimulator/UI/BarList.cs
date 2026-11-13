@@ -194,10 +194,10 @@ namespace TakeTaikoSimulator.UI
         {
             Rectangle inner = new Rectangle(area.X + 70, area.Y + 20, area.Width - 140, area.Height - 40);
             bool movedPlate = !plain && plate != null;
-            DrawShadow(area, alpha);
             string overlay = Folder + (plain || movedPlate ? "Bar_Overlay_Plain.png" : "Bar_Overlay.png");
             if (MenuSkin.Has(Folder + "Bar_Base.png", overlay))
             {
+                DrawShadow(area, alpha);
                 // ふちの内側に、板の色を少し暗くした帯を入れる(A-Style の板と同じ「黒いふち → 暗い色 → 明るい色」の3段)
                 MenuSkin.NPatch(Folder + "Bar_Base.png", area, 30, MenuDraw.Fade(Raylib.ColorBrightness(color, RimDarken), alpha));
                 MenuSkin.NPatch(Folder + "Bar_Base.png", RimInset(area), 30, MenuDraw.Fade(color, alpha));
@@ -209,15 +209,10 @@ namespace TakeTaikoSimulator.UI
                 return inner;
             }
 
-            SmoothShapes.Rounded(area, MenuDraw.Roundness(area, 22), 12, MenuDraw.Fade(InkColor, alpha));
-            Rectangle body = new Rectangle(area.X + 6, area.Y + 6, area.Width - 12, area.Height - 12);
-            SmoothShapes.Rounded(body, MenuDraw.Roundness(body, 17), 12, MenuDraw.Fade(Raylib.ColorBrightness(color, RimDarken), alpha));
-            Rectangle bright = RimInset(area);
-            SmoothShapes.Rounded(bright, MenuDraw.Roundness(bright, 17 - RimWidth / 2f), 12, MenuDraw.Fade(color, alpha));
+            DrawCodeBody(area, color, alpha);
             Rectangle innerPlate = movedPlate ? plate!.Value : inner;
             if (!plain && innerPlate.Height > 0)
                 SmoothShapes.Rounded(innerPlate, MenuDraw.Roundness(innerPlate, 8), 8, MenuDraw.Fade(MenuDraw.Tint(color, 0.6f), alpha));
-            DrawRimLight(area, alpha);
             return inner;
         }
 
@@ -227,51 +222,43 @@ namespace TakeTaikoSimulator.UI
         //   シンプルスキンは 黒いふち → 色 だけだったので、影と暗い帯を足した。
         //   影は、うすい黒を少しずつ大きく重ねたもの(下に 5px ずらす)。ひかえめにしてある
         private const float RimDarken = -0.28f, RimWidth = 12f;
-        private const int ShadowLayers = 5;
-        private const float ShadowSpread = 12f, ShadowDrop = 5f, ShadowAlpha = 0.07f;
 
-        // 黒いふちのすぐ内側の、上のハイライト（白い細い線）と、下の影（暗い細い線）
-        //   11/12 たけらい「黒縁じゃなくて、その中の縁の上のハイライトがない。だから違和感ある」
-        //   A-Style の板（01.Entry/Bar/Bar/0.png）を拡大して見た：黒いふちの内側に、上と左上の角だけ白〜クリーム色の細い線、
-        //   下に暗い細い線がある。同じ場所に、上の辺＋左右の上の角＋横の辺の上の方（だんだん消える）を描く
-        private const float InkWidth = 6f, LightWidth = 3f, LightRadius = 17f;
-        private static void DrawRimLight(Rectangle area, float alpha)
+        // ===== 絵が無い板を、A-Style の板の絵（02.SongSelect/Bar/1.png 938×133）のまねで描く =====
+        //   11/13 たけらい「もともと素材がないやつのボックスの glow が汚い。その輪郭も細い。まねして」
+        //   絵を1pxずつ見た：黒いふち 7px → 明るい帯 4〜5px（上・左・右の上半分）→ 板の色。
+        //   下と右の下半分だけ、明るい帯のかわりに少し暗い帯（4px）。角の丸みは外側で約30px
+        private const float CodeInk = 7f, CodeBand = 4.5f, CodeOuterRadius = 30f;
+        private static void DrawCodeBody(Rectangle area, Color color, float alpha)
         {
-            if (alpha <= 0.01f || area.Height < 50f) return;
-            Rectangle r = new Rectangle(area.X + InkWidth, area.Y + InkWidth, area.Width - InkWidth * 2, area.Height - InkWidth * 2);
-            float rad = LightRadius, mid = LightWidth / 2f;
-            Color light = new Color(255, 250, 235, (int)(215 * alpha));
-            Color shade = new Color(0, 0, 0, (int)(60 * alpha));
-            // 上の辺と、左上・右上の角
-            SmoothShapes.Line(new System.Numerics.Vector2(r.X + rad, r.Y + mid), new System.Numerics.Vector2(r.X + r.Width - rad, r.Y + mid), LightWidth, light);
-            SmoothShapes.Ring(new System.Numerics.Vector2(r.X + rad, r.Y + rad), rad - LightWidth, rad, 180f, 270f, 12, light);
-            SmoothShapes.Ring(new System.Numerics.Vector2(r.X + r.Width - rad, r.Y + rad), rad - LightWidth, rad, 270f, 360f, 12, light);
-            // 横の辺は、上から 1/3 くらいまで、3段でうすくしていく
-            float side = Math.Min((r.Height - rad * 2) * 0.45f, 60f);
-            for (int i = 0; i < 3 && side > 3f; i++)
-            {
-                float y0 = r.Y + rad + side * i / 3f, y1 = r.Y + rad + side * (i + 1) / 3f;
-                Color c = new Color(light.R, light.G, light.B, (int)(light.A * (0.75f - 0.25f * i)));
-                SmoothShapes.Line(new System.Numerics.Vector2(r.X + mid, y0), new System.Numerics.Vector2(r.X + mid, y1), LightWidth, c);
-                SmoothShapes.Line(new System.Numerics.Vector2(r.X + r.Width - mid, y0), new System.Numerics.Vector2(r.X + r.Width - mid, y1), LightWidth, c);
-            }
-            // 下の辺と、下の角の影
-            SmoothShapes.Line(new System.Numerics.Vector2(r.X + rad, r.Y + r.Height - mid), new System.Numerics.Vector2(r.X + r.Width - rad, r.Y + r.Height - mid), LightWidth, shade);
-            SmoothShapes.Ring(new System.Numerics.Vector2(r.X + rad, r.Y + r.Height - rad), rad - LightWidth, rad, 90f, 180f, 12, shade);
-            SmoothShapes.Ring(new System.Numerics.Vector2(r.X + r.Width - rad, r.Y + r.Height - rad), rad - LightWidth, rad, 0f, 90f, 12, shade);
+            SmoothShapes.Rounded(area, MenuDraw.Roundness(area, CodeOuterRadius), 12, MenuDraw.Fade(InkColor, alpha));
+            Rectangle r = new Rectangle(area.X + CodeInk, area.Y + CodeInk, area.Width - CodeInk * 2, area.Height - CodeInk * 2);
+            float rad = CodeOuterRadius - CodeInk;
+            Color dark = Raylib.ColorBrightness(color, -0.22f);
+            Color light = MenuDraw.Tint(color, 0.62f);
+            // 暗い帯（いちばん下に全部ぬる）→ 明るい帯（下の帯ぶん短く）→ 右の下半分を暗くもどす → 板の色
+            SmoothShapes.Rounded(r, MenuDraw.Roundness(r, rad), 12, MenuDraw.Fade(dark, alpha));
+            Rectangle lightArea = new Rectangle(r.X, r.Y, r.Width, r.Height - CodeBand);
+            SmoothShapes.Rounded(lightArea, MenuDraw.Roundness(lightArea, rad), 12, MenuDraw.Fade(light, alpha));
+            float midY = r.Y + r.Height / 2f;
+            Raylib.DrawRectangleRec(new Rectangle(r.X + r.Width - CodeBand, midY, CodeBand, r.Y + r.Height - rad - midY), MenuDraw.Fade(dark, alpha));
+            Rectangle body = new Rectangle(r.X + CodeBand, r.Y + CodeBand, r.Width - CodeBand * 2, r.Height - CodeBand * 2);
+            SmoothShapes.Rounded(body, MenuDraw.Roundness(body, rad - CodeBand), 12, MenuDraw.Fade(color, alpha));
         }
+        private const float ShadowDrop = 5f;
 
         private static Rectangle RimInset(Rectangle area) =>
             new Rectangle(area.X + RimWidth, area.Y + RimWidth, area.Width - RimWidth * 2, area.Height - RimWidth * 2);
 
+        // 影（シンプルスキンの板だけ）：うすい黒をなめらかな形で2枚だけ重ねる（前の5枚重ねは、段がついて汚く見えていた）
+        //   絵の無い板（A-Style で素材が無いジャンルなど）は、となりの絵の板に影が無いので、影を描かない
         private static void DrawShadow(Rectangle area, float alpha)
         {
             if (alpha <= 0.01f) return;
-            for (int i = ShadowLayers; i >= 1; i--)
+            for (int i = 2; i >= 1; i--)
             {
-                float e = ShadowSpread * i / ShadowLayers;
-                SmoothShapes.Rectangle(new Rectangle(area.X - e, area.Y - e + ShadowDrop, area.Width + e * 2, area.Height + e * 2),
-                    22 + e, new Color(0, 0, 0, (int)(255 * ShadowAlpha * alpha)));
+                float e = 4f * i;
+                Rectangle s = new Rectangle(area.X - e, area.Y - e + ShadowDrop, area.Width + e * 2, area.Height + e * 2);
+                SmoothShapes.Rounded(s, MenuDraw.Roundness(s, CodeOuterRadius + e), 12, new Color(0, 0, 0, (int)(255 * 0.10f * alpha)));
             }
         }
 
