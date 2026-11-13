@@ -1136,7 +1136,6 @@ namespace TakeTaikoSimulator.Scenes
                 }
             }
             FontManager.PreloadSkinMain(Texts()); // 文字はスキンの太字フォントで描く
-            FontManager.PreloadDetail(Texts());   // 難易度をえらぶ画面の曲名・サブタイトルは細かい字のフォント
         }
 
         // ===== TaikøNauts のスキン(02.SongSelect の Bar/番号.png など) =====
@@ -1650,12 +1649,15 @@ namespace TakeTaikoSimulator.Scenes
             }
 
             Color ink = Raylib.ColorBrightness(diffColor, -0.7f);
-            // 曲名・サブタイトル：細かい字のフォントに真っ黒の縁（11/13 たけらい「作曲者の文字は真っ黒でいい」。TaikøNauts の録画と同じ）
-            OutlinedDetail(diffSong.Title, new Rectangle(titleBox.X + 30, titleBox.Y + 55 * scale, titleBox.Width - 60, 80 * scale), 64 * scale,
-                Fade(Color.White, alpha), Fade(Color.Black, alpha), 6f * scale);
+            // 曲名・サブタイトル：スキンのメインのフォントに真っ黒の縁（11/14 たけらい：細かい字のフォントは曲数・ジャンルなどの方）
+            //   縁の太さは前と同じ（曲名 6px、サブタイトル 4px）
+            using (UseOutlineRatio(6f / 64f))
+                Outlined(diffSong.Title, new Rectangle(titleBox.X + 30, titleBox.Y + 55 * scale, titleBox.Width - 60, 80 * scale), 64 * scale,
+                    Fade(Color.White, alpha), Fade(Color.Black, alpha));
             if (diffSong.Subtitle.Length > 0)
-                OutlinedDetail(diffSong.Subtitle, new Rectangle(titleBox.X + 30, titleBox.Y + 135 * scale, titleBox.Width - 60, 40 * scale), 32 * scale,
-                    Fade(Color.White, alpha), Fade(Color.Black, alpha), 4f * scale);
+                using (UseOutlineRatio(4f / 32f))
+                    Outlined(diffSong.Subtitle, new Rectangle(titleBox.X + 30, titleBox.Y + 135 * scale, titleBox.Width - 60, 40 * scale), 32 * scale,
+                        Fade(Color.White, alpha), Fade(Color.Black, alpha));
 
             // 箱：戻る・オプション・かんたん〜おに
             bool ready = returnTime < 0f && DiffReady && active && !options.IsOpen;

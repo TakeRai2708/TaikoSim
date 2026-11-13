@@ -86,7 +86,7 @@ namespace TakeTaikoSimulator.Scenes
             timer = shownTime = afterLoad = 0f;
             phase = Phase.Wait;
             Preload();
-            FontManager.PreloadDetail(new[] { title, subtitle }); // 曲名の字を先に作っておく(出た瞬間に止まらないように)
+            FontManager.PreloadSkinMain(new[] { title, subtitle }); // 曲名の字を先に作っておく(出た瞬間に止まらないように)
         }
 
         public static void Update(float dt)
@@ -255,14 +255,19 @@ namespace TakeTaikoSimulator.Scenes
 
             if (!text) return;
             // 曲名(白い字に黒い縁。長いときは縮める)
-            //   11/13：スキンの細かい字のフォント（Default2.ttf）で、縁は 7px。録画（2026-11-11 23-44-20.mp4 106秒）の
-            //   縁こみの高さ 356〜429、真ん中 x 960 に合わせた。サブタイトルは真っ黒（縁なし）
+            //   11/14 たけらい：曲名・サブタイトルはスキンのメインのフォント（細かい字のフォントは曲数・ジャンルなどの方）
+            //   縁は真っ黒で 7px（録画 2026-11-11 23-44-20.mp4 106秒 の縁こみの高さ 356〜429、真ん中 x 960）。サブタイトルは真っ黒（縁なし）
             float size = TitleSize;
-            MenuDraw.OutlinedDetail(title, new Rectangle(960f - TitleMaxWidth / 2f, TitleCenterY - 50f, TitleMaxWidth, 100f), size,
-                Color.White, Color.Black, TitleOutline + 1f);
+            Vector2 m = FontManager.MeasureSkinMain(title, size);
+            if (m.X > TitleMaxWidth) { size *= TitleMaxWidth / m.X; m = FontManager.MeasureSkinMain(title, size); }
+            float outline = Math.Min((TitleOutline + 1f) * size / TitleSize, DynamicFont.MaxOutline(size));
+            FontManager.DrawSkinMainOutlined(title, 960f - m.X / 2f, TitleCenterY - m.Y / 2f, size, Color.White, Color.Black, outline);
 
             if (subtitle.Length == 0) return;
-            MenuDraw.CenteredDetail(subtitle, new Rectangle(960f - TitleMaxWidth / 2f, SubtitleCenterY - 30f, TitleMaxWidth, 60f), SubtitleSize, Color.Black);
+            float subSize = SubtitleSize;
+            Vector2 sm = FontManager.MeasureSkinMain(subtitle, subSize);
+            if (sm.X > TitleMaxWidth) { subSize *= TitleMaxWidth / sm.X; sm = FontManager.MeasureSkinMain(subtitle, subSize); }
+            FontManager.DrawSkinMain(subtitle, 960f - sm.X / 2f, SubtitleCenterY - sm.Y / 2f, subSize, Color.Black);
         }
     }
 }
