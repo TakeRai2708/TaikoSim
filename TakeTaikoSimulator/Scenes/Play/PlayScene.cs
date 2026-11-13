@@ -379,7 +379,8 @@ namespace TakeTaikoSimulator.Scenes
         private const float JudgeImageSize = 150f;
 
         // 演奏中は設定パネルを開かない
-        public override bool CanOpenSettings => false;
+        // 設定（F1）は一時停止中だけ開ける（11/14 たけらい）。スキンと音の出し方は、演奏中はさわれない（Overlays/SettingsOverlay.cs の InPlay）
+        public override bool CanOpenSettings => pauseOpen || (isTraining && trainingPaused);   // 再開のカウント中は開けない
 
         // Discord の「プレイ中」：1行目に曲名（段位なら段位名）、2行目に難易度など、残り時間
         //   「曲名を出さない」の設定なら、曲名のかわりに「演奏中」

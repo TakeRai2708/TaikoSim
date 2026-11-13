@@ -222,7 +222,7 @@ namespace TakeTaikoSimulator.Overlays
             if (!wasFullScreen)
             {
                 ConfigManager.SaveAll(); // スキンを含め、次回起動しても選んだ設定を使う
-                if (reloadSkin) SkinManager.Reload();
+                if (reloadSkin && !InPlay) SkinManager.Reload();   // 演奏中は読み直さない（次に設定を閉じたときか、次の起動で切り替わる）
             }
         }
 
@@ -266,14 +266,14 @@ namespace TakeTaikoSimulator.Overlays
                 Screen.RequestApply();
             if (beforeGame.VSync != draftGame.VSync || beforeGame.TargetFps != draftGame.TargetFps)
                 Screen.ApplyFrameSettings();
-            if (beforeSkin.SkinsFolder != draftSkin.SkinsFolder || beforeSkin.SkinName != draftSkin.SkinName)
+            if ((beforeSkin.SkinsFolder != draftSkin.SkinsFolder || beforeSkin.SkinName != draftSkin.SkinName) && !InPlay)
                 SkinManager.Reload();
 
             bool outputChanged = beforeSound.OutputType != draftSound.OutputType
                 || beforeSound.BassBufferMs != draftSound.BassBufferMs
                 || beforeSound.WasapiBufferMs != draftSound.WasapiBufferMs
                 || beforeSound.AsioDevice != draftSound.AsioDevice;
-            if (outputChanged) AudioManager.Restart();
+            if (outputChanged && !InPlay) AudioManager.Restart();
             if (!ConfigManager.Same(beforeSound, draftSound)) SceneManager.Current?.ApplyVolume();
 
             savedGame = ConfigManager.Copy(draftGame);
@@ -802,10 +802,23 @@ namespace TakeTaikoSimulator.Overlays
             _ => "",
         };
 
+        // 演奏画面（一時停止中）から開いたとき：スキンと音の出し方はさわれない
+        //   11/14 たけらい「演奏画面のポーズ中は F1 で設定出せるようにするか」→ A（その2つだけ灰色にする）
+        //   スキンを変えると絵を全部読み直し、音の出し方を変えると音の仕組みを作り直すので、演奏中の曲や絵がこわれる
+        private static bool InPlay => SceneManager.Current is PlayScene;
+        private const string InPlayNote = "演奏中は変えられないよ（曲が終わってから変えてね）";
+
         private void DrawAudioOutputRows(SoundConfig sound)
         {
             cursorY += 10;
             SubHeader("音の出力");
+            if (InPlay)
+            {
+                NoteRow($"今の出力：{AudioManager.Status}");
+                FontManager.Draw(InPlayNote, LabelX, ToScreenY(cursorY), 22, Gui.SubTextColor);
+                cursorY += 36;
+                return;
+            }
 
             // ----- 出力方式 -----
             int selected = Math.Clamp((int)sound.OutputType, 0, OutputTypeNames.Length - 1);
@@ -945,6 +958,14 @@ namespace TakeTaikoSimulator.Overlays
             Section(Category.Skin, "スキン");
 
             SkinConfig skin = ActiveSkin;
+            if (InPlay)
+            {
+                FontManager.Draw($"今のスキン：{skin.SkinName}", LabelX, ToScreenY(cursorY), 22, Gui.SubTextColor);
+                cursorY += 36;
+                FontManager.Draw(InPlayNote, LabelX, ToScreenY(cursorY), 22, Gui.SubTextColor);
+                cursorY += 36;
+                return;
+            }
 
             // ----- スキンフォルダ -----
             Gui.Label("スキンフォルダ", LabelX, ToScreenY(cursorY) + 4, 26);
