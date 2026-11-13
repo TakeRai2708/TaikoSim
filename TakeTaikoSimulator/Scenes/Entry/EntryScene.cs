@@ -171,7 +171,7 @@ public sealed class EntryScene : Scene
         sideAge = 0f;
         sideDecide = -1f;
         chara.Load();
-        if (chara.Config is CharaConfig cc) chara.Loop("songselect_loop", cc.SongSelectLoopTime);
+        chara.SetIdle("songselect_loop", c => c.SongSelectLoopTime);
     }
 
     // ② どちらの太鼓で

@@ -116,7 +116,7 @@ namespace TakeTaikoSimulator.Scenes
         public override void Enter()
         {
             chara.Load();
-            if (CharaBaker.Config is CharaConfig cc) chara.Loop("result_loop", cc.ResultLoopTime);
+            chara.SetIdle("result_loop", c => c.ResultLoopTime);
             FontManager.PrepareSkinMainText(data.Title);
             LoadSkin();
             LoadSounds();

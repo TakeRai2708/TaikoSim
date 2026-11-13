@@ -33,7 +33,7 @@ public sealed class LocalDifficultyScene(SongEntry song) : Scene
     {
         preview.Request(song.TjaPath, true);
         chara.Load();
-        if (CharaBaker.Config is CharaConfig cc) chara.Loop("songselect_loop", cc.SongSelectLoopTime);
+        chara.SetIdle("songselect_loop", c => c.SongSelectLoopTime);
         int oni = Array.IndexOf(courses, CourseType.Oni);
         for (int p = 0; p < 2; p++) cursor[p] = Math.Max(0, oni >= 0 ? oni : courses.Length - 1);
     }

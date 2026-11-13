@@ -157,7 +157,7 @@ namespace TakeTaikoSimulator.Scenes
         public override void Enter()
         {
             chara.Load();
-            if (CharaBaker.Config is CharaConfig cc) chara.Loop("songselect_loop", cc.DanSelectLoopTime);
+            chara.SetIdle("songselect_loop", c => c.DanSelectLoopTime);
             if (!DanList.IsScanned && !DanList.IsScanning) DanList.StartScan();
             categoryCursor = Math.Clamp(categoryCursor, 0, Math.Max(0, Categories.Count - 1));
             courseCursor = Math.Clamp(courseCursor, 0, Math.Max(0, Courses.Count - 1));

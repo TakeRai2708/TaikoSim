@@ -265,7 +265,7 @@ namespace TakeTaikoSimulator.Scenes
         public override void Enter()
         {
             chara.Load();
-            if (CharaBaker.Config is CharaConfig cc) chara.Loop("songselect_loop", cc.SongSelectLoopTime);
+            chara.SetIdle("songselect_loop", c => c.SongSelectLoopTime);
             MenuVoice.Loop(SelectStartVoice);
             selectPrompt = true;
             guideClock = 0f;

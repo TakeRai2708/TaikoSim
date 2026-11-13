@@ -34,6 +34,25 @@ namespace TakeTaikoSimulator.Graphics
             generation = CharaBaker.Generation;
             if (CharaBaker.Config == null || CharaBaker.CacheFolder == null) return;
             stream = new CharaStream(CharaBaker.CacheFolder);
+            // まだ何のアニメも決まっていなければ、画面のふだんの動きにする
+            //   11/14 たけらい「スキン変えてまた戻すと曲選択画面でどんちゃん消える」：
+            //   どんちゃんのいないスキンで画面に入ると、そのときは動きを決められない（Config が無い）ので、空のままだった。
+            //   そのあと画面を出ずにスキンを戻すと、どんちゃんは読み直されるけど動きが空なので、何も描かれていなかった
+            if (anim.Length == 0 && idleMs != null && CharaBaker.Config is CharaConfig config) Loop(idleAnim, idleMs(config));
+        }
+
+        private string idleAnim = "";
+        private Func<CharaConfig, int>? idleMs;
+
+        /// <summary>
+        /// 画面のふだんの動きを決める（今どんちゃんがいなくても覚えておいて、スキンが戻ってどんちゃんが出たときに使う）。
+        /// 1周の長さは Config.json から決めるので、関数でもらう
+        /// </summary>
+        public void SetIdle(string name, Func<CharaConfig, int> loopMs)
+        {
+            idleAnim = name;
+            idleMs = loopMs;
+            if (CharaBaker.Config is CharaConfig config) Loop(name, loopMs(config));
         }
 
         /// <summary>そのアニメが焼けていて出せるか（シンプルなど、どんちゃんがいないスキンでは false）</summary>

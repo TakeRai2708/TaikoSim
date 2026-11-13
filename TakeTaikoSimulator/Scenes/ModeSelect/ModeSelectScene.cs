@@ -326,9 +326,8 @@ namespace TakeTaikoSimulator.Scenes
         private const float ModeSelectBeatMs = 500f;
         private void CharaLoop()
         {
-            if (chara.Config is not CharaConfig cc) return;
-            if (chara.HasAnim("normal")) chara.Loop("normal", (int)Math.Round(cc.NormalMotionBeat * ModeSelectBeatMs));
-            else chara.Loop("songselect_loop", cc.SongSelectLoopTime);
+            if (chara.Config != null && !chara.HasAnim("normal")) { chara.SetIdle("songselect_loop", c => c.SongSelectLoopTime); return; }
+            chara.SetIdle("normal", c => (int)Math.Round(c.NormalMotionBeat * ModeSelectBeatMs));
         }
 
         // カテゴリの吹き出し：カッ・←→で選ぶ、ドンで決める（決めると板が光って段位道場へ）
