@@ -118,6 +118,7 @@ namespace TakeTaikoSimulator.Scenes
         public override void Enter()
         {
             NamePlate.Preload();
+            FontManager.PreloadDetail(Items.Select(i => i.Description.Replace("\n", "")).Concat(new[] { "すきな曲や、むずかしさを", "えらんであそべるよ！" }).Concat(Items.SelectMany(i => i.Description.Split('\n'))));   // 説明は細かい字のフォント
             chara.Load();
             CharaConfig? cc = CharaBaker.Config;
             CharaLoop();
@@ -598,19 +599,27 @@ namespace TakeTaikoSimulator.Scenes
             Color ink = Raylib.ColorBrightness(fill, -0.65f);
             Color text = item.Ready ? Color.White : new Color(215, 215, 225, 255);
 
+            // 名前の大きさは、絵の板（演奏ゲーム・段位道場の Title/番号.png）とそろえる
+            //   11/14 たけらい「もともとの素材は文字すごくデカい」：絵の名前は白い字の高さ 65px くらい・縁 8〜9px
+            //   （TaikøNauts のスクショ）。前はプログラムの名前が 50（閉じた板）・72（開いた板）で、小さく見えていた
             if (open <= 0f)
             {
-                Outlined(item.Title, inner, 50, text, ink);
+                using (UseOutlineRatio(CodeTitleOutline / CodeTitleSize))
+                    Outlined(item.Title, inner, CodeTitleSize, text, ink);
                 return;
             }
 
             // 開いた板：上に名前、下に説明
-            Outlined(item.Title, new Rectangle(inner.X + 20, inner.Y + 30, inner.Width - 40, 90), 72, text, ink);
+            using (UseOutlineRatio(CodeTitleOutline / CodeTitleSize))
+                Outlined(item.Title, new Rectangle(inner.X + 20, inner.Y + 30, inner.Width - 40, 90), CodeTitleSize, text, ink);
             Rectangle pill = new Rectangle(inner.X + 60, inner.Y + inner.Height - 110, inner.Width - 120, 70);
             SmoothShapes.Rounded(pill, 1f, 12, Fade(new Color(255, 255, 255, 210), open));
             // スキンの画像が無いときの細い帯は1行しか入らないので、行をつなげて書く（はみ出すぶんは小さくなる）
-            Centered(item.Description.Replace("\n", ""), new Rectangle(pill.X + 20, pill.Y, pill.Width - 40, pill.Height), 32, Fade(ink, open));
+            CenteredDetail(item.Description.Replace("\n", ""), new Rectangle(pill.X + 20, pill.Y, pill.Width - 40, pill.Height), 32, Fade(ink, open));   // 説明は細かい字のフォント
         }
+
+        private const float OpenTitleDrop = 10f, DescriptionSize = 30f;
+        private const float CodeTitleSize = 78f, CodeTitleOutline = 9f;
 
         // 980×160 の板とタイトル。開いたときは土台だけ伸ばし、タイトルは原寸で上に置く
         private static void DrawEntryBar(Item item, int type, Rectangle area, float open)
@@ -630,10 +639,12 @@ namespace TakeTaikoSimulator.Scenes
                 if (plate.Height > 90)
                 {
                     Color ink = new(20, 20, 24, 255);
+                    // 11/14 たけらい「ここのフォントは丸ごになってる。もう3つ目のやつで書いてる」：説明は細かい字のフォント（Default2）
+                    //   TaikøNauts のスクショ（1920×1080）：1行目の真ん中 y 572・2行目 628（行の間 56px）、1行目の幅（縁こみ）347px、縁 3〜4px
                     if (type == 0)
                     {
-                        Outlined("すきな曲や、むずかしさを", new Rectangle(plate.X + 20, plate.Y + 42, plate.Width - 40, 48), 36, Color.White, ink);
-                        Outlined("えらんであそべるよ！", new Rectangle(plate.X + 20, plate.Y + 100, plate.Width - 40, 48), 36, Color.White, ink);
+                        OutlinedDetail("すきな曲や、むずかしさを", new Rectangle(plate.X + 20, plate.Y + 49, plate.Width - 40, 48), DescriptionSize, Color.White, ink, 4f);
+                        OutlinedDetail("えらんであそべるよ！", new Rectangle(plate.X + 20, plate.Y + 105, plate.Width - 40, 48), DescriptionSize, Color.White, ink, 4f);
                     }
                     else
                     {
@@ -642,13 +653,15 @@ namespace TakeTaikoSimulator.Scenes
                         float lineHeight = Math.Min(55f, (plate.Height - 20f) / Math.Max(1, lines.Length));
                         float top = plate.Y + (plate.Height - lineHeight * lines.Length) / 2f;
                         for (int i = 0; i < lines.Length; i++)
-                            Outlined(lines[i], new Rectangle(plate.X + 20, top + i * lineHeight, plate.Width - 40, lineHeight), 34, Color.White, ink);
+                            OutlinedDetail(lines[i], new Rectangle(plate.X + 20, top + i * lineHeight, plate.Width - 40, lineHeight), DescriptionSize, Color.White, ink, 4f);
                     }
                 }
             }
 
+            // 開いた板の名前は 10px 下（11/14 TaikøNauts のスクショ：「演奏ゲーム」の字が本家より 10px 上だった。閉じた板は合っていた）
+            float titleDrop = OpenTitleDrop * Math.Clamp(open, 0f, 1f);
             MenuSkin.Whole(EntryBarFolder + $"Title/{type}.png",
-                new Rectangle(imageArea.X, imageArea.Y, imageArea.Width, 160), Color.White);
+                new Rectangle(imageArea.X, imageArea.Y + titleDrop, imageArea.Width, 160), Color.White);
             if (type == 1)
                 MenuSkin.Whole(EntryBarFolder + "1POnly.png",
                     new Rectangle(area.X - 80, area.Y - 35, 400, 70), Color.White);
