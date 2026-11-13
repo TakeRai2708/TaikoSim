@@ -370,6 +370,8 @@ namespace TakeTaikoSimulator.Scenes
             genres.Add(new Item { Kind = Kind.Genre, Special = Special.Recent, Title = "最近遊んだ曲", Color = new Color(70, 110, 170, 255), SongCount = Recent().Count });
             genres.Add(new Item { Kind = Kind.Genre, Special = Special.Added, Title = "最近追加された曲", Color = new Color(60, 140, 150, 255), SongCount = Added().Count });
             genres.Add(new Item { Kind = Kind.Genre, Special = Special.Favorites, Title = "お気に入り", Color = new Color(200, 110, 150, 255), SongCount = Favorites().Count });
+            // 全部の曲からランダム（11/14 たけらい「ジャンルのところにもランダムに選ぶを追加したい」）
+            genres.Add(new Item { Kind = Kind.Random, Title = "ランダムにえらぶ", Color = RandomColor });
             genres.Add(new Item { Kind = Kind.Label, Title = "カテゴリをえらぶ", Color = LabelColor });
 
             for (int i = 0; i < categories.Count; i++)
@@ -403,7 +405,8 @@ namespace TakeTaikoSimulator.Scenes
             {
                 own.Insert(Math.Min(index * (BackInterval + 1), own.Count), new Item { Kind = Kind.Back, Title = "とじる", Color = BackFillColor });
             }
-            if (count > 0) own.Add(new Item { Kind = Kind.Random, Title = "ランダムにえらぶ", Color = RandomColor });
+            // 「ランダムにえらぶ」は最初の「とじる」の上（11/14 たけらい。前は一覧の最後だった）
+            if (count > 0) own.Insert(0, new Item { Kind = Kind.Random, Title = "ランダムにえらぶ", Color = RandomColor });
 
             // 開いたジャンルの板の代わりに入れる
             songs.Clear();
@@ -454,7 +457,7 @@ namespace TakeTaikoSimulator.Scenes
         private void SelectSong(string key)
         {
             int index = songs.FindIndex(s => s.Kind == Kind.Song && string.Equals(s.Song!.Key, key, StringComparison.OrdinalIgnoreCase));
-            if (index < 0) index = songStart + (ownCount > 1 ? 1 : 0);
+            if (index < 0) index = FirstSongPos;
             songPos = index;
         }
 
@@ -667,7 +670,7 @@ namespace TakeTaikoSimulator.Scenes
                             Move(action.Direction);
                         }
                         else if (skipStartedOnBack) SkipToBack(action.Direction, skipStartPosition);
-                        else Move(action.Direction, SkipCount);
+                        else Move(action.Direction, SkipCount, skipStartPosition);   // 1打目で1つ動いているので、動く前の場所から数える
                     }
                     if (action.Skip) skipLock = SkipInterval;
                 }
@@ -703,11 +706,12 @@ namespace TakeTaikoSimulator.Scenes
         }
 
         // 通常移動では「とじる」も選べる。スキップでは「とじる」と見出しを数えない。
-        private void Move(int direction, int steps = 1)
+        //   from：数え始める場所（スキップは、1打目で動く前の場所から 7つ。11/14 たけらい「いっこあとになる」）
+        private void Move(int direction, int steps = 1, int? from = null)
         {
             List<Item> list = CurrentList;
             if (list.Count == 0) return;
-            int pos = CurrentPos;
+            int pos = from ?? CurrentPos;
             for (int step = 0; step < steps; step++)
             {
                 bool found = false;
@@ -776,6 +780,7 @@ namespace TakeTaikoSimulator.Scenes
                     break;
 
                 case Kind.Random:
+                    if (!inSongs) { DecideRandomAll(); break; }
                     List<Item> candidates = songs.Where(s => s.Kind == Kind.Song && !s.Song!.HasError && s.Song.Courses.Count > 0).ToList();
                     if (candidates.Count == 0) return;
                     Item pick = candidates[random.Next(candidates.Count)];
@@ -800,13 +805,36 @@ namespace TakeTaikoSimulator.Scenes
             }
         }
 
+        // 開いたジャンルの最初の曲の場所（ランダム → とじる → 曲… の並び。曲が無いときは「とじる」）
+        private int FirstSongPos => songStart + (ownCount > 1 ? 2 : 0);
+
+        // ジャンルの一覧の「ランダムにえらぶ」：全部のカテゴリの曲から1曲えらんで、そのジャンルを開いて難易度へ
+        private void DecideRandomAll()
+        {
+            var candidates = new List<(int Cat, SongEntry Song)>();
+            for (int c = 0; c < SongList.Categories.Count; c++)
+                foreach (SongEntry s in SongList.Categories[c].Songs)
+                    if (!s.HasError && s.Courses.Count > 0) candidates.Add((c, s));
+            if (candidates.Count == 0) { MenuSounds.Ka(); ShowToast("曲がありません"); return; }
+            var (cat, song) = candidates[random.Next(candidates.Count)];
+            int gi = genres.FindIndex(g => g.Kind == Kind.Genre && g.Special == Special.None && g.Cat == cat);
+            if (gi >= 0) genrePos = gi;
+            OpenGenre(Special.None, cat);
+            SelectSong(song.Key);
+            lastSongKey = song.Key;
+            list.Reset(songPos);
+            list.OpenNow();
+            MenuSounds.Don();
+            if (songs[Mod(songPos, songs.Count)] is { Kind: Kind.Song } pick) OpenDifficulty(pick);
+        }
+
         private void OpenGenre(Special special, int cat)
         {
             openSpecial = special;
             openCat = cat;
             inSongs = true;
             BuildSongs();
-            songPos = songStart + (ownCount > 1 ? 1 : 0); // 最初の「とじる」の次(最初の曲)
+            songPos = FirstSongPos; // 最初の「とじる」の次(最初の曲)
             if (songs[Mod(songPos, songs.Count)] is { Kind: Kind.Song } first) lastSongKey = first.Song!.Key;
             list.Reset(songPos);
         }
