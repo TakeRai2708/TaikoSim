@@ -22,11 +22,13 @@ public static class LayoutAdjustments
         public const float TitleTextSize = 26;
         public static readonly Rectangle PlayerBadge = new(0, -1, 82, 80); // 丸い1P/2Pの絵
         public static readonly Rectangle RankBacking = new(12, 37, 131, 34); // 段位の黒背景
-        public static readonly Rectangle RankOrnament = new(72, 35, 70, 36); // 銀・金・虹の飾り
+        // 11/14 TaikøNauts のスクショ（モード選択・1920×1080）で測りなおした：プレートの左上 (60,920) から
+        //   段位の字「七段」の真ん中 (98, 54)・銀の飾りの真ん中 (99, 54)・名前の字の真ん中 (221, 55)・名前の白い欄 x 133〜317
+        public static readonly Rectangle RankOrnament = new(64, 36, 70, 36); // 銀・金・虹の飾り
         public static readonly Rectangle RankFallback = new(73, 37, 76, 34); // スキン素材がないときの段位背景
-        public static readonly Rectangle RankText = new(76, 37, 69, 33); // 「七段」などの文字
+        public static readonly Rectangle RankText = new(64, 38, 69, 33); // 「七段」などの文字
         public const float RankTextSize = 24;
-        public static readonly Rectangle NameWithRank = new(151, 37, 174, 33); // 段位あり：名前を中央に収める範囲
+        public static readonly Rectangle NameWithRank = new(133, 38, 176, 33); // 段位あり：名前を中央に収める範囲
         public static readonly Rectangle NameWithoutRank = new(76, 37, 249, 33); // 段位なし：名前を中央に収める範囲
         public const float NameSize = 25, NameOutline = 3; // 名前の大きさ / 黒縁の太さ
         public const float OtherTextOutline = 2; // 称号・段位・素材なしの1P/2P文字の縁
