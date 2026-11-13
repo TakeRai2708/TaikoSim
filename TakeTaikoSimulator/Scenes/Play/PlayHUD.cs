@@ -132,8 +132,55 @@ namespace TakeTaikoSimulator.Scenes
             else FontManager.DrawSkinMainOutlined(songTitle, songTitleX, SongTitleY, songTitleSize, Color.White, Color.Black, SongTitleOutline);
         }
 
+        // ===== 「ベストスコア更新」の札（11/13 たけらい） =====
+        //   2026-11-13_09-41-48.mp4（15.333秒に前の自己ベストをこえた）を1コマずつ測った。絵は MiniTaiko/ScoreRecord_Panel.png
+        //   （320×90 が7段：0 札、1 字、2 黄色い光、3〜6 白い光が左から右へ）。左上 (0,335)。
+        //     0〜0.083秒   札が横に 1.12倍から縮みながら出てくる
+        //     0.03〜0.25   黄色い光が重なって消えていく
+        //     0.08〜0.15   字が出てくる
+        //     0.25〜0.35   白い光が左から右へ（4コマ）
+        //     5.32秒       0.07秒で消える（そのあと難易度の印に戻る）
+        private const string ScoreRecordPanel = Dir + "MiniTaiko/ScoreRecord_Panel.png";
+        private const float BestX = 0f, BestY = 335f, BestShowSeconds = 5.32f;
+        private long bestScore = -1;
+        private float bestAge = -1f;
+
+        /// <summary>前の自己ベスト（無ければ 0 以下）。これをこえたら札を出す</summary>
+        public void SetBestScore(long best) { bestScore = best; bestAge = -1f; }
+
+        private void DrawBestUpdate()
+        {
+            if (bestAge < 0f || bestAge > BestShowSeconds + 0.07f) return;
+            float t = bestAge;
+            float alpha = Math.Clamp(t / 0.083f, 0f, 1f) * Math.Clamp((BestShowSeconds + 0.07f - t) / 0.07f, 0f, 1f);
+            float stretch = 1f + 0.12f * (1f - EaseOut(Math.Clamp(t / 0.083f, 0f, 1f)));
+            if (SkinManager.GetTexture(ScoreRecordPanel) is Texture2D tex)
+            {
+                const float w = 320f, h = 90f;
+                Rectangle dest = new(BestX + w / 2f * (1f - stretch), BestY, w * stretch, h);
+                void Row(int r, float a)
+                {
+                    if (a > 0f) Raylib.DrawTexturePro(tex, new Rectangle(0, r * h, w, h), dest, Vector2.Zero, 0f, Raylib.ColorAlpha(Color.White, a));
+                }
+                Row(0, alpha);
+                Row(2, alpha * (t < 0.03f ? t / 0.03f : 1f - Math.Clamp((t - 0.03f) / 0.22f, 0f, 1f)));
+                Row(1, alpha * Math.Clamp((t - 0.08f) / 0.07f, 0f, 1f));
+                if (t >= 0.25f && t < 0.35f) Row(3 + Math.Min(3, (int)((t - 0.25f) / 0.025f)), alpha);
+                return;
+            }
+            // 絵が無いスキン：金色の札に字
+            Rectangle plate = new(BestX + 16f, BestY + 14f, 288f * stretch, 60f);
+            SmoothShapes.Rounded(plate, 1f, 12, Raylib.ColorAlpha(Color.White, alpha));
+            SmoothShapes.Rounded(new Rectangle(plate.X + 3, plate.Y + 3, plate.Width - 6, plate.Height - 6), 1f, 12, Raylib.ColorAlpha(new Color(236, 190, 30, 255), alpha));
+            UI.MenuDraw.Outlined("ベストスコア更新", plate, 30f, Raylib.ColorAlpha(Color.White, alpha * Math.Clamp((t - 0.08f) / 0.07f, 0f, 1f)), Raylib.ColorAlpha(Color.Black, alpha));
+        }
+
+        private static float EaseOut(float x) => 1f - (1f - x) * (1f - x);
+
         public void Update(float dt, long score)
         {
+            if (bestAge >= 0f) bestAge += dt;
+            else if (bestScore > 0 && score > bestScore) bestAge = 0f;
             elapsed = (elapsed + dt) % 60f;
             gaugeFlashElapsed = (gaugeFlashElapsed + dt) % ClearFlashPeriod;
             for (int i = 0; i < cellAge.Length; i++)
@@ -192,6 +239,7 @@ namespace TakeTaikoSimulator.Scenes
             }
             else FontManager.Draw(courseText, 30, 370, 22, Color.White);
             // 難易度の★の数は出さない(難易度のマークだけ)
+            if (!dan) DrawBestUpdate();
 
             // つけているオプションのバッジ(何もつけていなければ何も描かない)
             //   11/12 たけらいのスクショ：3個ずつ2段（難易度の印の右。段の間は約42px）

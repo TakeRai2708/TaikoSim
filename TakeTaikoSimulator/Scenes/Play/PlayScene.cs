@@ -691,6 +691,14 @@ namespace TakeTaikoSimulator.Scenes
                     maxCombo = dan.MaxCombo;
                 }
                 hud.Reset(course, chart?.Title ?? "");
+                // 前の自己ベスト（こえたら「ベストスコア更新」の札）。オート・段位・特訓・2人プレイでは出さない
+                long best = 0;
+                if (!autoPlay && dan == null && !isTraining && !localPlay)
+                {
+                    try { best = SongHistory.GetRecord(SongHistory.KeyFor(path), course.Type).Score; }
+                    catch (Exception ex) when (ex is IOException || ex is UnauthorizedAccessException || ex is System.Text.Json.JsonException) { best = 0; }
+                }
+                hud.SetBestScore(best);
             }
             branches.Reset(course, () => stats.Score);
             branchLane.Reset(course?.HasBranch ?? false);
