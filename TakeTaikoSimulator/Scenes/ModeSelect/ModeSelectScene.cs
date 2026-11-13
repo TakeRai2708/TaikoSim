@@ -317,16 +317,12 @@ namespace TakeTaikoSimulator.Scenes
         // どんちゃんを、いつものくり返しの動きに戻す（決定をやめたとき・設定のように同じ画面に残るとき）
         private void CharaBackToLoop() => CharaLoop();
 
-        // モード選択のどんちゃんの通常の動き：entry_loop（entryModeLoopTime = 500ms で1周）
-        //   11/13 たけらい「モード選択のどんちゃんの通常時は演奏画面のうんうんしてる時と同じ」
-        //   11/11 の録画（2026-11-11 23-40-44.mp4 108〜114秒）で測ると、モード選択のどんちゃんは 0.5秒で1周していた
-        //   （選曲の songselect_loop は 1秒）。どんちゃんの Config.json の entryModeLoopTime と同じなので entry_loop を使う。
-        //   前は songselect_loop（ジャンプ）だった。entry_loop が無いキャラは songselect_loop のまま
+        // モード選択のどんちゃんの通常の動き：songselect_loop（「どちらの太鼓で」と同じ。1秒に1回ジャンプ）
+        //   11/13 たけらい「モード選択のどんちゃんドパガキｗ それはどの太鼓を使いますかと同じアニメーション」
+        //   いったん entry_loop（0.5秒で1周）にしたら、速すぎた。決めたときは、難易度を決めたときと同じ動き（Decide の PlayHold）
         private void CharaLoop()
         {
-            if (chara.Config is not CharaConfig cc) return;
-            if (chara.HasAnim("entry_loop")) chara.Loop("entry_loop", cc.EntryModeLoopTime);
-            else chara.Loop("songselect_loop", cc.SongSelectLoopTime);
+            if (chara.Config is CharaConfig cc) chara.Loop("songselect_loop", cc.SongSelectLoopTime);
         }
 
         // カテゴリの吹き出し：カッ・←→で選ぶ、ドンで決める（決めると板が光って段位道場へ）

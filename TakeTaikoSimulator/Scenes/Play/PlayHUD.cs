@@ -300,8 +300,11 @@ namespace TakeTaikoSimulator.Scenes
         // result：リザルトの小さいゲージ。満タンでないときは「魂」を灰色（Soul_Text.png の1段目）にする
         //   11/13 たけらい「リザルトの魂ゲージ」：TaikøNauts の録画（2026-11-11 23-46-22.mp4 90秒）で、
         //   リザルトの満タンでない魂は灰色だった（演奏画面は満タンでなくても白）
-        public void DrawGauge(PlayStats stats, bool dan = false, bool result = false)
+        //   showValue：false ならゲージの中身を出さない（枠だけ。リザルトで、中身が出る前）
+        //   allowRainbow：false なら満タンでも虹にしない（リザルトで、中身が出た直後の 0.25秒）
+        public void DrawGauge(PlayStats stats, bool dan = false, bool result = false, bool showValue = true, bool allowRainbow = true)
         {
+            bool isMax = showValue && stats.IsMax, isClear = showValue && stats.IsClear;
             if (SkinManager.GetTexture(GaugeBase) is not Texture2D frame
                 || SkinManager.GetTexture(GaugeLight) is not Texture2D light)
             {
@@ -322,15 +325,15 @@ namespace TakeTaikoSimulator.Scenes
                 GaugeX + stepX, GaugeY, 1062 - stepX, 84);
             DrawPart(frame, new Rectangle(1062, row * 84, 133, 84), GaugeX + 1062, GaugeY);
 
-            bool rainbow = stats.IsMax && SkinManager.GetTexture(Rainbow) is Texture2D;
-            int filled = Math.Clamp((int)(stats.Gauge / 2), 0, Cells);
+            bool rainbow = allowRainbow && isMax && SkinManager.GetTexture(Rainbow) is Texture2D;
+            int filled = showValue ? Math.Clamp((int)(stats.Gauge / 2), 0, Cells) : 0;
 
             // 増えたマスを覚える（オレンジに光らせる）。減ったときは数だけ合わせる
             for (int i = lastFilled; i < filled; i++) cellAge[i] = 0f;
             lastFilled = filled;
             // クリアした瞬間から 0.5秒ごとに点滅を数える
-            if (stats.IsClear && !wasClear) gaugeFlashElapsed = 0f;
-            wasClear = stats.IsClear;
+            if (isClear && !wasClear) gaugeFlashElapsed = 0f;
+            wasClear = isClear;
             if (rainbow && SkinManager.GetTexture(Rainbow) is Texture2D rainbowTexture)
             {
                 // 24枚は80/70/60%の3組×8コマ。組をまたぐと段差まで移動してしまう。
@@ -363,7 +366,7 @@ namespace TakeTaikoSimulator.Scenes
             {
                 // クリア後は赤い区間全体が黄色く光る（上の①）
                 float phase = gaugeFlashElapsed;
-                float flash = !stats.IsClear || phase <= ClearFlashRiseAt ? 0f
+                float flash = !isClear || phase <= ClearFlashRiseAt ? 0f
                     : phase < ClearFlashPeakAt ? (phase - ClearFlashRiseAt) / (ClearFlashPeakAt - ClearFlashRiseAt)
                     : (ClearFlashPeriod - phase) / (ClearFlashPeriod - ClearFlashPeakAt);
                 flash = Math.Clamp(flash, 0f, 1f);
@@ -421,11 +424,11 @@ namespace TakeTaikoSimulator.Scenes
             else if (SkinManager.GetTexture(ClearText) is Texture2D clear)
             {
                 float height = clear.Height / 2f;
-                DrawPart(clear, new Rectangle(0, stats.IsClear ? height : 0, clear.Width, height),
+                DrawPart(clear, new Rectangle(0, isClear ? height : 0, clear.Width, height),
                     GaugeX + stepX - 7, GaugeY + 9);
             }
 
-            if (stats.IsMax && SkinManager.GetTexture(SoulAnime) is Texture2D soul)
+            if (isMax && SkinManager.GetTexture(SoulAnime) is Texture2D soul)
             {
                 float width = soul.Width / 8f;
                 int frameIndex = (int)(elapsed / 0.05f) % 8;
@@ -435,7 +438,7 @@ namespace TakeTaikoSimulator.Scenes
             if (SkinManager.GetTexture(SoulText) is Texture2D text)
             {
                 float height = text.Height / 3f;
-                int soulRow = result && !stats.IsMax ? 0 : 1;   // 0 = 灰色、1 = 白
+                int soulRow = result && !isMax ? 0 : 1;   // 0 = 灰色、1 = 白
                 DrawPart(text, new Rectangle(0, soulRow * height, text.Width, height), 1792, 204);
                 // 満タンで常時発光させず、飛んだ音符が到着したときだけ光を重ねる。
                 if (soulFlashAge < 0.16f)

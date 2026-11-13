@@ -63,7 +63,8 @@ namespace TakeTaikoSimulator.Scenes
         // ===== 時間(秒) =====
         private const float FadeInStart = 0.07f, FadeInEnd = 0.40f;
         private const float BgmStart = 0.10f;
-        private const float RevealTime = 1.30f;          // スコア・数字・ゲージが出る(ScoreDon の音)
+        private const float RevealTime = 1.30f;          // スコア・数字が出る(ScoreDon の音)。ゲージが虹になる
+        private const float GaugeValueTime = RevealTime - 0.25f;   // ゲージの中身がパッと出る（虹はまだ）
         private const float ScoreBumpSeconds = 0.20f;
         private const float RankTime = 2.03f;            // 粋・雅・極(ScoreRank の音は 0.07秒後)
         private const float CrownTime = 2.30f;           // 王冠(Crown_ の音は 0.07秒後)
@@ -454,7 +455,10 @@ namespace TakeTaikoSimulator.Scenes
             Rlgl.PushMatrix();
             Rlgl.Translatef(GaugeX - PlayHUD.GaugeLeft * GaugeScale, GaugeY - PlayHUD.GaugeTop * GaugeScale, 0f);
             Rlgl.Scalef(GaugeScale, GaugeScale, 1f);
-            hud.DrawGauge(data.Stats, result: true);
+            // 11/13 たけらいの録画（2026-11-13_09-41-48.mp4 105.38〜106.63秒、満タンでクリア）：
+            //   板が出てから 1.0秒は枠だけ → 1.0秒でパッと中身（満タンでも、まず赤い光） → 1.25秒（スコアと同じ）で虹に
+            //   左から伸びていくアニメーションは無かった
+            hud.DrawGauge(data.Stats, result: true, showValue: elapsed >= GaugeValueTime, allowRainbow: elapsed >= RevealTime);
             Rlgl.DrawRenderBatchActive();
             Rlgl.PopMatrix();
         }
