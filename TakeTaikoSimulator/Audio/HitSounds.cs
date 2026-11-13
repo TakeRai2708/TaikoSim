@@ -13,6 +13,10 @@ namespace TakeTaikoSimulator.Audio
     //     { "name": "名前" } か、OpenTaiko の { "name": { "strings": { "default": "...", "ja": "..." } } }
     //   OpenTaiko の Global/HitSounds の中身を、そのまま入れても使える
     // いちばん上(番号 0)は「スキンの音」(スキンの Sound/Taiko/0.Taiko/don.ogg・ka.ogg)
+    // その次に、スキンの中の neiro フォルダの音色（11/14 たけらい「スキンの中に neiro っていうフォルダの中を参照してそれを選べるように」）
+    //   スキン/neiro/名前/don.ogg・ka.ogg（例：neiro/taiko/don.ogg）。名前はフォルダ名（HitSounds.json があればその名前）
+    //   保存するときの名前は「neiro/フォルダ名」（exe の横の HitSounds の音色と区別するため）
+    //   ※ 大文字・小文字はどちらでもいい（Neiro・NEIRO も見る）
     // 選んだ音色は GameConfig.HitSound にフォルダ名で保存する(空ならスキンの音)
     public static class HitSounds
     {
@@ -45,6 +49,7 @@ namespace TakeTaikoSimulator.Audio
             List<Entry> list = new();
             string? skin = SkinManager.CurrentPath;
             list.Add(new Entry("", "スキン", skin == null ? null : Path.Combine(skin, SkinDon), skin == null ? null : Path.Combine(skin, SkinKa)));
+            if (skin != null) AddFolder(list, FindNeiroFolder(skin), "neiro/");
             try
             {
                 if (!Directory.Exists(Folder)) return list;
@@ -62,6 +67,40 @@ namespace TakeTaikoSimulator.Audio
                 Console.WriteLine($"[音色] HitSounds フォルダを読めませんでした：{ex.Message}");
             }
             return list;
+        }
+
+        private const string NeiroFolderName = "neiro";
+
+        private static string? FindNeiroFolder(string skin)
+        {
+            try
+            {
+                foreach (string dir in Directory.GetDirectories(skin))
+                    if (Path.GetFileName(dir).Equals(NeiroFolderName, StringComparison.OrdinalIgnoreCase)) return dir;
+            }
+            catch (Exception ex) when (ex is IOException || ex is UnauthorizedAccessException) { }
+            return null;
+        }
+
+        // folder の中のフォルダを1つずつ音色にする（key は prefix ＋ フォルダ名）
+        private static void AddFolder(List<Entry> list, string? folder, string prefix)
+        {
+            if (folder == null) return;
+            try
+            {
+                foreach (string dir in Directory.GetDirectories(folder).OrderBy(d => d, StringComparer.OrdinalIgnoreCase))
+                {
+                    string name = Path.GetFileName(dir);
+                    string? don = FindFile(dir, "don") ?? FindFile(dir, "dong");
+                    string? ka = FindFile(dir, "ka");
+                    if (don == null && ka == null) continue;
+                    list.Add(new Entry(prefix + name, ReadName(dir) ?? name, don, ka));
+                }
+            }
+            catch (Exception ex) when (ex is IOException || ex is UnauthorizedAccessException)
+            {
+                Console.WriteLine($"[音色] {folder} を読めませんでした：{ex.Message}");
+            }
         }
 
         private static string? FindFile(string dir, string name)
