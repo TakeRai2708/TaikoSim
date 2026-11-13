@@ -28,7 +28,7 @@ public static class LayoutAdjustments
         public static readonly Rectangle RankFallback = new(73, 37, 76, 34); // スキン素材がないときの段位背景
         public static readonly Rectangle RankText = new(64, 38, 69, 33); // 「七段」などの文字
         public const float RankTextSize = 24;
-        public static readonly Rectangle NameWithRank = new(133, 38, 176, 33); // 段位あり：名前を中央に収める範囲
+        public static readonly Rectangle NameWithRank = new(133, 38, 184, 33); // 段位あり：名前を中央に収める範囲（＝名前の白い欄 x 133〜317。長い名前は縦はそのまま横だけ縮める）
         public static readonly Rectangle NameWithoutRank = new(76, 37, 249, 33); // 段位なし：名前を中央に収める範囲
         public const float NameSize = 25, NameOutline = 3; // 名前の大きさ / 黒縁の太さ
         public const float OtherTextOutline = 2; // 称号・段位・素材なしの1P/2P文字の縁
