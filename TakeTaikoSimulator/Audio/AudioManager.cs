@@ -22,8 +22,8 @@ namespace TakeTaikoSimulator.Audio
     //
     // 鳴らし方は2通り
     //   ・BASS / DirectSound … 今まで通り、曲や効果音を BASS に直接鳴らしてもらう
-    //   ・WASAPI / ASIO      … 全部の音を「ミキサー」に集めて、それを WASAPI / ASIO に渡す(OpenTaiko と同じ形)
-    //                          曲や効果音は Mixer が 0 かどうかで、どっちの鳴らし方をするか決める
+    //   ・WASAPI / ASIO      … 曲をミキサーから渡す。共有では効果音だけ別の共有出力を使える
+    //                          準備できないときは、効果音も曲と同じミキサーへ渡す
     public static class AudioManager
     {
         // 音が使えるか(準備に成功したか)
@@ -44,8 +44,16 @@ namespace TakeTaikoSimulator.Audio
         // ミキサー(WASAPI / ASIO のときだけ。0 なら BASS に直接鳴らしてもらう)
         public static int Mixer { get; private set; } = 0;
 
+        // 共有出力では、打音を曲の先読みバッファに並べず、同じ機器の共有出力へ直接渡す。
+        // 準備できない場合は、今までどおり曲と同じミキサーを使う。
+        public static bool SharedEffectsUseSamples { get; private set; }
+        public static double SharedEffectsLatencyEstimateMs { get; private set; }
+
         // ためた音を足していく間隔(ms)。BASS / DirectSound のとき
         private const int UpdatePeriodMs = 5;
+
+        // 共有の効果音用。機器側の最小単位に合わせて、実際の長さは切り上げられる。
+        private const int SharedEffectsBufferMs = 5;
 
         // BASS がもともと持っているバッファの長さ(ms)。バッファ 0(自動)のときに戻すため、最初に覚えておく
         private static int? defaultDeviceBufferMs = null;
@@ -218,21 +226,54 @@ namespace TakeTaikoSimulator.Audio
         // WASAPI 共有 / 排他(OpenTaiko の CSoundDeviceWASAPI と同じ流れ)
         private static bool InitWasapi(bool exclusive, int bufferMs, out string error)
         {
-            // 音は WASAPI が取りに来たときにミキサーから渡すので、BASS が自分で更新する必要はない
-            Bass.Configure(Configuration.UpdatePeriod, 0);
-            Bass.Configure(Configuration.UpdateThreads, 0);
-
-            // 0 = 「音を出さない機器」で BASS を準備(音を出すのは BASSWASAPI の係)
-            if (!Bass.Init(0, 44100, DeviceInitFlags.Default))
+            bool directEffectsReady = false;
+            if (!exclusive)
             {
-                error = $"BASS の準備（{Bass.LastError}）";
-                return false;
+                defaultDeviceBufferMs ??= Bass.GetConfig(Configuration.DeviceBufferLength);
+                Bass.Configure(Configuration.UpdatePeriod, 1);
+                Bass.Configure(Configuration.UpdateThreads, 1);
+                Bass.Configure(Configuration.DeviceBufferLength, SharedEffectsBufferMs);
+                // BASSの「Default」は機器IDを持たない別名なので、対応する実機を選ぶ。
+                int effectsDeviceIndex = FindSharedEffectsDevice();
+                directEffectsReady = effectsDeviceIndex >= 0 && Bass.Init(effectsDeviceIndex, 44100, DeviceInitFlags.Latency);
+                if (directEffectsReady)
+                {
+                    bassInitialized = true;
+                    Bass.GetInfo(out var effectsInfo);
+                    SharedEffectsLatencyEstimateMs = effectsInfo.Latency;
+                }
             }
-            bassInitialized = true;
+
+            if (!directEffectsReady)
+            {
+                // 従来経路ではWASAPIが音を取りに来るので、BASS自身の更新は止める。
+                Bass.Configure(Configuration.UpdatePeriod, 0);
+                Bass.Configure(Configuration.UpdateThreads, 0);
+
+                // 0 = 「音を出さない機器」で BASS を準備(音を出すのは BASSWASAPI の係)
+                if (!Bass.Init(0, 44100, DeviceInitFlags.Default))
+                {
+                    error = $"BASS の準備（{Bass.LastError}）";
+                    return false;
+                }
+                bassInitialized = true;
+            }
 
             // -1 = いつもの出力先。周波数とチャンネル数は 0 = 機器に合わせる
             WasapiInitFlags flags = WasapiInitFlags.AutoFormat | (exclusive ? WasapiInitFlags.Exclusive : WasapiInitFlags.Shared);
-            if (!BassWasapi.Init(-1, 0, 0, flags, bufferMs / 1000f, 0, wasapiProc, IntPtr.Zero))
+            // 排他は、機器が次の音を必要としたときに渡す。
+            // 従来の周期指定なしでは、5msを希望しても20ms刻みで取りに来る機器があった。
+            bool eventDriven = exclusive;
+            if (eventDriven) flags |= WasapiInitFlags.EventDriven;
+            bool initialized = BassWasapi.Init(-1, 0, 0, flags, bufferMs / 1000f, 0, wasapiProc, IntPtr.Zero);
+            // イベント方式に対応していない機器だけ、従来の排他方式へ戻す。
+            if (!initialized && eventDriven && Bass.LastError == Errors.NotAvailable)
+            {
+                eventDriven = false;
+                flags &= ~WasapiInitFlags.EventDriven;
+                initialized = BassWasapi.Init(-1, 0, 0, flags, bufferMs / 1000f, 0, wasapiProc, IntPtr.Zero);
+            }
+            if (!initialized)
             {
                 Errors code = Bass.LastError;
                 error = code == Errors.Busy ? "ほかのアプリが独り占めしています（Busy）" : code.ToString();
@@ -241,6 +282,12 @@ namespace TakeTaikoSimulator.Audio
             wasapiInitialized = true;
 
             BassWasapi.GetInfo(out WasapiInfo info);
+
+            // 既定の機器の対応が違う場合、曲と打音が別の機器に出ないよう従来経路を使う。
+            SharedEffectsUseSamples = directEffectsReady
+                && Bass.GetDeviceInfo(Bass.CurrentDevice, out var effectsDevice)
+                && BassWasapi.GetDeviceInfo(BassWasapi.CurrentDevice, out var musicDevice)
+                && string.Equals(effectsDevice.Driver, musicDevice.ID, StringComparison.OrdinalIgnoreCase);
 
             // WASAPI と同じ形のミキサー(Decode = 自分では鳴らさない。WASAPI に渡すだけ)
             int mixer = BassMix.CreateMixerStream(info.Frequency, info.Channels, BassFlags.MixerNonStop | BassFlags.Float | BassFlags.Decode);
@@ -258,23 +305,34 @@ namespace TakeTaikoSimulator.Audio
                 return false;
             }
 
-            // 実際のバッファの長さ(ms)。機器の形式で1サンプルが何バイトかを出してから計算する
-            int bytesPerSample = info.Format switch
-            {
-                WasapiFormat.Bit8 => 1,
-                WasapiFormat.Bit16 => 2,
-                WasapiFormat.Bit24 => 3,
-                _ => 4, // 32bit・Float
-            };
-            long bytesPerSecond = (long)bytesPerSample * info.Channels * info.Frequency;
-            double actualMs = bytesPerSecond > 0 ? info.BufferLength * 1000.0 / bytesPerSecond : 0;
-            wasapiBufferMs = actualMs;
+            // BASSWASAPIのバッファ長はfloat32換算。機器が16bitでも、2byteで割らない。
+            // 排他のイベント方式では、この長さのバッファを2つ交互に使う。
+            double actualMs = mixerBytesPerSecond > 0 ? info.BufferLength * 1000.0 / mixerBytesPerSecond : 0;
+            wasapiBufferMs = actualMs * (eventDriven ? 2 : 1);
 
             string name = exclusive ? "WASAPI 排他" : "WASAPI 共有";
             string wantedText = bufferMs > 0 ? $"{bufferMs}ms" : "自動";
-            Status = $"{name}（バッファ {actualMs:0.#}ms／希望 {wantedText}・{info.Frequency}Hz）";
+            string buffers = eventDriven ? $"{actualMs:0.#}ms×2" : $"{actualMs:0.#}ms";
+            Status = $"{name}（バッファ {buffers}／希望 {wantedText}・{info.Frequency}Hz）";
+            if (SharedEffectsUseSamples) Status = $"{name}（曲 {actualMs:0.#}ms／打音は別共有）";
             error = "";
             return true;
+        }
+
+        private static int FindSharedEffectsDevice()
+        {
+            string? id = null;
+            for (int i = 0; BassWasapi.GetDeviceInfo(i, out var device); i++)
+                if (device.IsEnabled && device.IsDefault && !device.IsInput)
+                {
+                    id = device.ID;
+                    break;
+                }
+            if (string.IsNullOrEmpty(id)) return -1;
+            for (int i = 0; Bass.GetDeviceInfo(i, out var device); i++)
+                if (device.IsEnabled && string.Equals(device.Driver, id, StringComparison.OrdinalIgnoreCase))
+                    return i;
+            return -1;
         }
 
         // ASIO
@@ -354,6 +412,8 @@ namespace TakeTaikoSimulator.Audio
             wasapiInitialized = false;
             asioInitialized = false;
             bassInitialized = false;
+            SharedEffectsUseSamples = false;
+            SharedEffectsLatencyEstimateMs = 0;
             Mixer = 0;
             mixerBytesPerSecond = 0;
             wasapiBufferMs = 0;

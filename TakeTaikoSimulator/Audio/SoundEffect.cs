@@ -6,9 +6,10 @@ namespace TakeTaikoSimulator.Audio
     // 効果音1つ分(ドン・カッなど、短くて何回も重ねて鳴らす音)
     // 曲(Song)と違って、全部メモリに読み込んでおいて、鳴らすたびに新しく再生する
     //
-    // 鳴らし方は2通り(AudioManager.Mixer で決まる)
+    // 鳴らし方は2通り(ミキサーの有無と共有出力の準備状態で決まる)
     //   ・BASS / DirectSound … BASS の「サンプル」で鳴らす(今まで通り)
-    //   ・WASAPI / ASIO      … サンプルが使えないので、同じ音を MaxOverlap 個ミキサーに入れておいて、順番に使う
+    //   ・WASAPI共有の別出力 … 同じ機器のBASS共有出力でサンプルを鳴らす
+    //   ・WASAPI排他 / ASIO・共有の従来経路 … 同じ音を MaxOverlap 個ミキサーに入れて順番に使う
     public sealed class SoundEffect : IDisposable
     {
         // 同時に重ねて鳴らせる数(連打で速く叩いても音が途切れないように)
@@ -58,17 +59,21 @@ namespace TakeTaikoSimulator.Audio
             int mixer = AudioManager.Mixer;
 
             // ----- BASS / DirectSound：今まで通りサンプルで -----
-            if (mixer == 0)
+            if (mixer == 0 || AudioManager.SharedEffectsUseSamples)
             {
                 // 全部鳴っているときは、一番前から鳴っている音を止めて、新しい音を鳴らす
                 int sample = Bass.SampleLoad(path, 0, 0, maxOverlap, BassFlags.SampleOverrideLongestPlaying);
-                if (sample == 0)
+                if (sample != 0)
+                {
+                    error = "";
+                    return new SoundEffect(sample);
+                }
+                // 共有の別出力で読めない音だけ、従来のミキサー経路へ戻す。
+                if (mixer == 0)
                 {
                     error = $"効果音を読み込めませんでした（{Bass.LastError}）";
                     return null;
                 }
-                error = "";
-                return new SoundEffect(sample);
             }
 
             // ----- WASAPI / ASIO：同じ音を maxOverlap 個、ミキサーに入れておく -----
