@@ -295,9 +295,9 @@ namespace TakeTaikoSimulator.Scenes
             if (SkinManager.GetTexture(PanelImage) is Texture2D panel)
                 Raylib.DrawTexturePro(panel, new Rectangle(0, 0, 960, 1080), new Rectangle(0, 0, 960, 1080),
                     Vector2.Zero, 0f, Color.White);
-            DrawCourse();
             // ゲージは板といっしょに出す（録画では、板が出た 0.1秒後にはもうゲージがあった。数字はそのあと）
             DrawGauge();
+            DrawCourse();   // 難易度の札はゲージのあと（11/15 シンプルで、ゲージの枠の線が「おに」の札の上を横切っていた）
 
             if (elapsed >= RevealTime)
             {

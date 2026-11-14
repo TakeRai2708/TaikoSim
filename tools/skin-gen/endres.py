@@ -216,7 +216,7 @@ def rank_crown():
     W, H = 326, 276
     base = Canvas(W * 7, H)
     for i in range(7):
-        rank_letter(base, i * W + 163, 138, i, 170)
+        rank_letter(base, i * W + 163, 138, i, 120)   # 11/15 たけらい「スコアランクの大きさのバランスおかしい」：170 → 120
     b = np.array(base.image()).astype(float)
     full = np.zeros((H * 4, W * 7, 4))
     for row in range(4):

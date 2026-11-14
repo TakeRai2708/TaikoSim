@@ -41,7 +41,8 @@ namespace TakeTaikoSimulator.UI
                 return;
             }
             // 絵が無いスキン：同じ形をプログラムで描く（白い左・薄紫の右）
-            Rectangle all = new(x + 12f, y + 10f, 258f, 52f);
+            //   11/15 たけらい「シンプルスキンの曲数、大きい気がする。文字の大きさはいい」：箱を 258×52 → 214×44（右はしはそのまま）
+            Rectangle all = new(x + 56f, y + 14f, 214f, 44f);
             SmoothShapes.Rounded(new Rectangle(all.X, all.Y + 3f, all.Width, all.Height), 1f, 16, Fade(new Color(0, 0, 0, 60), alpha));
             SmoothShapes.Rounded(all, 1f, 16, Fade(new Color(186, 190, 226, 255), alpha));
             SmoothShapes.Rounded(new Rectangle(all.X, all.Y, all.Width * 0.6f, all.Height), 1f, 16, white);
@@ -85,9 +86,10 @@ namespace TakeTaikoSimulator.UI
                     SmoothShapes.Rounded(new Rectangle(area.X, area.Y, 160f, area.Height), 1f, 12, a);
                 }
                 // 録画：「1曲目」は x 1643〜1704、「3曲」は x 1789〜1838、高さ y 107〜131（ふち込み）
-                float thick = 2.5f;
-                OutlinedDetail($"{number}曲目", new Rectangle(1623.5f, PlayY, 100f, 40f), 22f, Fade(Color.Black, countAlpha), a, thick);
-                OutlinedDetail($"{SongsPerPlay}曲", new Rectangle(1763.5f, PlayY, 100f, 40f), 22f, Fade(Color.Black, countAlpha), a, thick);
+                // 細かい字のフォントが無いスキン（シンプル）は、ふつうのフォントで小さく見えるので大きめ（11/15 たけらい「演奏画面の曲数の文字小さい」）
+                float thick = 2.5f, size = FontManager.HasSkinDetail ? 22f : 28f;
+                OutlinedDetail($"{number}曲目", new Rectangle(1623.5f, PlayY, 100f, 40f), size, Fade(Color.Black, countAlpha), a, thick);
+                OutlinedDetail($"{SongsPerPlay}曲", new Rectangle(1763.5f, PlayY, 100f, 40f), size, Fade(Color.Black, countAlpha), a, thick);
             }
             if (genre.Length > 0 && countAlpha < 1f)
             {
@@ -95,7 +97,7 @@ namespace TakeTaikoSimulator.UI
                 if (!MenuSkin.Whole(GenreFolder + "Bar.png", area, Fade(genreColor, g)))
                     SmoothShapes.Rounded(area, 1f, 12, Fade(genreColor, g));
                 // 11/14 TaikøNauts のスクショ：ジャンル名は白い字の高さ 17px・縁 4px（ナムコオリジナルの札はべたぬり (254,112,39)）
-                OutlinedDetail(genre, new Rectangle(area.X + 10f, area.Y, area.Width - 20f, area.Height), 21f, Fade(Color.White, g), Fade(Color.Black, g), 4f);
+                OutlinedDetail(genre, new Rectangle(area.X + 10f, area.Y, area.Width - 20f, area.Height), FontManager.HasSkinDetail ? 21f : 27f, Fade(Color.White, g), Fade(Color.Black, g), 4f);
             }
         }
 
