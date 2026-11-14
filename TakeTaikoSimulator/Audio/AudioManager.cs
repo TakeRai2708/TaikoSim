@@ -467,18 +467,15 @@ namespace TakeTaikoSimulator.Audio
         public static double HitSoundLagMs =>
             Mixer == 0 && bassInitialized && BassBufferMs > 0 ? BassBufferMs + UpdatePeriodMs / 2.0 : 0;
 
-        // 測る用：今の方式で、音が実際に聞こえるまでの遅れの目安(ms)
-        //   BASS / DirectSound … BassOutputLatencyMs（機器の遅れ＋バッファ。曲の位置から引いている）
-        //   WASAPI / ASIO      … OutputLatencyMs と同じ(曲の位置から引いている)
+        // 診断用の遅延の目安(ms)。方式ごとに推定方法が違うので、同じ測定値として比較しない。
+        //   BASS / DirectSound … 再生開始までの平均遅延。曲の再生位置からは引かない。
+        //   WASAPI / ASIO      … 出力待ちの推定。デコード用ミキサーの位置から引く。
         public static double MeasuredLatencyMs => Mixer != 0 ? OutputLatencyMs : BassOutputLatencyMs;
 
-        // BASS / DirectSound のとき、曲が「送り出した位置」から「実際に聞こえる」までの遅れ(ms)
-        //   11/14 たけらい「曲聞いてたたくと可の数やばい。判定見ながらだと曲ずれてる気がする」：
-        //   BASS のときだけ、曲の位置から遅れを引いていなかった（WASAPI / ASIO は引いている）。
-        //   そのため音符が判定枠に来る時刻より、曲が聞こえるのが遅れていて、耳で叩くと遅い（可）になっていた。
-        //   OpenTaiko の BASS モードと同じく「機器の遅れ(Info.Latency) ＋ バッファ」を引く
+        // BASS_INFO.Latencyは再生開始までの平均遅延。設定バッファを足すと重複する。
+        // 通常チャンネルのChannelGetPositionは既に再生位置なので、これは診断表示だけに使う。
         public static double BassOutputLatencyMs =>
-            Mixer == 0 && bassInitialized ? bassDeviceLatencyMs + Math.Max(0, BassBufferMs) : 0;
+            Mixer == 0 && bassInitialized ? Math.Max(0, bassDeviceLatencyMs) : 0;
 
         // WASAPI が「次の音をちょうだい」と言ってきたときに呼ばれる(別の流れから呼ばれる)
         // ミキサーで混ぜた音を、そのまま渡す

@@ -296,3 +296,17 @@ Windows実機での描画・入力・音声、Native AOT publishは未確認。
       3回の初期化・終了、各64回のSE要求、32ボイス再利用、強制GC中の曲再生・時計の実時間追従を確認。両出力はDSPで無音にした部品テスト。
 制限：耳に届くまでの実遅延、描画負荷中の音切れ、非対応機器での復帰、Native AOT publishは未確認。
       BASS_INFO平均開始遅延による推定と従来の待ちバイト数による推定は直接比較できない。共有のズレ解消・改善量は断定しない。
+
+[AUDIO-BASS-CLOCK-20261115] BASS・DirectSoundの再生位置への重複補正
+状態：本人からBASSとDirectSoundは明確に音がずれて叩きづらいとの報告。修正案を別ブランチへ保存、masterへは未反映。
+コード上の事実：非ミキサーの通常再生でもChannelGetPositionからInfo.Latency＋設定バッファを引き、判定・表示の基準時計を遅らせていた。
+公式仕様：通常チャンネルの位置は再生位置。Decodeフラグの位置・デコード用ミキサーの位置とは区別する。
+修正案：Song.PositionMsの通常再生はAPIの再生位置をそのまま返す。WASAPI・ASIOのデコード用ミキサーの補正は維持。
+診断値：BASS_INFO.Latencyは再生開始までの平均遅延なので、設定バッファを足さず診断表示だけに使う。
+参照：https://www.un4seen.com/doc/bass/BASS_ChannelGetPosition.html
+      https://www.un4seen.com/forum/?topic=10546.0 （Ian：通常再生の既定値は現在聞こえている位置）
+      https://www.un4seen.com/doc/bass/BASS_INFO.html
+検証：該当コードと公式仕様の照合のみ。今回のローカルPC接続が途中で失われ、ビルド・実機の無音同期テスト・聴感比較は未実施。
+      それ以前の共有・排他のテスト成功を、この修正案の検証として流用しない。
+制限：打音自体の出力待ちは別問題。これで報告された音ズレがすべて解消するとは断定しない。
+      直近の通常ログと現在の設定は読めたが、新しいBASS／DirectSound演奏の判定CSVは見つからなかった。
