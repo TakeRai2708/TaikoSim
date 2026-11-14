@@ -21,7 +21,7 @@ public static class LayoutAdjustments
         public static readonly Rectangle TitleText = new(75, 6, 248, 28); // 上段の称号文字
         public const float TitleTextSize = 26;
         public static readonly Rectangle PlayerBadge = new(0, -1, 82, 80); // 丸い1P/2Pの絵
-        public static readonly Rectangle RankBacking = new(12, 35, 131, 36); // 段位の黒背景（11/14 上に 1〜2px 白いすき間があったので、2px 上から・2px 高く。右はし x 143 が名前の白い欄の左はし）
+        public static readonly Rectangle RankBacking = new(12, 33, 131, 38); // 段位の黒背景（11/15 称号の背景の下はしの明るい茶色の1行が、すき間に見えていたので、さらに 2px 上から（称号の背景の下はしにかぶせる）。右はし x 143 が名前の白い欄の左はし）
         // 11/14 TaikøNauts のスクショ（モード選択）で測った。プレートの絵は左はし 16px が透明なので、本家のプレートの左上は (51, 920) くらい。そこから
         //   段位の字「七段」の真ん中 x 107・銀の飾りの真ん中 x 108・名前の白い欄 x 142〜326（名前はその真ん中）
         //   （一度、左上を (60,920) とまちがえて 10px 左にずらしたら、段位の字が 1P の丸に隠れて、黒い欄と白い欄の間にすき間ができた）
