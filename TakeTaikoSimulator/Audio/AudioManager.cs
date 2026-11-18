@@ -83,6 +83,13 @@ namespace TakeTaikoSimulator.Audio
         // WASAPI が音を取りに来るときに呼ばれる関数
         // ※ BASS に渡した関数が途中で消されないように、フィールドに入れて持っておく(OpenTaiko と同じ)
         private static readonly WasapiProcedure wasapiProc = WasapiProc;
+        private static readonly StreamProcedure bassOutputProc = BassOutputProc;
+
+        // BASS のときの出力ストリームと、出力の遅れ(ms)
+        private static int bassOutput = 0;
+        private static int bassOutputDelayMs = 0;
+        private static int? defaultPlaybackBufferMs = null;
+        private const int BassUpdatePeriodMs = 1;
 
         // ===== 起動・作り直し =====
 
@@ -150,12 +157,11 @@ namespace TakeTaikoSimulator.Audio
             {
                 bool ok = type switch
                 {
-                    AudioOutputType.Bass => InitBass(directSound: false, bufferMs, out error),
-                    AudioOutputType.DirectSound => InitBass(directSound: true, bufferMs, out error),
+                    AudioOutputType.Bass or AudioOutputType.DirectSound => InitBass(bufferMs, out error),
                     AudioOutputType.WasapiShared => InitWasapi(exclusive: false, bufferMs, out error),
                     AudioOutputType.WasapiExclusive => InitWasapi(exclusive: true, bufferMs, out error),
                     AudioOutputType.Asio => InitAsio(asioDevice, out error),
-                    _ => InitBass(directSound: false, bufferMs, out error),
+                    _ => InitBass(bufferMs, out error),
                 };
                 if (!ok) return false;
 
@@ -185,65 +191,75 @@ namespace TakeTaikoSimulator.Audio
             }
         }
 
-        // BASS / DirectSound(BASS に直接鳴らしてもらう)
-        private static bool InitBass(bool directSound, int bufferMs, out string error)
+        // BASS（OpenTaiko の CSoundDeviceBASS と同じ流れ。11/19 たけらい「音の出し方を OpenTaiko に合わせよう」）
+        //   曲も効果音も全部「ミキサー(Decode)」に集めて、自分で作った出力ストリームがミキサーから音を取りに行く。
+        //   WASAPI / ASIO と同じ道なので、曲の位置の求め方もそろう（ミキサーの位置 − 出力の遅れ）
+        //   出力の遅れ = BASS が測った機器の遅れ(Info.Latency) + バッファ(PlaybackBufferLength)。OpenTaiko の OutputDelay と同じ
+        //   前は曲と効果音を BASS に直接鳴らしていて、方式ごとに遅れの求め方がちがい、曲がずれて聞こえた
+        //   DirectSound は OpenTaiko に無いので消した（設定が DirectSound の人は BASS になる）
+        private static bool InitBass(int bufferMs, out string error)
         {
-            // 遅れを小さくする設定(BASS を準備する前に決める)
-            //   DeviceBufferLength：スピーカーに送る前にためておく長さ(ms)。小さいほど遅れが減るけど、小さすぎると音がブツブツ切れる
-            //   UpdatePeriod：ためた音を足していく間隔(ms)
-            // ※ WASAPI / ASIO のあとに作り直したときのために、毎回ちゃんと決め直す
-            // ※ 0(自動)のときは、BASS がもともと持っている長さに戻す
-            defaultDeviceBufferMs ??= Bass.GetConfig(Configuration.DeviceBufferLength);
+            defaultPlaybackBufferMs ??= Bass.GetConfig(Configuration.PlaybackBufferLength);
+            // OpenTaiko：BASS の更新間隔は 1ms（SoundManager.SoundUpdatePeriodBASS）、バッファは設定の値（初期値 1ms。BASS が使える長さに直す）
+            int buffer = bufferMs > 0 ? Math.Max(bufferMs, BassUpdatePeriodMs + 1) : defaultPlaybackBufferMs.Value;
+            Bass.Configure(Configuration.UpdatePeriod, BassUpdatePeriodMs);
             Bass.Configure(Configuration.UpdateThreads, 1);
-            Bass.Configure(Configuration.UpdatePeriod, UpdatePeriodMs);
-            Bass.Configure(Configuration.DeviceBufferLength, bufferMs > 0 ? Math.Max(bufferMs, UpdatePeriodMs + 1) : defaultDeviceBufferMs.Value);
+            Bass.Configure(Configuration.PlaybackBufferLength, buffer);
 
-            // -1 = いつもの出力先(Windowsで「既定」になっているスピーカー)、44100Hz
-            // Latency = 遅延を測っておく
-            // DirectSound = WASAPI のかわりに DirectSound で鳴らす
-            DeviceInitFlags flags = DeviceInitFlags.Latency;
-            if (directSound) flags |= DeviceInitFlags.DirectSound;
-
-            if (!Bass.Init(-1, 44100, flags))
+            if (!Bass.Init(-1, 44100, DeviceInitFlags.Latency))
             {
                 error = Bass.LastError.ToString();
                 return false;
             }
             bassInitialized = true;
 
-            // 測る用：BASS が測った機器の遅れ(Latency を付けて準備したので入っている)と、実際のバッファ
-            Bass.GetInfo(out var info); // OpenTaiko の CSoundDeviceBASS と同じ呼び方
-            bassDeviceLatencyMs = info.Latency;
-            BassBufferMs = Bass.GetConfig(Configuration.DeviceBufferLength);
+            int mixer = BassMix.CreateMixerStream(44100, 2, BassFlags.MixerNonStop | BassFlags.Float | BassFlags.Decode);
+            if (mixer == 0)
+            {
+                error = $"ミキサーを作れませんでした（{Bass.LastError}）";
+                return false;
+            }
+            Mixer = mixer;
+            mixerBytesPerSecond = 44100L * 2 * 4;
 
-            string name = directSound ? "DirectSound" : "BASS";
-            string buffer = bufferMs > 0 ? $"{bufferMs}ms" : "自動";
-            Status = $"{name}（バッファ {buffer}）　BASS {Bass.Version}";
+            bassOutput = Bass.CreateStream(44100, 2, BassFlags.Float, bassOutputProc, IntPtr.Zero);
+            if (bassOutput == 0)
+            {
+                error = $"出力ストリームを作れませんでした（{Bass.LastError}）";
+                return false;
+            }
+
+            Bass.GetInfo(out var info);
+            bassDeviceLatencyMs = Math.Max(0, info.Latency);
+            BassBufferMs = Bass.GetConfig(Configuration.PlaybackBufferLength);
+            bassOutputDelayMs = bassDeviceLatencyMs + BassBufferMs;
+
+            if (!Bass.ChannelPlay(bassOutput, false))
+            {
+                error = $"出力を開始できませんでした（{Bass.LastError}）";
+                return false;
+            }
+
+            string wanted = bufferMs > 0 ? $"{bufferMs}ms" : "自動";
+            Status = $"BASS（出力の遅れ {bassOutputDelayMs}ms＝機器 {bassDeviceLatencyMs}ms＋バッファ {BassBufferMs}ms／希望 {wanted}）　BASS {Bass.Version}";
             error = "";
             return true;
+        }
+
+        // BASS の出力ストリームが「次の音をちょうだい」と言ってきたときに呼ばれる。ミキサーで混ぜた音をそのまま渡す（OpenTaiko の StreamProc と同じ）
+        private static int BassOutputProc(int handle, IntPtr buffer, int length, IntPtr user)
+        {
+            int mixer = Mixer;
+            if (mixer == 0) return 0;
+            int got = Bass.ChannelGetData(mixer, buffer, length);
+            return got < 0 ? 0 : got;
         }
 
         // WASAPI 共有 / 排他(OpenTaiko の CSoundDeviceWASAPI と同じ流れ)
         private static bool InitWasapi(bool exclusive, int bufferMs, out string error)
         {
+            // 効果音も曲と同じミキサーを通す（OpenTaiko と同じ。前は共有のとき効果音だけ別の出力にしていた）
             bool directEffectsReady = false;
-            if (!exclusive)
-            {
-                defaultDeviceBufferMs ??= Bass.GetConfig(Configuration.DeviceBufferLength);
-                Bass.Configure(Configuration.UpdatePeriod, 1);
-                Bass.Configure(Configuration.UpdateThreads, 1);
-                Bass.Configure(Configuration.DeviceBufferLength, SharedEffectsBufferMs);
-                // BASSの「Default」は機器IDを持たない別名なので、対応する実機を選ぶ。
-                int effectsDeviceIndex = FindSharedEffectsDevice();
-                directEffectsReady = effectsDeviceIndex >= 0 && Bass.Init(effectsDeviceIndex, 44100, DeviceInitFlags.Latency);
-                if (directEffectsReady)
-                {
-                    bassInitialized = true;
-                    Bass.GetInfo(out var effectsInfo);
-                    SharedEffectsLatencyEstimateMs = effectsInfo.Latency;
-                }
-            }
-
             if (!directEffectsReady)
             {
                 // 従来経路ではWASAPIが音を取りに来るので、BASS自身の更新は止める。
@@ -401,6 +417,7 @@ namespace TakeTaikoSimulator.Audio
                     BassAsio.Stop();
                     BassAsio.Free();
                 }
+                if (bassOutput != 0) Bass.StreamFree(bassOutput);
                 if (Mixer != 0) Bass.StreamFree(Mixer);
                 if (bassInitialized) Bass.Free();
             }
@@ -415,6 +432,8 @@ namespace TakeTaikoSimulator.Audio
             SharedEffectsUseSamples = false;
             SharedEffectsLatencyEstimateMs = 0;
             Mixer = 0;
+            bassOutput = 0;
+            bassOutputDelayMs = 0;
             mixerBytesPerSecond = 0;
             wasapiBufferMs = 0;
             asioRate = 0;
@@ -432,6 +451,7 @@ namespace TakeTaikoSimulator.Audio
             get
             {
                 if (Mixer == 0) return 0;
+                if (bassOutput != 0) return bassOutputDelayMs; // BASS：機器の遅れ＋バッファ（OpenTaiko の OutputDelay）
                 try
                 {
                     if (wasapiInitialized && mixerBytesPerSecond > 0)

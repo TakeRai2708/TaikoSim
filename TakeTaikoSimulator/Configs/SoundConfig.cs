@@ -80,6 +80,7 @@ namespace TakeTaikoSimulator.Configs
             VoiceVolume = Math.Clamp(VoiceVolume, 0, 100);
 
             if (!Enum.IsDefined(OutputType)) OutputType = AudioOutputType.Bass;
+            if (OutputType == AudioOutputType.DirectSound) OutputType = AudioOutputType.Bass; // DirectSound は 11/19 に消した（OpenTaiko に無い）
             BassBufferMs = Math.Clamp(BassBufferMs, AudioManager.BufferMin, AudioManager.BufferMax);
             WasapiBufferMs = Math.Clamp(WasapiBufferMs, AudioManager.BufferMin, AudioManager.BufferMax);
             AsioDevice = Math.Max(0, AsioDevice);

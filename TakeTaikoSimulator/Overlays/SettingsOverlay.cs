@@ -800,14 +800,14 @@ namespace TakeTaikoSimulator.Overlays
 
         // ----- 音の出力(出力方式・バッファ) -----
 
-        // プルダウンの中身(AudioOutputType の番号と同じ並び)
-        private static readonly string[] OutputTypeNames = { "BASS（標準）", "DirectSound", "WASAPI 共有", "WASAPI 排他", "ASIO" };
+        // プルダウンの中身（OpenTaiko と同じ4つ。DirectSound は 11/19 に消した）
+        private static readonly string[] OutputTypeNames = { "BASS（標準）", "WASAPI 共有", "WASAPI 排他", "ASIO" };
+        private static readonly AudioOutputType[] OutputTypes = { AudioOutputType.Bass, AudioOutputType.WasapiShared, AudioOutputType.WasapiExclusive, AudioOutputType.Asio };
 
         // 方式ごとの説明
         private static string GetOutputDescription(AudioOutputType type) => type switch
         {
-            AudioOutputType.Bass => "BASS におまかせで鳴らします（中では WASAPI 共有）。いちばん安定しています。",
-            AudioOutputType.DirectSound => "昔の方式です。ほかの方式でうまく鳴らないときに使ってください。遅延は少し増えます。",
+            AudioOutputType.Bass => "BASS におまかせで鳴らします（中では WASAPI 共有）。いちばん安定しています。曲も効果音もミキサーにまとめて出します（OpenTaiko と同じ）",
             AudioOutputType.WasapiShared => "Windows の普通の出し方です。ほかのアプリの音も一緒に鳴ります。※ bassmix.dll と basswasapi.dll が必要です",
             AudioOutputType.WasapiExclusive => "TakeTaikoSimulator が音の出口を独り占めします。遅延がかなり減るかわりに、起動中はほかのアプリの音が出なくなります。※ bassmix.dll と basswasapi.dll が必要です",
             AudioOutputType.Asio => "ASIO ドライバで出します。いちばん速いですが、対応した機器（オーディオインターフェースなど）が必要です。※ bassmix.dll と bassasio.dll が必要です",
@@ -833,15 +833,14 @@ namespace TakeTaikoSimulator.Overlays
             }
 
             // ----- 出力方式 -----
-            int selected = Math.Clamp((int)sound.OutputType, 0, OutputTypeNames.Length - 1);
-            sound.OutputType = (AudioOutputType)DropdownRow("outputType", "出力方式", OutputTypeNames, selected);
+            int selected = Math.Max(0, Array.IndexOf(OutputTypes, sound.OutputType));
+            sound.OutputType = OutputTypes[Math.Clamp(DropdownRow("outputType", "出力方式", OutputTypeNames, selected), 0, OutputTypes.Length - 1)];
             HelpTip(GetOutputDescription(sound.OutputType));
 
             // ----- バッファ(方式ごと) -----
             switch (sound.OutputType)
             {
                 case AudioOutputType.Bass:
-                case AudioOutputType.DirectSound:
                     sound.BassBufferMs = SliderRow("bassBuffer", "バッファ[ms]", sound.BassBufferMs, AudioManager.BufferMin, AudioManager.BufferMax);
                     HelpTip("0 で自動。小さいほど遅れが減りますが、小さすぎると音がブツブツ切れます");
                     break;
