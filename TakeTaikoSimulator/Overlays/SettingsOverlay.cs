@@ -94,6 +94,9 @@ namespace TakeTaikoSimulator.Overlays
 
         public bool IsOpen { get; private set; } = false;
 
+        // 「音の遅れを測る」画面
+        private readonly LatencyMeter meter = new();
+
         // スクロール
         private float scroll = 0f;        // 今の位置(なめらかに動く)
         private float scrollTarget = 0f;  // 目標の位置
@@ -194,6 +197,7 @@ namespace TakeTaikoSimulator.Overlays
         public void Close()
         {
             if (closing) return;
+            meter.Close(); // 測っている途中で閉じたら、カチッも止める
             closing = true;
             animTime = 0f;
             Gui.Reset();
@@ -323,6 +327,13 @@ namespace TakeTaikoSimulator.Overlays
                 return;
             }
 
+            // 音の遅れを測っている間は、ほかの操作を受け付けない
+            if (meter.IsActive)
+            {
+                meter.Update();
+                return;
+            }
+
             // 未保存の確認は Esc で閉じて、編集中の画面に戻る
             if (resetStep != 0)
             {
@@ -397,7 +408,7 @@ namespace TakeTaikoSimulator.Overlays
 
             Rectangle content = new Rectangle(SidebarWidth + 18, HeaderHeight + 16,
                 CurrentWidth - SidebarWidth - 42, Screen.Height - HeaderHeight - HintHeight - 32);
-            if (!confirmOpen && !unsavedOpen && resetStep == 0 && !animating) UpdateScroll(content);
+            if (!confirmOpen && !unsavedOpen && resetStep == 0 && !meter.IsActive && !animating) UpdateScroll(content);
 
             // 後ろを暗くする(開き具合に合わせて)。全画面は開ききったら後ろが見えないので、動いている間だけ
             float open = OpenAmount();
@@ -418,7 +429,7 @@ namespace TakeTaikoSimulator.Overlays
 
             // はみ出しを切る範囲は、横にずらした分も足す(切る範囲は Translatef の影響を受けないので)
             Screen.BeginScissorMode((int)(content.X + slideX), (int)content.Y, (int)content.Width, (int)content.Height);
-            Gui.SetClip(confirmOpen || unsavedOpen || resetStep != 0 ? NoClickArea : content);
+            Gui.SetClip(confirmOpen || unsavedOpen || resetStep != 0 || meter.IsActive ? NoClickArea : content);
 
             // カテゴリを変えた直後：中身を 8px 下から戻す(ToScreenY が switchShift を足す。#057)
             float swEase = Math.Clamp((switchTime - SwitchDelay) / SwitchSeconds, 0f, 1f);   // #057：中身は等速でじわっと
@@ -461,16 +472,17 @@ namespace TakeTaikoSimulator.Overlays
             Screen.EndScissorMode();
             DrawScrollbar(content);
 
-            if (confirmOpen || unsavedOpen || resetStep != 0) Gui.SetClip(NoClickArea);
+            if (confirmOpen || unsavedOpen || resetStep != 0 || meter.IsActive) Gui.SetClip(NoClickArea);
             DrawHeader();
             DrawSidebar();
             DrawHint();
             Gui.ResetClip();
-            if (!confirmOpen && !unsavedOpen && resetStep == 0) DrawTips();
+            if (!confirmOpen && !unsavedOpen && resetStep == 0 && !meter.IsActive) DrawTips();
 
             DrawMessage();
 
-            if (resetStep != 0) DrawResetDialog();
+            if (meter.IsActive) { Gui.ResetClip(); meter.Draw(); }
+            else if (resetStep != 0) DrawResetDialog();
             else if (confirmOpen) DrawConfirmDialog();
             else if (unsavedOpen) DrawUnsavedDialog();
             else Gui.DrawPopups();
@@ -861,6 +873,20 @@ namespace TakeTaikoSimulator.Overlays
                 sound.GetLatencyFix(sound.OutputType), SoundConfig.LatencyFixMin, SoundConfig.LatencyFixMax);
             sound.SetLatencyFix(sound.OutputType, fix);
             HelpTip("曲が音符より遅れて聞こえるときはプラス、早く聞こえるときはマイナスにします。出力方式ごとに別々に覚えます");
+
+            // 測る(今動いている方式でしか測れないので、まだ［適用］していないときは押せない)
+            bool applied = AudioManager.IsAvailable && sound.OutputType == AudioManager.CurrentType;
+            if (!fullScreen && applied && Gui.Button(new Rectangle(LabelX, ToScreenY(cursorY), RightEdge - LabelX, 40), "音の遅れを測る"))
+            {
+                meter.OnApply = value =>
+                {
+                    ActiveSound.SetLatencyFix(AudioManager.CurrentType, value);
+                    ShowMessage($"遅れの補正を {value}ms にしました", SuccessColor);
+                };
+                meter.Open();
+            }
+            if (!fullScreen && applied) cursorY += 52;
+            else if (!fullScreen) NoteRow("出力方式を［適用］すると、音の遅れを測れます");
 
             // ----- 今の状態 -----
             NoteRow($"今の出力：{AudioManager.Status}");   // 状態の表示は行の下のまま
