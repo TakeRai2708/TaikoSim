@@ -11,6 +11,9 @@ namespace TakeTaikoSimulator
         [STAThread]
         static void Main(string[] args)
         {
+            // データの場所を決める（ドキュメント\TakeTaikoSimulator。最初の起動で exe の横のデータを引っ越す）
+            Configs.DataPaths.Prepare();
+
             // 黒い画面(コンソール)に出す内容を、ファイルにも残す
             StartLogFile();
 
@@ -23,7 +26,7 @@ namespace TakeTaikoSimulator
         {
             try
             {
-                string folder = Path.Combine(AppContext.BaseDirectory, "Logs");
+                string folder = Configs.DataPaths.Data("Logs");
                 Directory.CreateDirectory(folder);
 
                 // 古いログを消す(名前に日時が入っているので、名前順＝古い順)

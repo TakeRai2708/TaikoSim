@@ -20,7 +20,7 @@ namespace TakeTaikoSimulator.Audio
     // 選んだ音色は GameConfig.HitSound にフォルダ名で保存する(空ならスキンの音)
     public static class HitSounds
     {
-        public static string Folder => Path.Combine(AppContext.BaseDirectory, "HitSounds");
+        public static string Folder => Configs.DataPaths.Data("HitSounds");
         private const string SkinDon = "Sound/Taiko/0.Taiko/don.ogg";
         private const string SkinKa = "Sound/Taiko/0.Taiko/ka.ogg";
 
