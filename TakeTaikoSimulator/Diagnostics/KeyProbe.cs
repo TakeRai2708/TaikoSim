@@ -56,7 +56,7 @@ namespace TakeTaikoSimulator.Diagnostics
             if (!Enabled || writer != null) return;
             try
             {
-                string dir = Path.Combine(AppContext.BaseDirectory, "Logs");
+                string dir = Configs.DataPaths.Data("Logs");
                 Directory.CreateDirectory(dir);
                 string path = Path.Combine(dir, $"KeyProbe_{DateTime.Now:yyyyMMdd_HHmmss}.txt");
                 writer = new StreamWriter(path, false, new System.Text.UTF8Encoding(false)) { AutoFlush = false };

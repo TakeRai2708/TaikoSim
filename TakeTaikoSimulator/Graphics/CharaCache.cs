@@ -26,7 +26,7 @@ namespace TakeTaikoSimulator.Graphics
         private const float AlphaThreshold = 0.02f;
         private const int TrimMargin = 2;
 
-        public static string CacheRoot => Path.Combine(AppContext.BaseDirectory, "Cache", "Chara");
+        public static string CacheRoot => Configs.DataPaths.Data("Cache", "Chara");
 
         // そのキャラのキャッシュの置き場所(スキンごとに分ける)
         public static string FolderFor(string skinName, string charaFolder) =>

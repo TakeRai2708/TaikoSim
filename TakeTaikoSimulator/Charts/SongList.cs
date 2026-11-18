@@ -102,7 +102,7 @@ namespace TakeTaikoSimulator.Charts
     public static class SongList
     {
         // 曲を入れる場所(exe の横の Songs フォルダ)
-        public static string SongsFolder => Path.Combine(AppContext.BaseDirectory, "Songs");
+        public static string SongsFolder => Configs.DataPaths.Data("Songs");
 
         // カテゴリの一覧(フォルダの名前順。「その他」があれば一番下)
         public static List<SongCategory> Categories { get; private set; } = new();
@@ -138,7 +138,7 @@ namespace TakeTaikoSimulator.Charts
         // ===== キャッシュ(読んだ結果の保存) =====
 
         // 保存する場所(exe の横の Cache フォルダ。消しても大丈夫。次の起動で全部読み直すだけ)
-        public static string CacheFile => Path.Combine(AppContext.BaseDirectory, "Cache", "SongCache.json");
+        public static string CacheFile => Configs.DataPaths.Data("Cache", "SongCache.json");
 
         // キャッシュの形の版。TjaParser の読み方を変えたら 1 増やす
         // (古いやり方で読んだ結果を使わないように。増やすと次の起動で全部読み直しになる)

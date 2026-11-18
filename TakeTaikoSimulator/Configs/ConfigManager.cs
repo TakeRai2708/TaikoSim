@@ -10,7 +10,7 @@ namespace TakeTaikoSimulator.Configs
     public static class ConfigManager
     {
         // 設定ファイルを置くフォルダ(exeと同じ場所の Config フォルダ)
-        public static readonly string ConfigFolder = Path.Combine(AppContext.BaseDirectory, "Config");
+        public static string ConfigFolder => DataPaths.Data("Config");
 
         // 読み込んだ設定(どこからでも ConfigManager.Sound.BgmVolume みたいに使える)
         public static SoundConfig Sound { get; private set; } = new();
