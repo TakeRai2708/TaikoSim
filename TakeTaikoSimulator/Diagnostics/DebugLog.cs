@@ -307,7 +307,7 @@ namespace TakeTaikoSimulator.Diagnostics
         {
             try
             {
-                string root = Path.Combine(AppContext.BaseDirectory, "Logs");
+                string root = Configs.DataPaths.Data("Logs");
                 Directory.CreateDirectory(root);
                 foreach (string old in Directory.GetDirectories(root, "Debug_*").OrderBy(p => p)
                              .SkipLast(KeepSessions - 1))

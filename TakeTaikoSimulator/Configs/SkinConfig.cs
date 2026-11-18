@@ -5,7 +5,7 @@
     {
         public const string FileName = "SkinConfig.json";
 
-        // スキンを入れてるフォルダの場所。空ならexeの隣の Skins フォルダを使う
+        // スキンを入れてるフォルダの場所。空ならデータの場所（ドキュメント\TakeTaikoSimulator）の Skins フォルダを使う
         // 例: "D:\\TaikoSkins"
         public string SkinsFolder { get; set; } = "";
 
@@ -17,7 +17,7 @@
         {
             if (string.IsNullOrWhiteSpace(SkinsFolder))
             {
-                return Path.Combine(AppContext.BaseDirectory, "Skins");
+                return DataPaths.Data("Skins");
             }
             return SkinsFolder;
         }

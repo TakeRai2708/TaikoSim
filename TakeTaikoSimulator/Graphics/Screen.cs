@@ -47,7 +47,7 @@ namespace TakeTaikoSimulator.Graphics
         private static bool applyRequested = false;
 
         // スクリーンショットを保存するフォルダ(exeと同じ場所の Screenshots)
-        public static readonly string ScreenshotFolder = Path.Combine(AppContext.BaseDirectory, "Screenshots");
+        public static string ScreenshotFolder => Configs.DataPaths.Data("Screenshots");
 
         // スクリーンショットの予約
         private static bool screenshotRequested = false;
