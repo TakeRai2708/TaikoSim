@@ -797,8 +797,9 @@ namespace TakeTaikoSimulator.Scenes
             else UpdateSongSync();
             UpdateDiagnosticsRecording(); // デバッグ記録を途中で ON・OFF しても、すぐ合わせる
             if (DebugLog.Active)
+                // 出力遅延ms：曲の位置から引いている量（BASS / DirectSound は機器の遅れ＋バッファ、WASAPI / ASIO は出力待ち）＋遅れの補正
                 DebugLog.SetAudio(song is { IsPlaying: true } ? song.PositionMs - nowMs : null,
-                    AudioManager.Mixer != 0 ? AudioManager.OutputLatencyMs : null);
+                    AudioManager.MeasuredLatencyMs + AudioManager.LatencyFixMs);
             if (diagnostics.Enabled && diagnostics.TrackFrame(dt * 1000.0, nowMs - beforeSync))
             {
                 double? syncError = song is { IsPlaying: true } ? song.PositionMs - nowMs : null;
