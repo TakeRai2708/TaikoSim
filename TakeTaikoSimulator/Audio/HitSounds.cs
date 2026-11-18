@@ -156,33 +156,54 @@ namespace TakeTaikoSimulator.Audio
         private static string? Exists(string? path) => path != null && File.Exists(path) ? path : null;
 
         // ===== 試し聞き(演奏オプションで音色を変えたとき：ドン → 0.15秒あとにカッ) =====
+        //   11/19 たけらい「演奏画面と鳴り方が同じじゃない。たくさん押すと重なる。最初のドンがちゃんと出ない」：
+        //   ・演奏画面(PlayScene)と同じく、ドン・カッそれぞれ重ねて鳴らせる数を 1 にした(新しい音が前の音を止める)
+        //   ・前は音色を変えるたびに、その場で読み込んで、その場で鳴らしていた。
+        //     読み込みと同じフレームで鳴らすと最初のドンがちゃんと出ないことがあったので、
+        //     読み込んだ音は音色ごとに取っておき、鳴らすのは次のフレーム(Update)にした
         private const float PreviewKaDelay = 0.15f;
-        private static SoundEffect? previewDon, previewKa;
-        private static string previewKey = "\u0000";
+        private static readonly Dictionary<string, (SoundEffect? Don, SoundEffect? Ka)> previews = new();
         private static int previewAudio = -1;
+        private static (SoundEffect? Don, SoundEffect? Ka) current;
+        private static bool donPending;
         private static float kaTimer = -1f;
 
         public static void PlayPreview()
         {
-            Entry e = Selected;
-            if (previewKey != e.Key || previewAudio != AudioManager.Generation)
+            // 出力方式を作り直したら、前の音は使えないので捨てる(古い番号は別の音に使われているかもしれないので Dispose しない)
+            if (previewAudio != AudioManager.Generation)
             {
-                if (previewAudio == AudioManager.Generation) { previewDon?.Dispose(); previewKa?.Dispose(); }
-                previewDon = DonPath is string d ? SoundEffect.Load(d, out _, 2) : null;
-                previewKa = KaPath is string k ? SoundEffect.Load(k, out _, 2) : null;
-                previewKey = e.Key;
+                previews.Clear();
                 previewAudio = AudioManager.Generation;
             }
-            previewDon?.Play(Volume);
-            kaTimer = PreviewKaDelay;
+
+            Entry e = Selected;
+            if (!previews.TryGetValue(e.Key, out current))
+            {
+                current = (DonPath is string d ? SoundEffect.Load(d, out _, 1) : null,
+                           KaPath is string k ? SoundEffect.Load(k, out _, 1) : null);
+                previews[e.Key] = current;
+            }
+
+            // 連打したときは、前のカッを止めて、新しいドンからやり直す
+            foreach (var p in previews.Values) p.Ka?.Stop();
+            donPending = true;
+            kaTimer = -1f;
         }
 
-        // 毎フレーム(カッを少し遅らせて鳴らすため)
+        // 毎フレーム(ドンは次のフレームで、カッは 0.15 秒あとに鳴らす)
         public static void Update(float dt)
         {
+            if (donPending)
+            {
+                donPending = false;
+                current.Don?.Play(Volume);
+                kaTimer = PreviewKaDelay;
+                return;
+            }
             if (kaTimer < 0f) return;
             kaTimer -= dt;
-            if (kaTimer < 0f) previewKa?.Play(Volume);
+            if (kaTimer < 0f) current.Ka?.Play(Volume);
         }
 
         private static float Volume => (float)ConfigManager.Sound.GetFinalVolume(ConfigManager.Sound.SeVolume);
