@@ -467,6 +467,11 @@ namespace TakeTaikoSimulator.Audio
         public static double HitSoundLagMs =>
             Mixer == 0 && bassInitialized && BassBufferMs > 0 ? BassBufferMs + UpdatePeriodMs / 2.0 : 0;
 
+        // 設定の「遅れの補正」(ms)。今動いている出力方式の値。曲の位置からさらに引く
+        //   11/18 たけらい：DirectSound だと BASS が測った遅れより実際の遅れが大きく、曲が音符より遅れて聞こえた。
+        //   どの方式でも同じ感覚で叩けるように、方式ごとに手で合わせる値を持たせた
+        public static double LatencyFixMs => IsAvailable ? ConfigManager.Sound.GetLatencyFix(CurrentType) : 0;
+
         // 測る用：今の方式で、音が実際に聞こえるまでの遅れの目安(ms)
         //   BASS / DirectSound … BassOutputLatencyMs（機器の遅れ＋バッファ。曲の位置から引いている）
         //   WASAPI / ASIO      … OutputLatencyMs と同じ(曲の位置から引いている)

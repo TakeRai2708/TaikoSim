@@ -28,6 +28,41 @@ namespace TakeTaikoSimulator.Configs
         // ASIO のときに使う機器の番号(0 から)
         public int AsioDevice { get; set; } = 0;
 
+        // 遅れの補正(ms)。出力方式ごとに1つずつ
+        //   プラス = 曲が遅れて聞こえるとき。曲の位置から、さらにこの分を引く(曲が前に来る)
+        //   例：DirectSound で曲が音符より 30ms 遅れて聞こえる → DirectSound を 30 にする
+        public int LatencyFixBass { get; set; } = 0;
+        public int LatencyFixDirectSound { get; set; } = 0;
+        public int LatencyFixWasapiShared { get; set; } = 0;
+        public int LatencyFixWasapiExclusive { get; set; } = 0;
+        public int LatencyFixAsio { get; set; } = 0;
+
+        public const int LatencyFixMin = -100;
+        public const int LatencyFixMax = 200;
+
+        // その方式の補正値
+        public int GetLatencyFix(AudioOutputType type) => type switch
+        {
+            AudioOutputType.DirectSound => LatencyFixDirectSound,
+            AudioOutputType.WasapiShared => LatencyFixWasapiShared,
+            AudioOutputType.WasapiExclusive => LatencyFixWasapiExclusive,
+            AudioOutputType.Asio => LatencyFixAsio,
+            _ => LatencyFixBass,
+        };
+
+        // その方式の補正値を変える
+        public void SetLatencyFix(AudioOutputType type, int value)
+        {
+            switch (type)
+            {
+                case AudioOutputType.DirectSound: LatencyFixDirectSound = value; break;
+                case AudioOutputType.WasapiShared: LatencyFixWasapiShared = value; break;
+                case AudioOutputType.WasapiExclusive: LatencyFixWasapiExclusive = value; break;
+                case AudioOutputType.Asio: LatencyFixAsio = value; break;
+                default: LatencyFixBass = value; break;
+            }
+        }
+
         // Raylibに渡す実際の音量(0.0〜1.0) = Master × 各音量
         // 例: Master 50, SE 80 → 0.5 × 0.8 = 0.4
         public float GetFinalVolume(int volume)
@@ -48,6 +83,11 @@ namespace TakeTaikoSimulator.Configs
             BassBufferMs = Math.Clamp(BassBufferMs, AudioManager.BufferMin, AudioManager.BufferMax);
             WasapiBufferMs = Math.Clamp(WasapiBufferMs, AudioManager.BufferMin, AudioManager.BufferMax);
             AsioDevice = Math.Max(0, AsioDevice);
+            LatencyFixBass = Math.Clamp(LatencyFixBass, LatencyFixMin, LatencyFixMax);
+            LatencyFixDirectSound = Math.Clamp(LatencyFixDirectSound, LatencyFixMin, LatencyFixMax);
+            LatencyFixWasapiShared = Math.Clamp(LatencyFixWasapiShared, LatencyFixMin, LatencyFixMax);
+            LatencyFixWasapiExclusive = Math.Clamp(LatencyFixWasapiExclusive, LatencyFixMin, LatencyFixMax);
+            LatencyFixAsio = Math.Clamp(LatencyFixAsio, LatencyFixMin, LatencyFixMax);
         }
     }
 }

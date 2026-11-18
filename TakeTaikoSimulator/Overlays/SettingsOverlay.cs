@@ -856,6 +856,12 @@ namespace TakeTaikoSimulator.Overlays
                     break;
             }
 
+            // ----- 遅れの補正(方式ごと) -----
+            int fix = SliderRow("latencyFix" + (int)sound.OutputType, "遅れの補正[ms]",
+                sound.GetLatencyFix(sound.OutputType), SoundConfig.LatencyFixMin, SoundConfig.LatencyFixMax);
+            sound.SetLatencyFix(sound.OutputType, fix);
+            HelpTip("曲が音符より遅れて聞こえるときはプラス、早く聞こえるときはマイナスにします。出力方式ごとに別々に覚えます");
+
             // ----- 今の状態 -----
             NoteRow($"今の出力：{AudioManager.Status}");   // 状態の表示は行の下のまま
 
