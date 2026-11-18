@@ -173,6 +173,9 @@ namespace TakeTaikoSimulator.Graphics
             Texture2D texture = Raylib.LoadTextureFromImage(image);
             Raylib.UnloadImage(image);
             Raylib.SetTextureFilter(texture, TextureFilter.Bilinear);
+            // 11/19 たけらい「ダンサーの上に微妙に黒線ある」：くり返し(Repeat)のままだと、なめらかにするときに
+            //   上のはしが下のはしの色を拾って線になる。はしの色をそのまま使う(Clamp)
+            Raylib.SetTextureWrap(texture, TextureWrap.Clamp);
             loaded.Add(texture);
             return new Frame { Texture = texture, OffsetX = box.X, OffsetY = box.Y, Width = width, Height = height };
         }
@@ -251,7 +254,8 @@ namespace TakeTaikoSimulator.Graphics
             Frame? frame = frames[index];
             if (frame == null) return;
             float ax = basePoint % 3 * 0.5f, ay = Math.Clamp(basePoint, 0, 8) / 3 * 0.5f;
-            Vector2 at = new(x - frame.Width * ax + frame.OffsetX, y - frame.Height * ay + frame.OffsetY);
+            // 半端な位置だと、はしがにじんで線に見えるので、ピクセルにそろえる
+            Vector2 at = new(MathF.Round(x - frame.Width * ax + frame.OffsetX), MathF.Round(y - frame.Height * ay + frame.OffsetY));
             Raylib.DrawTextureV(frame.Texture, at, Color.White);
         }
 
