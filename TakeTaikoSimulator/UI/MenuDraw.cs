@@ -10,6 +10,20 @@ namespace TakeTaikoSimulator.UI
     //   スキンにフォントが無いときは、システム用のフォントで描く
     public static class MenuDraw
     {
+        // ===== 選択カーソルの光の点滅 =====
+        //   11/19 TaikøNauts の録画(2026-11-19_01-02-29.mp4)を1コマずつ測った：
+        //   難易度のカード・曲のバーとも、枠の外の「光」だけが 1.2 秒で 0 → 最大 → 0（ほぼまっすぐ増えて、まっすぐ減る）。
+        //   黄色い枠そのものは変わらない。「どちらの太鼓」のカーソルは光が止まったまま（点滅しない）
+        public const float CursorPulseSeconds = 1.2f;
+        public static float CursorPulse
+        {
+            get
+            {
+                float phase = (float)(Raylib.GetTime() / CursorPulseSeconds % 1.0);
+                return 1f - MathF.Abs(phase * 2f - 1f);
+            }
+        }
+
         // ===== 文字 =====
 
         public static void Text(string text, float x, float y, float size, Color color) =>

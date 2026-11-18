@@ -637,6 +637,7 @@ namespace TakeTaikoSimulator.Scenes
             UpdateTnBackground(dt);
             uraClock = list.Expand > 0f ? uraClock + dt : 0f;
             if (diffOpen) diffTime += dt;
+            UpdateUraTransition(dt);
 
             // 背景の色を、選んでいるものの色にだんだん近づける
             Color target = diffOpen ? diffColor : CurrentItem?.Color ?? new Color(30, 40, 70, 255);
@@ -1113,6 +1114,9 @@ namespace TakeTaikoSimulator.Scenes
 
         private void UpdateDifficulty()
         {
+            // 裏おに⇔おにのアニメ中は、終わるまで何も受け付けない(TaikøNauts と同じ)
+            if (uraFlipTime >= 0f) return;
+
             // F2：オプション
             if (InputManager.IsSystemPressed(SystemAction.QuickOption))
             {
@@ -1168,10 +1172,74 @@ namespace TakeTaikoSimulator.Scenes
         {
             // おにと裏の両方があるときだけ切り替えられる
             if (!HasCourse(CourseType.Oni) || !HasCourse(CourseType.Edit)) return;
-            ura = !ura;
             uraCount = 0;
             MenuSounds.UraFlip();
+            // スキンに Oni_Transition.png があればアニメ(カードの中身は、くるっと回るときに切り替える)。無ければすぐ切り替え
+            if (SkinManager.GetTexture(UraTransitionPath) != null) { uraFlipTime = 0f; uraSwapped = false; }
+            else ura = !ura;
         }
+
+        // ===== 裏おに⇔おにのアニメ =====
+        //   11/19 TaikøNauts の録画(2026-11-19_01-02-29.mp4 38.35秒〜)を 60コマ/秒で測った。t = 10回目を押した瞬間
+        //   ・すぐ：黄色いカーソルと 1P の印が消える
+        //   ・0.067〜0.15秒：カードの鬼のマーク(直径 約135px)の場所から、大きなマーク(300px)にふくらむ
+        //   ・0.567秒を真ん中に ±0.075秒：鬼の顔だけ横に縮んで(コインを回すように)、裏の色の顔になる。ここでカードも裏に変わる
+        //   ・0.917〜0.983秒：カードのマークの大きさまで縮んで、1.0秒で消える
+        //   ・1.0〜1.067秒：カードのマークの上に白い形(Oni_Transition.png の右下)がパッと出て、1.4秒までに消える
+        //   ・1.467秒：カーソルと 1P の印がもどって、また押せるようになる
+        //   Oni_Transition.png(600×1200)：300×300 が 2列4段。左＝おに(ピンク)・右＝裏(紫)
+        //     1段目 全部入り / 2段目 顔だけ / 3段目 うずまきの円 / 4段目 左＝ふち(まん中が黒)・右＝白い形
+        private const string UraTransitionPath = Tn + "Difficulty_Select/Oni_Transition.png";
+        private const float UraGrowStart = 0.067f, UraGrowEnd = 0.15f, UraFlipCenter = 0.567f, UraFlipHalf = 0.075f,
+            UraShrinkStart = 0.917f, UraShrinkEnd = 0.983f, UraHideAt = 1.0f, UraFlashPeak = 1.067f, UraFlashEnd = 1.4f, UraLockEnd = 1.467f;
+        private const float UraSmallScale = 135f / 284f;            // カードのマークの大きさ(ふちの直径 284px → 約135px)
+        private static readonly Vector2 UraMarkCenter = new(98f, 144f); // カードの左上からマークの中心まで(カードは 196×354)
+        private float uraFlipTime = -1f;
+        private bool uraSwapped;
+
+        private void UpdateUraTransition(float dt)
+        {
+            if (uraFlipTime < 0f) return;
+            if (!diffOpen) { uraFlipTime = -1f; if (!uraSwapped) ura = !ura; return; }
+            uraFlipTime += dt;
+            if (!uraSwapped && uraFlipTime >= UraFlipCenter) { ura = !ura; uraSwapped = true; }
+            if (uraFlipTime >= UraLockEnd) uraFlipTime = -1f;
+        }
+
+        private void DrawUraTransition(Rectangle card, float scale, float alpha)
+        {
+            float t = uraFlipTime;
+            if (t < UraGrowStart) return;
+            Vector2 c = new(card.X + UraMarkCenter.X * scale, card.Y + UraMarkCenter.Y * scale);
+
+            if (t < UraHideAt)
+            {
+                float s;
+                if (t < UraGrowEnd) s = UraSmallScale + (1f - UraSmallScale) * EaseOut((t - UraGrowStart) / (UraGrowEnd - UraGrowStart));
+                else if (t < UraShrinkStart) s = 1f;
+                else s = 1f - (1f - UraSmallScale) * Math.Clamp((t - UraShrinkStart) / (UraShrinkEnd - UraShrinkStart), 0f, 1f);
+                float size = 300f * s * scale;
+                Rectangle dest = new(c.X - size / 2f, c.Y - size / 2f, size, size);
+                int col = ura ? 1 : 0; // 回る前は元の色、回った後は新しい色(ura はちょうど真ん中で切り替わる)
+                float face = Math.Abs(t - UraFlipCenter) < UraFlipHalf ? Math.Abs(t - UraFlipCenter) / UraFlipHalf : 1f;
+                Color tint = MenuSkin.White(alpha);
+                MenuSkin.Part(UraTransitionPath, new Rectangle(0, 900, 300, 300), dest, tint);        // ふち
+                MenuSkin.Part(UraTransitionPath, new Rectangle(col * 300, 600, 300, 300), dest, tint); // うずまき
+                Rectangle faceDest = new(c.X - size * face / 2f, dest.Y, size * face, size);
+                if (face > 0.01f) MenuSkin.Part(UraTransitionPath, new Rectangle(col * 300, 300, 300, 300), faceDest, tint); // 顔
+                return;
+            }
+
+            // 白い形：パッと出て消える
+            float white = t < UraFlashPeak ? (t - UraHideAt) / (UraFlashPeak - UraHideAt)
+                        : 1f - Math.Clamp((t - UraFlashPeak) / (UraFlashEnd - UraFlashPeak), 0f, 1f);
+            if (white <= 0f) return;
+            float small = 300f * UraSmallScale * scale;
+            MenuSkin.Part(UraTransitionPath, new Rectangle(300, 900, 300, 300),
+                new Rectangle(c.X - small / 2f, c.Y - small / 2f, small, small), MenuSkin.White(alpha * white));
+        }
+
+        private static float EaseOut(float x) { x = Math.Clamp(x, 0f, 1f); return 1f - (1f - x) * (1f - x); }
 
         private void DecideDifficulty()
         {
@@ -1954,12 +2022,12 @@ namespace TakeTaikoSimulator.Scenes
                         Fade(Color.White, alpha), Fade(Color.Black, alpha));
 
             // 箱：戻る・オプション・かんたん〜おに
-            bool ready = returnTime < 0f && DiffReady && active && !options.IsOpen;
+            bool ready = returnTime < 0f && DiffReady && active && !options.IsOpen && uraFlipTime < 0f;
             for (int i = 0; i < 6; i++)
             {
                 Rectangle box = S(DiffBoxArea(i));
                 bool selected = i == diffCursor;
-                if (selected) DrawDiffCursor(box, alpha, diffDecideTime);
+                if (selected && uraFlipTime < 0f) DrawDiffCursor(box, alpha, diffDecideTime);
                 DrawDiffBox(i, box, alpha, scale);
                 if (i >= 2 && HasCourse(CourseAt(i))) SongRecordPanel.DrawCard(diffSong.Key, CourseAt(i), box, alpha);
                 if (ready && Gui.Clicked(box))
@@ -1969,8 +2037,10 @@ namespace TakeTaikoSimulator.Scenes
                 }
             }
 
-            // 1P の印(カーソルの上)
-            if (diffTime >= MarkerAt)
+            if (uraFlipTime >= 0f) DrawUraTransition(S(DiffBoxArea(5)), scale, alpha);
+
+            // 1P の印(カーソルの上)。裏おにのアニメ中は消す
+            if (diffTime >= MarkerAt && uraFlipTime < 0f)
             {
                 Rectangle at = DiffBoxArea(diffCursor);
                 if (markerBounce < MarkerBounceSeconds)
@@ -2028,6 +2098,19 @@ namespace TakeTaikoSimulator.Scenes
                     alpha *= 1f - (decide - DiffCursorHoldEnd) / (DiffCursorGoneAt - DiffCursorHoldEnd);
             }
             Rectangle frame = new Rectangle(box.X - 12, box.Y - 12, box.Width + 24, box.Height + 24);
+            // 光(枠の外のぼやけた黄色)：Cursor_Effect.png の2つ目(240×400 の1マスまるごと)、小さい箱は Cursor_Effect_Small.png の2つ目(160×160)。
+            //   決めた後は点滅させない
+            if (decide < 0f)
+            {
+                bool smallBox = box.Width < 150;
+                string glowPath = Tn + (smallBox ? "Difficulty_Select/Cursor_Effect_Small.png" : "Difficulty_Select/Cursor_Effect.png");
+                Rectangle glow = smallBox
+                    ? new Rectangle(frame.X - 13, frame.Y - 10, frame.Width + 26, frame.Height + 19)
+                    : new Rectangle(frame.X - 12, frame.Y - 9, frame.Width + 24, frame.Height + 18);
+                Rectangle glowSrc = smallBox ? new Rectangle(160, 0, 160, 160) : new Rectangle(240, 0, 240, 400);
+                if (SkinManager.GetTexture(glowPath) != null)
+                    MenuSkin.NPatchPart(glowPath, glowSrc, glow, 40, MenuSkin.White(alpha * MenuDraw.CursorPulse));
+            }
             // 白い枠は Cursor_Effect.png の3つ目(480px 右)。カードのときだけ(小さい箱は決めても点滅しない)
             if (white > 0f && box.Width >= 150 && SkinManager.GetTexture(Tn + "Difficulty_Select/Cursor_Effect.png") != null)
             {

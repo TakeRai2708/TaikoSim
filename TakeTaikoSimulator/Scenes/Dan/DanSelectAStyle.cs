@@ -278,7 +278,7 @@ namespace TakeTaikoSimulator.Scenes
             Vector2 at = ButtonCenters[Math.Clamp(choice, 0, 2)];
             int frameCell = small ? 4 : 0, glowCell = small ? 5 : 1;
             Rectangle dest = new(at.X - 175f, at.Y - 75f, 350f, 150f);
-            float glow = 0.5f + 0.5f * MathF.Sin(clock * MathF.PI * 2f);
+            float glow = MenuDraw.CursorPulse; // ほかのカーソルと同じ 1.2秒の点滅（11/19 の録画で測った）
             MenuSkin.Part(ConfirmCursor, new Rectangle(0, glowCell * 150f, 350f, 150f), dest, MenuSkin.White(b * glow));
             MenuSkin.Part(ConfirmCursor, new Rectangle(0, frameCell * 150f, 350f, 150f), dest, MenuSkin.White(b));
         }

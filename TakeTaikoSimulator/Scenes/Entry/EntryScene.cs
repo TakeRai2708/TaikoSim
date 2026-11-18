@@ -332,7 +332,8 @@ public sealed class EntryScene : Scene
         int profile = LocalSession.Profiles[sideKeySet];
         // 決めたあとの白い光：パッと出て、消えていく
         float flash = sideDecide < 0f ? 0f : 1f - Math.Clamp(sideDecide / SideDecideSeconds, 0f, 1f);
-        float pulse = .55f + .45f * MathF.Sin(elapsed * 6f);
+        // 11/19 TaikøNauts の録画：「どちらの太鼓」のカーソルの光は点滅しない(止まったまま)
+        float pulse = 1f;
 
         if (MenuSkin.Has(Folder + "Playside_Panel.png", Folder + "Playside_Bar.png"))
         {

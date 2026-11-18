@@ -165,6 +165,12 @@ namespace TakeTaikoSimulator.UI
             Rectangle Row(int row) => new Rectangle(18, 22 + 210 * row, 972, 166);
             const int corner = 50; // 角の丸み(48px)より大きく切る(丸みが伸ばす場所に入って、ゆがまないように)
             string path = selectedImage ?? Folder + "Bar/Selected.png";
+            // 光(2段目)：枠の外までぼやけて広がっているので、1段まるごと(1008×210)を、枠の形が合う場所へ置く
+            if (!Deciding && SkinManager.GetTexture(path) != null)
+            {
+                Rectangle glow = new Rectangle(frame.X - 18, frame.Y - 22, frame.Width + 36, frame.Height + 44);
+                MenuSkin.NPatchPart(path, new Rectangle(0, 210, 1008, 210), glow, 70, MenuSkin.White(a * MenuDraw.CursorPulse));
+            }
             if (MenuSkin.NPatchPart(path, Row(decided ? 2 : 0), frame, corner, MenuSkin.White(a)))
             {
                 if (light) MenuSkin.NPatchPart(path, Row(2), frame, corner, MenuSkin.White(a * WhiteOnYellow));
