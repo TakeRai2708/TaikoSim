@@ -15,6 +15,7 @@ namespace TakeTaikoSimulator.Graphics
         private bool wasClear;
         // 魂ゲージ MAX の演出(Mob)：-1 = 出ていない。MAX になったら In → Loop をくり返す、MAX でなくなったら End まで流して消える
         private double mobFrame = -1;
+        private readonly PlayDancers dancers = new();
         private bool mobLeaving;
         // 上の背景がクリアに変わるときの濃さ(0.2秒でじわっと)。11/19 TaikøNauts の録画で、上の背景の色が約0.18秒で変わっていた
         private const double UpperClearFadeSeconds = 0.2;
@@ -26,11 +27,14 @@ namespace TakeTaikoSimulator.Graphics
             wasClear = false;
             mobFrame = -1;
             mobLeaving = false;
+            dancers.Reset();
             generation = SkinManager.Generation;
         }
 
-        public void Update(float dt, bool isClear, bool isMax = false)
+        // gaugePercent … 魂ゲージ(0〜100)。measureSeconds … 今の BPM での1小節の秒(ダンサーの動きの長さ)
+        public void Update(float dt, bool isClear, bool isMax = false, float gaugePercent = 0f, double measureSeconds = 2.0)
         {
+            dancers.Update(dt, gaugePercent, measureSeconds);
             if (generation != SkinManager.Generation) Reset();
             elapsed += Math.Max(0f, dt);
             if (isClear != wasClear) clearElapsed = 0;
@@ -87,6 +91,7 @@ namespace TakeTaikoSimulator.Graphics
             if (wasClear) DrawParts(skin.LowerClear, clearElapsed, 540);
             // 魂ゲージ MAX の演出は、下の背景の上（ダンサーより後ろ。推測なんだけど、録画では人の群れの前でダンサーが踊っていた）
             if (mobFrame >= 0) foreach (Aup2Clip part in skin.Mob) part.DrawFrame((int)mobFrame, 540, 1f);
+            dancers.Draw();
             Screen.EndScissorMode();
 
             if (scale != 1) Screen.BeginScissorMode(viewportX, viewportY, (int)(1920 * scale), (int)(1080 * scale));
@@ -104,7 +109,11 @@ namespace TakeTaikoSimulator.Graphics
             foreach (Aup2Clip part in parts) part.Draw(seconds, y);
         }
 
-        internal static void UnloadSkin() => skin = new BackgroundSet();
+        internal static void UnloadSkin()
+        {
+            skin = new BackgroundSet();
+            PlayDancers.Unload();
+        }
 
         internal static void ReloadSkin() => Randomize();
 
@@ -128,6 +137,8 @@ namespace TakeTaikoSimulator.Graphics
                 skin.LowerClear = LoadParts(clear);
                 skin.NormalUseFooter = ReadBool(normal, "useFooter", true);
                 skin.ClearUseFooter = ReadBool(clear, "useFooter", true);
+
+                PlayDancers.Randomize(PickPreset(Root + "Dancer"));
 
                 string? mob = PickPreset(Root + "Mob");
                 skin.Mob = LoadParts(mob, "", "mobInEndFrame");
@@ -163,7 +174,7 @@ namespace TakeTaikoSimulator.Graphics
             return all.Length == 0 ? null : all[Random.Shared.Next(all.Length)];
         }
 
-        private static string FullPath(string relative) =>
+        internal static string FullPath(string relative) =>
             Path.Combine(SkinManager.CurrentPath!, relative.Replace('/', Path.DirectorySeparatorChar));
 
         // リザルト画面からも使う(スキンの中で、使うフォルダを探す)
@@ -276,12 +287,16 @@ namespace TakeTaikoSimulator.Graphics
             public float Fps => fps;
 
             // コマ番号を直接指定して描く(Mob のように、In・Loop・End を自分で動かすとき)
-            public void DrawFrame(int frame, float y, float alpha)
+            public void DrawFrame(int frame, float y, float alpha) => DrawFrame(frame, 0f, y, alpha);
+
+            // x・y … キャンバスの左上を置く場所(ダンサーのように、1920 より小さいキャンバスの aup2 を好きな場所へ置くとき)
+            public void DrawFrame(int frame, float x, float y, float alpha)
             {
                 if (alpha <= 0f || frames.Length == 0) return;
                 foreach (Command command in frames[Math.Clamp(frame, 0, frames.Length - 1)])
                 {
                     Rectangle destination = command.Destination;
+                    destination.X += x;
                     destination.Y += y;
                     Color color = alpha >= 1f ? command.Color : Raylib.ColorAlpha(command.Color, command.Color.A / 255f * alpha);
                     Raylib.DrawTexturePro(command.Texture, command.Source, destination, command.Origin, command.Rotation, color);

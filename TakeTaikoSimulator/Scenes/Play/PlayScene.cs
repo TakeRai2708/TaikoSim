@@ -829,7 +829,7 @@ namespace TakeTaikoSimulator.Scenes
             bool goGoNow = course != null && course.IsGoGoAt(nowMs - ViewAudioOffsetMs - ConfigManager.Game.ChartOffsetMs, branches.IsActive);
             if (course != null) effects.SetGoGo(goGoNow);
             UpdateChara(dt, goGoNow);
-            background.Update(dt, stats.IsClear, stats.IsMax);
+            background.Update(dt, stats.IsClear, stats.IsMax, (float)stats.Gauge, 240.0 / Math.Max(1.0, GetCurrentBpm(chart, course)));
         }
 
         // どんちゃん：ゴーゴー・ゲージ・風船の様子を渡して、BPM に合わせて進める
