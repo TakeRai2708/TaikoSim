@@ -10,7 +10,7 @@ using TakeTaikoSimulator.UI;
 namespace TakeTaikoSimulator.Overlays
 {
     // 「音の遅れを測る」画面(設定 → 音 から開く)
-    //   1. 光に合わせて叩く … 目で見て叩いたときのズレ(指の遅れ＋画面の遅れ)
+    //   1. 流れてくる音符に合わせて叩く … 目で見て叩いたときのズレ(指の遅れ＋画面の遅れ)
     //   2. 音に合わせて叩く … 耳で聞いて叩いたときのズレ(指の遅れ＋まだ合っていない音の遅れ)
     //   2 − 1 ＝ 曲の時計に残っている音のズレ。これを今の「遅れの補正」に足す
     //   音は効果音ではなく、曲と同じ鳴らし方(Song)でカチッを流す。曲の時計(PositionMs)で測るので、
@@ -211,10 +211,10 @@ namespace TakeTaikoSimulator.Overlays
             switch (step)
             {
                 case Step.Ready1:
-                    Lines(box, "1 / 2：光に合わせて叩く",
-                        "まん中の丸が光るのに合わせて、ドンかカッを叩いてね（16回）。",
+                    Lines(box, "1 / 2：音符に合わせて叩く",
+                        "流れてくる音符が、左の枠に重なった瞬間に叩いてね（16回）。",
                         "叩くと始まるよ。");
-                    DrawCircle(center, 0);
+                    DrawLane(box, -10000);
                     break;
 
                 case Step.Ready2:
@@ -232,8 +232,9 @@ namespace TakeTaikoSimulator.Overlays
                         float since = (float)(now - LeadMs - beat * IntervalMs);
                         float light = step == Step.Visual && beat >= 0 && beat < Beats ? Math.Max(0f, 1f - since / 150f) : 0f;
                         int done = Math.Clamp(beat + 1, 0, Beats);
-                        Lines(box, step == Step.Visual ? "光に合わせて叩いて！" : "音に合わせて叩いて！", $"{done} / {Beats}", "");
-                        DrawCircle(center, light);
+                        Lines(box, step == Step.Visual ? "音符に合わせて叩いて！" : "音に合わせて叩いて！", $"{done} / {Beats}", "");
+                        if (step == Step.Visual) DrawLane(box, now);
+                        else DrawCircle(center, light);
                         break;
                     }
 
@@ -242,7 +243,7 @@ namespace TakeTaikoSimulator.Overlays
                         double diff = audioMs - visualMs;
                         string dir = diff > 0 ? "遅れて" : "早く";
                         Lines(box, "測り終わったよ！",
-                            $"光とのズレ {visualMs:+0;-0;0}ms ／ 音とのズレ {audioMs:+0;-0;0}ms",
+                            $"音符とのズレ {visualMs:+0;-0;0}ms ／ 音とのズレ {audioMs:+0;-0;0}ms",
                             $"曲が {Math.Abs(diff):0}ms {dir}聞こえていたので、遅れの補正を {resultFix}ms にするといいよ");
                         Rectangle use = new Rectangle(box.X + 40, box.Y + 540, 440, 60);
                         Rectangle again = new Rectangle(box.X + box.Width - 480, box.Y + 540, 440, 60);
@@ -266,6 +267,27 @@ namespace TakeTaikoSimulator.Overlays
             FontManager.Draw(title, box.X + 40, box.Y + 100, 30, Gui.TextColor);
             FontManager.Draw(line1, box.X + 40, box.Y + 150, 24, Gui.SubTextColor);
             if (line2.Length > 0) FontManager.Draw(line2, box.X + 40, box.Y + 185, 24, Gui.SubTextColor);
+        }
+
+        // 1/2 の画面：演奏と同じように、右から音符が流れてきて左の枠に重なる
+        //   11/19 たけらい：光るだけだと「むずい」。光ってから叩く(反応の遅れ +130ms くらい)になって測れなかった。
+        //   流れてくる音符なら、重なる瞬間を先読みして叩けるので、演奏中と同じ見え方で測れる
+        private const float LaneSpeed = 0.55f; // px/ms
+        private static void DrawLane(Rectangle box, double now)
+        {
+            float y = box.Y + 330, left = box.X + 40, right = box.X + box.Width - 40;
+            float judgeX = left + 90;
+            SmoothShapes.Rectangle(new Rectangle(left, y - 60, right - left, 120), 12, Gui.BoxColor);
+            SmoothShapes.CircleLines(new Vector2(judgeX, y), 46, Gui.SakuraColor);
+            for (int b = 0; b < Beats; b++)
+            {
+                double dt = LeadMs + b * IntervalMs - now;
+                float x = judgeX + (float)(dt * LaneSpeed);
+                if (x < left + 20 || x > right - 20) continue;
+                if (dt < -60) continue; // 通り過ぎた音符は消す
+                SmoothShapes.Circle(new Vector2(x, y), 38, Gui.AccentColor);
+                SmoothShapes.CircleLines(new Vector2(x, y), 38, Color.White);
+            }
         }
 
         private static void DrawCircle(Vector2 center, float light)
