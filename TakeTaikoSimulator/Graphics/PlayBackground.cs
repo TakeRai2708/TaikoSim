@@ -13,22 +13,53 @@ namespace TakeTaikoSimulator.Graphics
         private static BackgroundSet skin = new();
         private double elapsed, clearElapsed;
         private bool wasClear;
+        // 魂ゲージ MAX の演出(Mob)：-1 = 出ていない。MAX になったら In → Loop をくり返す、MAX でなくなったら End まで流して消える
+        private double mobFrame = -1;
+        private bool mobLeaving;
+        // 上の背景がクリアに変わるときの濃さ(0.2秒でじわっと)。11/19 TaikøNauts の録画で、上の背景の色が約0.18秒で変わっていた
+        private const double UpperClearFadeSeconds = 0.2;
         private int generation = -1;
 
         public void Reset()
         {
             elapsed = clearElapsed = 0;
             wasClear = false;
+            mobFrame = -1;
+            mobLeaving = false;
             generation = SkinManager.Generation;
         }
 
-        public void Update(float dt, bool isClear)
+        public void Update(float dt, bool isClear, bool isMax = false)
         {
             if (generation != SkinManager.Generation) Reset();
             elapsed += Math.Max(0f, dt);
             if (isClear != wasClear) clearElapsed = 0;
             else if (isClear) clearElapsed += Math.Max(0f, dt);
             wasClear = isClear;
+            UpdateMob(dt, isMax);
+        }
+
+        // Mob(魂ゲージ MAX)：TaikøNauts の説明書どおり、1つの aup2 を In(0〜mobInEndFrame)・Loop(〜mobLoopEndFrame)・End(残り) に分けて使う
+        private void UpdateMob(float dt, bool isMax)
+        {
+            if (skin.Mob.Length == 0) { mobFrame = -1; return; }
+            Aup2Clip clip = skin.Mob[0];
+            if (mobFrame < 0)
+            {
+                if (!isMax) return;
+                mobFrame = 0;
+                mobLeaving = false;
+                return;
+            }
+            mobFrame += Math.Max(0f, dt) * clip.Fps;
+            if (isMax && mobLeaving) { mobLeaving = false; mobFrame = skin.MobInEnd; } // また MAX になった：Loop からやり直す
+            if (!isMax && !mobLeaving && mobFrame >= skin.MobInEnd) { mobLeaving = true; mobFrame = skin.MobLoopEnd; }
+            if (!mobLeaving && mobFrame >= skin.MobLoopEnd)
+            {
+                int loop = Math.Max(1, skin.MobLoopEnd - skin.MobInEnd);
+                mobFrame = skin.MobInEnd + (mobFrame - skin.MobInEnd) % loop;
+            }
+            if (mobLeaving && mobFrame >= clip.FrameCount) mobFrame = -1;
         }
 
         public void Draw(int viewportX = 0, int viewportY = 0, float scale = 1)
@@ -43,12 +74,19 @@ namespace TakeTaikoSimulator.Graphics
             // キャンバスの外へ出るアニメ素材が、レーンや別の背景を覆わないようにする。
             Screen.BeginScissorMode(viewportX, viewportY, (int)(1920 * scale), (int)(276 * scale));
             DrawParts(skin.UpperNormal, elapsed, 0);
-            if (wasClear) DrawParts(skin.UpperClear, elapsed, 0);
+            if (wasClear)
+            {
+                float fade = (float)Math.Clamp(clearElapsed / UpperClearFadeSeconds, 0, 1);
+                fade = 1f - (1f - fade) * (1f - fade); // はじめ速く、あとゆっくり
+                foreach (Aup2Clip part in skin.UpperClear) part.Draw(elapsed, 0, fade);
+            }
             Screen.EndScissorMode();
 
             Screen.BeginScissorMode(viewportX, viewportY + (int)(540 * scale), (int)(1920 * scale), (int)(540 * scale));
             DrawParts(skin.LowerNormal, elapsed, 540);
             if (wasClear) DrawParts(skin.LowerClear, clearElapsed, 540);
+            // 魂ゲージ MAX の演出は、下の背景の上（ダンサーより後ろ。推測なんだけど、録画では人の群れの前でダンサーが踊っていた）
+            if (mobFrame >= 0) foreach (Aup2Clip part in skin.Mob) part.DrawFrame((int)mobFrame, 540, 1f);
             Screen.EndScissorMode();
 
             if (scale != 1) Screen.BeginScissorMode(viewportX, viewportY, (int)(1920 * scale), (int)(1080 * scale));
@@ -68,17 +106,22 @@ namespace TakeTaikoSimulator.Graphics
 
         internal static void UnloadSkin() => skin = new BackgroundSet();
 
-        internal static void ReloadSkin()
+        internal static void ReloadSkin() => Randomize();
+
+        // 曲ごとに、上の背景・下の背景・クリアの背景・下の帯(Footer)を、それぞれランダムに選び直す
+        //   11/19 たけらい「背景全体の種類をランダムで表示」。TaikøNauts の説明書：フォルダ単位でランダム（songGenreID が default のものだけ）
+        //   前は録画と同じ組み合わせ(上0・下2・クリア0)に決め打ちだった。PlayScene.Enter から呼ぶ（やりなおしでは変えない）
+        internal static void Randomize()
         {
             skin = new BackgroundSet();
             if (SkinManager.CurrentPath == null) return;
             try
             {
-                // 初回の比較は参考録画と同じ組み合わせを優先。無い場合は最初のdefaultを使う。
-                string? upper = FindPreset(Root + "Background/Upper", "0");
-                string? normal = FindPreset(Root + "Background/Lower/Normal", "2");
-                string? clear = FindPreset(Root + "Background/Lower/Clear", "0");
+                string? upper = PickPreset(Root + "Background/Upper");
+                string? normal = PickPreset(Root + "Background/Lower/Normal");
+                string? clear = PickPreset(Root + "Background/Lower/Clear");
                 skin.UpperNormal = LoadParts(upper, "Normal_1P");
+                if (skin.UpperNormal.Length == 0) skin.UpperNormal = LoadParts(upper, "Normal");
                 skin.UpperClear = LoadParts(upper, "Clear_1P");
                 if (skin.UpperClear.Length == 0) skin.UpperClear = LoadParts(upper, "Clear");
                 skin.LowerNormal = LoadParts(normal);
@@ -86,7 +129,12 @@ namespace TakeTaikoSimulator.Graphics
                 skin.NormalUseFooter = ReadBool(normal, "useFooter", true);
                 skin.ClearUseFooter = ReadBool(clear, "useFooter", true);
 
-                string? footer = FindPreset(Root + "Footer", "1");
+                string? mob = PickPreset(Root + "Mob");
+                skin.Mob = LoadParts(mob, "", "mobInEndFrame");
+                skin.MobInEnd = ReadInt(mob, "mobInEndFrame", 0);
+                skin.MobLoopEnd = Math.Max(skin.MobInEnd + 1, ReadInt(mob, "mobLoopEndFrame", skin.MobInEnd + 1));
+
+                string? footer = PickPreset(Root + "Footer");
                 if (footer != null)
                 {
                     skin.FooterX = ReadInt(footer, "x", 0);
@@ -95,12 +143,24 @@ namespace TakeTaikoSimulator.Graphics
                     if (ReadInt(footer, "referencePoint", 0) == 0)
                         skin.Footer = SkinManager.GetTexture(footer + "/0.png");
                 }
-                Console.WriteLine($"[Background] 上:{upper ?? "なし"} 下:{normal ?? "なし"} クリア:{clear ?? "なし"}");
+                Console.WriteLine($"[Background] 上:{upper ?? "なし"} 下:{normal ?? "なし"} クリア:{clear ?? "なし"} 帯:{footer ?? "なし"}");
             }
-            catch (Exception ex) when (ex is IOException or UnauthorizedAccessException or JsonException)
+            catch (Exception ex) when (ex is IOException or UnauthorizedAccessException or JsonException or FormatException)
             {
                 Console.WriteLine($"[Background] 背景の準備に失敗しました: {ex.Message}");
             }
+        }
+
+        // songGenreID が default のフォルダから1つランダムに選ぶ
+        internal static string? PickPreset(string relative)
+        {
+            string full = FullPath(relative);
+            if (!Directory.Exists(full)) return null;
+            string[] all = Directory.EnumerateDirectories(full)
+                .Select(path => relative + "/" + Path.GetFileName(path))
+                .Where(path => ReadString(path, "songGenreID", "default") == "default")
+                .ToArray();
+            return all.Length == 0 ? null : all[Random.Shared.Next(all.Length)];
         }
 
         private static string FullPath(string relative) =>
@@ -191,6 +251,8 @@ namespace TakeTaikoSimulator.Graphics
             public Aup2Clip[] UpperNormal = Array.Empty<Aup2Clip>(), UpperClear = Array.Empty<Aup2Clip>();
             public Aup2Clip[] LowerNormal = Array.Empty<Aup2Clip>(), LowerClear = Array.Empty<Aup2Clip>();
             public bool NormalUseFooter = true, ClearUseFooter = true;
+            public Aup2Clip[] Mob = Array.Empty<Aup2Clip>();
+            public int MobInEnd, MobLoopEnd;
             public Texture2D? Footer;
             public int FooterX, FooterY;
         }
@@ -210,6 +272,21 @@ namespace TakeTaikoSimulator.Graphics
             }
 
             public void Draw(double seconds, float y) => Draw(seconds, y, 1f);
+            public int FrameCount => frames.Length;
+            public float Fps => fps;
+
+            // コマ番号を直接指定して描く(Mob のように、In・Loop・End を自分で動かすとき)
+            public void DrawFrame(int frame, float y, float alpha)
+            {
+                if (alpha <= 0f || frames.Length == 0) return;
+                foreach (Command command in frames[Math.Clamp(frame, 0, frames.Length - 1)])
+                {
+                    Rectangle destination = command.Destination;
+                    destination.Y += y;
+                    Color color = alpha >= 1f ? command.Color : Raylib.ColorAlpha(command.Color, command.Color.A / 255f * alpha);
+                    Raylib.DrawTexturePro(command.Texture, command.Source, destination, command.Origin, command.Rotation, color);
+                }
+            }
 
             // alpha … 全体の濃さ(0〜1)。背景を切り替えるときにだんだん出す用
             public void Draw(double seconds, float y, float alpha)

@@ -457,6 +457,7 @@ namespace TakeTaikoSimulator.Scenes
             playSpeed = isTraining || localPlay || dan != null ? 1.0 : ConfigManager.Game.PlaySpeed;
             // 何曲目かを数える（やりなおしでは数えない。Enter は曲ごとに1回）。段位・特訓は数えない
             if (!isTraining && dan == null) LocalSession.SongsPlayed++;
+            if (dan == null) PlayBackground.Randomize(); // 背景は曲ごとにランダム（やりなおしでは変えない）
             (genreName, genreColor) = dan == null ? SongCounter.GenreInfo(path) : ("", Color.White);
             FontManager.PreloadDetail(new[] { genreName, "0123456789曲目" });   // 曲数・ジャンルの札は細かい字のフォント
             if (dan != null)
@@ -828,7 +829,7 @@ namespace TakeTaikoSimulator.Scenes
             bool goGoNow = course != null && course.IsGoGoAt(nowMs - ViewAudioOffsetMs - ConfigManager.Game.ChartOffsetMs, branches.IsActive);
             if (course != null) effects.SetGoGo(goGoNow);
             UpdateChara(dt, goGoNow);
-            background.Update(dt, stats.IsClear);
+            background.Update(dt, stats.IsClear, stats.IsMax);
         }
 
         // どんちゃん：ゴーゴー・ゲージ・風船の様子を渡して、BPM に合わせて進める

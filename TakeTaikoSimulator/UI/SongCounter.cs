@@ -87,7 +87,8 @@ namespace TakeTaikoSimulator.UI
                 }
                 // 録画：「1曲目」は x 1643〜1704、「3曲」は x 1789〜1838、高さ y 107〜131（ふち込み）
                 // 細かい字のフォントが無いスキン（シンプル）は、ふつうのフォントで小さく見えるので大きめ（11/15 たけらい「演奏画面の曲数の文字小さい」）
-                float thick = 2.5f, size = FontManager.HasSkinDetail ? 22f : 28f;
+                // 11/19 たけらい「地味に輪郭ある」：TaikøNauts の曲数の字は縁なし（黒い字だけ）
+                float thick = 0f, size = FontManager.HasSkinDetail ? 22f : 28f;
                 OutlinedDetail($"{number}曲目", new Rectangle(1623.5f, PlayY, 100f, 40f), size, Fade(Color.Black, countAlpha), a, thick);
                 OutlinedDetail($"{SongsPerPlay}曲", new Rectangle(1763.5f, PlayY, 100f, 40f), size, Fade(Color.Black, countAlpha), a, thick);
             }
@@ -104,14 +105,48 @@ namespace TakeTaikoSimulator.UI
         /// <summary>譜面のファイルから、ジャンル名（カテゴリの Genre、無ければカテゴリの名前）を探す</summary>
         public static string GenreOf(string tjaPath) => GenreInfo(tjaPath).Name;
 
-        /// <summary>ジャンル名と、そのジャンルの色（選曲の板と同じ色）</summary>
+        // ジャンルの札の色
+        //   11/19 たけらい「ジャンルの色違う。box.def の色になってる」：TaikøNauts は選曲の板の絵(02.SongSelect/Bar/番号.png)の色に近い。
+        //   録画の札の色と板の絵のまん中の色を比べると、札のほうが約1.04倍明るかった
+        //   (アニメ：板 (243,143,214) → 札 (253,146,223)／ボーカロイド：板 (210,212,226) → 札 (219,218,233))。
+        //   板の絵が無いスキン・番号が決まらないジャンルは、今までどおり box.def の色
+        private static readonly Dictionary<int, Color?> barColors = new();
+        private static int barColorGeneration = -1;
+        private const float PillBrighten = 1.04f;
+
+        private static Color GenreColor(SongCategory category)
+        {
+            int type = SongSelectScene.CategoryBarType(category);
+            if (type < 0 || SkinManager.CurrentPath == null) return category.Color;
+            if (barColorGeneration != SkinManager.Generation) { barColors.Clear(); barColorGeneration = SkinManager.Generation; }
+            if (!barColors.TryGetValue(type, out Color? color))
+            {
+                color = null;
+                string file = Path.Combine(SkinManager.CurrentPath, "Image", "02.SongSelect", "Bar", $"{type}.png");
+                if (File.Exists(file))
+                {
+                    Image image = Raylib.LoadImage(file);
+                    if (image.Width > 0)
+                    {
+                        Color c = Raylib.GetImageColor(image, image.Width / 2, image.Height / 2);
+                        byte B(byte v) => (byte)Math.Min(255f, v * PillBrighten);
+                        color = new Color(B(c.R), B(c.G), B(c.B), (byte)255);
+                    }
+                    Raylib.UnloadImage(image);
+                }
+                barColors[type] = color;
+            }
+            return color ?? category.Color;
+        }
+
+        /// <summary>ジャンル名と、そのジャンルの色（選曲の板の絵の色）</summary>
         public static (string Name, Color Color) GenreInfo(string tjaPath)
         {
             foreach (SongCategory category in SongList.Categories)
                 foreach (SongEntry song in category.Songs)
                     if (string.Equals(song.TjaPath, tjaPath, StringComparison.OrdinalIgnoreCase))
                         return category.IsLoose || category.Title == SongList.OthersTitle ? ("", Color.White)
-                            : (string.IsNullOrWhiteSpace(category.Genre) ? category.Title : category.Genre, category.Color);
+                            : (string.IsNullOrWhiteSpace(category.Genre) ? category.Title : category.Genre, GenreColor(category));
             return ("", Color.White);
         }
     }

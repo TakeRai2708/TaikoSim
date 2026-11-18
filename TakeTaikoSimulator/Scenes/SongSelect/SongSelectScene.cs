@@ -1412,6 +1412,15 @@ namespace TakeTaikoSimulator.Scenes
         // 開いているジャンルの板（ジャンルの一覧の genrePos の板）
         private Item? GenreItemOpen => genres.Count > 0 ? genres[Mod(genrePos, genres.Count)] : null;
 
+        // カテゴリの板の番号(#BOXTYPE → ジャンル名 → -1)。演奏画面のジャンルの札の色にも使う(UI/SongCounter.cs)
+        internal static int CategoryBarType(SongCategory category)
+        {
+            if (category.BoxType is int box) return box;
+            if (GenreBarTypes.TryGetValue(category.Genre, out int byGenre)) return byGenre;
+            if (GenreBarTypes.TryGetValue(category.Title, out int byTitle)) return byTitle;
+            return -1;
+        }
+
         private static int BarType(Item item)
         {
             if (item.Dan != null || item.Kind == Kind.Genre && item.Special == Special.DanSongs) return DanBarType;

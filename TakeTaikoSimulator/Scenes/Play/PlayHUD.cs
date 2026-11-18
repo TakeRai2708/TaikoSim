@@ -75,6 +75,10 @@ namespace TakeTaikoSimulator.Scenes
         private static readonly string[] ScoreDigitText = { "0", "1", "2", "3", "4", "5", "6", "7", "8", "9" };
         private float soulFlashAge = 1f;
         private const float SongTitleRight = 1872f, SongTitleY = 40f;
+        // 曲名は「曲数の札(1曲目 / 3曲)」の真ん中にそろえる。長くて右へはみ出すときだけ、右はしを SongTitleRight にそろえる
+        //   11/19 TaikøNauts の録画：「スマイル」は真ん中 約1745・「エイリアンエイリアン」は右はし 約1865
+        //   (前は全部右そろえだった。たけらい「今だと右揃え。曲名は大体曲数の真ん中ぐらい」)
+        private const float SongTitleCenterX = 1745f;
         // 演奏オプションのバッジ(AUTO・×1.5 など)は、左のパネルの難易度マークの右に原寸で出す。
         //   TaikøNauts の動画（10/31 の段位道場、AUTO を付けた演奏）で測った：AUTO の 40×40 の左上が (170, 353)。
         //   前は推測で曲名の下に置いていた
@@ -112,7 +116,7 @@ namespace TakeTaikoSimulator.Scenes
             float width = FontManager.MeasureSkinMain(songTitle, SongTitleFontSize).X;
             float scale = width > SongTitleMaxWidth ? SongTitleMaxWidth / width : 1f;
             songTitleSize = SongTitleFontSize * scale;
-            songTitleX = SongTitleRight - width * scale;
+            songTitleX = Math.Min(SongTitleCenterX - width * scale / 2f, SongTitleRight - width * scale);
             songTitleSkinGeneration = SkinManager.Generation;
         }
 
