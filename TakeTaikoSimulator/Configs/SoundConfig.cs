@@ -33,7 +33,7 @@ namespace TakeTaikoSimulator.Configs
         //   例：DirectSound で曲が音符より 30ms 遅れて聞こえる → DirectSound を 30 にする
         public int LatencyFixBass { get; set; } = 0;
         public int LatencyFixDirectSound { get; set; } = 0;
-        public int LatencyFixWasapiShared { get; set; } = 0;
+        public int LatencyFixWasapiShared { get; set; } = -22;   // たけらいのPC(バッファ10ms)で合った値を初期値にする
         public int LatencyFixWasapiExclusive { get; set; } = 0;
         public int LatencyFixAsio { get; set; } = 0;
 
