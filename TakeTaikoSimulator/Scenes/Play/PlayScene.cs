@@ -1978,6 +1978,7 @@ namespace TakeTaikoSimulator.Scenes
             scoreboard.Set(goodCount, okCount, badCount, totalRollHits);
             if (danPanel != null) danPanel.DrawTop();   // 段位：「1曲目/3曲」・魂ゲージの札・左上のカウンター
             else if (!isTraining && ConfigManager.Game.ShowScoreboard) scoreboard.Draw(); // 良・可・不可・連打数(左下。選曲画面のオプションで消せる)
+            DrawAutoOffsetBadge();   // 「オフセット自動調整中」(演奏情報の板の下)
             if (dan == null && !isTraining) scoreRank.Draw();    // 粋・雅・極(段位では出さない)
             DebugLog.End(PerfSection.PlayHud, t);
 
@@ -2015,6 +2016,21 @@ namespace TakeTaikoSimulator.Scenes
         // F3 の板(左下)の真上に積む。レーンの下(y 540)から、F3 の板の上のメッセージ(y 836)の間に収める
         private const float DiagLine = 22f, DiagSize = 18f;
         private const float DiagTop = 548f;
+
+        // 「オフセット自動調整中」：自動調整がONで、結果が補正に使われるときだけ出す
+        // (オート・特訓・段位では補正しないので出さない)。演奏情報の板(x8〜276, 下端y716)の下、中央ぞろえ。
+        private void DrawAutoOffsetBadge()
+        {
+            if (!ConfigManager.Game.AutoOffset || autoPlay || isTraining || dan != null) return;
+            const string text = "オフセット自動調整中";
+            const float size = 22f;
+            const float centerX = 142f, top = 724f;   // 板のまん中 / 板の下端 + 8px
+            Vector2 m = FontManager.Measure(text, size);
+            float x = centerX - m.X / 2f;
+            // うすい黒の帯で背景から浮かせる
+            Raylib.DrawRectangleRounded(new Rectangle(x - 12, top - 3, m.X + 24, m.Y + 6), 0.5f, 8, new Color(0, 0, 0, 150));
+            FontManager.DrawOutlined(text, x, top, size, Color.White, Color.Black, 3f);
+        }
 
         private void DrawInputDiagnostics()
         {
