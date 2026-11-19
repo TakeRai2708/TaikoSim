@@ -42,6 +42,10 @@
         // マイナスで早く、プラスで遅く
         public int AudioOffsetMs { get; set; } = 0;
 
+        // 音オフセットを自動で合わせる（11/19 たけらい「自分で補正するの面倒」）
+        //   1曲遊ぶたびに、良・可で取れた音符の「叩いたズレ」の真ん中を見て、音オフセットを少しずつ動かす（PlayScene.AutoAdjustOffset）
+        public bool AutoOffset { get; set; } = true;
+
         // 譜面オフセット(ミリ秒)：音符の見た目(表示位置)だけずらす。判定は変わらない
         // マイナスで早く、プラスで遅く
         public int ChartOffsetMs { get; set; } = 0;

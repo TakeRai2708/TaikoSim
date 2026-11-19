@@ -676,6 +676,7 @@ namespace TakeTaikoSimulator.Scenes
             if (course != null) judges = new Judge?[course.Notes.Count];
             nextHittable = 0;
             goodCount = okCount = badCount = combo = maxCombo = 0;
+            hitDeltas.Clear();
             infoBarAge = 0f;
             if (course != null)
             {
@@ -945,6 +946,8 @@ namespace TakeTaikoSimulator.Scenes
             };
             if (!autoPlay && !isTraining && course != null)
             {
+                data.AutoOffsetChange = AutoAdjustOffset();
+                data.AutoOffsetNow = ConfigManager.Game.AudioOffsetMs;
                 SongClearType clear = end.Result switch
                 {
                     PlayResult.DondaFullCombo => SongClearType.AllPerfect,
@@ -1709,8 +1712,34 @@ namespace TakeTaikoSimulator.Scenes
         }
 
         // 判定を決めて、数とコンボを数える
+        // 音オフセットの自動調整用：良・可で取れた音符の「叩いたズレ」(ms、プラスなら遅い)
+        private readonly List<double> hitDeltas = new();
+        private const int AutoOffsetMinHits = 20;      // これより少ない曲では動かさない
+        private const double AutoOffsetRate = 0.5;     // ズレの半分だけ動かす（1曲で決めつけない）
+        private const int AutoOffsetMaxStep = 10;      // 1曲で動かすのは最大 10ms
+        private const int AutoOffsetDeadband = 2;      // 2ms より小さいズレは動かさない
+
+        // 1曲終わったら、ズレの真ん中(中央値)の半分だけ音オフセットを動かす。動かした量を返す
+        //   gameMs = nowMs − 音オフセット なので、遅く叩くクセ(ズレがプラス)なら音オフセットを増やすと合う
+        private int AutoAdjustOffset()
+        {
+            if (!ConfigManager.Game.AutoOffset || hitDeltas.Count < AutoOffsetMinHits) return 0;
+            List<double> sorted = hitDeltas.OrderBy(d => d).ToList();
+            double median = sorted[sorted.Count / 2];
+            int step = (int)Math.Round(Math.Clamp(median * AutoOffsetRate, -AutoOffsetMaxStep, AutoOffsetMaxStep));
+            if (Math.Abs(step) < AutoOffsetDeadband) return 0;
+            int before = ConfigManager.Game.AudioOffsetMs;
+            int after = Math.Clamp(before + step, GameConfig.OffsetMin, GameConfig.OffsetMax);
+            if (after == before) return 0;
+            ConfigManager.Game.AudioOffsetMs = after;
+            ConfigManager.SaveAll();
+            DebugLog.Event("演奏", $"音オフセットを自動調整：{before} → {after}ms（ズレの中央値 {median:0.0}ms・{hitDeltas.Count}打）");
+            return after - before;
+        }
+
         private void SetJudge(int index, Judge judge, double? delta)
         {
+            if (delta is double d && !autoPlay && (judge == Judge.Good || judge == Judge.Ok)) hitDeltas.Add(d);
             judges[index] = judge;
             RecordTrainingJudge(index, judge, delta);
 

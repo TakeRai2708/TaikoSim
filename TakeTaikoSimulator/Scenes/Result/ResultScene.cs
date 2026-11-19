@@ -18,6 +18,8 @@ namespace TakeTaikoSimulator.Scenes
         public PlayStats Stats = new();   // スコア・魂ゲージ・ノルマ(演奏画面のものをそのまま使う)
         public int Good, Ok, Bad, RollHits, MaxCombo;
         public SongRecordUpdate? RecordUpdate;
+        public int AutoOffsetChange;   // 音オフセットを自動で動かした量(ms)。0 なら動かしていない
+        public int AutoOffsetNow;      // 動かしたあとの音オフセット(ms)
         public bool AutoPlayed;   // オートで演奏した・ゲストだった（記録は残していない。リザルトに帯で知らせる）
     }
 
@@ -292,6 +294,14 @@ namespace TakeTaikoSimulator.Scenes
             SkinManager.Draw(HeaderImage, 0, 0);
             DrawTitle();
             UI.SongCounter.DrawPlate(UI.SongCounter.ResultX, UI.SongCounter.ResultY, UI.SongCounter.Number(LocalSession.SongsPlayed));
+            // 音オフセットを自動で合わせたときのお知らせ（画面の下・小さく）
+            if (data.AutoOffsetChange != 0 && elapsed >= RevealTime)
+            {
+                string note = $"タイミングを自動で {data.AutoOffsetChange:+0;-0}ms 合わせました（音オフセット {data.AutoOffsetNow}ms）";
+                float alpha = Math.Clamp((elapsed - RevealTime) / 0.3f, 0f, 1f);
+                Vector2 size = FontManager.Measure(note, 24);
+                FontManager.Draw(note, 960 - size.X / 2, 1040, 24, new Color(255, 255, 255, (int)(220 * alpha)));
+            }
             if (SkinManager.GetTexture(PanelImage) is Texture2D panel)
                 Raylib.DrawTexturePro(panel, new Rectangle(0, 0, 960, 1080), new Rectangle(0, 0, 960, 1080),
                     Vector2.Zero, 0f, Color.White);
