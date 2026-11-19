@@ -32,6 +32,10 @@ namespace TakeTaikoSimulator.Overlays
         private Song? click;
         private readonly double?[] taps = new double?[Beats];
         private double visualMs, audioMs;
+        // 11/19 調べる用：2/2 のあいだ、毎フレーム「時計(ストップウォッチ)」「曲の位置」「出力の遅れ」を記録する。
+        //   測るたびに結果が 50ms 以上ブレたので、曲の時計が鳴らし始めのたびにずれていないかを見る
+        private readonly List<(double Real, double Song, double Latency)> clockLog = new();
+        private string clockReport = "";
         private string error = "";
         private int resultFix;
 
@@ -68,6 +72,8 @@ namespace TakeTaikoSimulator.Overlays
                 case Step.Visual:
                 case Step.Audio:
                     double now = Now();
+                    if (step == Step.Audio && click != null && click.IsPlaying)
+                        clockLog.Add((clock.Elapsed.TotalMilliseconds, now, AudioManager.OutputLatencyMs));
                     if (hit) Record(now);
                     if (now > LeadMs + (Beats - 1) * IntervalMs + 800) Finish();
                     break;
@@ -85,6 +91,7 @@ namespace TakeTaikoSimulator.Overlays
         {
             Array.Clear(taps);
             error = "";
+            if (next == Step.Audio) clockLog.Clear();
             if (next == Step.Audio)
             {
                 if (!PrepareClick()) { step = Step.Ready2; return; }
@@ -128,9 +135,33 @@ namespace TakeTaikoSimulator.Overlays
             if (visual) { visualMs = median; step = Step.Ready2; return; }
 
             audioMs = median;
+            clockReport = ClockReport();
             int current = ConfigManager.Sound.GetLatencyFix(AudioManager.CurrentType);
             resultFix = Math.Clamp((int)Math.Round(current + (audioMs - visualMs)), SoundConfig.LatencyFixMin, SoundConfig.LatencyFixMax);
             step = Step.Result;
+        }
+
+        // 曲の時計の調べ：曲の位置 − 時計 が、鳴らしている間ずっと同じか(ずれ・ばらつき)。出力の遅れの平均と幅も。
+        //   ついでに Logs/LatencyMeter_日付.csv に1フレームずつ書く
+        private string ClockReport()
+        {
+            var rows = clockLog.Where(r => r.Real > 500).ToList(); // 鳴らし始めの 0.5 秒は落ち着かないので使わない
+            if (rows.Count < 10) return "";
+            var offsets = rows.Select(r => r.Song - r.Real).ToList();
+            double med = Median(new List<double>(offsets));
+            double spread = offsets.Max() - offsets.Min();
+            double lat = rows.Average(r => r.Latency), latMin = rows.Min(r => r.Latency), latMax = rows.Max(r => r.Latency);
+            try
+            {
+                string folder = DataPaths.Data("Logs");
+                Directory.CreateDirectory(folder);
+                using var w = new StreamWriter(Path.Combine(folder, $"LatencyMeter_{DateTime.Now:yyyyMMdd_HHmmss}.csv"));
+                w.WriteLine($"# {AudioManager.Status}");
+                w.WriteLine("real_ms,song_ms,output_latency_ms");
+                foreach (var r in clockLog) w.WriteLine($"{r.Real:0.00},{r.Song:0.00},{r.Latency:0.00}");
+            }
+            catch (IOException) { }
+            return $"曲の時計：時計との差 {med:0}ms（幅 {spread:0}ms）／出力の遅れ 平均 {lat:0.0}ms（{latMin:0.0}〜{latMax:0.0}）";
         }
 
         private static double Median(List<double> values)
@@ -245,6 +276,7 @@ namespace TakeTaikoSimulator.Overlays
                         Lines(box, "測り終わったよ！",
                             $"音符とのズレ {visualMs:+0;-0;0}ms ／ 音とのズレ {audioMs:+0;-0;0}ms",
                             $"曲が {Math.Abs(diff):0}ms {dir}聞こえていたので、遅れの補正を {resultFix}ms にするといいよ");
+                        if (clockReport.Length > 0) FontManager.Draw(clockReport, box.X + 40, box.Y + 230, 22, Gui.MutedTextColor);
                         Rectangle use = new Rectangle(box.X + 40, box.Y + 540, 440, 60);
                         Rectangle again = new Rectangle(box.X + box.Width - 480, box.Y + 540, 440, 60);
                         if (Gui.Button(use, $"{resultFix}ms にする"))
