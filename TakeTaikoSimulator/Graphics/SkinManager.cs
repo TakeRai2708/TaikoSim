@@ -534,6 +534,8 @@ namespace TakeTaikoSimulator.Graphics
                     return null;
                 }
 
+                // 踊り子の画像は動きながら半端な場所に描かれるので、ふちの黒いにじみが目立つ。透明な所の色を埋めておく（Graphics/AlphaBleed.cs）
+                if (fullPath.Replace('\\', '/').Contains("/Dancer/", StringComparison.OrdinalIgnoreCase)) AlphaBleed.Apply(ref image);
                 Texture2D texture = Raylib.LoadTextureFromImage(image);
                 Raylib.UnloadImage(image);
                 Raylib.SetTextureFilter(texture, TextureFilter.Bilinear); // 拡大・縮小してもガタガタにしない

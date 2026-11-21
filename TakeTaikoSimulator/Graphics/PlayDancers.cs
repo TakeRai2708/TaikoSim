@@ -32,6 +32,7 @@ namespace TakeTaikoSimulator.Graphics
             public Frame?[] Out = Array.Empty<Frame?>();
             public Frame?[] Loop = Array.Empty<Frame?>();
             public PlayBackground.Aup2Clip? LoopClip;
+            public PlayBackground.Aup2Clip? InClip, OutClip;   // In/Anime.aup2・Out/Anime.aup2（R-Style はこれでジャンプして出てくる）
             public bool OutReversesIn = true;   // useSameMotionForInOut：退場は登場の逆再生
             public float InMeasures = 1, LoopMeasures = 4, OutMeasures = 1;
             public int InBase = 7, LoopBase = 7, OutBase = 7;
@@ -124,26 +125,36 @@ namespace TakeTaikoSimulator.Graphics
             dancer.In = LoadSequence(folder + "/In", ReadInts(config, "dancerInMotionIndex"), files);
             dancer.OutReversesIn = sameMotion;
             if (!sameMotion) dancer.Out = LoadSequence(folder + (sameImage ? "/In" : "/Out"), ReadInts(config, "dancerOutMotionIndex"), files);
+            // 11/22：In・Out にも Anime.aup2 があれば、そっちで動かす（R-Style の donko：下から跳ねて出てきて着地する 25コマ）。
+            //   前は連番の dancerInMotionIndex（[0] の1枚だけ）を出していて、パッと出てくるだけだった
+            dancer.InClip = LoadClip(folder + "/In/Anime.aup2");
+            if (!sameMotion) dancer.OutClip = LoadClip(folder + (sameImage ? "/In" : "/Out") + "/Anime.aup2");
 
-            string loopAup2 = folder + "/Loop/Anime.aup2";
-            if (File.Exists(PlayBackground.FullPath(loopAup2)))
-            {
-                try { dancer.LoopClip = PlayBackground.Aup2Clip.Load(loopAup2, 0); }
-                catch (Exception ex) when (ex is IOException or FormatException or NotSupportedException or OverflowException)
-                {
-                    Console.WriteLine($"[Dancer] {loopAup2}: {ex.Message}");
-                }
-            }
+            dancer.LoopClip = LoadClip(folder + "/Loop/Anime.aup2");
             if (dancer.LoopClip == null) dancer.Loop = LoadSequence(folder + "/Loop", ReadInts(config, "dancerLoopMotionIndex"), files);
             return dancer;
         }
 
-        // 連番画像を読む。1コマおき（偶数番目だけ）、同じ中身のファイルは1枚にまとめる
+        private static PlayBackground.Aup2Clip? LoadClip(string relative)
+        {
+            if (!File.Exists(PlayBackground.FullPath(relative))) return null;
+            try { return PlayBackground.Aup2Clip.Load(relative, 0); }
+            catch (Exception ex) when (ex is IOException or FormatException or NotSupportedException or OverflowException)
+            {
+                Console.WriteLine($"[Dancer] {relative}: {ex.Message}");
+                return null;
+            }
+        }
+
+        // 連番画像を読む。同じ中身のファイルは1枚にまとめる。
+        // 使う画像がたくさん(60枚より多い)ときだけ1コマおきに読む（A-Style の大きい連番の重さ対策）。
+        // 11/22：少ない連番(R-Style は9枚)まで1コマおきにしていて、動きがカクカクしていた
         private static Frame?[] LoadSequence(string folder, int[] order, Dictionary<string, Frame?> files)
         {
             var frames = new Frame?[order.Length];
             var byContent = new Dictionary<string, Frame?>();
-            for (int i = 0; i < order.Length; i += 2)
+            int step = order.Distinct().Count() > 60 ? 2 : 1;
+            for (int i = 0; i < order.Length; i += step)
             {
                 string path = PlayBackground.FullPath($"{folder}/{order[i]}.png");
                 if (files.TryGetValue(path, out Frame? frame)) { frames[i] = frame; continue; }
@@ -174,6 +185,7 @@ namespace TakeTaikoSimulator.Graphics
             Rectangle box = Raylib.GetImageAlphaBorder(image, 0f);
             if (box.Width <= 0 || box.Height <= 0) { Raylib.UnloadImage(image); return null; } // まだ何も写っていないコマ
             box = new Rectangle(0, 0, width, height);
+            AlphaBleed.Apply(ref image);   // 透明な所の色を、となりの絵の色で埋める（なめらかに描いたとき、ふちに黒い線が出ないように）
             Texture2D texture = Raylib.LoadTextureFromImage(image);
             Raylib.UnloadImage(image);
             Raylib.SetTextureFilter(texture, TextureFilter.Bilinear);
@@ -232,10 +244,17 @@ namespace TakeTaikoSimulator.Graphics
                 switch (state[i])
                 {
                     case State.In:
-                        DrawSequence(type.In, progress[i], type.InBase, At(type.InX, i), At(type.InY, i));
+                        if (type.InClip is PlayBackground.Aup2Clip inClip)
+                            DrawClip(inClip, progress[i], At(type.InX, i), At(type.InY, i));
+                        else DrawSequence(type.In, progress[i], type.InBase, At(type.InX, i), At(type.InY, i));
                         break;
                     case State.Out:
-                        if (type.OutReversesIn) DrawSequence(type.In, 1 - progress[i], type.OutBase, At(type.OutX, i), At(type.OutY, i));
+                        // 退場：Out の aup2 → 登場の aup2 の逆再生 → 連番（同じ考え方）
+                        if (type.OutClip is PlayBackground.Aup2Clip outClip)
+                            DrawClip(outClip, progress[i], At(type.OutX, i), At(type.OutY, i));
+                        else if (type.OutReversesIn && type.InClip is PlayBackground.Aup2Clip backClip)
+                            DrawClip(backClip, 1 - progress[i], At(type.OutX, i), At(type.OutY, i));
+                        else if (type.OutReversesIn) DrawSequence(type.In, 1 - progress[i], type.OutBase, At(type.OutX, i), At(type.OutY, i));
                         else DrawSequence(type.Out, progress[i], type.OutBase, At(type.OutX, i), At(type.OutY, i));
                         break;
                     case State.Loop:
@@ -251,6 +270,13 @@ namespace TakeTaikoSimulator.Graphics
             }
         }
 
+        // aup2 を progress(0〜1)のコマで描く。x・y はキャンバスの左上
+        private static void DrawClip(PlayBackground.Aup2Clip clip, double progress, float x, float y)
+        {
+            int frame = Math.Clamp((int)(progress * clip.FrameCount), 0, Math.Max(0, clip.FrameCount - 1));
+            clip.DrawFrame(frame, MathF.Round(x), MathF.Round(y), 1f);
+        }
+
         private static float At(float[] values, int index) => index < values.Length ? values[index] : 0f;
 
         // progress(0〜1)のコマを、基準点(0〜8：0 左上 … 4 中心 … 7 下のまん中 … 8 右下)に合わせて描く
@@ -258,7 +284,8 @@ namespace TakeTaikoSimulator.Graphics
         {
             if (frames.Length == 0) return;
             int index = Math.Clamp((int)(progress * frames.Length), 0, frames.Length - 1);
-            index -= index % 2; // 1コマおきに読んでいるので、偶数番目に寄せる
+            // 1コマおきに読んだ連番は、読んでいないコマ(null)の代わりに1つ前のコマを出す
+            while (index > 0 && frames[index] == null) index--;
             Frame? frame = frames[index];
             if (frame == null) return;
             float ax = basePoint % 3 * 0.5f, ay = Math.Clamp(basePoint, 0, 8) / 3 * 0.5f;
