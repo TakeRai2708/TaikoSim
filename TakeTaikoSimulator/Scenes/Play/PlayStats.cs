@@ -103,7 +103,7 @@ namespace TakeTaikoSimulator.Scenes
         private static bool IsOnPath(Note note, BranchType branch) => note.Branch == null || note.Branch == branch;
 
         // OpenTaikoのGen4真打方式を参考に、100万点から連打・風船の見込み点を引き、
-        // 通常音符数で割って10点単位に切り捨てる(TaikøNauts に合わせた)。曲・難易度ごとに計算する。
+        // 通常音符数で割って10点単位に四捨五入する(TaikøNauts に合わせた)。曲・難易度ごとに計算する。
         // SCOREINIT/SCOREDIFF/SCOREMODEは旧通常配点用なので、ニジイロ配点には使用しない。
         // 分岐のある譜面は、OpenTaiko と同じく達人譜面を通ったときの音符で計算する。
         public static long CalculatePointsPerGood(Course course)
@@ -125,9 +125,10 @@ namespace TakeTaikoSimulator.Scenes
             if (normalNotes == 0) return 0;
 
             double remaining = 1_000_000.0 - expectedBalloonHits * 100.0 - 16.6 * rollMilliseconds / 1000.0 * 100.0;
-            // OpenTaiko は10点単位に切り上げだけど、TaikøNauts は切り捨てだった
-            // (テスト譜面：ちょうどの値 6120.64点 → TaikøNauts 6120点、OpenTaiko の計算だと 6130点)
-            return Math.Max(10L, (long)(Math.Floor((decimal)remaining / normalNotes / 10m) * 10m));
+            // TaikøNauts は10点単位で四捨五入(OpenTaiko は切り上げ)。
+            // テスト譜面：6120.64点 → 6120点 ／ 友情ぽっぷ(おに) 1659.93点 → 1660点(11/21 の録画)。
+            // 前は切り捨てにしていて、友情ぽっぷが 1650点になっていた
+            return Math.Max(10L, (long)(Math.Round((decimal)remaining / normalNotes / 10m, MidpointRounding.AwayFromZero) * 10m));
         }
 
         // 極の境目。OpenTaiko の GetCeilingGen4ShinUchiScore と同じ考え方
