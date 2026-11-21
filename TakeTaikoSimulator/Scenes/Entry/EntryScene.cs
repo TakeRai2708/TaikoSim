@@ -98,7 +98,7 @@ public sealed class EntryScene : Scene
     public override void Enter()
     {
         if (!selectData && PlayerJoin.Pending == null) LocalSession.Reset();
-        MenuSkin.Preload(Folder, new[] { "Background.png", "Header.png", "CreditBar.png", "Background_Fireworks.png",
+        MenuSkin.Preload(Folder, new[] { "Background.png", "Header.png", "CreditBar.png", "Background_Fireworks.png", "Background_Effect.png", "Background_Light_Effect.png",
             "Playside_Panel.png", "Playside_Panel_Overlay.png", "Playside_Bar.png", "Playside_Effect.png" });
         FontManager.PreloadSkinMain(new[] { "太鼓をたたいてスタート!どちらの太鼓であそびますか？ひだりつかわないみぎ" });
         if (PlayerJoin.Pending is PlayerJoin.ResumeInfo pending)
@@ -284,22 +284,56 @@ public sealed class EntryScene : Scene
         FreePlay();
     }
 
+    // 11/22 TaikøNauts(A-Style)の動画と見比べて合わせた：
+    //   ① Background.png → ② 花火 → ③ Background_Effect.png(空だけくり抜いた、ぼかした絵)を全部の上に → ④ 大きい電球の光
+    //   ③のおかげで花火は空にだけ見える(屋台の屋根を突き抜けない)。画面全体がふんわりして見えるのも③
+    private static readonly (float X, float Y, float Offset)[] Fireworks =
+    {
+        (1360, 60, 0f), (390, 70, 1.65f), (720, 180, 2.3f), (1150, 260, 4.0f),   // 6.4秒ごとに、この順で上がる
+    };
+    private const float FireworkCycle = 6.4f, FireworkLife = 1.4f;
+    // 大きい電球の光(Background_Light_Effect.png を足し算で重ねる)。中心と大きさ。2秒でふわっと明るくなって戻る
+    private static readonly (float X, float Y, float Scale)[] Lights =
+    {
+        (40, 330, .8f), (1450, 410, .55f), (1640, 410, .68f), (1830, 380, .72f),
+    };
+    private const float LightPeriod = 2f;
+
     private void DrawBackdrop()
     {
         if (!MenuSkin.Whole(Folder + "Background.png", new(0, 0, 1920, 1080), Color.White))
             Raylib.DrawRectangleGradientV(0, 0, 1920, 1080, new(22, 32, 52, 255), new(8, 13, 24, 255));
-        DrawFirework(380, 75, 0, .25f);
-        DrawFirework(1360, 85, 1, 1.45f);
+        foreach (var f in Fireworks) DrawFirework(f.X, f.Y, f.Offset);
+        MenuSkin.Whole(Folder + "Background_Effect.png", new(0, 0, 1920, 1080), Color.White);
+        DrawLights();
     }
 
-    private void DrawFirework(float x, float y, int cell, float offset)
+    private void DrawFirework(float x, float y, float offset)
     {
         if (SkinManager.GetTexture(Folder + "Background_Fireworks.png") is not Texture2D texture) return;
-        float age = (elapsed + offset) % 3.2f;
-        if (age >= 1.4f) return;
-        float size = 300 * (.7f + .3f * age / 1.4f);
-        float alpha = MathF.Sin(age / 1.4f * MathF.PI) * .6f;
-        Raylib.DrawTexturePro(texture, new(cell * 300, 0, 300, 300), new(x - size / 2, y - size / 2, size, size), Vector2.Zero, 0, Fade(Color.White, alpha));
+        float age = elapsed - offset;
+        if (age < 0) return;
+        age %= FireworkCycle;
+        if (age >= FireworkLife) return;
+        float t = age / FireworkLife;
+        float size = 300 * (.65f + .35f * (1f - (1f - t) * (1f - t)));   // ぱっと開いて、だんだんゆっくり広がる
+        float alpha = MathF.Sin(t * MathF.PI) * .7f;
+        // 動画では4発とも水色(右のコマ)
+        Raylib.DrawTexturePro(texture, new(300, 0, 300, 300), new(x - size / 2, y - size / 2, size, size), Vector2.Zero, 0, Fade(Color.White, alpha));
+    }
+
+    private void DrawLights()
+    {
+        if (SkinManager.GetTexture(Folder + "Background_Light_Effect.png") is not Texture2D texture) return;
+        float pulse = .5f - .5f * MathF.Cos(elapsed / LightPeriod * MathF.Tau);
+        float strength = .2f + .8f * pulse;
+        Raylib.BeginBlendMode(BlendMode.Additive);
+        foreach (var l in Lights)
+        {
+            float w = texture.Width * l.Scale, h = texture.Height * l.Scale;
+            Raylib.DrawTexturePro(texture, new(0, 0, texture.Width, texture.Height), new(l.X - w / 2, l.Y - h / 2, w, h), Vector2.Zero, 0, Fade(Color.White, strength));
+        }
+        Raylib.EndBlendMode();
     }
 
     // ① 黄色い板。どちらの板にも「太鼓をたたいてスタート!」
