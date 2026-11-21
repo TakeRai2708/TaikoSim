@@ -1531,8 +1531,9 @@ namespace TakeTaikoSimulator.Scenes
             Raylib.DrawRectangleGradientV(0, 0, Screen.Width, Screen.Height,
                 Raylib.ColorBrightness(backColor, -0.35f), Raylib.ColorBrightness(backColor, -0.7f));
             DrawTnBackground();
-            // どんちゃん（背景の上・板より奥）
-            if (CharaBaker.Config is CharaConfig sc) chara.DrawPlayers(sc.SongSelectX, sc.SongSelectY, sc.SongSelectScale, LocalSession.Players);
+            // どんちゃん（背景の上・板より奥）。難易度をえらぶ板が出ているときは、板より手前に出す(11/22 たけらい)
+            CharaConfig? charaConfig = CharaBaker.Config;
+            if (!diffOpen && charaConfig != null) chara.DrawPlayers(charaConfig.SongSelectX, charaConfig.SongSelectY, charaConfig.SongSelectScale, LocalSession.Players);
 
             if (SongList.IsScanning) DrawScanning();
             else if (SongList.Categories.Count == 0) DrawEmpty();
@@ -1542,7 +1543,11 @@ namespace TakeTaikoSimulator.Scenes
                 if (listAlpha > 0f) DrawList(listAlpha * ReturnAlpha);
             }
 
-            if (diffOpen) DrawDifficulty();
+            if (diffOpen)
+            {
+                DrawDifficulty();
+                if (charaConfig != null) chara.DrawPlayers(charaConfig.SongSelectX, charaConfig.SongSelectY, charaConfig.SongSelectScale, LocalSession.Players);
+            }
             DrawSavedSongRecords();
             NamePlate.DrawPlayers(900, ReturnAlpha);
             // 右上：次は何曲目か（特訓モードは出さない）
