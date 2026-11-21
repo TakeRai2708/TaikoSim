@@ -67,6 +67,7 @@ namespace TakeTaikoSimulator
                 return;
             }
             GraphicsBackend.CheckAfterInit();   // ANGLE のとき、ちゃんと描けるか確かめる（ダメなら次は OpenGL）
+            RaylibLog.QuietAfterStartup();      // ここからの raylib のログは WARNING 以上だけ
             Platform.AppIcon.Apply();
 
             // Escで勝手にウィンドウが閉じないようにする(Escは「戻る」に使う)

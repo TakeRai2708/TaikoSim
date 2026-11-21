@@ -58,7 +58,8 @@ namespace TakeTaikoSimulator.Graphics
                 if (File.Exists(NotePath)) { FallbackReason = File.ReadAllText(NotePath).Trim(); File.Delete(NotePath); }
             }
             catch (Exception ex) when (ex is IOException || ex is UnauthorizedAccessException) { }
-            if (wanted == GraphicsBackendType.OpenGL) { DeleteMarker(); return; }
+            if (FallbackReason != null) Console.WriteLine($"[Graphics] {FallbackReason}");
+            if (wanted == GraphicsBackendType.OpenGL) { DeleteMarker(); Console.WriteLine("[Graphics] OpenGL で起動します"); return; }
             if (!OperatingSystem.IsWindows()) { FallbackReason = "Windows 以外なので OpenGL で起動しました"; return; }
 
             if (File.Exists(MarkerPath))

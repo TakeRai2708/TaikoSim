@@ -12,6 +12,13 @@ namespace TakeTaikoSimulator.Diagnostics
         // raylib を初めて呼ぶところ。描画方式(どの raylib を読むか)を決めたあとに呼ぶ
         public static void Start() => Raylib.SetTraceLogCallback(&Write);
 
+        /// <summary>
+        /// 窓を作ったあとに呼ぶ。ここからは WARNING 以上だけ残す。
+        /// 起動のときの INFO（GPU の名前・OpenGL の版など）は大事だけど、そのあとの「画像を読みました」が何百行も続いて、
+        /// ログが読めなくなっていた（11/22 たけらい「ごちゃごちゃしててわからん」）
+        /// </summary>
+        public static void QuietAfterStartup() => Raylib.SetTraceLogLevel(TraceLogLevel.Warning);
+
         [UnmanagedCallersOnly(CallConvs = new[] { typeof(CallConvCdecl) })]
         private static void Write(int level, sbyte* text, sbyte* args)
         {
