@@ -85,8 +85,33 @@ namespace TakeTaikoSimulator.Graphics
             }
         }
 
+        [DllImport("libGLESv2", EntryPoint = "glGetString")]
+        private static extern IntPtr GlGetString(int name);
+        private const int GlRenderer = 0x1F01;
+        private static bool broken;
+
+        /// <summary>
+        /// InitWindow のすぐ後に呼ぶ。ANGLE の描き先がちゃんと使えるかを確かめて、ログに出す。
+        /// 名前が取れない（ANGLE の文脈が無い）ときは、起動できた印を残して、次の起動を OpenGL にする
+        /// （11/22：raylib_angle.dll が opengl32.dll にもつながっていて、真っ黒なのに動き続けた。こういうのを拾う）
+        /// </summary>
+        public static void CheckAfterInit()
+        {
+            if (!IsAngle) return;
+            IntPtr renderer = IntPtr.Zero;
+            try { renderer = GlGetString(GlRenderer); }
+            catch (Exception ex) when (ex is DllNotFoundException || ex is EntryPointNotFoundException) { }
+            if (renderer == IntPtr.Zero)
+            {
+                broken = true;
+                Console.WriteLine($"[Graphics] {Name(Active)}（ANGLE）の画面が使えません。次の起動は OpenGL にします");
+                return;
+            }
+            Console.WriteLine($"[Graphics] {Marshal.PtrToStringAnsi(renderer)}");
+        }
+
         /// <summary>最初の1枚を画面に出せたら呼ぶ（起動できた印を消す）</summary>
-        public static void FirstFrameShown() => DeleteMarker();
+        public static void FirstFrameShown() { if (!broken) DeleteMarker(); }
 
         /// <summary>シェーダー（#version 330 で書いたもの）を、今の描画方式で読める形にする</summary>
         public static string Glsl(string fragment) => !IsAngle ? fragment

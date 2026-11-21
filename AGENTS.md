@@ -1240,3 +1240,6 @@ Order:
 - Our 3 GLSL 330 fragment shaders (SDF font, SmoothShapes, roll heat) are rewritten at load by `GraphicsBackend.Glsl` to `#version 300 es` + `precision highp float;` (checked with glslangValidator).
 - Safety: `Config/GraphicsStarting.txt` is written before InitWindow in ANGLE mode and deleted after the first frame. If it still exists at the next start, that start uses OpenGL and the settings row says why.
 - **Not verified on Windows yet** (Linux can't run it). Native AOT + `SetDllImportResolver` is also unverified.
+- 11/22 first Windows test: black screen but running. Cause: raylib's CMake also linked opengl32, so old GL 1.1 functions (glGetString, glGenTextures, glTexImage2D…) bound to opengl32.dll (no context) and the rest to ANGLE. `build.sh` now points OPENGL_gl_LIBRARY at the ANGLE import lib and fails if OPENGL32.dll is imported.
+- Also: GCC -O3 (Release) miscompiled rlLoadTexture's NULL-data path into glCompressedTexImage2D → LoadRenderTexture incomplete. Build with `-O2 -fno-strict-aliasing`. Both found by running raylib ES3 + OpenTaiko's Linux ANGLE under Xvfb (llvmpipe).
+- `GraphicsBackend.CheckAfterInit()` logs the ANGLE renderer string; if glGetString returns null, the start marker is kept so the next start uses OpenGL.

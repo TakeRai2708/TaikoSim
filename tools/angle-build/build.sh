@@ -29,10 +29,20 @@ x86_64-w64-mingw32-dlltool -d libGLESv2.def -l libGLESv2.dll.a
 
 # 4. ビルド
 rm -rf build
-cmake -S raylib -B build -DCMAKE_TOOLCHAIN_FILE="$HERE/mingw.cmake" -DCMAKE_BUILD_TYPE=Release \
+# Release(-O3) だと rlLoadTexture の「データ無し」の道が glCompressedTexImage2D を呼んでしまい、
+# 描き先の画像(LoadRenderTexture)が作れなかった（11/22 Linux＋ANGLE で確認。-O2 -fno-strict-aliasing なら正しく動く）
+cmake -S raylib -B build -DCMAKE_TOOLCHAIN_FILE="$HERE/mingw.cmake" -DCMAKE_BUILD_TYPE=None \
   -DPLATFORM=Desktop -DOPENGL_VERSION="ES 3.0" -DBUILD_SHARED_LIBS=ON -DBUILD_EXAMPLES=OFF \
-  -DCMAKE_C_FLAGS="-I$WORK/inc" -DCMAKE_SHARED_LINKER_FLAGS="-static-libgcc -static" \
-  -DCMAKE_C_STANDARD_LIBRARIES="$WORK/libGLESv2.dll.a -lwinmm -lgdi32"
+  -DCMAKE_C_FLAGS="-O2 -fno-strict-aliasing -DNDEBUG -I$WORK/inc" -DCMAKE_SHARED_LINKER_FLAGS="-static-libgcc -static" \
+  -DCMAKE_C_STANDARD_LIBRARIES="$WORK/libGLESv2.dll.a -lwinmm -lgdi32" \
+  -DOPENGL_gl_LIBRARY="$WORK/libGLESv2.dll.a" -DOPENGL_opengl_LIBRARY="$WORK/libGLESv2.dll.a"
+# ↑ raylib の CMake は Windows だと opengl32 もリンクする。そうすると glGetString・glGenTextures などの昔からある関数だけ
+#   opengl32.dll（ANGLE ではない、文脈の無い OpenGL）につながって、画面が真っ黒になる（11/22 たけらいの PC で起きた）。
+#   OpenGL のライブラリも ANGLE の libGLESv2 にして、全部 ANGLE につながるようにする
 cmake --build build -j"$(nproc)"
 x86_64-w64-mingw32-strip -o "$HERE/../../TakeTaikoSimulator/raylib_angle.dll" build/raylib/libraylib.dll
+# opengl32.dll から関数を読んでいないか確かめる（GLFW は opengl32 を後から自分で読むので、ここに出なければ OK）
+if x86_64-w64-mingw32-objdump -p "$HERE/../../TakeTaikoSimulator/raylib_angle.dll" | grep -qi "DLL Name: OPENGL32.dll"; then
+  echo "まちがい: raylib_angle.dll が opengl32.dll の関数を使っている" >&2; exit 1
+fi
 echo "できた: TakeTaikoSimulator/raylib_angle.dll"
