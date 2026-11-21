@@ -43,11 +43,9 @@ namespace TakeTaikoSimulator.Diagnostics
     //   input.csv  … 演奏中の入力(Windows のキーの時刻・判定・音とのズレ)。前の「入力診断CSV」と同じ列
     //
     // 書くのは裏の別スレッドなので、ゲームの動きは止めない(1フレームに足す仕事は、時刻を何回か読むくらい)
-    // 設定の「デバッグ記録」が ON の間だけ記録する。途中で ON にすると、そこから新しいフォルダに記録する
+    // 設定の「デバッグ記録」が ON の間だけ記録する。途中で ON にすると、そこから新しいファイル(名前に ON にした時刻)に記録する。置き場所は LogPaths.cs
     public static class DebugLog
     {
-        // 残しておく記録の数(これより古いフォルダは消す)
-        private const int KeepSessions = 10;
         // これより長いフレームは「重いフレーム」として events.csv にも書く
         public const double SlowFrameMs = 20.0;
 
@@ -307,18 +305,12 @@ namespace TakeTaikoSimulator.Diagnostics
         {
             try
             {
-                string root = Configs.DataPaths.Data("Logs");
-                Directory.CreateDirectory(root);
-                foreach (string old in Directory.GetDirectories(root, "Debug_*").OrderBy(p => p)
-                             .SkipLast(KeepSessions - 1))
-                {
-                    try { Directory.Delete(old, true); }
-                    catch (Exception ex) when (ex is IOException or UnauthorizedAccessException) { }
-                }
-
-                string folder = Path.Combine(root, $"Debug_{DateTime.Now:yyyyMMdd_HHmmss}");
-                Directory.CreateDirectory(folder);
-                SessionFolder = folder;
+                // 今回の起動のフォルダの Debug\（重さ）と Input\（入力）に分けて書く。
+                // 1回の起動で何度か ON にしても上書きしないよう、ファイル名に ON にした時刻を付ける
+                string folder = LogPaths.Folder(LogPaths.DebugKind);
+                string inputFolder = LogPaths.Folder(LogPaths.InputKind);
+                string stamp = DateTime.Now.ToString("HHmmss");
+                SessionFolder = LogPaths.RunFolder;
 
                 // ログは裏のスレッド(曲の読み込みなど)からも来るので、書く側は1つと決めない
                 channel = Channel.CreateUnbounded<Item>(new UnboundedChannelOptions { SingleReader = true, SingleWriter = false });
@@ -329,7 +321,7 @@ namespace TakeTaikoSimulator.Diagnostics
                 gcCountAtStart[2] = GC.CollectionCount(2);
 
                 Channel<Item> current = channel;
-                writerThread = new Thread(() => WriterLoop(current, folder)) { IsBackground = true, Name = "DebugLog" };
+                writerThread = new Thread(() => WriterLoop(current, folder, inputFolder, stamp)) { IsBackground = true, Name = "DebugLog" };
                 writerThread.Start();
                 Active = true;
 
@@ -376,12 +368,12 @@ namespace TakeTaikoSimulator.Diagnostics
         }
 
         // 裏のスレッド：届いた行を3つのファイルに書く(0.5秒ごとにファイルへ流す)
-        private static void WriterLoop(Channel<Item> source, string folder)
+        private static void WriterLoop(Channel<Item> source, string folder, string inputFolder, string stamp)
         {
             var utf8 = new UTF8Encoding(true); // Excel で文字化けしにくいように BOM つき
-            using var frames = new StreamWriter(Path.Combine(folder, "frames.csv"), false, utf8, 1 << 16);
-            using var events = new StreamWriter(Path.Combine(folder, "events.csv"), false, utf8, 1 << 14);
-            using var input = new StreamWriter(Path.Combine(folder, "input.csv"), false, utf8, 1 << 14);
+            using var frames = new StreamWriter(Path.Combine(folder, $"frames_{stamp}.csv"), false, utf8, 1 << 16);
+            using var events = new StreamWriter(Path.Combine(folder, $"events_{stamp}.csv"), false, utf8, 1 << 14);
+            using var input = new StreamWriter(Path.Combine(inputFolder, $"input_{stamp}.csv"), false, utf8, 1 << 14);
 
             frames.WriteLine("フレーム,経過ms,画面,フレーム間隔ms,作業ms," + string.Join(",", SectionNames) +
                 ",FPS,文字の数,文字を描いた回数,文字のページ,画像の数,メモリMB,このフレームで確保KB,GC0,GC1,GC2,曲と画面のズレms,出力遅延ms,BASSのCPU%");

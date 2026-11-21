@@ -560,7 +560,7 @@ namespace TakeTaikoSimulator.Overlays
                 _ => "OFF",
             });
             NoteRow(DebugLog.Active && DebugLog.SessionFolder != null
-                ? $"記録中：Logs/{Path.GetFileName(DebugLog.SessionFolder)}/（frames・events・input の3つの CSV）"
+                ? $"記録中：Logs/{Path.GetFileName(DebugLog.SessionFolder)}/ の Debug（frames・events）と Input（input）"
                 : "ON にすると Logs/Debug_日付_時間/ に、毎フレームの重さ・できごと・入力を記録します");
 
             // ----- 曲(前は選曲画面の上にあったボタン) -----

@@ -4,9 +4,6 @@ namespace TakeTaikoSimulator
 {
     internal class Program
     {
-        // Logs フォルダに残しておくログの数(これより古いものは消す)
-        private const int KeepLogCount = 10;
-
         // Windowsの「フォルダの選択」画面を使うのに必要
         [STAThread]
         static void Main(string[] args)
@@ -26,17 +23,9 @@ namespace TakeTaikoSimulator
         {
             try
             {
-                string folder = Configs.DataPaths.Data("Logs");
-                Directory.CreateDirectory(folder);
-
-                // 古いログを消す(名前に日時が入っているので、名前順＝古い順)
-                string[] oldLogs = Directory.GetFiles(folder, "TaikoSim_*.log").OrderBy(p => p).ToArray();
-                foreach (string old in oldLogs.Take(Math.Max(0, oldLogs.Length - (KeepLogCount - 1))))
-                {
-                    File.Delete(old);
-                }
-
-                string path = Path.Combine(folder, $"TaikoSim_{DateTime.Now:yyyyMMdd_HHmmss}.log");
+                // Logs\TaikoSimLog_日付_時間\System\TaikoSim.log（古い起動のフォルダは Diagnostics/LogPaths.cs が片付ける）
+                Diagnostics.LogPaths.Tidy();
+                string path = Path.Combine(Diagnostics.LogPaths.Folder(Diagnostics.LogPaths.SystemKind), "TaikoSim.log");
                 StreamWriter file = new StreamWriter(path, false, new UTF8Encoding(true)) { AutoFlush = true };
 
                 // Console.WriteLine の行き先を「黒い画面とファイルの両方」にする

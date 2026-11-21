@@ -116,7 +116,8 @@ This file (AGENTS.md) is where we record **values we actually measured** from vi
 
 ### Debug log (CSV) — for investigating slowness, input, audio drift
 - Turn on via Settings "一般 → デバッグ → デバッグ記録（CSV）" or the song-select option 「デバッグ記録(CSV)」
-- While on, three CSVs are written to `Logs/Debug_<date>_<time>/` (on a background thread so the game doesn't stall; the 10 newest folders are kept)
+- (11/22) Every start gets `Logs/TaikoSimLog_<date>_<time>/` with `System/TaikoSim.log` (console + raylib log), `Debug/frames_*.csv, events_*.csv`, `Input/input_*.csv, KeyProbe.txt` (`Diagnostics/LogPaths.cs`; 10 runs kept; old-format logs moved once to `Logs/古いログ/`).
+- While on, three CSVs are written (paths above; before 11/22 they went to `Logs/Debug_<date>_<time>/`) (on a background thread so the game doesn't stall; the 10 newest folders are kept)
   - `frames.csv`: **one row per frame**. Frame interval, work time (CPU busy time), time per section
     (song list, scene update, scene draw, settings panel, FPS display, canvas submit, screenshot, compositing, present/wait;
     during play also background, lane, gauge, notes, effects, panel text, ending; plus "text" across everything),
