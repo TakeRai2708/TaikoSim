@@ -19,15 +19,26 @@ namespace TakeTaikoSimulator.Graphics
             (MathF.Round(canvasX + position.X * canvasScale) - canvasX) / canvasScale,
             (MathF.Round(canvasY + position.Y * canvasScale) - canvasY) / canvasScale);
 
+        // 11/22：画面が 1920×1080 より小さいとき(ふつうのウィンドウ)は、1920×1080 のまま描いて最後に画面ごと縮める(TaikøNauts と同じ)。
+        //   画面の大きさで直接描くと、絵を 0.9 倍などに縮めて描くことになり、
+        //   ・数字やゲージのように1枚に何コマも並べた絵で、となりのコマのはしが混ざって黒い線が出る
+        //   ・魂ゲージの細い仕切りの太さが場所でちがって、マスの幅がバラバラに見える
+        //   ということが起きていた(たけらいの 11/21 のスクショ)。
+        //   1920×1080 以上(フルスクリーンなど)は、今までどおり画面の大きさで直接描く(文字がくっきりする)。
+        private static bool downscaled;   // true：1920×1080 で描いて、DrawToWindow で縮めて出す
+
         private static void PrepareCanvas(int width, int height)
         {
             width = Math.Max(1, width); height = Math.Max(1, height);
+            downscaled = Math.Min(width / (float)Width, height / (float)Height) < 1f;
+            if (downscaled) { width = Width; height = Height; }
             if (canvas.Texture.Width != width || canvas.Texture.Height != height)
             {
                 if (canvas.Id != 0) Raylib.UnloadRenderTexture(canvas);
                 canvas = Raylib.LoadRenderTexture(width, height);
-                Raylib.SetTextureFilter(canvas.Texture, TextureFilter.Point);
             }
+            // 縮めて出すときはなめらかに(Bilinear)。同じ大きさで写すときは1画素ずつそのまま(Point)
+            Raylib.SetTextureFilter(canvas.Texture, downscaled ? TextureFilter.Bilinear : TextureFilter.Point);
             canvasScale = Math.Min(width / (float)Width, height / (float)Height);
             canvasX = (width - Width * canvasScale) / 2;
             canvasY = (height - Height * canvasScale) / 2;
@@ -106,6 +117,12 @@ namespace TakeTaikoSimulator.Graphics
             // RenderTexture は上下が逆さまに保存されているので、高さをマイナスにして反転する
             Rectangle source = new Rectangle(0, 0, canvas.Texture.Width, -canvas.Texture.Height);
             Rectangle dest = new Rectangle(0, 0, Raylib.GetScreenWidth(), Raylib.GetScreenHeight());
+            if (downscaled)
+            {
+                // 1920×1080 のキャンバスを、縦横比を保って真ん中に縮めて出す(まわりの黒帯は Game が先に塗っている)
+                GetViewport(out float vx, out float vy, out float vscale);
+                dest = new Rectangle(vx, vy, Width * vscale, Height * vscale);
+            }
 
             // キャンバスの色(RGB)をそのまま写す。キャンバスの透明度(A)は使わない。
             //   半透明の絵(フェード中の光・顔など)をふつうの合成でキャンバスに描くと、
