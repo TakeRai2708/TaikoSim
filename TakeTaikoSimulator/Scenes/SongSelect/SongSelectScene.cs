@@ -88,25 +88,29 @@ namespace TakeTaikoSimulator.Scenes
         private readonly BarList list = new(MenuSkin.SongFolder);         // 斜めの板の動き
         private Action? afterBlink;                    // 決定の点滅が終わったらすること(ジャンルを開く・とじる)
 
-        // ===== ジャンルを決めたあとの「ポンッ → めくれる」 =====
-        //   決めた瞬間を 0 として：0〜0.53秒 枠が点滅 → 0.63秒まで白 → ここから下の時間(FlipStart からの秒)
-        //   10/30 の TaikøNauts の動画(ボーカロイドを決めたところ)を 1/60秒ずつ測り直した
-        //   (10/29 の A.mp4 は、広がる途中で 0.13秒止まってからパッと戻っていた。曲の一覧を作る重さで止まっていたみたい)
-        //   0〜0.067   板がポンッと大きくなる(横 1.21倍・縦 1.14倍)。枠は消える
-        //   0〜0.12    ジャンル名・キャラ・吹き出しが消えていく(中身の無い板だけが残る)
-        //   0.11〜0.22 上の板は上へ、下の板は下へ 150px すべりながら消える
-        //   0.26〜0.41 板が横につぶれていく(幅 933 → 794 → 556 → 355 → 204 → 0px。はじめが速い)
-        //   0.41〜0.60 細い線のまま
-        //   0.60〜0.77 元の幅まで広がる(161 → 363 → 654 → 933px。ほぼ一定の速さ。中身は空っぽ)
-        //   0.77      中身が最初の曲の板(開いた形)になる
-        //   0.77〜0.90 曲の板の中身と、上下の板がじわっと出る。黄色い枠は 0.77 から 0.33秒あとに出る
-        private const float FlipStart = 0.63f;
-        private const float FlipPopEnd = 0.067f, FlipPopScaleX = 1.21f, FlipPopScaleY = 1.14f;
-        private const float FlipFadeEnd = 0.12f;
-        private const float FlipOthersStart = 0.11f, FlipOthersEnd = 0.22f, FlipOthersShift = 150f;
-        private const float FlipSquashStart = 0.26f, FlipSquashEnd = 0.41f, FlipThinEnd = 0.60f, FlipSwitch = 0.77f, FlipEnd = 0.90f;
-        private const float FlipThinScale = 5f / 933f;
+        // ===== ジャンルを決めたあとの「めくれる」 =====
+        //   決めた瞬間を 0 として：0〜0.53秒 枠が点滅 → ここから下の時間(FlipStart からの秒)
+        //   11/22 TaikøNauts の録画(J-POP を開く・閉じる)を 1/60秒ずつ測り直した。TakeTaiko の録画と並べて、ずれていた所を直した
+        //   (前の 10/30 の測り方とくらべて：ポンッと大きくなるのが無い・細い線のまま止まる時間がほぼ無い・広がるのは加速しながら)
+        //   0〜0.20    ジャンル名・キャラ・吹き出しが消えていく(中身の無い板だけが残る)
+        //   0.04〜0.22 上の板は上へ、下の板は下へ 150px すべりながら消える
+        //   0.337〜0.553 板が横につぶれていく(幅 793 → 736 → 622 → 525 → 430 → … → 32 → 12 → 0px)
+        //   0.553〜0.603 見えない(幅 0)
+        //   0.603〜0.837 開いた板の高さ(下そろえで上に 92px 高い)になって、加速しながら元の幅まで広がる(8 → 24 → 45 → 77 → 116 → … → 793px)
+        //   0.837〜0.937 中身の無い開いた板のまま
+        //   0.937      中身が最初の曲の板(開いた形)になる
+        //   0.937〜1.07 曲の板の中身と、上下の板がじわっと出る。黄色い枠は 0.937 から 0.33秒あとに出る
+        private const float FlipStart = 0.53f;
+        private const float FlipPopEnd = 0f, FlipPopScaleX = 1f, FlipPopScaleY = 1f;
+        private const float FlipFadeEnd = 0.20f;
+        private const float FlipOthersStart = 0.04f, FlipOthersEnd = 0.22f, FlipOthersShift = 150f;
+        private const float FlipSquashStart = 0.337f, FlipSquashEnd = 0.553f, FlipThinEnd = 0.603f, FlipGrowEnd = 0.837f, FlipSwitch = 0.937f, FlipEnd = 1.07f;
+        private const float FlipThinScale = 0f;
+        private const float FlipTallExtra = 92f;   // 広がるときの板は、開いた曲の板の高さ(中の水色 171 → 263px。下はそのまま)
+        // つぶれていく幅(793px を 1 として、1/60秒ごと。TaikøNauts の 11/22 の録画)
+        private static readonly float[] FlipSquashWidths = { 1f, 0.928f, 0.784f, 0.662f, 0.542f, 0.433f, 0.340f, 0.257f, 0.189f, 0.126f, 0.075f, 0.040f, 0.015f, 0f };
         private float flipTime = -1f;      // めくれ始めてからの時間(-1 ならめくっていない)
+        private bool flipTall;             // めくれて広がっている途中：開いた曲の板の高さで描く
         private Action? flipOpen;          // 0.70秒で開くジャンル
         private bool flipOpened;
         private bool flipFromBack;         // 「とじる」でめくっている(細い線から広がるときは、戻り先のジャンルの色の板にする)
@@ -1649,9 +1653,10 @@ namespace TakeTaikoSimulator.Scenes
                     // めくれている間：枠は出さない。板は真ん中を中心に大きく・細くする。中身はだんだん消す・出す
                     Rectangle box = new Rectangle(sel.X + sel.Width * (1f - flip.ScaleX) / 2f, sel.Y + sel.Height * (1f - flip.ScaleY) / 2f,
                         sel.Width * flip.ScaleX, sel.Height * flip.ScaleY);
+                    if (flipTall && !flipOpened) { box.Y -= FlipTallExtra; box.Height += FlipTallExtra; }   // 下そろえで上に高くする
                     // 「とじる」：細い線から広がるところは、戻り先のジャンルの色の空の板（11/8 の TaikøNauts の録画では J-POP の水色だった）
                     Item flipItem = flipFromBack && !flipOpened && flipTime >= FlipThinEnd && GenreItemOpen is Item back ? back : selectedItem;
-                    DrawBar(flipItem, box, list.Expand, alpha, framed: !flipOpened || list.FrameShown, contentAlpha: flip.Content);
+                    DrawBar(flipItem, box, list.Expand, alpha, framed: !(flipTall && !flipOpened) && (!flipOpened || list.FrameShown), contentAlpha: flip.Content);   // 広がる途中は、中まで明るい空の板(TaikøNauts と同じ)
                     if (selectedItem.Kind == Kind.Genre && !flipOpened) DrawGenrePop(selectedItem, sel, alpha * flip.Content, force: true);
                     return;
                 }
@@ -1681,20 +1686,24 @@ namespace TakeTaikoSimulator.Scenes
                 float o = Math.Clamp((t - FlipOthersStart) / (FlipOthersEnd - FlipOthersStart), 0f, 1f);
                 float others = 1f - o, shift = FlipOthersShift * o * o; // だんだん速くすべっていく
                 float sx = 1f, sy = 1f;
+                bool tall = false;
                 if (t < FlipPopEnd) { sx = FlipPopScaleX; sy = FlipPopScaleY; }
                 else if (t >= FlipSquashStart && t < FlipSquashEnd)
                 {
-                    // はじめが速く、だんだんゆっくり細くなる(測った幅：85% → 60% → 38% → 22% → 0%)
-                    float p = (t - FlipSquashStart) / (FlipSquashEnd - FlipSquashStart);
-                    sx = Math.Max(FlipThinScale, MathF.Pow(1f - p, 1.3f));
+                    // はじめが少しゆっくり → まんなかは一定 → 最後はゆっくり細くなる(測った幅の表をなめらかにつなぐ)
+                    float p = (t - FlipSquashStart) / (FlipSquashEnd - FlipSquashStart) * (FlipSquashWidths.Length - 1);
+                    int i = Math.Clamp((int)p, 0, FlipSquashWidths.Length - 2);
+                    sx = FlipSquashWidths[i] + (FlipSquashWidths[i + 1] - FlipSquashWidths[i]) * (p - i);
                 }
                 else if (t >= FlipSquashEnd && t < FlipThinEnd) sx = FlipThinScale;
                 else if (t >= FlipThinEnd)
                 {
-                    // ほぼ一定の速さで元の幅まで広がる(17% → 39% → 70% → 100%)
-                    float p = (t - FlipThinEnd) / (FlipSwitch - FlipThinEnd);
-                    sx = FlipThinScale + (1f - FlipThinScale) * p;
+                    // 開いた板の高さで、加速しながら元の幅まで広がる(半分の時間で 27%。ほぼ p²)
+                    float p = Math.Clamp((t - FlipThinEnd) / (FlipGrowEnd - FlipThinEnd), 0f, 1f);
+                    sx = 0.01f + 0.99f * p * p;
+                    tall = !flipFromBack;
                 }
+                flipTall = tall;
                 return (true, sx, sy, others, fade, shift);
             }
             float appear = Math.Clamp((t - FlipSwitch) / (FlipEnd - FlipSwitch), 0f, 1f);
