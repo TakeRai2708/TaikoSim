@@ -56,7 +56,10 @@ namespace TakeTaikoSimulator.Graphics
             {
                 // 前回、窓を出して最初の1枚を描く前に落ちた（または固まった）
                 DeleteMarker();
-                FallbackReason = $"前回 {Name(wanted)} で起動できなかったので、OpenGL で起動しました";
+                // 設定も OpenGL にもどす（そのままだと、次の起動でまた落ちて、OpenGL と交互になる）
+                Configs.ConfigManager.Game.GraphicsBackend = GraphicsBackendType.OpenGL;
+                Configs.ConfigManager.SaveAll();
+                FallbackReason = $"前回 {Name(wanted)} で起動できなかったので、OpenGL にもどしました";
                 Console.WriteLine($"[Graphics] {FallbackReason}");
                 return;
             }
