@@ -35,6 +35,9 @@ namespace TakeTaikoSimulator.Graphics
         /// <summary>今回 OpenGL にもどした理由（無ければ null）。設定画面に出す</summary>
         public static string? FallbackReason { get; private set; }
 
+        // 窓を作れなかったときに、もう一度 OpenGL で起動し直す。そのとき理由を次の起動へ渡すファイル
+        private static string NotePath => Configs.DataPaths.Data("Config", "GraphicsFallback.txt");
+
         // GLFW の ANGLE の出し先の番号（glfw3.h の GLFW_ANGLE_PLATFORM_TYPE_*）
         private const int GlfwAngleD3D11 = 0x00037005;
         private const int GlfwAngleVulkan = 0x00037007;
@@ -49,6 +52,12 @@ namespace TakeTaikoSimulator.Graphics
         public static void Select(GraphicsBackendType wanted)
         {
             Active = GraphicsBackendType.OpenGL;
+            try
+            {
+                // 前の起動が「窓を作れなかったので OpenGL で起動し直した」なら、その理由を設定画面に出す
+                if (File.Exists(NotePath)) { FallbackReason = File.ReadAllText(NotePath).Trim(); File.Delete(NotePath); }
+            }
+            catch (Exception ex) when (ex is IOException || ex is UnauthorizedAccessException) { }
             if (wanted == GraphicsBackendType.OpenGL) { DeleteMarker(); return; }
             if (!OperatingSystem.IsWindows()) { FallbackReason = "Windows 以外なので OpenGL で起動しました"; return; }
 
@@ -111,6 +120,27 @@ namespace TakeTaikoSimulator.Graphics
                 return;
             }
             Console.WriteLine($"[Graphics] {Marshal.PtrToStringAnsi(renderer)}");
+        }
+
+        /// <summary>
+        /// InitWindow で窓を作れなかったとき（raylib は落ちずに、すぐ終わる）。ANGLE なら設定を OpenGL にもどして true を返す。
+        /// 呼んだ側は、終わったあとにもう一度起動する（11/22：Vulkan で起動すると黒い画面が一瞬出て終わるだけだった）
+        /// </summary>
+        public static bool FallBackAfterWindowFailure()
+        {
+            if (!IsAngle) return false;
+            string reason = $"{Name(Active)} で画面を作れなかったので、OpenGL にもどしました";
+            Console.WriteLine($"[Graphics] {reason}");
+            Configs.ConfigManager.Game.GraphicsBackend = GraphicsBackendType.OpenGL;
+            Configs.ConfigManager.SaveAll();
+            try
+            {
+                Directory.CreateDirectory(Path.GetDirectoryName(NotePath)!);
+                File.WriteAllText(NotePath, reason);
+            }
+            catch (Exception ex) when (ex is IOException || ex is UnauthorizedAccessException) { }
+            DeleteMarker();
+            return true;
         }
 
         /// <summary>最初の1枚を画面に出せたら呼ぶ（起動できた印を消す）</summary>

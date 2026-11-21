@@ -56,9 +56,16 @@ namespace TakeTaikoSimulator
 
             // 描画方式を決める（Raylib を初めて呼ぶ前。ANGLE のときは raylib_angle.dll を読ませる）
             GraphicsBackend.Select(ConfigManager.Game.GraphicsBackend);
+            RaylibLog.Start();   // raylib の INFO / WARNING もログファイルに残す（黒い画面がすぐ消えても後で見られる）
 
             // 設定の解像度でウィンドウを作る
             Raylib.InitWindow(ConfigManager.Game.WindowWidth, ConfigManager.Game.WindowHeight, "TakeTaikoSimulator");
+            if (!Raylib.IsWindowReady())
+            {
+                // 窓を作れなかった（ANGLE の Vulkan など）。ANGLE なら OpenGL にもどして、もう一度起動する
+                if (GraphicsBackend.FallBackAfterWindowFailure()) StartAgain();
+                return;
+            }
             GraphicsBackend.CheckAfterInit();   // ANGLE のとき、ちゃんと描けるか確かめる（ダメなら次は OpenGL）
             Platform.AppIcon.Apply();
 
@@ -121,7 +128,13 @@ namespace TakeTaikoSimulator
             DebugLog.Shutdown();
 
             // 「再起動しますか？」で［はい］：全部片付けてから、同じ exe をもう一度起動する
-            if (restartRequested && Environment.ProcessPath is string exe)
+            if (restartRequested) StartAgain();
+        }
+
+        // 同じ exe をもう一度起動する
+        private static void StartAgain()
+        {
+            if (Environment.ProcessPath is string exe)
             {
                 try
                 {

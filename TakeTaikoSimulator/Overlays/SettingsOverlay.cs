@@ -737,19 +737,25 @@ namespace TakeTaikoSimulator.Overlays
             // 描画方式（再起動で反映。今の起動で使っているものと違えば、そう書く）
             int backendIndex = Array.IndexOf(BackendTypes, game.GraphicsBackend);
             int newBackendIndex = DropdownRow("graphicsBackend", "描画方式", BackendNames, backendIndex);
-            if (newBackendIndex >= 0 && newBackendIndex != backendIndex)
+            if (newBackendIndex >= 0 && newBackendIndex != backendIndex) game.GraphicsBackend = BackendTypes[newBackendIndex];
+
+            // ［描画方式を適用］：選んだ方式を保存して「再起動しますか？」を出す（11/22 たけらい：選ぶ所のすぐ下に）
+            Rectangle applyBackend = new Rectangle(LabelX, ToScreenY(cursorY), RightEdge - LabelX, 44);
+            if (game.GraphicsBackend != GraphicsBackend.Active)
             {
-                game.GraphicsBackend = BackendTypes[newBackendIndex];
-                // F1 の設定はすぐ保存される → そのまま「再起動しますか？」を出す（全画面は［適用］を押したとき）
-                if (!fullScreen)
+                if (Gui.PrimaryButton(applyBackend, "描画方式を適用"))
                 {
+                    ConfigManager.Game.GraphicsBackend = game.GraphicsBackend;
+                    if (savedGame != null) savedGame.GraphicsBackend = game.GraphicsBackend;   // 全画面の［適用］で二重に聞かない
                     ConfigManager.SaveAll();
-                    if (game.GraphicsBackend != GraphicsBackend.Active) { restartOpen = true; Gui.Reset(); }
+                    restartOpen = true;
+                    Gui.Reset();
                 }
             }
+            else Gui.DrawCentered($"{GraphicsBackend.Name(GraphicsBackend.Active)} で動いています", applyBackend, 22, Gui.SubTextColor);
+            cursorY += 56;
             HelpTip(SettingTexts.GraphicsBackend);
-            if (game.GraphicsBackend != GraphicsBackend.Active)
-                NoteRow(GraphicsBackend.FallbackReason ?? $"今は {GraphicsBackend.Name(GraphicsBackend.Active)} で動いています。再起動すると {GraphicsBackend.Name(game.GraphicsBackend)} になります。");
+            if (GraphicsBackend.FallbackReason != null) NoteRow(GraphicsBackend.FallbackReason);
 
             // 垂直同期
             bool vsync = CheckboxRow("垂直同期", game.VSync);
