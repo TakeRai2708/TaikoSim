@@ -51,6 +51,7 @@ namespace TakeTaikoSimulator.Scenes
         // ===== 位置(1920×1080) =====
         private const float TitleCenterX = 960f, TitleY = 66f, TitleSize = 60f, TitleOutline = 4f;
         private const float CourseX = 31f, CourseY = 153f;
+        private const float BadgeX = 281f, BadgeY = 189f;   // 演奏オプションのマーク(AUTO など)の左上
         // 演奏画面のゲージを 70% にした大きさ
         //   11/13 たけらい「左上の座標ずれ」：TaikøNauts の録画（2026-11-11 23-46-22.mp4 90秒）と、たけらいのスクショを重ねた。
         //   ゲージの右（クリアの所）は合っていて、左はしだけ 8px 右にずれていた → 倍率が少し小さかった（0.69 → 0.70）
@@ -323,8 +324,10 @@ namespace TakeTaikoSimulator.Scenes
             // 名札：TaikøNauts の録画と重ねて (16,950) → (37,932)。前は右の奥に、板の影が黒くはみ出して見えていた
             NamePlate.Draw(SongHistory.ActiveProfile, LocalSession.Controller, 37, 932);
             PuchiChara.Draw(SongHistory.ActiveProfile, LocalSession.Controller, "result");
-            // オートのときは記録を残していないので、帯で知らせる（演奏画面と同じ場所。リザルトではずっと出す）
-            if (data.AutoPlayed) UI.InfoBar.Draw(UI.InfoBar.PlayX, UI.InfoBar.PlayY, UI.InfoBar.NotSavedText);
+            // 11/22：リザルトでは「記録されません」の帯は出さない（TaikøNauts の録画 2026-11-21_23-33-04.mp4 でも出ていなかった。
+            // 右上の曲数の札にかぶっていた）。代わりに、難易度の札の右に演奏オプションのマーク（AUTO など）を出す。
+            // 録画では AUTO の 40×40 のマスの左上が (281, 189)
+            UI.OptionBadges.DrawGrid(ConfigManager.Game, BadgeX, BadgeY, 1f, int.MaxValue);
 
             // 最初は真っ暗からだんだん明るく。戻るときはだんだん暗く
             float black = elapsed < FadeInStart ? 1f : 1f - Math.Clamp((elapsed - FadeInStart) / (FadeInEnd - FadeInStart), 0f, 1f);

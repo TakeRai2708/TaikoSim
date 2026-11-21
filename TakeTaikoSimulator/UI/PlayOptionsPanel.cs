@@ -161,6 +161,7 @@ namespace TakeTaikoSimulator.UI
         private const int PercentStep = 5;
 
         private int cursor;            // 選んでいる項目
+        private const float AutoNoticeX = 490f, AutoNoticeY = 830f;   // お知らせの帯の絵の左上（前は 板の右どなり, 950）
         private float autoNoticeAge = -1f;   // 「オートプレイ中は記録されません」を出してからの秒（-1 なら出していない）
         private const float AutoNoticeSeconds = 4f;
         private int editRow = -1;      // 数字を入力中の項目(-1 ならしていない)
@@ -539,8 +540,10 @@ namespace TakeTaikoSimulator.UI
                 }
             }
 
-            // オートプレイを「する」にしたときのお知らせ（板の右どなり・画面の下の方）
-            InfoBar.Draw(PanelWidth + 4f, 950f, InfoBar.AutoOnText, InfoBar.AlphaAt(autoNoticeAge, AutoNoticeSeconds));
+            // オートプレイを「する」にしたときのお知らせ。
+            // 11/22 たけらいの指定：難易度の板のすぐ下（えらぶ／決定の案内にかぶらない所）。
+            // 帯の見えている部分のまん中が、難易度の板のまん中 x≈956・y≈887 に来るようにする
+            InfoBar.Draw(AutoNoticeX, AutoNoticeY, InfoBar.AutoOnText, InfoBar.AlphaAt(autoNoticeAge, AutoNoticeSeconds));
 
             // 入力中に、ほかの場所をクリックしたら決定する
             if (pressed && editRow >= 0 && !Raylib.CheckCollisionPointRec(mouse, Offset(ValueBox, RowArea(editRow, px, py))))
