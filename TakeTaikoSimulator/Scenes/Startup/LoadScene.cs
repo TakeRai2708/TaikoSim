@@ -42,10 +42,15 @@ namespace TakeTaikoSimulator.Scenes
         // ===== まんなかのロゴ(11/12) =====
         //   たけらい「TakeTaikoSimulator の字になってるけど、これ(丸いアイコン)を真ん中において、周りを控えめなグローに」
         //   絵は Assets/Branding/Logo.png(640×640。exe に埋め込み。スキンを読む前でも出せる)。画面には 400×400 で出す。
-        //   光：絵のうしろに、朱色のうすい丸を少しずつ大きく重ねる。4秒かけて、ゆっくり明るくなったり暗くなったりする(±15%)
+        //   光：絵のうしろに、朱色の光。4秒かけて、ゆっくり明るくなったり暗くなったりする(±15%)
+        //   11/22 たけらい「グローの広がり方が汚い」：前はうすい丸を10枚重ねていて、10段の輪っかが見えていた。
+        //   → 光の画像を1枚つくって(外へなめらかに消える曲線＋細かいノイズで段を消す)、それを1回だけ描く
         private const float LogoSize = 400f, LogoCenterY = 370f;
-        private const float LogoGlowSpread = 70f, LogoGlowAlpha = 0.045f;
-        private const int LogoGlowLayers = 10;
+        private const float LogoGlowInner = LogoSize * 0.43f;    // ここまでは同じ濃さ（絵の丸のふちのすこし内側）
+        private const float LogoGlowSpread = 120f;               // ふちから外へ、この長さで消える
+        private const float LogoGlowAlpha = 0.42f;               // いちばん濃いところ
+        private const int LogoGlowTextureSize = 512;
+        private static Texture2D logoGlow;
         private static Texture2D logo;
         private static bool logoTried;
         private static float logoClock;
@@ -81,12 +86,46 @@ namespace TakeTaikoSimulator.Scenes
             logoClock += Raylib.GetFrameTime();
             float pulse = 1f + 0.15f * MathF.Sin(logoClock * MathF.PI * 2f / 4f);
             Vector2 center = new Vector2(cx, LogoCenterY);
-            for (int i = LogoGlowLayers; i >= 1; i--)
-                SmoothShapes.Circle(center, LogoSize * 0.46f + LogoGlowSpread * i / LogoGlowLayers,
-                    UI.Gui.WithAlpha(UI.Gui.AccentColor, LogoGlowAlpha * pulse));
+            if (logoGlow.Id == 0) logoGlow = MakeLogoGlow();
+            float glowRadius = LogoGlowInner + LogoGlowSpread;
+            Raylib.DrawTexturePro(logoGlow, new Rectangle(0, 0, logoGlow.Width, logoGlow.Height),
+                new Rectangle(cx - glowRadius, LogoCenterY - glowRadius, glowRadius * 2f, glowRadius * 2f), Vector2.Zero, 0f,
+                UI.Gui.WithAlpha(Color.White, Math.Clamp(pulse / 1.15f, 0f, 1f)));
             Raylib.DrawTexturePro(logo, new Rectangle(0, 0, logo.Width, logo.Height),
                 new Rectangle(cx - LogoSize / 2f, LogoCenterY - LogoSize / 2f, LogoSize, LogoSize), Vector2.Zero, 0f, Color.White);
         }
+        // ロゴのうしろの光の画像（1回だけ作る）。真ん中から LogoGlowInner までは同じ濃さ、そこから外へ
+        //   (1 - t)^2.4 で消えていく(t = ふちからの距離 ÷ LogoGlowSpread)。消える所でカクッとしないように、最後は傾き 0 で 0 になる。
+        //   8bit の濃さだと暗い背景で段が見えるので、±0.5段ぶんの細かいノイズを混ぜる(ディザ)
+        private static unsafe Texture2D MakeLogoGlow()
+        {
+            const int size = LogoGlowTextureSize;
+            Image image = Raylib.GenImageColor(size, size, Color.Blank);
+            Raylib.ImageFormat(ref image, PixelFormat.UncompressedR8G8B8A8);
+            byte* px = (byte*)image.Data;
+            Color c = UI.Gui.AccentColor;
+            float radius = LogoGlowInner + LogoGlowSpread;
+            float peak = LogoGlowAlpha * 1.15f;   // ゆらぎのいちばん明るい時の濃さ（描くときに 1/1.15 倍まで下げる）
+            uint seed = 12345;
+            for (int y = 0; y < size; y++)
+            for (int x = 0; x < size; x++)
+            {
+                float dx = (x + 0.5f) / size * 2f - 1f, dy = (y + 0.5f) / size * 2f - 1f;
+                float d = MathF.Sqrt(dx * dx + dy * dy) * radius;            // 画面の px での中心からの距離
+                float t = Math.Clamp((d - LogoGlowInner) / LogoGlowSpread, 0f, 1f);
+                float a = peak * MathF.Pow(1f - t, 2.4f);
+                seed = seed * 1664525u + 1013904223u;
+                float noise = ((seed >> 8) / 16777216f - 0.5f) / 255f;       // ±0.5段
+                byte alpha = a <= 0f ? (byte)0 : (byte)Math.Clamp((int)MathF.Round((a + noise) * 255f), 0, 255);
+                int i = (y * size + x) * 4;
+                px[i] = c.R; px[i + 1] = c.G; px[i + 2] = c.B; px[i + 3] = alpha;
+            }
+            Texture2D texture = Raylib.LoadTextureFromImage(image);
+            Raylib.UnloadImage(image);
+            Raylib.SetTextureFilter(texture, TextureFilter.Bilinear);
+            return texture;
+        }
+
         private static readonly Color ErrorColor = new Color(255, 110, 100, 255);
 
         // ===== 見た目（Motion Prompt #089 ローディング画面。11/10） =====
