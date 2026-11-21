@@ -15,6 +15,7 @@ namespace TakeTaikoSimulator.UI
         public const string Fullscreen = "モニターいっぱいの本物のフルスクリーンで表示します（OpenTaiko と同じ）。画面合成（DWM）を通さないので、PCによっては遅れやカクつきが減ります。かわりに Alt＋Tab が少し遅くなります。";
         public const string FullscreenNote = "※ 解像度はモニターのままです（切り替えません）";
 
+        public const string GraphicsBackend = "画面の描き方です。DirectX 11 と Vulkan は ANGLE で変換して描きます。うまく映らないときは OpenGL にしてください。変えたら再起動すると反映されます。";
         public const string VSync = "画面のちらつきを防ぎます。かわりに少し遅延が増えることがあります。";
 
         public const string TargetFps = "0 で無制限。垂直同期オンのときは、モニターのリフレッシュレート（Hz）に合わせます。";

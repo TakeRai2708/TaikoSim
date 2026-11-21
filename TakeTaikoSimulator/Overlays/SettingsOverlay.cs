@@ -695,6 +695,14 @@ namespace TakeTaikoSimulator.Overlays
                 HelpTip(SettingTexts.FullscreenNote);
             }
 
+            // 描画方式（再起動で反映。今の起動で使っているものと違えば、そう書く）
+            int backendIndex = Array.IndexOf(BackendTypes, game.GraphicsBackend);
+            int newBackendIndex = DropdownRow("graphicsBackend", "描画方式", BackendNames, backendIndex);
+            if (newBackendIndex >= 0 && newBackendIndex != backendIndex) game.GraphicsBackend = BackendTypes[newBackendIndex];
+            HelpTip(SettingTexts.GraphicsBackend);
+            if (game.GraphicsBackend != GraphicsBackend.Active)
+                NoteRow(GraphicsBackend.FallbackReason ?? $"今は {GraphicsBackend.Name(GraphicsBackend.Active)} で動いています。再起動すると {GraphicsBackend.Name(game.GraphicsBackend)} になります。");
+
             // 垂直同期
             bool vsync = CheckboxRow("垂直同期", game.VSync);
             if (vsync != game.VSync)
@@ -1125,6 +1133,9 @@ namespace TakeTaikoSimulator.Overlays
             cursorY += RowHeight;
             return result;
         }
+
+        private static readonly GraphicsBackendType[] BackendTypes = { GraphicsBackendType.DirectX11, GraphicsBackendType.Vulkan, GraphicsBackendType.OpenGL };
+        private static readonly string[] BackendNames = { "DirectX 11", "Vulkan", "OpenGL" };
 
         // プルダウンの行
         private int DropdownRow(string id, string label, string[] options, int selected)

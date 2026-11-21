@@ -559,7 +559,7 @@ void main()
             {
                 if (!loaded)
                 {
-                    shader = Raylib.LoadShaderFromMemory(null!, Fragment);
+                    shader = Raylib.LoadShaderFromMemory(null!, GraphicsBackend.Glsl(Fragment));
                     pxPerUnitLocation = Raylib.GetShaderLocation(shader, "pxPerUnit");
                     dilateLocation = Raylib.GetShaderLocation(shader, "dilate");
                     loaded = true;

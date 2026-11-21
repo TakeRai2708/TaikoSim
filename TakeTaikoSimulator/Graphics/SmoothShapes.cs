@@ -62,7 +62,7 @@ void main()
     {
         if (prepared) return available;
         prepared = true;
-        shader = Raylib.LoadShaderFromMemory(null!, Fragment);
+        shader = Raylib.LoadShaderFromMemory(null!, GraphicsBackend.Glsl(Fragment));
         available = shader.Id != 0 && shader.Id != Rlgl.GetShaderIdDefault();
         if (!available) { Console.WriteLine("[UI] 輪郭のAAを準備できませんでした。従来の図形で表示します"); return false; }
         shapeLocation = Raylib.GetShaderLocation(shader, "shape");

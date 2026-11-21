@@ -482,7 +482,7 @@ namespace TakeTaikoSimulator.Graphics
 
         private static void PrepareRollHeatShader()
         {
-            rollHeatShader = Raylib.LoadShaderFromMemory(null!, RollHeatFragment);
+            rollHeatShader = Raylib.LoadShaderFromMemory(null!, GraphicsBackend.Glsl(RollHeatFragment));
             rollHeatLocation = Raylib.GetShaderLocation(rollHeatShader, "heat");
             if (rollHeatLocation < 0)
                 Console.WriteLine("[Skin] 連打の着色シェーダーを準備できませんでした（通常の色で表示します）");

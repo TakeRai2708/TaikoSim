@@ -73,6 +73,18 @@
 		<None Update="bassasio.dll">
 			<CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory>
 		</None>
+		<!-- 描画方式 DirectX 11 / Vulkan 用（Graphics/GraphicsBackend.cs）
+		     raylib_angle.dll … raylib 6.0 を OpenGL ES 3.0 でビルドしたもの（tools/angle-build で作る）
+		     libEGL.dll・libGLESv2.dll … ANGLE（BSD ライセンス。OpenTaiko の Libs/win-x64 から） -->
+		<None Update="raylib_angle.dll">
+			<CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory>
+		</None>
+		<None Update="libEGL.dll">
+			<CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory>
+		</None>
+		<None Update="libGLESv2.dll">
+			<CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory>
+		</None>
 	</ItemGroup>
 
 </Project>

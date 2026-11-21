@@ -1,0 +1,25 @@
+diff --git a/src/platforms/rcore_desktop_glfw.c b/src/platforms/rcore_desktop_glfw.c
+index 9b6881d..cc84340 100644
+--- a/src/platforms/rcore_desktop_glfw.c
++++ b/src/platforms/rcore_desktop_glfw.c
+@@ -118,6 +118,10 @@ typedef struct {
+ //----------------------------------------------------------------------------------
+ extern CoreData CORE;                   // Global CORE state context
+ 
++// TakeTaikoSimulator: InitWindow の前に呼ぶ。0 = 指定しない(ANGLE のおまかせ)
++static int takeTaikoAnglePlatform = 0;
++RLAPI void TakeTaikoSetAnglePlatform(int glfwAnglePlatformType) { takeTaikoAnglePlatform = glfwAnglePlatformType; }
++
+ static PlatformData platform = { 0 };   // Platform specific data
+ 
+ //----------------------------------------------------------------------------------
+@@ -1452,6 +1456,9 @@ int InitPlatform(void)
+ #if defined(__APPLE__)
+     glfwInitHint(GLFW_COCOA_CHDIR_RESOURCES, GLFW_FALSE);
+ #endif
++    // TakeTaikoSimulator: ANGLE の描画先(D3D11 / Vulkan / OpenGL)を選ぶ
++    if (takeTaikoAnglePlatform != 0) glfwInitHint(GLFW_ANGLE_PLATFORM_TYPE, takeTaikoAnglePlatform);
++
+     // Initialize GLFW internal global state
+     int result = glfwInit();
+     if (result == GLFW_FALSE) { TRACELOG(LOG_WARNING, "GLFW: Failed to initialize GLFW"); return -1; }

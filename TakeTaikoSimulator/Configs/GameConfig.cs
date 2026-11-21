@@ -57,6 +57,9 @@
         //   フルスクリーンはいつも本物のフルスクリーン。Graphics/Screen.cs の ApplyWindowMode）
         public FullscreenType FullscreenType { get; set; } = FullscreenType.Borderless;
 
+        // 描画方式（OpenGL / DirectX 11 / Vulkan。変えたら再起動。Graphics/GraphicsBackend.cs）
+        public Graphics.GraphicsBackendType GraphicsBackend { get; set; } = Graphics.GraphicsBackendType.DirectX11;
+
         // 垂直同期
         public bool VSync { get; set; } = false;
 
@@ -139,6 +142,7 @@
         public void Fix()
         {
             if (!Enum.IsDefined(RecordGroup)) RecordGroup = RecordGroup.OniAndUra;
+            if (!Enum.IsDefined(GraphicsBackend)) GraphicsBackend = Graphics.GraphicsBackendType.DirectX11;
             // 未知の値なら高精度に戻す（JSONを直接編集した場合など）。
             if (!Enum.IsDefined(InputTiming)) InputTiming = InputTimingMode.HighPrecision;
             if (!float.IsFinite(HiSpeed) || HiSpeed < 0f) HiSpeed = 0f;

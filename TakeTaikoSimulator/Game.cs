@@ -33,6 +33,7 @@ namespace TakeTaikoSimulator
 
         // 重さの確認用：直近1秒で一番時間がかかったフレーム(ミリ秒)
         // 普段は 1000 ÷ FPS くらい(120FPSなら約8ms)。カクッとすると大きくなる
+        private bool firstFrameShown;       // 最初の1枚を出したか（描画方式の「起動できた」印を消すため）
         private float frameMaxMs = 0f;      // 今数えている1秒の中の一番大きい値
         private int fpsShown = 0;           // FPSの表示値も1秒間固定する
         private float frameMaxShownMs = 0f; // 画面に出す値(1秒ごとに入れ替える)
@@ -44,6 +45,9 @@ namespace TakeTaikoSimulator
             // 設定を全部読み込む
             ConfigManager.LoadAll();
             PlayerSettings.Migrate();   // 前からあるプレイヤーデータに、今の設定を写す（最初の1回だけ）
+
+            // 描画方式を決める（Raylib を初めて呼ぶ前。ANGLE のときは raylib_angle.dll を読ませる）
+            GraphicsBackend.Select(ConfigManager.Game.GraphicsBackend);
 
             // 設定の解像度でウィンドウを作る
             Raylib.InitWindow(ConfigManager.Game.WindowWidth, ConfigManager.Game.WindowHeight, "TakeTaikoSimulator");
@@ -268,6 +272,7 @@ namespace TakeTaikoSimulator
             // 画面を入れ替える(垂直同期・FPS の上限の待ちもここに入る)
             t = DebugLog.Begin();
             Raylib.EndDrawing();
+            if (!firstFrameShown) { firstFrameShown = true; GraphicsBackend.FirstFrameShown(); }
             DebugLog.End(PerfSection.Present, t);
         }
 
