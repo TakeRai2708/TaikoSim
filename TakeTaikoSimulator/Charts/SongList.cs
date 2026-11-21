@@ -336,12 +336,23 @@ namespace TakeTaikoSimulator.Charts
             searchedFolders++;
             try
             {
+                // 11/22 たけらい「段位道場フォルダの箱が曲選択に出るのはおかしい」：
+                //   dan.def(段位カテゴリ) か dan.json(段位1つ) があるフォルダは段位道場用。曲選択には出さず、下も探さない
+                //   （段位道場モードは DanList が別に探すので、そっちには出る）
+                List<DirectoryInfo> folders = new();
+                List<FileInfo> songs = new();
                 foreach (FileSystemInfo entry in folder.EnumerateFileSystemInfos())
                 {
-                    if (entry is DirectoryInfo child) addFolder(child);
-                    else if (entry is FileInfo file &&
-                        string.Equals(file.Extension, ".tja", StringComparison.OrdinalIgnoreCase)) addSong(file);
+                    if (entry is DirectoryInfo child) folders.Add(child);
+                    else if (entry is FileInfo file)
+                    {
+                        if (string.Equals(file.Name, DanJson.DefName, StringComparison.OrdinalIgnoreCase)
+                            || string.Equals(file.Name, DanJson.JsonName, StringComparison.OrdinalIgnoreCase)) return;
+                        if (string.Equals(file.Extension, ".tja", StringComparison.OrdinalIgnoreCase)) songs.Add(file);
+                    }
                 }
+                foreach (DirectoryInfo child in folders) addFolder(child);
+                foreach (FileInfo file in songs) addSong(file);
             }
             catch (Exception ex) when (ex is IOException || ex is UnauthorizedAccessException)
             {
