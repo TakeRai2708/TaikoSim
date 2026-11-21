@@ -89,8 +89,6 @@ namespace TakeTaikoSimulator.Graphics
             Screen.BeginScissorMode(viewportX, viewportY + (int)(540 * scale), (int)(1920 * scale), (int)(540 * scale));
             DrawParts(skin.LowerNormal, elapsed, 540);
             if (wasClear) DrawParts(skin.LowerClear, clearElapsed, 540);
-            // 魂ゲージ MAX の演出は、下の背景の上（ダンサーより後ろ。推測なんだけど、録画では人の群れの前でダンサーが踊っていた）
-            if (mobFrame >= 0) foreach (Aup2Clip part in skin.Mob) part.DrawFrame((int)mobFrame, 540, 1f);
             dancers.Draw();
             Screen.EndScissorMode();
 
@@ -101,6 +99,16 @@ namespace TakeTaikoSimulator.Graphics
                 Raylib.DrawTextureEx(footer, new Vector2(skin.FooterX, 1080 - footer.Height + skin.FooterY),
                     0f, 1f, Color.White);
             if (scale != 1) Screen.EndScissorMode();
+
+            // 魂ゲージ MAX の演出(Mob)。aup2 は 1920×1080 の画面まるごとのキャンバスなので y=0 で置く
+            // (前は y=540 で置いていて、画面の下に外れて見えていなかった)。
+            // 11/21 の録画：人の群れはダンサーとフッターの前に出る。上半分(レーン)には出ない
+            if (mobFrame >= 0)
+            {
+                Screen.BeginScissorMode(viewportX, viewportY + (int)(540 * scale), (int)(1920 * scale), (int)(540 * scale));
+                foreach (Aup2Clip part in skin.Mob) part.DrawFrame((int)mobFrame, 0, 1f);
+                Screen.EndScissorMode();
+            }
             Raylib.EndBlendMode();
         }
 
