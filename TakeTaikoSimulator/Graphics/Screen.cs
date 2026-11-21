@@ -195,13 +195,25 @@ namespace TakeTaikoSimulator.Graphics
                 return;
             }
 
-            // 3. 枠ありのウィンドウ。
-            //    11/22：TaikøNauts(OpenTaiko) と同じく、モニターと同じ大きさまではそのままの大きさにする。
-            //    前はタイトルバーとタスクバーのぶん小さくしていた(1920×1080 → 1742×980 くらい)ので、画面ごと縮めてぼやけていた。
-            //    モニターと同じ大きさなら、絵の部分がモニターぴったりに来て(タイトルバーは画面の上の外)、フルスクリーンのように見える。
-            //    モニターより大きいときだけ、入る大きさ（16:9）まで小さくする
             int width = game.WindowWidth, height = game.WindowHeight;
-            int maxWidth = monitorWidth, maxHeight = monitorHeight;
+
+            // 3. モニターと同じ大きさ(以上)のウィンドウ → 枠なしでモニターにぴったり重ねる（OpenTaiko の「ボーダーレス」と同じ）
+            //    11/22：枠ありのまま 1920×1080 にすると、Windows がタイトルバーのぶん高さを縮めて(左右に帯)、タスクバーも上に乗った。
+            //    TaikøNauts の「ウィンドウで 1920×1080 にするとフルスクリーンっぽく出る」に合わせる。
+            //    ※ 11/8 に自前のボーダーレスをやめたのは、Claude の画面操作（スクショ・クリック）がおかしくなったから。
+            //      それが起きるのはこの大きさのときだけ。困ったらウィンドウを小さくすればいい
+            if (width >= monitorWidth && height >= monitorHeight)
+            {
+                Raylib.SetWindowState(ConfigFlags.UndecoratedWindow);
+                Raylib.SetWindowSize(monitorWidth, monitorHeight);
+                System.Numerics.Vector2 origin = Raylib.GetMonitorPosition(monitor);
+                Raylib.SetWindowPosition((int)origin.X, (int)origin.Y);
+                return;
+            }
+
+            // 4. ふつうの枠ありのウィンドウ。モニターに入りきらない大きさなら、入る大きさ（16:9）まで小さくする
+            //    （タイトルバーとタスクバーのぶん、上下に少し余白を取る）
+            int maxWidth = monitorWidth - 16, maxHeight = monitorHeight - 100;
             if (width > maxWidth || height > maxHeight)
             {
                 float fit = Math.Min((float)maxWidth / width, (float)maxHeight / height);
