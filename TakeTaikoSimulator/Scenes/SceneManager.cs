@@ -131,7 +131,7 @@ namespace TakeTaikoSimulator.Scenes
         {
             SongLoading.Draw();
             DanLoading.Draw();
-            LoadingScene.DrawLift();   // 起動画面が上へ抜けていく幕（#089）
+            LoadingScene.DrawLift();   // 起動画面が透けて消えていく幕（クロスフェード）
             float black = phase switch
             {
                 Phase.FadeOut => fadeOutSeconds > 0f ? Math.Clamp(timer / fadeOutSeconds, 0f, 1f) : 1f,

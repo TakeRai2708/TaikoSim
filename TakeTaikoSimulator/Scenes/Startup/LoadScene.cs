@@ -130,31 +130,67 @@ namespace TakeTaikoSimulator.Scenes
 
         // ===== 見た目（Motion Prompt #089 ローディング画面。11/10） =====
         // Motion Prompt #089 · MIT License (c) 2026 Shohei Ohtaki · https://showheyohtaki.github.io/motion-prompt/#089
-        //   暗い画面のまんなかに、ロゴ(11/12 から丸いアイコンの絵)・% ・細いバー。読み終わったら、画面ごと上へ抜けて（0.55秒・easeInOutCubic）、
+        //   暗い画面のまんなかに、ロゴ(11/12 から丸いアイコンの絵)・% ・細いバー。読み終わったら、（11/22 から）画面ごと透けて消えて（0.6秒・easeInOutCubic）、
         //   下から次の画面が明るくなって出てくる（0.6秒）。
         //   #089 は % が決まった時間で 0→100 に進むけど、TakeTaikoSimulator は本当の進み具合（スキン半分・曲半分）を、なめらかに追いかけて出す。
         //   スキン・曲の細かい進み具合は、前と同じ内容を小さい字で下に残す（cdc7b38 の進捗バー）
-        private const float LiftSeconds = 0.55f, NextFadeIn = 0.6f;
+        private const float LiftSeconds = 0.6f;   // 幕が透けて消えるまで
         private const float BarWidth = 640f, BarHeight = 8f;
         private float shownProgress;   // 画面に出している進み具合（本当の値をなめらかに追いかける）
 
-        // 上へ抜けていく幕（次の画面に切りかわったあとも、SceneManager.DrawFade から描く）
+        // 透けて消えていく幕（次の画面に切りかわったあとも、SceneManager.DrawFade から描く）
         private static float liftTime = -1f;
         public static bool LiftActive => liftTime >= 0f;
         private static string liftSkin = "";
 
-        /// <summary>上へ抜けていく幕を描く（SceneManager.DrawFade から毎フレーム）</summary>
+        /// <summary>透けて消えていく幕を描く（SceneManager.DrawFade から毎フレーム）</summary>
+        // 11/22 たけらい「ロード終わったときはフェードインで」→ 上へ抜ける動き(#089)をやめて、クロスフェード（黒は挟まない）。
+        //   幕は図形・文字・グローの重ね描きなので、そのまま半透明で描くと重なりがムラになる。
+        //   だから、読み終わった瞬間の幕を1枚の絵に撮っておき、その絵を 0.6秒で透かしていく（easeInOutCubic）
         public static void DrawLift()
         {
             if (liftTime < 0f) return;
-            liftTime += Raylib.GetFrameTime();
+            liftTime += Math.Min(Raylib.GetFrameTime(), 1f / 30f);
             float k = Math.Clamp(liftTime / LiftSeconds, 0f, 1f);
-            float e = k < 0.5f ? 4f * k * k * k : 1f - MathF.Pow(-2f * k + 2f, 3f) / 2f;   // easeInOutCubic
-            if (k >= 1f) { liftTime = -1f; return; }
-            Rlgl.PushMatrix();
-            Rlgl.Translatef(0f, -Screen.Height * e, 0f);
+            if (k >= 1f) { liftTime = -1f; FreeSnapshot(); return; }
+            float e = k < 0.5f ? 4f * k * k * k : 1f - MathF.Pow(-2f * k + 2f, 3f) / 2f;
+            Color tint = Raylib.ColorAlpha(Color.White, 1f - e);
+            if (liftSnapshot.Id != 0)
+                Raylib.DrawTexturePro(liftSnapshot, new Rectangle(0, 0, liftSnapshot.Width, liftSnapshot.Height),
+                    new Rectangle(0, 0, Screen.Width, Screen.Height), Vector2.Zero, 0f, tint);
+            else
+                Raylib.DrawRectangle(0, 0, Screen.Width, Screen.Height, Raylib.ColorAlpha(BackColor, 1f - e));
+        }
+
+        private static Texture2D liftSnapshot;
+
+        // 読み終わった瞬間の幕を 1920×1080 の絵に撮る（Update の中＝画面を描く前に呼ぶ）
+        private static unsafe void TakeSnapshot()
+        {
+            FreeSnapshot();
+            RenderTexture2D rt = Raylib.LoadRenderTexture(Screen.Width, Screen.Height);
+            if (rt.Id == 0) return;
+            Raylib.BeginTextureMode(rt);
+            Raylib.ClearBackground(BackColor);
             DrawCurtain(1f, liftSkin, null);
-            Rlgl.PopMatrix();
+            Raylib.EndTextureMode();
+            // 半透明の重ね描きで、絵の透明度(α)が1より下がったところがあると、そこだけ早く消えて見える。全部 α=255 にそろえる
+            Image img = Raylib.LoadImageFromTexture(rt.Texture);
+            Raylib.UnloadRenderTexture(rt);
+            Raylib.ImageFormat(ref img, PixelFormat.UncompressedR8G8B8A8);
+            Raylib.ImageFlipVertical(ref img);   // RenderTexture は上下逆さま
+            byte* px = (byte*)img.Data;
+            int count = img.Width * img.Height;
+            for (int i = 0; i < count; i++) px[i * 4 + 3] = 255;
+            liftSnapshot = Raylib.LoadTextureFromImage(img);
+            Raylib.UnloadImage(img);
+            Raylib.SetTextureFilter(liftSnapshot, TextureFilter.Bilinear);
+        }
+
+        private static void FreeSnapshot()
+        {
+            if (liftSnapshot.Id != 0) Raylib.UnloadTexture(liftSnapshot);
+            liftSnapshot = default;
         }
 
         // 幕の中身：背景・ロゴ・%・バー（detail は下の小さい字。null なら出さない）
@@ -259,11 +295,12 @@ namespace TakeTaikoSimulator.Scenes
         {
             step = Step.Leave;
 
-            // #089：この画面が上へ抜けて、次の画面が下から明るくなって出る（幕は SceneManager.DrawFade が描き続ける）
-            liftTime = 0f;
+            // この画面が透けて消えて、下から次の画面が出てくる（幕は SceneManager.DrawFade が描き続ける。黒は挟まない）
             liftSkin = SkinLine();
+            TakeSnapshot();
+            liftTime = 0f;
             Scene next = ConfigManager.Key.NeedsSetup() ? new SetupScene() : new EntryScene();
-            SceneManager.FromBoot(next, NextFadeIn);
+            SceneManager.FromBoot(next, 0f);
         }
 
         private string SkinLine()
