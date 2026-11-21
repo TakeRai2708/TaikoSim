@@ -31,6 +31,14 @@ namespace TakeTaikoSimulator
         // true にするとアプリが終了する(設定パネルの⏻ボタンで使う)
         public static bool ShouldExit { get; set; } = false;
 
+        // true なら、終わったあとにもう一度起動する（描画方式を変えたとき。音や窓を全部片付けてから起動する）
+        private static bool restartRequested;
+        public static void RequestRestart()
+        {
+            restartRequested = true;
+            ShouldExit = true;
+        }
+
         // 重さの確認用：直近1秒で一番時間がかかったフレーム(ミリ秒)
         // 普段は 1000 ÷ FPS くらい(120FPSなら約8ms)。カクッとすると大きくなる
         private bool firstFrameShown;       // 最初の1枚を出したか（描画方式の「起動できた」印を消すため）
@@ -111,6 +119,23 @@ namespace TakeTaikoSimulator
 
             // デバッグ記録の書き残しを、全部ファイルに書いてから終わる
             DebugLog.Shutdown();
+
+            // 「再起動しますか？」で［はい］：全部片付けてから、同じ exe をもう一度起動する
+            if (restartRequested && Environment.ProcessPath is string exe)
+            {
+                try
+                {
+                    System.Diagnostics.Process.Start(new System.Diagnostics.ProcessStartInfo(exe)
+                    {
+                        UseShellExecute = false,
+                        WorkingDirectory = AppContext.BaseDirectory,
+                    });
+                }
+                catch (Exception ex) when (ex is System.ComponentModel.Win32Exception || ex is InvalidOperationException)
+                {
+                    Console.WriteLine($"[Restart] もう一度起動できませんでした: {ex.Message}");
+                }
+            }
         }
 
         // フレームの時間を記録する(1秒ごとに一番大きい値を画面用に入れ替える)

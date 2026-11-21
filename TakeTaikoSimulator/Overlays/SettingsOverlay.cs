@@ -79,6 +79,7 @@ namespace TakeTaikoSimulator.Overlays
         private SkinConfig? draftSkin, savedSkin;
         private List<string> visibleSkinNames = new();
         private bool unsavedOpen;
+        private bool restartOpen;   // 描画方式を変えて適用したあとの「再起動しますか？」
         private GameConfig ActiveGame => fullScreen ? draftGame! : ConfigManager.Game;
         private SoundConfig ActiveSound => fullScreen ? draftSound! : ConfigManager.Sound;
         private KeyConfig ActiveKey => fullScreen ? draftKey! : ConfigManager.Key;
@@ -266,6 +267,8 @@ namespace TakeTaikoSimulator.Overlays
                 Screen.RequestApply();
             if (beforeGame.VSync != draftGame.VSync || beforeGame.TargetFps != draftGame.TargetFps)
                 Screen.ApplyFrameSettings();
+            // 描画方式は再起動しないと変わらない → 今動いている方式と違えば「再起動しますか？」を出す
+            bool backendChanged = beforeGame.GraphicsBackend != draftGame.GraphicsBackend && draftGame.GraphicsBackend != GraphicsBackend.Active;
             if ((beforeSkin.SkinsFolder != draftSkin.SkinsFolder || beforeSkin.SkinName != draftSkin.SkinName) && !InPlay)
                 SkinManager.Reload();
 
@@ -286,6 +289,36 @@ namespace TakeTaikoSimulator.Overlays
             draftKey = ConfigManager.Copy(savedKey);
             draftSkin = ConfigManager.Copy(savedSkin);
             ShowMessage("設定を適用して保存しました", SuccessColor);
+            if (backendChanged) restartOpen = true;
+        }
+
+        // 「再起動しますか？」の［あとで］・Esc
+        private void RestartLater()
+        {
+            restartOpen = false;
+            ShowMessage($"{GraphicsBackend.Name(ConfigManager.Game.GraphicsBackend)} は次回の起動時に適用します", SuccessColor);
+        }
+
+        // 描画方式を変えたあとの「再起動しますか？」（11/22 たけらい）
+        private void DrawRestartDialog()
+        {
+            Raylib.DrawRectangle(0, 0, Screen.Width, Screen.Height, new Color(0, 0, 0, 175));
+            Rectangle box = new Rectangle(530, 360, 860, 330);
+            SmoothShapes.Rectangle(box, 20, Gui.PanelColor);
+            SmoothShapes.Border(box, 20, 1.5f, Gui.BorderColor);
+
+            FontManager.Draw("再起動しますか？", box.X + 50, box.Y + 48, 38, Color.White);
+            FontManager.Draw($"描画方式（{GraphicsBackend.Name(ConfigManager.Game.GraphicsBackend)}）は、再起動すると切り替わります。",
+                box.X + 50, box.Y + 118, 26, Gui.SubTextColor);
+
+            Rectangle later = new Rectangle(box.X + 42, box.Y + 230, 365, 65);
+            Rectangle yes = new Rectangle(box.X + 453, box.Y + 230, 365, 65);
+            if (Gui.Button(later, "あとで")) RestartLater();
+            else if (Gui.PrimaryButton(yes, "はい"))
+            {
+                restartOpen = false;
+                Game.RequestRestart();
+            }
         }
 
         private void DiscardAndClose()
@@ -333,6 +366,11 @@ namespace TakeTaikoSimulator.Overlays
             if (unsavedOpen)
             {
                 if (InputManager.IsBackPressed()) unsavedOpen = false;
+                return;
+            }
+            if (restartOpen)
+            {
+                if (InputManager.IsBackPressed()) RestartLater();   // Esc は「あとで」と同じ
                 return;
             }
 
@@ -397,7 +435,7 @@ namespace TakeTaikoSimulator.Overlays
 
             Rectangle content = new Rectangle(SidebarWidth + 18, HeaderHeight + 16,
                 CurrentWidth - SidebarWidth - 42, Screen.Height - HeaderHeight - HintHeight - 32);
-            if (!confirmOpen && !unsavedOpen && resetStep == 0 && !animating) UpdateScroll(content);
+            if (!confirmOpen && !unsavedOpen && !restartOpen && resetStep == 0 && !animating) UpdateScroll(content);
 
             // 後ろを暗くする(開き具合に合わせて)。全画面は開ききったら後ろが見えないので、動いている間だけ
             float open = OpenAmount();
@@ -418,7 +456,7 @@ namespace TakeTaikoSimulator.Overlays
 
             // はみ出しを切る範囲は、横にずらした分も足す(切る範囲は Translatef の影響を受けないので)
             Screen.BeginScissorMode((int)(content.X + slideX), (int)content.Y, (int)content.Width, (int)content.Height);
-            Gui.SetClip(confirmOpen || unsavedOpen || resetStep != 0 ? NoClickArea : content);
+            Gui.SetClip(confirmOpen || unsavedOpen || restartOpen || resetStep != 0 ? NoClickArea : content);
 
             // カテゴリを変えた直後：中身を 8px 下から戻す(ToScreenY が switchShift を足す。#057)
             float swEase = Math.Clamp((switchTime - SwitchDelay) / SwitchSeconds, 0f, 1f);   // #057：中身は等速でじわっと
@@ -461,18 +499,19 @@ namespace TakeTaikoSimulator.Overlays
             Screen.EndScissorMode();
             DrawScrollbar(content);
 
-            if (confirmOpen || unsavedOpen || resetStep != 0) Gui.SetClip(NoClickArea);
+            if (confirmOpen || unsavedOpen || restartOpen || resetStep != 0) Gui.SetClip(NoClickArea);
             DrawHeader();
             DrawSidebar();
             DrawHint();
             Gui.ResetClip();
-            if (!confirmOpen && !unsavedOpen && resetStep == 0) DrawTips();
+            if (!confirmOpen && !unsavedOpen && !restartOpen && resetStep == 0) DrawTips();
 
             DrawMessage();
 
             if (resetStep != 0) DrawResetDialog();
             else if (confirmOpen) DrawConfirmDialog();
             else if (unsavedOpen) DrawUnsavedDialog();
+            else if (restartOpen) DrawRestartDialog();
             else Gui.DrawPopups();
 
             Rlgl.PopMatrix();
@@ -698,7 +737,16 @@ namespace TakeTaikoSimulator.Overlays
             // 描画方式（再起動で反映。今の起動で使っているものと違えば、そう書く）
             int backendIndex = Array.IndexOf(BackendTypes, game.GraphicsBackend);
             int newBackendIndex = DropdownRow("graphicsBackend", "描画方式", BackendNames, backendIndex);
-            if (newBackendIndex >= 0 && newBackendIndex != backendIndex) game.GraphicsBackend = BackendTypes[newBackendIndex];
+            if (newBackendIndex >= 0 && newBackendIndex != backendIndex)
+            {
+                game.GraphicsBackend = BackendTypes[newBackendIndex];
+                // F1 の設定はすぐ保存される → そのまま「再起動しますか？」を出す（全画面は［適用］を押したとき）
+                if (!fullScreen)
+                {
+                    ConfigManager.SaveAll();
+                    if (game.GraphicsBackend != GraphicsBackend.Active) { restartOpen = true; Gui.Reset(); }
+                }
+            }
             HelpTip(SettingTexts.GraphicsBackend);
             if (game.GraphicsBackend != GraphicsBackend.Active)
                 NoteRow(GraphicsBackend.FallbackReason ?? $"今は {GraphicsBackend.Name(GraphicsBackend.Active)} で動いています。再起動すると {GraphicsBackend.Name(game.GraphicsBackend)} になります。");
@@ -1028,9 +1076,18 @@ namespace TakeTaikoSimulator.Overlays
                 {
                     ConfigManager.SaveSkin(); // F1 はすぐ保存し、閉じたときに画像を読み直す
                 }
-                ShowMessage(fullScreen ? "スキンは［適用］で切り替わります"
-                    : $"{skin.SkinName} を保存しました（設定を閉じると切り替わります）", SuccessColor);
+                ShowMessage($"{skin.SkinName} を選びました（［スキンを適用］ですぐ切り替わります）", SuccessColor);
             }
+
+            // ［スキンを適用］：押したらすぐ画像を読み直して切り替える（11/22 たけらい）
+            bool skinPending = !SameSkinPath(skin.GetCurrentSkinPath(), SkinManager.CurrentPath);
+            Rectangle applySkin = new Rectangle(LabelX, ToScreenY(cursorY), RightEdge - LabelX, 44);
+            if (skinPending)
+            {
+                if (Gui.PrimaryButton(applySkin, "スキンを適用")) ApplySkinNow(skin);
+            }
+            else Gui.DrawCentered($"{skin.SkinName} を使っています", applySkin, 22, Gui.SubTextColor);
+            cursorY += 56;
 
             // ----- プレビュー(選んでいるスキンの音符。まだ切り替えていないスキンも、そのスキンの画像で見せる) -----
             skinPreview.Load(skin.GetCurrentSkinPath());
@@ -1417,6 +1474,7 @@ namespace TakeTaikoSimulator.Overlays
             if (resetStep != 0) hint = "Esc：やめる";
             else if (confirmOpen) hint = "Esc：設定に戻る";
             else if (unsavedOpen) hint = "Esc：確認を閉じる";
+            else if (restartOpen) hint = "Esc：あとで";
             else if (waitingTarget != null) hint = "キーを押すと登録　Esc：キャンセル";
             else if (Gui.IsEditing) hint = "数字を入力　Enter：決定　Esc：キャンセル";
             else if (Gui.IsSliderFocused) hint = "←→：±1　Shift＋←→：±10　数字クリック：直接入力";
@@ -1463,7 +1521,7 @@ namespace TakeTaikoSimulator.Overlays
             {
                 unsavedOpen = false;
                 ApplyFullSettings();
-                RequestClose();
+                if (!restartOpen) RequestClose();   // 再起動の確認を出したときは、それに答えてもらう
             }
         }
 
@@ -1557,6 +1615,22 @@ namespace TakeTaikoSimulator.Overlays
                 ShowMessage("このフォルダにスキンが見つかりませんでした", ErrorColor);
             else
                 ShowMessage($"スキンフォルダを保存しました（{visibleSkinNames.Count}個、設定を閉じると {skin.SkinName} に切り替わります）", SuccessColor);
+        }
+
+        private static bool SameSkinPath(string? a, string? b) =>
+            a != null && b != null && string.Equals(Path.GetFullPath(a).TrimEnd('\\', '/'), Path.GetFullPath(b).TrimEnd('\\', '/'), StringComparison.OrdinalIgnoreCase);
+
+        // ［スキンを適用］：選んでいるスキンだけを、すぐ反映して保存する（ほかの設定はそのまま）
+        private void ApplySkinNow(SkinConfig skin)
+        {
+            if (InPlay) { ShowMessage("演奏中はスキンを切り替えられません", ErrorColor); return; }
+            ConfigManager.Skin.SkinsFolder = skin.SkinsFolder;
+            ConfigManager.Skin.SkinName = skin.SkinName;
+            ConfigManager.SaveSkin();
+            SkinManager.Reload();
+            // もう反映したので、閉じるときや［適用］で読み直さないように「保存ずみ」も合わせる
+            if (savedSkin != null) { savedSkin.SkinsFolder = skin.SkinsFolder; savedSkin.SkinName = skin.SkinName; }
+            ShowMessage($"{skin.SkinName} に切り替えました", SuccessColor);
         }
 
         // スキン一覧を読み直す
