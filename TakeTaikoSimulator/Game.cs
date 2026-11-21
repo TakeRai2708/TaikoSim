@@ -125,11 +125,15 @@ namespace TakeTaikoSimulator
             {
                 try
                 {
+                    // UseShellExecute = true：新しい黒い画面(コンソール)をもらって起動する。
+                    // false だと今の黒い画面を引きつぐので、Visual Studio が今のプロセスの終わりに黒い画面を閉じたとき、
+                    // 新しいほうもいっしょに消えていた（11/22：［はい］を押すと終わるだけだった）
                     System.Diagnostics.Process.Start(new System.Diagnostics.ProcessStartInfo(exe)
                     {
-                        UseShellExecute = false,
+                        UseShellExecute = true,
                         WorkingDirectory = AppContext.BaseDirectory,
                     });
+                    Console.WriteLine("[Restart] もう一度起動しました");
                 }
                 catch (Exception ex) when (ex is System.ComponentModel.Win32Exception || ex is InvalidOperationException)
                 {
