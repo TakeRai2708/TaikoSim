@@ -64,6 +64,9 @@ public sealed class EntryScene : Scene
     public override bool CanOpenSettings => !join.Naming && !join.Busy;
 
     public override string? MenuBgmFile => MenuBgm.EntryFile;
+    // 起動直後は、画面が明るくなりきるまで BGM を待つ（明るくなったら頭から流れる）
+    public override bool MenuBgmMuted => SceneManager.IntroPlaying;
+    private bool startVoicePending;   // 「太鼓をたたいてスタート」ボイスは、操作できるようになった最初のフレームで鳴らす
 
     public EntryScene(bool selectData = false) => this.selectData = selectData;
 
@@ -108,8 +111,11 @@ public sealed class EntryScene : Scene
             if (LocalSession.Count == 0) LocalSession.Join(0, 0);
             OpenReselect();
         }
-        MenuVoice.Play("Sound/Entry/Start.ogg");
+        startVoicePending = true;
     }
+
+    // 画面切りかえ中（起動直後のフェードインを含む）：操作は受けないけど、背景の花火は動かしておく
+    public override void UpdateBlocked(float dt) => elapsed += dt;
 
     public override void Exit()
     {
@@ -138,6 +144,7 @@ public sealed class EntryScene : Scene
     public override void Update(float dt)
     {
         elapsed += dt;
+        if (startVoicePending) { startVoicePending = false; MenuVoice.Play("Sound/Entry/Start.ogg"); }
         if (leaving) return;
         if (step == Step.Data)
         {

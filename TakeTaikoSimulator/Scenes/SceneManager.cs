@@ -44,7 +44,18 @@ namespace TakeTaikoSimulator.Scenes
 
         // 暗くしている途中・真っ黒の間(今の画面を操作させない)
         //   曲の読み込み画面の、幕が開き始めるまでも同じ
-        public static bool IsBlocking => phase is Phase.FadeOut or Phase.Hold || SongLoading.IsBlocking || DanLoading.IsBlocking;
+        public static bool IsBlocking => phase is Phase.FadeOut or Phase.Hold || IntroPlaying || SongLoading.IsBlocking || DanLoading.IsBlocking;
+
+        // 11/22 たけらい「完全に画面が表示してから操作、音出し」：起動画面 → 最初の画面のフェードインが終わるまでは、操作も音も止める
+        private static bool bootIntro;
+        public static bool IntroPlaying => bootIntro && (phase != Phase.None || LoadingScene.LiftActive);
+
+        /// <summary>起動画面（LoadingScene）から最初の画面へ。明るくなりきるまで操作・BGM・ボイスを待たせる</summary>
+        public static void FromBoot(Scene scene, float fadeIn)
+        {
+            ChangeScene(scene, 0f, 0f, fadeIn);
+            bootIntro = true;
+        }
 
         // 画面を切り替える予約をする
         //   fadeOut：今の画面をだんだん暗くする秒数(0 ならいきなり)
@@ -95,6 +106,7 @@ namespace TakeTaikoSimulator.Scenes
                     if (timer >= fadeInSeconds) phase = Phase.None;
                     break;
             }
+            if (bootIntro && !IntroPlaying) bootIntro = false;
         }
 
         // 予約されていたら実際に切り替える(Game が毎フレーム最初に呼ぶ)

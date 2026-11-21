@@ -140,6 +140,7 @@ namespace TakeTaikoSimulator.Scenes
 
         // 上へ抜けていく幕（次の画面に切りかわったあとも、SceneManager.DrawFade から描く）
         private static float liftTime = -1f;
+        public static bool LiftActive => liftTime >= 0f;
         private static string liftSkin = "";
 
         /// <summary>上へ抜けていく幕を描く（SceneManager.DrawFade から毎フレーム）</summary>
@@ -189,7 +190,13 @@ namespace TakeTaikoSimulator.Scenes
 
         public override void Enter()
         {
+            fadeInTime = 0f;
         }
+
+        // 11/22 たけらい「最初の起動の画面はフェードインで」：黒から 0.6秒でじわっと出す（easeOutCubic）。
+        //   読み込みで1コマが長くなっても途中が飛ばないよう、1コマで進むのは 1/30秒まで
+        private const float FadeInSeconds = 0.6f;
+        private float fadeInTime;
 
         // 読み込み中は Esc を使わない
         public override void OnBack()
@@ -256,7 +263,7 @@ namespace TakeTaikoSimulator.Scenes
             liftTime = 0f;
             liftSkin = SkinLine();
             Scene next = ConfigManager.Key.NeedsSetup() ? new SetupScene() : new EntryScene();
-            SceneManager.ChangeScene(next, 0f, 0f, NextFadeIn);
+            SceneManager.FromBoot(next, NextFadeIn);
         }
 
         private string SkinLine()
@@ -297,6 +304,14 @@ namespace TakeTaikoSimulator.Scenes
                     FontManager.Draw("Enter：次へ", Left, 1000, 26, SubColor);
                 }
             });
+
+            if (fadeInTime < FadeInSeconds)
+            {
+                fadeInTime += Math.Min(Raylib.GetFrameTime(), 1f / 30f);
+                float k = Math.Clamp(fadeInTime / FadeInSeconds, 0f, 1f);
+                float shown = 1f - MathF.Pow(1f - k, 3f);
+                Raylib.DrawRectangle(0, 0, Screen.Width, Screen.Height, Raylib.ColorAlpha(Color.Black, 1f - shown));
+            }
         }
     }
 }
