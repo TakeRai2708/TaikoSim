@@ -26,7 +26,12 @@ namespace TakeTaikoSimulator.Diagnostics
             get
             {
                 if (runFolder != null) return runFolder;
-                runFolder = Path.Combine(Root, $"TaikoSimLog_{DateTime.Now:yyyyMMdd_HHmmss}");
+                // 同じ秒に2回起動すると(描画方式で窓を作れず、すぐ OpenGL で起動し直したときなど)、
+                // 同じフォルダになって前のログを上書きしていた(11/22)。あれば _2, _3 … を付ける
+                string name = $"TaikoSimLog_{DateTime.Now:yyyyMMdd_HHmmss}";
+                string path = Path.Combine(Root, name);
+                for (int i = 2; Directory.Exists(path); i++) path = Path.Combine(Root, $"{name}_{i}");
+                runFolder = path;
                 Directory.CreateDirectory(runFolder);
                 return runFolder;
             }
