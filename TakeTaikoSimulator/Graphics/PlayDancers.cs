@@ -48,6 +48,8 @@ namespace TakeTaikoSimulator.Graphics
         private enum State { Hidden, In, Loop, Out }
         private State[] state = Array.Empty<State>();
         private double[] progress = Array.Empty<double>(); // 今の動きの何割まで進んだか(0〜1)。Loop は何周目かも込み
+        // おどりのくり返しは全員で同じ時計を使う(TaikøNauts は全員が同じポーズでそろっている)
+        private double sharedMeasures;
 
         public static void Unload()
         {
@@ -187,12 +189,14 @@ namespace TakeTaikoSimulator.Graphics
         {
             state = new State[slotTypes.Length];
             progress = new double[slotTypes.Length];
+            sharedMeasures = 0;
         }
 
         public void Update(float dt, float gaugePercent, double measureSeconds)
         {
             if (state.Length != slotTypes.Length) Reset();
             double measures = Math.Max(0f, dt) / Math.Max(0.1, measureSeconds);
+            sharedMeasures += measures;
             for (int i = 0; i < state.Length; i++)
             {
                 DancerType? type = slotTypes[i];
@@ -235,7 +239,9 @@ namespace TakeTaikoSimulator.Graphics
                         else DrawSequence(type.Out, progress[i], type.OutBase, At(type.OutX, i), At(type.OutY, i));
                         break;
                     case State.Loop:
-                        double phase = progress[i] - Math.Floor(progress[i]);
+                        // 出てきた時刻に関係なく、みんなの時計で何周目かを決める → 全員同じ動きになる
+                        double loops = sharedMeasures / Math.Max(0.001, type.LoopMeasures);
+                        double phase = loops - Math.Floor(loops);
                         if (type.LoopClip is PlayBackground.Aup2Clip clip)
                             clip.DrawFrame((int)(phase * clip.FrameCount), At(type.LoopX, i), At(type.LoopY, i), 1f);
                         else
