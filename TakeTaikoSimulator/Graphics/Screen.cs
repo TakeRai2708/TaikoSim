@@ -195,10 +195,13 @@ namespace TakeTaikoSimulator.Graphics
                 return;
             }
 
-            // 3. 枠ありのウィンドウ。モニターに入りきらない大きさなら、入る大きさ（16:9）まで小さくする
-            //    （タイトルバーとタスクバーのぶん、上下に少し余白を取る）
+            // 3. 枠ありのウィンドウ。
+            //    11/22：TaikøNauts(OpenTaiko) と同じく、モニターと同じ大きさまではそのままの大きさにする。
+            //    前はタイトルバーとタスクバーのぶん小さくしていた(1920×1080 → 1742×980 くらい)ので、画面ごと縮めてぼやけていた。
+            //    モニターと同じ大きさなら、絵の部分がモニターぴったりに来て(タイトルバーは画面の上の外)、フルスクリーンのように見える。
+            //    モニターより大きいときだけ、入る大きさ（16:9）まで小さくする
             int width = game.WindowWidth, height = game.WindowHeight;
-            int maxWidth = monitorWidth - 16, maxHeight = monitorHeight - 100;
+            int maxWidth = monitorWidth, maxHeight = monitorHeight;
             if (width > maxWidth || height > maxHeight)
             {
                 float fit = Math.Min((float)maxWidth / width, (float)maxHeight / height);
@@ -254,8 +257,10 @@ namespace TakeTaikoSimulator.Graphics
             int monitorWidth = Raylib.GetMonitorWidth(monitor);
             int monitorHeight = Raylib.GetMonitorHeight(monitor);
 
-            int x = Math.Max(0, (monitorWidth - Raylib.GetScreenWidth()) / 2);
-            int y = Math.Max(0, (monitorHeight - Raylib.GetScreenHeight()) / 2);
+            // 絵の部分(タイトルバーを除く)の左上を決める。モニターが2枚以上でも、今のモニターの中に置く
+            System.Numerics.Vector2 origin = Raylib.GetMonitorPosition(monitor);
+            int x = (int)origin.X + Math.Max(0, (monitorWidth - Raylib.GetScreenWidth()) / 2);
+            int y = (int)origin.Y + Math.Max(0, (monitorHeight - Raylib.GetScreenHeight()) / 2);
             Raylib.SetWindowPosition(x, y);
         }
 
