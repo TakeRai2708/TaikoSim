@@ -85,6 +85,11 @@
 		<None Update="libGLESv2.dll">
 			<CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory>
 		</None>
+		<!-- Vulkan の入り口（Khronos Vulkan-Loader。Apache-2.0。OpenTaiko の Libs/win-x64 から）。
+		     ANGLE は自分の横の vulkan-1.dll を使うので、これが無いと Vulkan で EGL を始められなかった（11/22） -->
+		<None Update="vulkan-1.dll">
+			<CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory>
+		</None>
 	</ItemGroup>
 
 </Project>
