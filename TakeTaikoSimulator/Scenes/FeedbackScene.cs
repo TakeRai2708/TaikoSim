@@ -10,8 +10,8 @@ public sealed class FeedbackScene : Scene
 
     public override void Enter()
     {
-        var editor = new UpdateWindow("ご意見・不具合を書いてください", draft,
-            "GitHubで送信", "戻る", true) { EditableBody = true };
+        var editor = new UpdateWindow("フィードバック", draft,
+            "送信画面へ", "戻る", false) { EditableBody = true };
         int result = editor.Show();
         draft = editor.BodyText;
         if (result == UpdateWindow.Accept && !string.IsNullOrWhiteSpace(draft))

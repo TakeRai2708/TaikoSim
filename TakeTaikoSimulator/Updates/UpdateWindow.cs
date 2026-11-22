@@ -32,6 +32,8 @@ internal sealed class UpdateWindow(string heading, string body, string? primary,
     private nint window, brand, title, details, folderField, question;
     private nint desktopCheckBox;
     private nint originalCheckBoxProc;
+    private nint inputBrush;
+    private Rect inputArea;
     private nint regularFont, headingFont, brandFont, backgroundBrush, panelBrush;
     private readonly Dictionary<int, nint> buttons = [];
     private Rect panel, progress;
@@ -138,7 +140,7 @@ internal sealed class UpdateWindow(string heading, string body, string? primary,
                 DestroyWindow(window);
                 window = 0;
             }
-            foreach (nint resource in new[] { regularFont, headingFont, brandFont, backgroundBrush, panelBrush })
+            foreach (nint resource in new[] { regularFont, headingFont, brandFont, backgroundBrush, panelBrush, inputBrush })
                 if (resource != 0)
                     DeleteObject(resource);
             current = null;
@@ -153,6 +155,8 @@ internal sealed class UpdateWindow(string heading, string body, string? primary,
         brandFont = MakeFont(Scale(15), 600);
         backgroundBrush = CreateSolidBrush(Background);
         panelBrush = CreateSolidBrush(Panel);
+        if (EditableBody)
+            inputBrush = CreateSolidBrush(Rgb(38, 23, 29));
         brand = Child("STATIC", installer ? "TakeTaiko インストーラー" : "TakeTaiko", 0,
             margin, 12, width - 100, 20, 0, brandFont);
         if (CanClose)
@@ -166,8 +170,20 @@ internal sealed class UpdateWindow(string heading, string body, string? primary,
         int charsPerLine = Math.Max(1, (width - 84) / 15);
         int lines = content.Split('\n').Sum(line => Math.Max(1, (line.TrimEnd('\r').Length + charsPerLine - 1) / charsPerLine));
         uint scroll = lines * 20 > bodyHeight ? 0x00200000u : 0;
-        details = Child("EDIT", content, EditableBody ? 0x00311044u : scroll | 0x0844,
-            margin + 18, 122, width - 84, bodyHeight, 0, regularFont);
+        int inputTop = EditableBody ? 140 : 122;
+        int inputHeight = EditableBody ? bodyHeight - 40 : bodyHeight;
+        inputArea = new Rect(Scale(margin + 17), Scale(inputTop - 7),
+            Scale(width - margin - 17), Scale(inputTop + inputHeight + 7));
+        if (EditableBody)
+        {
+            Child("STATIC", "ご意見・不具合の内容（ここに入力）", 0, margin + 18, 111,
+                width - 84, 24, 0, regularFont);
+            Child("STATIC", "1400文字まで・次の画面で確認して投稿（GitHubログインが必要）", 0,
+                margin + 18, height - 91, width - 84, 22, 0, regularFont);
+        }
+        details = Child("EDIT", content, EditableBody ? 0x00011044u : scroll | 0x0844,
+            margin + (EditableBody ? 28 : 18), inputTop, width - (EditableBody ? 104 : 84),
+            inputHeight, 0, regularFont);
         if (EditableBody)
             SendMessage(details, 0x00C5, 1400, 0); // EM_SETLIMITTEXT
 
@@ -193,7 +209,7 @@ internal sealed class UpdateWindow(string heading, string body, string? primary,
             focus = Button(primary, width - (secondary is null ? 138 : 254), height - 53, 114, 35, Accept);
         if (secondary is not null)
             focus = Button(secondary, width - 132, height - 53, 108, 35, Cancel);
-        return focus == 0 ? window : focus;
+        return EditableBody ? details : focus == 0 ? window : focus;
     }
 
     private bool CanClose => primary is not null || secondary is not null;
@@ -255,6 +271,8 @@ internal sealed class UpdateWindow(string heading, string body, string? primary,
                     GetClientRect(hwnd, out Rect client);
                     FillRect(canvas, ref client, backgroundBrush);
                     Rounded(canvas, panel, Panel, Border, Scale(18));
+                    if (EditableBody)
+                        Rounded(canvas, inputArea, Rgb(38, 23, 29), Sakura, Scale(10));
                     if (percent is int value)
                     {
                         Rect track = new(progress.Left, progress.Top + Scale(24), progress.Right, progress.Top + Scale(31));
@@ -271,6 +289,12 @@ internal sealed class UpdateWindow(string heading, string body, string? primary,
                 return 1;
             case 0x0133: // WM_CTLCOLOREDIT
             case 0x0138: // WM_CTLCOLORSTATIC
+                if (EditableBody && data == details)
+                {
+                    SetTextColor((nint)parameter, Text);
+                    SetBkColor((nint)parameter, Rgb(38, 23, 29));
+                    return inputBrush;
+                }
                 bool inPanel = data == title || data == details || data == folderField || data == question;
                 SetTextColor((nint)parameter, data == title || data == brand || data == question ? Sakura :
                     data == folderField ? Muted : Text);
