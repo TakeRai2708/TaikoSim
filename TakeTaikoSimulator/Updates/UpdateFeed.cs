@@ -52,7 +52,8 @@ internal sealed class UpdateFeed(HttpClient http)
                 throw new InvalidDataException("GitHub リリースに署名済みの latest.json がありません。");
 
             var manifestAsset = HttpsUri(envelopes[0].GetProperty(github.AssetUrlField).GetString());
-            using var assetResponse = await github.GetAssetAsync(manifestAsset, cancellationToken);
+            using var assetResponse = await github.GetAssetAsync(manifestAsset, cancellationToken,
+                anonymous ? envelopes[0].GetProperty("id").GetInt64() : null);
             var release = await ReadSignedReleaseAsync(assetResponse, key, cancellationToken);
             if (!github.IsAsset(release.DownloadUrl) ||
                 !assets.Any(asset => asset.GetProperty("name").GetString()?.EndsWith(".zip", StringComparison.OrdinalIgnoreCase) == true &&

@@ -2,6 +2,7 @@ using System.Net;
 using System.Net.Http;
 using System.Net.Http.Headers;
 using System.Text.Json;
+using System.Globalization;
 
 namespace TakeTaikoSimulator.Updates;
 
@@ -53,10 +54,15 @@ internal sealed class GitHubReleaseSource
             url.AbsolutePath.AsSpan(prefix.Length).IndexOfAnyExceptInRange('0', '9') < 0;
     }
 
-    internal async Task<HttpResponseMessage> GetAssetAsync(Uri asset, CancellationToken cancellationToken)
+    internal async Task<HttpResponseMessage> GetAssetAsync(Uri asset, CancellationToken cancellationToken,
+        long? manifestId = null)
     {
         if (!IsAsset(asset))
             throw new InvalidDataException("GitHub の添付ファイル URL が無効です。");
+
+        // 同名の更新情報をアップロードし直したときは、新しい添付 ID でキャッシュを区別する。
+        if (token is null && manifestId is > 0)
+            asset = new UriBuilder(asset) { Query = "asset=" + manifestId.Value.ToString(CultureInfo.InvariantCulture) }.Uri;
 
         using var request = MakeRequest(asset, "application/octet-stream");
         var response = await http.SendAsync(request, HttpCompletionOption.ResponseHeadersRead, cancellationToken);
