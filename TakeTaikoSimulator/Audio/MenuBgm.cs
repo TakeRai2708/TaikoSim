@@ -8,6 +8,7 @@ namespace TakeTaikoSimulator.Audio;
 public interface IMenuBgmTrack : IDisposable
 {
     double LengthMs { get; }
+    bool IsPlaying { get; }
     void SetLoop(bool loop);
     void Play(double positionMs);
     void Stop();
@@ -20,6 +21,7 @@ public sealed class MenuBgmPlayer(Func<string, IMenuBgmTrack?> load) : IDisposab
     private string? currentFile;
     private int skin = -1, audio = -1;
     private double elapsedMs;
+    private double sincePlayMs;
     private bool wasMuted;
 
     // くり返し方は3つ：
@@ -49,18 +51,23 @@ public sealed class MenuBgmPlayer(Func<string, IMenuBgmTrack?> load) : IDisposab
             {
                 track.SetLoop(loopPeriodMs <= 0 && !introLoop);
                 track.SetVolume(muted ? 0 : volume);
-                if (!muted) track.Play(0);
+                if (!muted) Play(0);
             }
         }
         bool resumed = !changed && wasMuted && !muted;
         if (track != null && !changed && wasMuted != muted)
         {
             if (muted) track.Stop();
-            else track.Play(0);
+            else Play(0);
             elapsedMs = 0;
         }
         wasMuted = muted;
-        if (!changed && !muted && !resumed) elapsedMs += Math.Max(0, dt) * 1000.0;
+        if (!changed && !muted && !resumed)
+        {
+            double step = Math.Max(0, dt) * 1000.0;
+            elapsedMs += step;
+            sincePlayMs += step;
+        }
 
         if (track == null) return; // 無い素材を毎フレーム探し直さない。
         if (!muted && loopPeriodMs > 0)
@@ -69,7 +76,7 @@ public sealed class MenuBgmPlayer(Func<string, IMenuBgmTrack?> load) : IDisposab
             if (elapsedMs >= period)
             {
                 elapsedMs %= period;
-                track.Play(0);
+                Play(0);
             }
         }
         if (!muted && introLoop)
@@ -80,10 +87,26 @@ public sealed class MenuBgmPlayer(Func<string, IMenuBgmTrack?> load) : IDisposab
             {
                 // 行きすぎた分だけ先から鳴らす（コマの長さの分、音がずれないように）
                 elapsedMs = start + (elapsedMs - end) % (end - start);
-                track.Play(elapsedMs);
+                Play(elapsedMs);
+            }
+            else if (sincePlayMs >= 100 && !track.IsPlaying)
+            {
+                elapsedMs = start;
+                Play(start);
             }
         }
+        if (!muted && loopPeriodMs <= 0 && !introLoop && sincePlayMs >= 100 && !track.IsPlaying)
+        {
+            elapsedMs = 0;
+            Play(0);
+        }
         track.SetVolume(muted ? 0 : Math.Clamp(volume, 0, 1));
+    }
+
+    private void Play(double positionMs)
+    {
+        track!.Play(positionMs);
+        sincePlayMs = 0;
     }
 
     public void Dispose()
@@ -106,6 +129,7 @@ public static class MenuBgm
     private sealed class Track(Song song) : IMenuBgmTrack
     {
         public double LengthMs => song.LengthMs;
+        public bool IsPlaying => song.IsPlaying;
         public void SetLoop(bool loop) => song.SetLoop(loop);
         public void Play(double positionMs) => song.Play(positionMs);
         public void Stop() => song.Stop();

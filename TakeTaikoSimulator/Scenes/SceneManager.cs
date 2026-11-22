@@ -23,6 +23,7 @@ namespace TakeTaikoSimulator.Scenes
         private static Phase phase = Phase.None;
         private static float timer, fadeOutSeconds, holdSeconds, fadeInSeconds;
         private static Scene? waiting; // 暗くし終わったら切り替える画面
+        private static bool showBlackBeforeSwap;
 
         // ===== TaikøNauts の動画を測った秒数(暗くする・真っ黒・明るくする) =====
         // モード選択 → 選曲：0.5秒で暗く → 1.05秒真っ黒 → 0.3秒で明るく
@@ -67,6 +68,7 @@ namespace TakeTaikoSimulator.Scenes
             holdSeconds = Math.Max(0f, hold);
             fadeInSeconds = Math.Max(0f, fadeIn);
             timer = 0f;
+            showBlackBeforeSwap = false;
 
             if (fadeOutSeconds > 0f)
             {
@@ -96,6 +98,7 @@ namespace TakeTaikoSimulator.Scenes
                     waiting = null;
                     timer = 0f;
                     phase = holdSeconds > 0f ? Phase.Hold : fadeInSeconds > 0f ? Phase.FadeIn : Phase.None;
+                    showBlackBeforeSwap = phase == Phase.Hold;
                     break;
                 case Phase.Hold:
                     if (next != null || timer < holdSeconds) return; // 切り替えが終わってから数える
@@ -112,7 +115,7 @@ namespace TakeTaikoSimulator.Scenes
         // 予約されていたら実際に切り替える(Game が毎フレーム最初に呼ぶ)
         public static void ApplyChange()
         {
-            if (next == null) return;
+            if (next == null || showBlackBeforeSwap) return;
 
             string from = Current?.GetType().Name ?? "なし";
             long started = System.Diagnostics.Stopwatch.GetTimestamp();
@@ -141,6 +144,7 @@ namespace TakeTaikoSimulator.Scenes
             };
             if (black <= 0f) return;
             Raylib.DrawRectangle(0, 0, Screen.Width, Screen.Height, Raylib.ColorAlpha(Color.Black, black));
+            if (phase == Phase.Hold) showBlackBeforeSwap = false;
         }
     }
 }
