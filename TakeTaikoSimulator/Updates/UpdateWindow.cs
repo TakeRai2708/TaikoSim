@@ -162,7 +162,7 @@ internal sealed class UpdateWindow(string heading, string body, string? primary,
         title = Child("STATIC", heading, 0, margin + 18, 69, width - 84, 35, 0, headingFont);
         int bodyBottom = Folder is null ? height - (percent is null ? 88 : 129) : height - 159;
         int bodyHeight = Math.Max(34, bodyBottom - 122);
-        string content = body.ReplaceLineEndings("\r\n");
+        string content = BodyText.ReplaceLineEndings("\r\n");
         int charsPerLine = Math.Max(1, (width - 84) / 15);
         int lines = content.Split('\n').Sum(line => Math.Max(1, (line.TrimEnd('\r').Length + charsPerLine - 1) / charsPerLine));
         uint scroll = lines * 20 > bodyHeight ? 0x00200000u : 0;
@@ -286,12 +286,6 @@ internal sealed class UpdateWindow(string heading, string body, string? primary,
                 switch (id)
                 {
                     case Accept:
-                        if (EditableBody)
-                        {
-                            var text = new StringBuilder(GetWindowTextLength(details) + 1);
-                            GetWindowText(details, text, text.Capacity);
-                            BodyText = text.ToString();
-                        }
                         if (folderField != 0)
                         {
                             var path = new StringBuilder(GetWindowTextLength(folderField) + 1);
