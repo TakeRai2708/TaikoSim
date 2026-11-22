@@ -9,9 +9,11 @@ internal sealed class GitHubReleaseSource
 {
     private readonly HttpClient http;
     private readonly Uri releases;
-    private readonly string token;
+    private readonly string? token;
+    private readonly string publicAssetPrefix;
+    internal string AssetUrlField => token is null ? "browser_download_url" : "url";
 
-    internal GitHubReleaseSource(HttpClient http, string? repository, string? accessToken = null)
+    internal GitHubReleaseSource(HttpClient http, string? repository, string? accessToken = null, bool anonymous = false)
     {
         string[] parts = (repository ?? "").Split('/');
         if (parts.Length != 2 || parts.Any(part => part.Length == 0 || part is "." or ".." ||
@@ -20,8 +22,9 @@ internal sealed class GitHubReleaseSource
 
         this.http = http;
         releases = new Uri($"https://api.github.com/repos/{parts[0]}/{parts[1]}/releases/");
-        token = (accessToken ?? Environment.GetEnvironmentVariable("TAKETAIKO_GITHUB_TOKEN"))?.Trim() ?? "";
-        if (token.Length == 0)
+        publicAssetPrefix = $"/{parts[0]}/{parts[1]}/releases/download/";
+        token = anonymous ? null : (accessToken ?? Environment.GetEnvironmentVariable("TAKETAIKO_GITHUB_TOKEN"))?.Trim() ?? "";
+        if (token == "")
             throw new InvalidDataException("この GitHub リリースを読むには TAKETAIKO_GITHUB_TOKEN が必要です。");
     }
 
@@ -37,9 +40,14 @@ internal sealed class GitHubReleaseSource
 
     internal bool IsAsset(Uri url)
     {
+        if (url.Scheme != "https" || !url.IsDefaultPort || url.UserInfo.Length != 0 ||
+            url.Query.Length != 0 || url.Fragment.Length != 0)
+            return false;
+        if (token is null)
+            return url.Host == "github.com" && url.AbsolutePath.StartsWith(publicAssetPrefix, StringComparison.OrdinalIgnoreCase);
+
         string prefix = releases.AbsolutePath + "assets/";
-        return url.Scheme == "https" && url.Host == releases.Host && url.IsDefaultPort &&
-            url.UserInfo.Length == 0 && url.Query.Length == 0 && url.Fragment.Length == 0 &&
+        return url.Host == releases.Host &&
             url.AbsolutePath.StartsWith(prefix, StringComparison.OrdinalIgnoreCase) &&
             long.TryParse(url.AbsolutePath.AsSpan(prefix.Length), out long id) && id > 0 &&
             url.AbsolutePath.AsSpan(prefix.Length).IndexOfAnyExceptInRange('0', '9') < 0;
@@ -73,8 +81,10 @@ internal sealed class GitHubReleaseSource
         var request = new HttpRequestMessage(HttpMethod.Get, url);
         request.Headers.UserAgent.ParseAdd("TakeTaiko-Updater/1.0");
         request.Headers.Accept.Add(new MediaTypeWithQualityHeaderValue(mediaType));
-        request.Headers.Authorization = new AuthenticationHeaderValue("Bearer", token);
-        request.Headers.Add("X-GitHub-Api-Version", "2022-11-28");
+        if (token is not null)
+            request.Headers.Authorization = new AuthenticationHeaderValue("Bearer", token);
+        if (url.Host == releases.Host)
+            request.Headers.Add("X-GitHub-Api-Version", "2022-11-28");
         return request;
     }
 }

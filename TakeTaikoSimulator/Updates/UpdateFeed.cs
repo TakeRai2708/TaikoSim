@@ -40,7 +40,8 @@ internal sealed class UpdateFeed(HttpClient http)
 
         if (settings.RootElement.TryGetProperty("githubRepository", out var repository))
         {
-            var github = new GitHubReleaseSource(http, repository.GetString());
+            bool anonymous = settings.RootElement.TryGetProperty("githubPublic", out var publicFeed) && publicFeed.GetBoolean();
+            var github = new GitHubReleaseSource(http, repository.GetString(), anonymous: anonymous);
             string? tag = settings.RootElement.TryGetProperty("githubTag", out var configuredTag) ? configuredTag.GetString() : null;
             using var metadata = await github.ReadReleaseAsync(tag, cancellationToken);
             if (metadata.RootElement.GetProperty("draft").GetBoolean())
@@ -50,12 +51,12 @@ internal sealed class UpdateFeed(HttpClient http)
             if (envelopes.Length != 1)
                 throw new InvalidDataException("GitHub リリースに署名済みの latest.json がありません。");
 
-            var manifestAsset = HttpsUri(envelopes[0].GetProperty("url").GetString());
+            var manifestAsset = HttpsUri(envelopes[0].GetProperty(github.AssetUrlField).GetString());
             using var assetResponse = await github.GetAssetAsync(manifestAsset, cancellationToken);
             var release = await ReadSignedReleaseAsync(assetResponse, key, cancellationToken);
             if (!github.IsAsset(release.DownloadUrl) ||
                 !assets.Any(asset => asset.GetProperty("name").GetString()?.EndsWith(".zip", StringComparison.OrdinalIgnoreCase) == true &&
-                    Uri.TryCreate(asset.GetProperty("url").GetString(), UriKind.Absolute, out var assetUrl) &&
+                    Uri.TryCreate(asset.GetProperty(github.AssetUrlField).GetString(), UriKind.Absolute, out var assetUrl) &&
                     release.DownloadUrl == assetUrl))
                 throw new InvalidDataException("署名済みの ZIP が同じ GitHub リリースに見つかりません。");
             return release with { GitHub = github };

@@ -41,6 +41,12 @@ dotnet publish ./TakeTaikoSimulator/TakeTaikoSimulator.csproj -c Release -r win-
 
 出力された配布 ZIP と署名済み `latest.json` を配置すれば、友達に渡すのは `TakeTaikoSetup.exe` だけです。インストーラーがゲームのフォルダーにも設定を書き込み、その後のゲーム起動時更新に引き継ぎます。設定を組み込んだ exe では組み込みの公開鍵と配布先が優先されます。
 
+## 公開 GitHub Releases からログインなしで配布する
+
+組み込む `update-feed.json` に `"githubRepository": "TakeRai2708/TaikoSim"`、`"githubPublic": true` と `publicKeyPem` を設定します。テストでタグを固定するときだけ `githubTag` を追加します。
+
+配布 ZIP を添付し、署名する `-DownloadUrl` にその ZIP の `browser_download_url`（`https://github.com/…/releases/download/…`）を使います。署名済み `latest.json` と組み込み設定入りの `TakeTaikoSetup.exe` を同じリリースに添付します。公開後、友達にはインストーラーのリンクを渡せます。ゲームを更新するときは同じ鍵で署名して、新しい正式リリースを最新に設定します。
+
 ## 非公開 GitHub リリースで試す
 
 1. 配布 ZIP をリリースに添付し、GitHub API が返す添付ファイルの `url`（`https://api.github.com/repos/…/releases/assets/…`）を署名スクリプトの `-DownloadUrl` に指定します。

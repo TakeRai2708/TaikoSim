@@ -4,7 +4,7 @@ param(
     [Parameter(Mandatory)][string]$PackagePath,
     [Parameter(Mandatory)][uri]$DownloadUrl,
     [Parameter(Mandatory)][string]$PrivateKeyPath,
-    [ValidateRange(1, 720)][int]$ValidHours = 72,
+    [ValidateRange(1, 8760)][int]$ValidHours = 72,
     [ValidateLength(0, 1600)][string]$Notes = ''
 )
 
