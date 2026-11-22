@@ -1,4 +1,4 @@
-# TakeTaikoSimulator
+# TakeTaiko
 
 Windows / .NET 10、Raylib-cs、ManagedBass を使う個人用の太鼓シミュレーターです。
 旧製品名は TaikoSim。第三者の曲・スキンを含め、このリポジトリは非公開のまま扱ってください。
@@ -20,12 +20,12 @@ dotnet build TakeTaikoSimulator.slnx -r win-x64
 dotnet publish TakeTaikoSimulator/TakeTaikoSimulator.csproj -r win-x64 -c Release
 ```
 
-実行ファイル名は **`TakeTaikoSimulator.exe`**。Native AOT の設定は維持しています。
+実行ファイル名は **`TakeTaiko.exe`**。Native AOT の設定は維持しています。
 `dotnet build` は Native AOT 版の生成ではありません。AOT の publish は Windows と
 Visual Studio の「C++ によるデスクトップ開発」が必要です。
 
 互換性のため、ビルド出力先は従来の `TaikoSim/bin/` のままです。
-例：`TaikoSim/bin/Debug/net10.0-windows/win-x64/TakeTaikoSimulator.exe`。
+例：`TaikoSim/bin/Debug/net10.0-windows/win-x64/TakeTaiko.exe`。
 publish は `TaikoSim/bin/Release/net10.0-windows/win-x64/publish/` に出力します。
 改名前と同じ構成・RID・出力先でビルドすれば、既存データを同じ場所から読みます。
 構成やRIDを変えたときは別の出力先になるので、使用中のデータを引き継いでください。
@@ -33,6 +33,8 @@ publish は `TaikoSim/bin/Release/net10.0-windows/win-x64/publish/` に出力し
 Linux のソース確認は [tools/build-check/README.md](tools/build-check/README.md) を参照。
 
 ## 既存データの引き継ぎ
+
+最新版を取得する Windows 用インストーラーとゲーム起動時の更新確認については、[インストーラーと配布手順](tools/installer/README.md) を参照してください。
 
 ゲームは引き続き **exe の隣**を基準に読み書きします。更新時は同じ配布フォルダを使い、
 既存の `Config/`、`Songs/`、`Skins/`、`Cache/`、`HitSounds/`、`Screenshots/`、`Logs/`
