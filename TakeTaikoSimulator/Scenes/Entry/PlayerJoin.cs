@@ -164,6 +164,13 @@ public sealed class PlayerJoin
         finally { Rlgl.PopMatrix(); }
     }
 
+    // データ選択を終えた後も、操作ガイドのアニメーションを進める。
+    public void UpdateGuide(float dt)
+    {
+        elapsed += Math.Max(0, dt);
+        PrepareGuide();
+    }
+
     private void PrepareGuide()
     {
         if (guideSkin == SkinManager.Generation) return;
@@ -178,9 +185,8 @@ public sealed class PlayerJoin
     {
         if (!Active) return Result.None;
         selectionChanged = false;
-        elapsed += dt;
+        UpdateGuide(dt);
         opened += dt;
-        PrepareGuide();
         if (Game.IsSettingsOpen) return Result.None;
         if (communication >= 0)
         {

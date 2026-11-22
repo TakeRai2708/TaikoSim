@@ -1,0 +1,11 @@
+**
+!TakeTaikoSimulator/
+!TakeTaikoSimulator/Updates/
+!TakeTaikoSimulator/Updates/GitHubReleaseSource.cs
+!TakeTaikoSimulator/Updates/InviteReleaseSource.cs
+!TakeTaikoSimulator/Updates/UpdateFeed.cs
+!tools/
+!tools/installer/
+!tools/installer/InviteRelay/
+!tools/installer/InviteRelay/InviteRelay.csproj
+!tools/installer/InviteRelay/Program.cs

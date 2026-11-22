@@ -15,6 +15,7 @@ namespace TakeTaikoSimulator.Platform
     {
         private const uint BIF_RETURNONLYFSDIRS = 0x0001; // ファイルシステムの実在フォルダだけ選べる
         private const uint BIF_NEWDIALOGSTYLE = 0x0040;   // 新しい見た目(新規作成ボタンなど)
+        private const uint BIF_EDITBOX = 0x0010;
         private const int MAX_PATH = 260;
 
         [StructLayout(LayoutKind.Sequential, CharSet = CharSet.Unicode)]
@@ -47,11 +48,14 @@ namespace TakeTaikoSimulator.Platform
         private static extern void OleUninitialize();
 
         // フォルダを選ばせて、選んだフォルダの場所を返す(キャンセルや失敗なら null)
-        public static string? Pick(string title)
+        public static string? Pick(string title, IntPtr owner = default)
         {
+            if (owner != IntPtr.Zero && Thread.CurrentThread.GetApartmentState() == ApartmentState.STA)
+                return PickCore(title, owner);
+
             string? result = null;
             // SHBrowseForFolder の新しい見た目は STA スレッドでないと出ないので、専用スレッドで出す
-            Thread thread = new Thread(() => result = PickCore(title));
+            Thread thread = new Thread(() => result = PickCore(title, owner));
             thread.SetApartmentState(ApartmentState.STA);
             thread.IsBackground = true;
             thread.Start();
@@ -59,7 +63,7 @@ namespace TakeTaikoSimulator.Platform
             return result;
         }
 
-        private static string? PickCore(string title)
+        private static string? PickCore(string title, IntPtr owner)
         {
             OleInitialize(IntPtr.Zero);
             IntPtr titlePtr = Marshal.StringToCoTaskMemUni(title);
@@ -68,8 +72,9 @@ namespace TakeTaikoSimulator.Platform
             {
                 BROWSEINFO bi = new BROWSEINFO
                 {
+                    hwndOwner = owner,
                     lpszTitle = titlePtr,
-                    ulFlags = BIF_RETURNONLYFSDIRS | BIF_NEWDIALOGSTYLE,
+                    ulFlags = BIF_RETURNONLYFSDIRS | BIF_NEWDIALOGSTYLE | (owner == IntPtr.Zero ? 0u : BIF_EDITBOX),
                 };
                 pidl = SHBrowseForFolderW(ref bi);
                 if (pidl == IntPtr.Zero) return null; // キャンセル

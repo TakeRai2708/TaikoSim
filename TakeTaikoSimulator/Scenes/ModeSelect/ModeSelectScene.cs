@@ -32,6 +32,7 @@ namespace TakeTaikoSimulator.Scenes
             new("特訓モード", "小節をえらんで、ゆっくり練習する", new Color(60, 150, 110, 255), true),
             new("着せ替え", "どんちゃん・ぷちキャラ・ネームプレートをえらぶ", new Color(135, 90, 170, 255), true),
             new("設定", "音・キー・画面・スキンなどの設定", new Color(90, 100, 125, 255), true),
+            new("フィードバック", "意見を書く・GitHubで送信する（ログインが必要）", new Color(170, 90, 120, 255), true),
             new("クレジット", "使っているソフト・フォント・ライセンス", new Color(60, 130, 150, 255), true),
         };
 
@@ -367,6 +368,7 @@ namespace TakeTaikoSimulator.Scenes
                 case "段位道場": SceneManager.ToDanSelectFromMode(new DanSelectScene(intro: true)); break;
                 case "着せ替え": SceneManager.Simple(new DressingScene()); break;
                 case "設定": Game.OpenSettings(); break;
+                case "フィードバック": SceneManager.Simple(new FeedbackScene()); break;
                 case "クレジット": SceneManager.Simple(new CreditsScene()); break;
             }
         }

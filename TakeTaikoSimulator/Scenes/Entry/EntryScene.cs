@@ -154,7 +154,13 @@ public sealed class EntryScene : Scene
             return;
         }
         if (Game.IsSettingsOpen) return;
-        if (step == Step.Side) { chara.Update(dt); UpdateSide(dt); return; }
+        if (step == Step.Side)
+        {
+            join.UpdateGuide(dt);
+            chara.Update(dt);
+            UpdateSide(dt);
+            return;
+        }
 
         // ① 黄色い板：どちらのキーの組でも始められる（Enter は1Pのキーの組）
         if (InputManager.IsKeySetDonPressed(0) || Raylib.IsKeyPressed(KeyboardKey.Enter) || Raylib.IsKeyPressed(KeyboardKey.KpEnter)) OpenData(0);
