@@ -60,8 +60,8 @@ internal static class StartupUpdate
                 return false;
             }
 
-            string settings = Path.Combine(root, UpdatePackage.FeedFile);
-            if (!File.Exists(settings))
+            using var settings = OpenSettings(root);
+            if (settings is null)
                 return true;
 
             var installed = UpdatePackage.ReadVersion(Path.Combine(root, UpdatePackage.GameExe));
@@ -115,8 +115,8 @@ internal static class StartupUpdate
 
     private static void Install(string setupDirectory)
     {
-        string settings = Path.Combine(setupDirectory, UpdatePackage.FeedFile);
-        if (!File.Exists(settings))
+        using var settings = OpenSettings(setupDirectory);
+        if (settings is null)
         {
             SafeNotice("配布先が設定されていません", "配布担当者から受け取った update-feed.json を、インストーラーの隣に置いてください。");
             return;
@@ -128,6 +128,9 @@ internal static class StartupUpdate
         using var http = CreateClient();
         var feed = new UpdateFeed(http);
         GameRelease release = ReadLatest(feed, settings);
+        settings.Position = 0;
+        byte[] installedSettings = new byte[checked((int)settings.Length)];
+        settings.ReadExactly(installedSettings);
         string location = Path.Combine(local, "Programs", "TakeTaiko");
         string prompt = $"最新版 {release.Version}\n\n{Notes(release)}\n\nインストールしますか？";
         while (UpdateDialog.ChooseInstallFolder(prompt, location) is { } selected)
@@ -153,7 +156,7 @@ internal static class StartupUpdate
             try
             {
                 Download(feed, release, stage, install: true);
-                File.Copy(settings, Path.Combine(stage, "expanded", UpdatePackage.FeedFile));
+                File.WriteAllBytes(Path.Combine(stage, "expanded", UpdatePackage.FeedFile), installedSettings);
                 ApplyWithMarker(location, stage, install: true);
             }
             catch (RollbackFailedExceptionMarker)
@@ -300,7 +303,21 @@ internal static class StartupUpdate
     private static HttpClient CreateClient() =>
         new(new HttpClientHandler { AllowAutoRedirect = false, UseCookies = false }) { Timeout = Timeout.InfiniteTimeSpan };
 
-    private static GameRelease ReadLatest(UpdateFeed feed, string settings)
+    private static Stream? OpenSettings(string folder)
+    {
+        // 配布時に組み込んだ公開鍵と配布先を優先する。
+        var embedded = typeof(StartupUpdate).Assembly.GetManifestResourceStream("TakeTaiko.UpdateFeed.json");
+        string local = Path.Combine(folder, UpdatePackage.FeedFile);
+        var settings = embedded ?? (File.Exists(local) ? File.OpenRead(local) : null);
+        if (settings is not null && settings.Length > UpdateFeed.MetadataLimit)
+        {
+            settings.Dispose();
+            throw new InvalidDataException("配布設定が大きすぎます。");
+        }
+        return settings;
+    }
+
+    private static GameRelease ReadLatest(UpdateFeed feed, Stream settings)
     {
         using var timeout = new CancellationTokenSource(TimeSpan.FromSeconds(8));
         return feed.CheckAsync(settings, timeout.Token).GetAwaiter().GetResult();

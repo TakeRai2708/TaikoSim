@@ -33,6 +33,8 @@
 	<ItemGroup>
 		<EmbeddedResource Include="Assets/Branding/AppIcon.png" LogicalName="TakeTaikoSimulator.AppIcon.png" />
 		<EmbeddedResource Include="Assets/Branding/Logo.png" LogicalName="TakeTaikoSimulator.Logo.png" />
+		<EmbeddedResource Include="$(TakeTaikoFeedConfig)" LogicalName="TakeTaiko.UpdateFeed.json"
+		                  Condition="'$(TakeTaikoFeedConfig)' != ''" />
 	</ItemGroup>
 
 	<ItemGroup>

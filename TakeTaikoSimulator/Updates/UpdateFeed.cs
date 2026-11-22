@@ -11,14 +11,19 @@ internal sealed record GameRelease(Version Version, Uri DownloadUrl, long Size, 
 
 internal sealed class UpdateFeed(HttpClient http)
 {
-    private const int MetadataLimit = 64 * 1024;
+    internal const int MetadataLimit = 64 * 1024;
     private const long PackageLimit = 4L * 1024 * 1024 * 1024;
     private const string TargetProduct = "TakeTaikoSimulator/win-x64";
 
     internal async Task<GameRelease> CheckAsync(string settingsPath, CancellationToken cancellationToken)
     {
         await using var file = File.OpenRead(settingsPath);
-        using var settings = await ReadMetadataAsync(file, cancellationToken);
+        return await CheckAsync(file, cancellationToken);
+    }
+
+    internal async Task<GameRelease> CheckAsync(Stream configuration, CancellationToken cancellationToken)
+    {
+        using var settings = await ReadMetadataAsync(configuration, cancellationToken);
         using RSA key = RSA.Create();
         key.ImportFromPem(settings.RootElement.GetProperty("publicKeyPem").GetString());
         if (key.KeySize < 2048)

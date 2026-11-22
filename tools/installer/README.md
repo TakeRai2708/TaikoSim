@@ -18,7 +18,7 @@ ZIP を限定 HTTPS 配布先に置き、同じ ZIP から署名付きの最新�
     Set-Content -Encoding utf8NoBOM ./work/release-1.0.1/latest.json
 ```
 
-`latest.json` を配布し、次の形式で `update-feed.json` を作ります。RSA 2048 ビット以上の公開鍵を使ってください。PEM の改行は JSON の `\n` で表します。`TakeTaikoSetup.exe` とこの設定ファイルを、信頼できる経路で配布してください。秘密鍵は配布物やリポジトリに含めません。
+`latest.json` を配布し、次の形式で `update-feed.json` を作ります。RSA 2048 ビット以上の公開鍵を使ってください。PEM の改行は JSON の `\n` で表します。秘密鍵は配布物やリポジトリに含めません。
 
 ```json
 {
@@ -28,6 +28,18 @@ ZIP を限定 HTTPS 配布先に置き、同じ ZIP から署名付きの最新�
 ```
 
 通常の配布元にはリダイレクトなしの HTTPS 直リンクを使います。本番用の配布先、鍵、Authenticode 署名はこのリポジトリには含まれません。
+
+### 友達にインストーラー exe だけを渡す
+
+友達が GitHub にログインせず取得できる HTTPS 配布先を用意します。固定の `latest.json` URL と公開鍵を入れた設定を、最初の発行時に組み込みます。`update-feed.json` は作業者が用意するファイルです。
+
+```powershell
+$feedConfig = (Resolve-Path ./work/update-feed.json).Path
+dotnet publish ./TakeTaikoSimulator/TakeTaikoSimulator.csproj -c Release -r win-x64 -p:Version=1.0.1 "-p:TakeTaikoFeedConfig=$feedConfig" -o ./work/publish-friends
+./tools/installer/New-ReleasePackage.ps1 -PublishDirectory ./work/publish-friends -OutputDirectory ./work/release-friends
+```
+
+出力された配布 ZIP と署名済み `latest.json` を配置すれば、友達に渡すのは `TakeTaikoSetup.exe` だけです。インストーラーがゲームのフォルダーにも設定を書き込み、その後のゲーム起動時更新に引き継ぎます。設定を組み込んだ exe では組み込みの公開鍵と配布先が優先されます。
 
 ## 非公開 GitHub リリースで試す
 
