@@ -16,7 +16,7 @@ Windows / .NET 10、Raylib-cs、ManagedBass を使う個人用の太鼓シミュ
 Visual Studio または .NET 10 SDK で `TakeTaikoSimulator.slnx` を開きます。
 
 ```powershell
-dotnet build TakeTaikoSimulator.slnx -r win-x64
+dotnet build TakeTaikoSimulator/TakeTaikoSimulator.csproj -r win-x64
 dotnet publish TakeTaikoSimulator/TakeTaikoSimulator.csproj -r win-x64 -c Release
 ```
 
@@ -32,11 +32,16 @@ publish は `TaikoSim/bin/Release/net10.0-windows/win-x64/publish/` に出力し
 
 Linux のソース確認は [tools/build-check/README.md](tools/build-check/README.md) を参照。
 
+## Windows ランチャー
+
+ゲームと同じフォルダに置いて起動できます。ゲームのバージョン表示、署名付き更新の確認、検証済み ZIP の保存に対応します。ビルド・限定配布・手動適用の手順は [ランチャーの README](TakeTaikoLauncher/README.md) を参照してください。
+
 ## 既存データの引き継ぎ
 
-ゲームは引き続き **exe の隣**を基準に読み書きします。更新時は同じ配布フォルダを使い、
-既存の `Config/`、`Songs/`、`Skins/`、`Cache/`、`HitSounds/`、`Screenshots/`、`Logs/`
-を残してください。空の設定で上書きしたり、古い配布フォルダごと消したりしないでください。
+ゲームは **ドキュメント/TakeTaikoSimulator/** に `Config/`、`Songs/`、`Skins/`、
+`Cache/`、`HitSounds/`、`Screenshots/`、`Logs/` を保存します。初回は exe の隣の
+データを移行先に同名フォルダがなければ移し、ドキュメントを使えない場合は exe の隣を使います。
+更新時は両方の場所のユーザーデータを残してください。
 
 - 設定ファイル名とJSON形式は変更していません。
 - データ1は `Config/SongHistory.json`、データ2・3は
