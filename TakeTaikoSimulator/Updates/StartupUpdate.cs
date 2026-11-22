@@ -125,44 +125,62 @@ internal static class StartupUpdate
         string local = Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData);
         if (string.IsNullOrEmpty(local))
             throw new IOException("インストール先を取得できません。");
-        string parent = Path.Combine(local, "Programs");
-        const string folderName = "TakeTaiko";
-        string root = Path.Combine(parent, folderName);
-        UpdatePackage.RejectLinks(local, "Programs/" + folderName);
-        using var installLock = Acquire(root, TimeSpan.Zero) ?? throw new IOException("ゲームが起動中です。");
-        if (Directory.Exists(root) && Directory.EnumerateFileSystemEntries(root).Any())
-        {
-            SafeNotice("インストール先は使用されています", $"既存のファイルを保護するため、インストールを中止しました。\n\n{root}");
-            return;
-        }
-
         using var http = CreateClient();
         var feed = new UpdateFeed(http);
         GameRelease release = ReadLatest(feed, settings);
-        if (!UpdateDialog.Confirm("TakeTaiko をインストール",
-            $"最新版 {release.Version}\n\n{Notes(release)}\n\n保存先\n{root}\n\nインストールしますか？"))
-            return;
+        string location = Path.Combine(local, "Programs", "TakeTaiko");
+        string prompt = $"最新版 {release.Version}\n\n{Notes(release)}\n\nインストールしますか？";
+        while (UpdateDialog.ChooseInstallFolder(prompt, location) is { } selected)
+        {
+            location = Path.TrimEndingDirectorySeparator(Path.GetFullPath(selected));
+            string drive = Path.GetPathRoot(location) ?? throw new IOException("インストール先を取得できません。");
+            if (location.Equals(drive, StringComparison.OrdinalIgnoreCase))
+            {
+                SafeNotice("保存先を選び直してください", "ドライブの直下にある空のフォルダーを選んでください。");
+                continue;
+            }
 
-        string stage = CreateStage(root);
-        bool keepStage = false;
-        try
-        {
-            Download(feed, release, stage, install: true);
-            File.Copy(settings, Path.Combine(stage, "expanded", UpdatePackage.FeedFile));
-            ApplyWithMarker(root, stage, install: true);
+            UpdatePackage.RejectLinks(drive, Path.GetRelativePath(drive, location).Replace('\\', '/'));
+            using var installLock = Acquire(location, TimeSpan.Zero);
+            if (installLock is null || (Directory.Exists(location) && Directory.EnumerateFileSystemEntries(location).Any()))
+            {
+                SafeNotice("保存先を選び直してください", $"この TakeTaiko フォルダーにはすでにファイルがあります。「参照…」で作成場所を選んでください。\n\n{location}");
+                continue;
+            }
+
+            string stage = CreateStage(location);
+            bool keepStage = false;
+            try
+            {
+                Download(feed, release, stage, install: true);
+                File.Copy(settings, Path.Combine(stage, "expanded", UpdatePackage.FeedFile));
+                ApplyWithMarker(location, stage, install: true);
+            }
+            catch (RollbackFailedExceptionMarker)
+            {
+                keepStage = true;
+                throw;
+            }
+            finally
+            {
+                if (!keepStage)
+                    RemoveStage(stage);
+            }
+            CreateStartMenuShortcut(location);
+            SafeNotice("インストールが完了しました", $"TakeTaiko を起動できます。\n\n{location}");
+            return;
         }
-        catch (RollbackFailedExceptionMarker)
+    }
+
+    internal static string InstallLocationUnder(string parent)
+    {
+        for (int suffix = 1; suffix < 1000; suffix++)
         {
-            keepStage = true;
-            throw;
+            string candidate = Path.Combine(parent, suffix == 1 ? "TakeTaiko" : $"TakeTaiko ({suffix})");
+            if (!File.Exists(candidate) && !Directory.Exists(candidate))
+                return candidate;
         }
-        finally
-        {
-            if (!keepStage)
-                RemoveStage(stage);
-        }
-        CreateStartMenuShortcut(root);
-        SafeNotice("インストールが完了しました", $"TakeTaiko を起動できます。\n\n{root}");
+        throw new IOException("TakeTaiko フォルダーを作成できる場所が見つかりません。");
     }
 
     private static void RunWorker(string stage, string[] args)
