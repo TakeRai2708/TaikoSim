@@ -8,6 +8,10 @@ namespace TakeTaikoSimulator
         [STAThread]
         static void Main(string[] args)
         {
+            if (!Updates.StartupUpdate.TryStartGame(args, out var applicationLock))
+                return;
+            using var gameLock = applicationLock;
+
             // データの場所を決める（ドキュメント\TakeTaikoSimulator。最初の起動で exe の横のデータを引っ越す）
             Configs.DataPaths.Prepare();
 
