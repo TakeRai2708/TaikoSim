@@ -12,7 +12,7 @@ namespace TakeTaikoSimulator
                 return;
             using var gameLock = applicationLock;
 
-            // データの場所を決める（ドキュメント\TakeTaikoSimulator。最初の起動で exe の横のデータを引っ越す）
+            // データは exe の横に置く。旧保存先からは必要なフォルダーだけ引き継ぐ。
             Configs.DataPaths.Prepare();
 
             // 黒い画面(コンソール)に出す内容を、ファイルにも残す

@@ -1,103 +1,71 @@
-namespace TakeTaikoSimulator.Configs
+namespace TakeTaikoSimulator.Configs;
+
+public static class DataPaths
 {
-    // データの置き場所
-    //   11/19 たけらい「デバッグもリリースも同じデータで遊びたい」→ B 案：
-    //   設定・プレイヤーデータ・曲・スキン・キャッシュ・ログ・スクショは、exe の場所に関係なく
-    //   「ドキュメント\TakeTaikoSimulator\」に置く。exe の横には、いっしょに配る物（フォント・dll・同梱のスキンと音色）だけ。
-    //   ・最初の起動で、exe の横にある今までのデータを引っ越す（同じドライブなら一瞬。ちがうドライブならコピーして、元は残す）
-    //   ・同梱の TaikoSim-Simple スキンと音色は、起動のたびに exe の横から新しいファイルだけコピーする（ビルドで更新されるため）
-    //   ドキュメントが見つからない・作れないときは、今までどおり exe の横を使う
-    public static class DataPaths
+    public const string FolderName = "TakeTaikoSimulator";
+    public static string AppFolder => AppContext.BaseDirectory;
+    public static string Root => AppFolder;
+    public static string Data(params string[] parts) => Path.Combine(new[] { Root }.Concat(parts).ToArray());
+
+    private static readonly string[] LegacyFolders = ["Config", "Songs", "Skins", "Cache", "Logs", "Screenshots", "HitSounds"];
+
+    public static void Prepare()
     {
-        public const string FolderName = "TakeTaikoSimulator";
+        string documents = Environment.GetFolderPath(Environment.SpecialFolder.MyDocuments);
+        if (!string.IsNullOrEmpty(documents))
+            ImportLegacy(Path.Combine(documents, FolderName), AppFolder);
+    }
 
-        // exe の横（同梱の物）
-        public static string AppFolder => AppContext.BaseDirectory;
+    internal static void ImportLegacy(string source, string destination)
+    {
+        const string markerName = ".documents-data-imported";
+        string marker = Path.Combine(destination, markerName);
+        if (File.Exists(marker) || !Directory.Exists(source) || string.Equals(
+            Path.TrimEndingDirectorySeparator(Path.GetFullPath(source)),
+            Path.TrimEndingDirectorySeparator(Path.GetFullPath(destination)), StringComparison.OrdinalIgnoreCase))
+            return;
 
-        // データの場所（Prepare で決まる）
-        public static string Root { get; private set; } = AppContext.BaseDirectory;
-
-        public static string Data(params string[] parts) => Path.Combine(new[] { Root }.Concat(parts).ToArray());
-
-        // 引っ越すフォルダ（exe の横 → ドキュメント）
-        private static readonly string[] MoveFolders = { "Config", "Songs", "Skins", "Cache", "Logs", "Screenshots", "HitSounds" };
-        // 同梱で、起動のたびに新しいファイルを入れ直すフォルダ
-        private static readonly string[] BundledFolders = { Path.Combine("Skins", "TaikoSim-Simple"), "HitSounds" };
-
-        // 起動の一番最初に1回呼ぶ（ConfigManager などがパスを使う前）
-        public static void Prepare()
+        try
         {
-            string documents;
-            try { documents = Environment.GetFolderPath(Environment.SpecialFolder.MyDocuments); }
-            catch (PlatformNotSupportedException) { documents = ""; }
-            if (string.IsNullOrEmpty(documents)) { Console.WriteLine("[データ] ドキュメントが見つからないので、exe の横を使います"); return; }
-
-            string root = Path.Combine(documents, FolderName);
-            try { Directory.CreateDirectory(root); }
-            catch (Exception ex) when (ex is IOException or UnauthorizedAccessException)
+            foreach (string name in LegacyFolders)
             {
-                Console.WriteLine($"[データ] {root} を作れないので、exe の横を使います（{ex.Message}）");
-                return;
-            }
-            Root = root;
-            if (SamePath(Root, AppFolder)) return;
+                string oldFolder = Path.Combine(source, name);
+                string target = Path.Combine(destination, name);
+                if (!Directory.Exists(oldFolder) || Directory.Exists(target) || File.Exists(target))
+                    continue;
+                if ((File.GetAttributes(oldFolder) & FileAttributes.ReparsePoint) != 0)
+                    continue;
 
-            foreach (string name in MoveFolders) MoveOld(name);
-            foreach (string name in BundledFolders) SyncBundled(name);
-        }
-
-        // exe の横に前のデータがあって、ドキュメント側にまだ無ければ引っ越す（両方あるときは何もしない＝上書きしない）
-        private static void MoveOld(string name)
-        {
-            string from = Path.Combine(AppFolder, name), to = Path.Combine(Root, name);
-            if (!Directory.Exists(from) || Directory.Exists(to)) return;
-            try
-            {
-                Directory.Move(from, to);
-                Console.WriteLine($"[データ] {name} をドキュメントへ引っ越しました");
-            }
-            catch (Exception ex) when (ex is IOException or UnauthorizedAccessException)
-            {
-                // ちがうドライブなどで動かせないとき：コピーして、元は残す
+                // コピー途中のフォルダーを通常のデータとして読み込まない。
+                string staged = Path.Combine(destination, ".take-taiko-import-" + Guid.NewGuid().ToString("N"));
+                Directory.CreateDirectory(staged);
                 try
                 {
-                    CopyFolder(from, to, onlyNewer: false);
-                    Console.WriteLine($"[データ] {name} をドキュメントへコピーしました（元は残しています：{ex.Message}）");
+                    CopyFolder(oldFolder, staged);
+                    Directory.Move(staged, target);
                 }
-                catch (Exception copyEx) when (copyEx is IOException or UnauthorizedAccessException)
+                finally
                 {
-                    Console.WriteLine($"[データ] {name} を引っ越せませんでした：{copyEx.Message}");
+                    if (Directory.Exists(staged))
+                        Directory.Delete(staged, recursive: true);
                 }
             }
+            File.WriteAllText(marker, "");
         }
-
-        // 同梱の物：exe の横の方が新しいファイルだけ、ドキュメント側へコピーする
-        private static void SyncBundled(string name)
+        catch (Exception ex) when (ex is IOException or UnauthorizedAccessException)
         {
-            string from = Path.Combine(AppFolder, name), to = Path.Combine(Root, name);
-            if (!Directory.Exists(from)) return;
-            // 既にある音色はプレイヤーが差し替えている場合がある。
-            try { CopyFolder(from, to, onlyNewer: true, overwriteExisting: name != "HitSounds"); }
-            catch (Exception ex) when (ex is IOException or UnauthorizedAccessException)
-            {
-                Console.WriteLine($"[データ] 同梱の {name} をコピーできませんでした：{ex.Message}");
-            }
+            Console.WriteLine($"[データ] ドキュメントのデータをコピーできませんでした: {ex.Message}");
         }
+    }
 
-        private static void CopyFolder(string from, string to, bool onlyNewer, bool overwriteExisting = true)
+    private static void CopyFolder(string source, string destination)
+    {
+        var options = new EnumerationOptions { RecurseSubdirectories = true, AttributesToSkip = FileAttributes.ReparsePoint, IgnoreInaccessible = false };
+        foreach (string file in Directory.EnumerateFiles(source, "*", options))
         {
-            foreach (string file in Directory.EnumerateFiles(from, "*", SearchOption.AllDirectories))
-            {
-                string target = Path.Combine(to, Path.GetRelativePath(from, file));
-                if (File.Exists(target) && (!overwriteExisting ||
-                    onlyNewer && File.GetLastWriteTimeUtc(target) >= File.GetLastWriteTimeUtc(file))) continue;
-                Directory.CreateDirectory(Path.GetDirectoryName(target)!);
-                File.Copy(file, target, overwrite: overwriteExisting);
-            }
+            string target = Path.Combine(destination, Path.GetRelativePath(source, file));
+            Directory.CreateDirectory(Path.GetDirectoryName(target)!);
+            File.Copy(file, target);
         }
-
-        private static bool SamePath(string a, string b) =>
-            string.Equals(Path.GetFullPath(a).TrimEnd(Path.DirectorySeparatorChar),
-                Path.GetFullPath(b).TrimEnd(Path.DirectorySeparatorChar), StringComparison.OrdinalIgnoreCase);
     }
 }

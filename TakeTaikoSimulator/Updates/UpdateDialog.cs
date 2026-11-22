@@ -1,5 +1,3 @@
-using System.Diagnostics;
-
 namespace TakeTaikoSimulator.Updates;
 
 internal static class UpdateDialog
@@ -22,18 +20,6 @@ internal static class UpdateDialog
     }
 
     internal static void Notice(string heading, string text) => Show(heading, text, "OK");
-
-    internal static void RestartNotice()
-    {
-        var clock = Stopwatch.StartNew();
-        var window = new UpdateWindow("ダウンロード完了しました", "再起動します。", null, null, InstallerAppearance);
-        window.Tick = () =>
-        {
-            if (clock.ElapsedMilliseconds >= 3000)
-                window.Complete();
-        };
-        window.Show();
-    }
 
     internal static T Download<T>(Func<Action<long>, CancellationToken, Task<T>> action, long total)
     {

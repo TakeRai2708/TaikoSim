@@ -59,6 +59,7 @@ internal static class StartupUpdate
                 applicationLock = null;
                 return false;
             }
+            CleanCompletedUpdates(root);
 
             using var settings = OpenSettings(root);
             if (settings is null)
@@ -78,10 +79,12 @@ internal static class StartupUpdate
             Download(feed, release, stage, install: false);
             string workerPath = Path.Combine(stage, WorkerExe);
             File.Copy(Path.Combine(root, UpdatePackage.GameExe), workerPath);
-            UpdateDialog.RestartNotice();
+            bool restartAfterUpdate = UpdateDialog.Confirm("ダウンロード完了しました",
+                "更新を適用したあと、TakeTaiko を再起動しますか？\n\n「いいえ」でも更新を適用して終了します。");
             using var current = Process.GetCurrentProcess();
             using var child = StartProcess(workerPath, stage, ApplyMode,
-                current.Id.ToString(CultureInfo.InvariantCulture), current.StartTime.ToUniversalTime().Ticks.ToString(CultureInfo.InvariantCulture));
+                current.Id.ToString(CultureInfo.InvariantCulture), current.StartTime.ToUniversalTime().Ticks.ToString(CultureInfo.InvariantCulture),
+                restartAfterUpdate ? "restart" : "exit");
             updated = true;
             return false;
         }
@@ -215,7 +218,7 @@ internal static class StartupUpdate
 
     private static void RunWorker(string stage, string[] args)
     {
-        if (args.Length != 3 || !IsStageName(Path.GetFileName(stage)) ||
+        if (args.Length != 4 || args[3] is not ("restart" or "exit") || !IsStageName(Path.GetFileName(stage)) ||
             !string.Equals(Path.GetFileName(Environment.ProcessPath), WorkerExe, StringComparison.OrdinalIgnoreCase))
             throw new InvalidDataException("更新の起動情報が無効です。");
 
@@ -238,6 +241,12 @@ internal static class StartupUpdate
                 if (!File.Exists(Path.Combine(stage, "applying")))
                     RemoveStage(stage);
                 throw;
+            }
+            // 補助 exe は実行中に消せない。自動再起動しない場合は次回起動時に片付ける。
+            if (args[3] == "exit")
+            {
+                File.WriteAllText(Path.Combine(stage, "completed"), "");
+                return;
             }
         }
         using var current = Process.GetCurrentProcess();
@@ -273,6 +282,21 @@ internal static class StartupUpdate
         UpdatePackage.RejectLinks(root, "temp");
         return Directory.EnumerateDirectories(temp).Any(path =>
             IsStageName(Path.GetFileName(path)) && File.Exists(Path.Combine(path, "applying")));
+    }
+
+    private static void CleanCompletedUpdates(string root)
+    {
+        string temp = Path.Combine(root, "temp");
+        if (!Directory.Exists(temp))
+            return;
+        foreach (string stage in Directory.GetDirectories(temp))
+        {
+            string name = Path.GetFileName(stage);
+            if (!IsStageName(name) || !File.Exists(Path.Combine(stage, "completed")))
+                continue;
+            UpdatePackage.RejectLinks(root, "temp/" + name);
+            RemoveStage(stage);
+        }
     }
 
     private static string GetRestartStage(string root, string[] args)
