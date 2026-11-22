@@ -76,21 +76,23 @@ namespace TakeTaikoSimulator.Configs
         {
             string from = Path.Combine(AppFolder, name), to = Path.Combine(Root, name);
             if (!Directory.Exists(from)) return;
-            try { CopyFolder(from, to, onlyNewer: true); }
+            // 既にある音色はプレイヤーが差し替えている場合がある。
+            try { CopyFolder(from, to, onlyNewer: true, overwriteExisting: name != "HitSounds"); }
             catch (Exception ex) when (ex is IOException or UnauthorizedAccessException)
             {
                 Console.WriteLine($"[データ] 同梱の {name} をコピーできませんでした：{ex.Message}");
             }
         }
 
-        private static void CopyFolder(string from, string to, bool onlyNewer)
+        private static void CopyFolder(string from, string to, bool onlyNewer, bool overwriteExisting = true)
         {
             foreach (string file in Directory.EnumerateFiles(from, "*", SearchOption.AllDirectories))
             {
                 string target = Path.Combine(to, Path.GetRelativePath(from, file));
-                if (onlyNewer && File.Exists(target) && File.GetLastWriteTimeUtc(target) >= File.GetLastWriteTimeUtc(file)) continue;
+                if (File.Exists(target) && (!overwriteExisting ||
+                    onlyNewer && File.GetLastWriteTimeUtc(target) >= File.GetLastWriteTimeUtc(file))) continue;
                 Directory.CreateDirectory(Path.GetDirectoryName(target)!);
-                File.Copy(file, target, overwrite: true);
+                File.Copy(file, target, overwrite: overwriteExisting);
             }
         }
 
