@@ -383,8 +383,8 @@ namespace TakeTaikoSimulator.Scenes
         // 設定（F1）は一時停止中だけ開ける（11/14 たけらい）。スキンと音の出し方は、演奏中はさわれない（Overlays/SettingsOverlay.cs の InPlay）
         public override bool CanOpenSettings => pauseOpen || (isTraining && trainingPaused);   // 再開のカウント中は開けない
 
-        // Discord の「プレイ中」：1行目に曲名（段位なら段位名）、2行目に難易度など、残り時間
-        //   「曲名を出さない」の設定なら、曲名のかわりに「演奏中」
+        // Discord の「プレイ中」：特訓は曲名、段位道場は挑戦中の段位名を文章で表示する。
+        //   2行目は難易度・現在の曲数など。曲名を隠す設定は特訓中も守る。
         public override Platform.DiscordPresence.Info? Presence
         {
             get
@@ -397,12 +397,22 @@ namespace TakeTaikoSimulator.Scenes
 
                 if (dan != null)
                 {
+                    // 十段・玄人・名人など、段位名はそのまま使い「段」を重複させない。
+                    string danTitle = dan.Course.Title.Trim();
+                    string details = danTitle.Length > 0 && danTitle != "段位道場"
+                        ? $"段位道場で{danTitle}をプレイ中" : "段位道場をプレイ中";
                     string song = showTitle && chart.Title.Length > 0 ? $"{dan.SongIndex + 1}曲目：{chart.Title}" : $"{dan.SongIndex + 1}曲目 / {dan.Tallies.Length}";
-                    return new(dan.Course.Title.Length > 0 ? dan.Course.Title : "段位道場", song, end);
+                    return new(details, song, end);
+                }
+                if (isTraining)
+                {
+                    string details = showTitle && !string.IsNullOrWhiteSpace(chart.Title)
+                        ? $"特訓モードで{chart.Title}をプレイ中" : "特訓モードをプレイ中";
+                    return trainingPaused
+                        ? new(details, $"{level}（一時停止中）")
+                        : new(details, level, end);
                 }
                 if (PauseActive) return new(title, $"{level}（一時停止中）");
-                if (isTraining)
-                    return trainingPaused ? new(title, $"特訓モード · {level}（一時停止中）") : new(title, $"特訓モード · {level}", end);
                 return new(title, autoPlay ? $"{level} · オート" : level, end);
             }
         }
