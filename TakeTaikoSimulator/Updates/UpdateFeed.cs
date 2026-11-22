@@ -7,7 +7,7 @@ using System.Text.Json;
 namespace TakeTaikoSimulator.Updates;
 
 internal sealed record GameRelease(Version Version, Uri DownloadUrl, long Size, byte[] Sha256,
-    DateTimeOffset ExpiresUtc, string Notes);
+    DateTimeOffset ExpiresUtc, string Notes, GitHubReleaseSource? GitHub = null);
 
 internal sealed class UpdateFeed(HttpClient http)
 {
@@ -19,13 +19,42 @@ internal sealed class UpdateFeed(HttpClient http)
     {
         await using var file = File.OpenRead(settingsPath);
         using var settings = await ReadMetadataAsync(file, cancellationToken);
-        Uri manifestUrl = HttpsUri(settings.RootElement.GetProperty("manifestUrl").GetString());
         using RSA key = RSA.Create();
         key.ImportFromPem(settings.RootElement.GetProperty("publicKeyPem").GetString());
         if (key.KeySize < 2048)
             throw new InvalidDataException("配布元の公開鍵が短すぎます。");
 
+        if (settings.RootElement.TryGetProperty("githubRepository", out var repository))
+        {
+            var github = new GitHubReleaseSource(http, repository.GetString());
+            string? tag = settings.RootElement.TryGetProperty("githubTag", out var configuredTag) ? configuredTag.GetString() : null;
+            using var metadata = await github.ReadReleaseAsync(tag, cancellationToken);
+            if (metadata.RootElement.GetProperty("draft").GetBoolean())
+                throw new InvalidDataException("GitHub の下書きリリースは使用できません。");
+            var assets = metadata.RootElement.GetProperty("assets").EnumerateArray().ToArray();
+            var envelopes = assets.Where(asset => asset.GetProperty("name").GetString() == "latest.json").ToArray();
+            if (envelopes.Length != 1)
+                throw new InvalidDataException("GitHub リリースに署名済みの latest.json がありません。");
+
+            var manifestAsset = HttpsUri(envelopes[0].GetProperty("url").GetString());
+            using var assetResponse = await github.GetAssetAsync(manifestAsset, cancellationToken);
+            var release = await ReadSignedReleaseAsync(assetResponse, key, cancellationToken);
+            if (!github.IsAsset(release.DownloadUrl) ||
+                !assets.Any(asset => asset.GetProperty("name").GetString()?.EndsWith(".zip", StringComparison.OrdinalIgnoreCase) == true &&
+                    Uri.TryCreate(asset.GetProperty("url").GetString(), UriKind.Absolute, out var assetUrl) &&
+                    release.DownloadUrl == assetUrl))
+                throw new InvalidDataException("署名済みの ZIP が同じ GitHub リリースに見つかりません。");
+            return release with { GitHub = github };
+        }
+
+        Uri manifestUrl = HttpsUri(settings.RootElement.GetProperty("manifestUrl").GetString());
         using var response = await http.GetAsync(manifestUrl, HttpCompletionOption.ResponseHeadersRead, cancellationToken);
+        return await ReadSignedReleaseAsync(response, key, cancellationToken);
+    }
+
+    private static async Task<GameRelease> ReadSignedReleaseAsync(HttpResponseMessage response, RSA key,
+        CancellationToken cancellationToken)
+    {
         response.EnsureSuccessStatusCode();
         await using var stream = await response.Content.ReadAsStreamAsync(cancellationToken);
         using var envelope = await ReadMetadataAsync(stream, cancellationToken);
@@ -68,7 +97,9 @@ internal sealed class UpdateFeed(HttpClient http)
         CancellationToken cancellationToken)
     {
         EnsureNotExpired(release.ExpiresUtc);
-        using var response = await http.GetAsync(release.DownloadUrl, HttpCompletionOption.ResponseHeadersRead, cancellationToken);
+        using var response = release.GitHub is { } github
+            ? await github.GetAssetAsync(release.DownloadUrl, cancellationToken)
+            : await http.GetAsync(release.DownloadUrl, HttpCompletionOption.ResponseHeadersRead, cancellationToken);
         response.EnsureSuccessStatusCode();
         if (response.Content.Headers.ContentLength is long length && length != release.Size)
             throw new InvalidDataException("配布ファイルのサイズが更新情報と一致しません。");
@@ -119,11 +150,12 @@ internal sealed class UpdateFeed(HttpClient http)
         }
     }
 
-    private static async Task<JsonDocument> ReadMetadataAsync(Stream source, CancellationToken cancellationToken)
+    internal static async Task<JsonDocument> ReadMetadataAsync(Stream source, CancellationToken cancellationToken,
+        int limit = MetadataLimit)
     {
-        var buffer = new byte[MetadataLimit + 1];
+        var buffer = new byte[limit + 1];
         int count = await source.ReadAtLeastAsync(buffer, buffer.Length, false, cancellationToken);
-        if (count > MetadataLimit)
+        if (count > limit)
             throw new InvalidDataException("更新情報のサイズが上限を超えました。");
         return JsonDocument.Parse(buffer.AsMemory(0, count));
     }

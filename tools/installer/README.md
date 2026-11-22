@@ -27,7 +27,14 @@ ZIP を限定 HTTPS 配布先に置き、同じ ZIP から署名付きの最新�
 }
 ```
 
-配布元にはリダイレクトなしの HTTPS 直リンクを使います。現在のクライアントは非公開 GitHub Releases へのログインに対応していません。アクセスを制限した HTTPS 配布先を用意してください。本番用の配布先、鍵、Authenticode 署名はこのリポジトリには含まれません。
+通常の配布元にはリダイレクトなしの HTTPS 直リンクを使います。本番用の配布先、鍵、Authenticode 署名はこのリポジトリには含まれません。
+
+## 非公開 GitHub リリースで試す
+
+1. 配布 ZIP をリリースに添付し、GitHub API が返す添付ファイルの `url`（`https://api.github.com/repos/…/releases/assets/…`）を署名スクリプトの `-DownloadUrl` に指定します。
+2. 生成した署名済み `latest.json` を同じリリースに添付します。テストにはプレリリースを使えます。
+3. `update-feed.json` に `publicKeyPem` と `"githubRepository": "TakeRai2708/TaikoSim"` を設定します。プレリリースを読むときは `githubTag` にそのタグ名も指定します。省略時は GitHub の最新正式リリースが対象です。
+4. そのリポジトリの Contents を読み取れる各自の認証用トークンを、起動するプロセスの `TAKETAIKO_GITHUB_TOKEN` 環境変数で渡します。トークンは配布物や JSON に含めません。この方式では、友達にもリポジトリの読み取り権限と自分の認証情報が必要です。
 
 ## ゲーム起動時
 
