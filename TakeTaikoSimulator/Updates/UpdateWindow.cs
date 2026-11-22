@@ -39,6 +39,7 @@ internal sealed class UpdateWindow(string heading, string body, string? primary,
     private bool complete;
     private Exception? failure;
     private int? percent;
+    private double scale = 1;
 
     internal string? Folder { get; set; }
     internal bool DesktopShortcut { get; set; }
@@ -73,11 +74,15 @@ internal sealed class UpdateWindow(string heading, string body, string? primary,
             registered = true;
         }
 
-        int width = installer ? 660 : 600;
-        int height = installer ? 396 : 360;
-        SystemParametersInfo(0x0030, 0, out Rect area, 0);
-        width = Math.Min(width, area.Right - area.Left - 24);
-        height = Math.Min(height, area.Bottom - area.Top - 24);
+        int logicalWidth = installer ? 660 : 600;
+        int logicalHeight = installer ? 396 : 360;
+        if (!SystemParametersInfo(0x0030, 0, out Rect area, 0))
+            throw new Win32Exception();
+        scale = Math.Min(installer ? 1.15 : 1.0, Math.Min(
+            (area.Right - area.Left - 24) / (double)logicalWidth,
+            (area.Bottom - area.Top - 24) / (double)logicalHeight));
+        int width = Scale(logicalWidth);
+        int height = Scale(logicalHeight);
         current = this;
         try
         {
@@ -86,7 +91,7 @@ internal sealed class UpdateWindow(string heading, string body, string? primary,
                 width, height, 0, 0, instance, 0);
             if (window == 0)
                 throw new Win32Exception();
-            nint focus = CreateControls(width, height);
+            nint focus = CreateControls(logicalWidth, logicalHeight);
             ShowWindow(window, 5);
             SetFocus(focus);
             if (Tick is not null && SetTimer(window, 1, 50, 0) == 0)
@@ -141,9 +146,9 @@ internal sealed class UpdateWindow(string heading, string body, string? primary,
     private nint CreateControls(int width, int height)
     {
         const int margin = 24;
-        regularFont = MakeFont(16, 400);
-        headingFont = MakeFont(26, 600);
-        brandFont = MakeFont(15, 600);
+        regularFont = MakeFont(Scale(16), 400);
+        headingFont = MakeFont(Scale(26), 600);
+        brandFont = MakeFont(Scale(15), 600);
         backgroundBrush = CreateSolidBrush(Background);
         panelBrush = CreateSolidBrush(Panel);
         brand = Child("STATIC", installer ? "TakeTaiko インストーラー" : "TakeTaiko", 0,
@@ -151,7 +156,7 @@ internal sealed class UpdateWindow(string heading, string body, string? primary,
         if (CanClose)
             Button("閉じる", width - 54, 4, 46, 34, Close);
 
-        panel = new Rect(margin, 52, width - margin, height - 67);
+        panel = new Rect(Scale(margin), Scale(52), Scale(width - margin), Scale(height - 67));
         title = Child("STATIC", heading, 0, margin + 18, 69, width - 84, 35, 0, headingFont);
         int bodyBottom = Folder is null ? height - (percent is null ? 88 : 129) : height - 159;
         int bodyHeight = Math.Max(34, bodyBottom - 122);
@@ -177,7 +182,7 @@ internal sealed class UpdateWindow(string heading, string body, string? primary,
             if (DesktopShortcut)
                 SendMessage(desktopCheckBox, SetCheck, 1, 0);
         }
-        progress = new Rect(margin + 18, height - 121, width - margin - 18, height - 83);
+        progress = new Rect(Scale(margin + 18), Scale(height - 121), Scale(width - margin - 18), Scale(height - 83));
         nint focus = 0;
         if (primary is not null)
             focus = Button(primary, width - (secondary is null ? 138 : 254), height - 53, 114, 35, Accept);
@@ -205,12 +210,14 @@ internal sealed class UpdateWindow(string heading, string body, string? primary,
     private nint Child(string type, string label, uint style, int x, int y, int width, int height, int id, nint font)
     {
         nint child = CreateWindowEx(0, type, label, 0x50000000 | style,
-            x, y, width, height, window, id, 0, 0);
+            Scale(x), Scale(y), Scale(width), Scale(height), window, id, 0, 0);
         if (child == 0)
             throw new Win32Exception();
         SendMessage(child, 0x0030, font, 1);
         return child;
     }
+
+    private int Scale(int value) => (int)Math.Round(value * scale);
 
     private static nint Dispatch(nint hwnd, uint message, nuint parameter, nint data)
     {
@@ -236,14 +243,14 @@ internal sealed class UpdateWindow(string heading, string body, string? primary,
                 {
                     GetClientRect(hwnd, out Rect client);
                     FillRect(canvas, ref client, backgroundBrush);
-                    Rounded(canvas, panel, Panel, Border, 18);
+                    Rounded(canvas, panel, Panel, Border, Scale(18));
                     if (percent is int value)
                     {
-                        Rect track = new(progress.Left, progress.Top + 24, progress.Right, progress.Top + 31);
-                        Rounded(canvas, track, Border, Border, 6);
+                        Rect track = new(progress.Left, progress.Top + Scale(24), progress.Right, progress.Top + Scale(31));
+                        Rounded(canvas, track, Border, Border, Scale(6));
                         track.Right = track.Left + (track.Right - track.Left) * value / 100;
                         if (track.Right > track.Left)
-                            Rounded(canvas, track, Rgb(226, 58, 94), Rgb(226, 58, 94), 6);
+                            Rounded(canvas, track, Rgb(226, 58, 94), Rgb(226, 58, 94), Scale(6));
                         DrawLabel(canvas, $"{value}%", progress, regularFont, Sakura, 0x20);
                     }
                 }
@@ -294,10 +301,10 @@ internal sealed class UpdateWindow(string heading, string body, string? primary,
             case 0x0084: // WM_NCHITTEST
                 var point = new Point { X = (short)(data & 0xffff), Y = (short)(data >> 16) };
                 ScreenToClient(hwnd, ref point);
-                if (point.Y is >= 0 and < 44)
+                if (point.Y >= 0 && point.Y < Scale(44))
                 {
                     GetClientRect(hwnd, out Rect bounds);
-                    if (!CanClose || point.X < bounds.Right - 57)
+                    if (!CanClose || point.X < bounds.Right - Scale(57))
                         return 2; // HTCAPTION
                 }
                 break;
@@ -321,7 +328,7 @@ internal sealed class UpdateWindow(string heading, string body, string? primary,
         uint fill = item.ControlId == Accept ? Accent : Rgb(51, 32, 42);
         if (!close || pressed || focused)
             Rounded(item.Canvas, item.Bounds, pressed ? Border : fill,
-                !close && focused ? Sakura : pressed ? Border : fill, 9);
+                !close && focused ? Sakura : pressed ? Border : fill, Scale(9));
         string label = item.ControlId switch
         {
             Accept => primary!,
@@ -349,20 +356,21 @@ internal sealed class UpdateWindow(string heading, string body, string? primary,
                 FillRect(canvas, ref bounds, owner.backgroundBrush);
                 bool isChecked = SendMessage(control, GetCheck, 0, 0) == 1;
                 bool focused = GetFocus() == control;
-                int top = (bounds.Bottom - 18) / 2;
-                var indicator = new Rect(1, top, 19, top + 18);
-                Rounded(canvas, indicator, isChecked ? Sakura : Panel, isChecked || focused ? Sakura : Muted, 6);
+                int top = (bounds.Bottom - owner.Scale(18)) / 2;
+                var indicator = new Rect(owner.Scale(1), top, owner.Scale(19), top + owner.Scale(18));
+                Rounded(canvas, indicator, isChecked ? Sakura : Panel, isChecked || focused ? Sakura : Muted,
+                    owner.Scale(6));
                 if (isChecked)
                 {
-                    nint pen = CreatePen(0, 2, Background);
+                    nint pen = CreatePen(0, owner.Scale(2), Background);
                     nint previous = SelectObject(canvas, pen);
-                    MoveToEx(canvas, 5, top + 9, 0);
-                    LineTo(canvas, 8, top + 12);
-                    LineTo(canvas, 15, top + 5);
+                    MoveToEx(canvas, owner.Scale(5), top + owner.Scale(9), 0);
+                    LineTo(canvas, owner.Scale(8), top + owner.Scale(12));
+                    LineTo(canvas, owner.Scale(15), top + owner.Scale(5));
                     SelectObject(canvas, previous);
                     DeleteObject(pen);
                 }
-                bounds.Left = 28;
+                bounds.Left = owner.Scale(28);
                 DrawLabel(canvas, DesktopShortcutLabel, bounds, owner.regularFont, Text, 0x24);
             }
             finally
