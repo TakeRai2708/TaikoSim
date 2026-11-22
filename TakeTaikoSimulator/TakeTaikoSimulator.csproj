@@ -2,12 +2,11 @@
 
 	<PropertyGroup>
 		<OutputType>Exe</OutputType>
-		<AssemblyName>TakeTaiko</AssemblyName>
+		<AssemblyName>TakeTaikoSimulator</AssemblyName>
 		<RootNamespace>TakeTaikoSimulator</RootNamespace>
-		<AssemblyTitle>TakeTaiko</AssemblyTitle>
-		<Product>TakeTaiko</Product>
+		<AssemblyTitle>TakeTaikoSimulator</AssemblyTitle>
+		<Product>TakeTaikoSimulator</Product>
 		<ApplicationIcon>Assets/Branding/AppIcon.ico</ApplicationIcon>
-		<ApplicationManifest>app.manifest</ApplicationManifest>
 		<!-- exe横の既存データを引き継ぐため、ビルド出力先は旧プロジェクトと同じ場所にする -->
 		<BaseOutputPath>$(MSBuildThisFileDirectory)../TaikoSim/bin/</BaseOutputPath>
 		<TargetFramework>net10.0-windows</TargetFramework>

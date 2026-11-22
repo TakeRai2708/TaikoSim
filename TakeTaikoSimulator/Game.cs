@@ -59,7 +59,7 @@ namespace TakeTaikoSimulator
             RaylibLog.Start();   // raylib の INFO / WARNING もログファイルに残す（黒い画面がすぐ消えても後で見られる）
 
             // 設定の解像度でウィンドウを作る
-            Raylib.InitWindow(ConfigManager.Game.WindowWidth, ConfigManager.Game.WindowHeight, "TakeTaiko");
+            Raylib.InitWindow(ConfigManager.Game.WindowWidth, ConfigManager.Game.WindowHeight, "TakeTaikoSimulator");
             if (!Raylib.IsWindowReady())
             {
                 // 窓を作れなかった（ANGLE の Vulkan など）。ANGLE なら OpenGL にもどして、もう一度起動する
