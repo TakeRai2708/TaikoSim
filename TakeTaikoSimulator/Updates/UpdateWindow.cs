@@ -42,6 +42,8 @@ internal sealed class UpdateWindow(string heading, string body, string? primary,
     private double scale = 1;
 
     internal string? Folder { get; set; }
+    internal bool EditableBody { get; set; }
+    internal string BodyText { get; private set; } = body;
     internal bool DesktopShortcut { get; set; }
     internal Action? Tick { get; set; }
     internal int? Progress
@@ -164,7 +166,10 @@ internal sealed class UpdateWindow(string heading, string body, string? primary,
         int charsPerLine = Math.Max(1, (width - 84) / 15);
         int lines = content.Split('\n').Sum(line => Math.Max(1, (line.TrimEnd('\r').Length + charsPerLine - 1) / charsPerLine));
         uint scroll = lines * 20 > bodyHeight ? 0x00200000u : 0;
-        details = Child("EDIT", content, scroll | 0x0844, margin + 18, 122, width - 84, bodyHeight, 0, regularFont);
+        details = Child("EDIT", content, EditableBody ? 0x00311044u : scroll | 0x0844,
+            margin + 18, 122, width - 84, bodyHeight, 0, regularFont);
+        if (EditableBody)
+            SendMessage(details, 0x00C5, 1400, 0); // EM_SETLIMITTEXT
 
         if (Folder is not null)
         {
@@ -196,6 +201,12 @@ internal sealed class UpdateWindow(string heading, string body, string? primary,
 
     private void Finish(int value)
     {
+        if (EditableBody && details != 0)
+        {
+            var text = new StringBuilder(GetWindowTextLength(details) + 1);
+            GetWindowText(details, text, text.Capacity);
+            BodyText = text.ToString();
+        }
         result = value;
         complete = true;
     }
@@ -275,6 +286,12 @@ internal sealed class UpdateWindow(string heading, string body, string? primary,
                 switch (id)
                 {
                     case Accept:
+                        if (EditableBody)
+                        {
+                            var text = new StringBuilder(GetWindowTextLength(details) + 1);
+                            GetWindowText(details, text, text.Capacity);
+                            BodyText = text.ToString();
+                        }
                         if (folderField != 0)
                         {
                             var path = new StringBuilder(GetWindowTextLength(folderField) + 1);
