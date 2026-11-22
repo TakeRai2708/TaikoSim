@@ -78,6 +78,7 @@ namespace TakeTaikoSimulator.Scenes
         private static int openCat = -1;
         private static string lastSongKey = "";        // 最後に選んでいた曲(一覧を作り直しても同じ曲に戻すため)
         private static CourseType lastCourse = CourseType.Oni;
+        private static bool courseChosenThisRun;   // 起動してから一度でも難易度を決めて遊んだか
         private static string searchText = "";
         private static List<SongCategory>? builtFor;   // 今の一覧を作ったときのカテゴリ(読み直したら作り直す)
 
@@ -96,7 +97,7 @@ namespace TakeTaikoSimulator.Scenes
         //   0.04〜0.22 上の板は上へ、下の板は下へ 150px すべりながら消える
         //   0.337〜0.553 板が横につぶれていく(幅 793 → 736 → 622 → 525 → 430 → … → 32 → 12 → 0px)
         //   0.553〜0.603 見えない(幅 0)
-        //   0.603〜0.837 開いた板の高さ(下そろえで上に 92px 高い)になって、加速しながら元の幅まで広がる(8 → 24 → 45 → 77 → 116 → … → 793px)
+        //   0.603〜0.837 開いた板の高さ(下そろえで上に 94px 高い)になって、加速しながら元の幅まで広がる(8 → 24 → 45 → 77 → 116 → … → 793px)
         //   0.837〜0.937 中身の無い開いた板のまま
         //   0.937      中身が最初の曲の板(開いた形)になる
         //   0.937〜1.07 曲の板の中身と、上下の板がじわっと出る。黄色い枠は 0.937 から 0.33秒あとに出る
@@ -106,7 +107,7 @@ namespace TakeTaikoSimulator.Scenes
         private const float FlipOthersStart = 0.04f, FlipOthersEnd = 0.22f, FlipOthersShift = 150f;
         private const float FlipSquashStart = 0.337f, FlipSquashEnd = 0.553f, FlipThinEnd = 0.603f, FlipGrowEnd = 0.837f, FlipSwitch = 0.937f, FlipEnd = 1.07f;
         private const float FlipThinScale = 0f;
-        private const float FlipTallExtra = 92f;   // 広がるときの板は、開いた曲の板の高さ(中の水色 171 → 263px。下はそのまま)
+        private const float FlipTallExtra = 94f;   // 広がるときの板は、開いた曲の板の高さ(中の水色 175 → 269px。下はそのまま。TaikøNauts の録画は縦が 0.979 倍に縮んでいたので戻した)
         // つぶれていく幅(793px を 1 として、1/60秒ごと。TaikøNauts の 11/22 の録画)
         private static readonly float[] FlipSquashWidths = { 1f, 0.928f, 0.784f, 0.662f, 0.542f, 0.433f, 0.340f, 0.257f, 0.189f, 0.126f, 0.075f, 0.040f, 0.015f, 0f };
         private float flipTime = -1f;      // めくれ始めてからの時間(-1 ならめくっていない)
@@ -1101,6 +1102,8 @@ namespace TakeTaikoSimulator.Scenes
                 start = PanelCourses.LastOrDefault(c => HasCourse(c) || (c == CourseType.Oni && hasUra), CourseType.Easy);
             }
             diffCursor = 2 + Array.IndexOf(PanelCourses, start);
+            // 11/22 TaikøNauts の録画：起動してからまだ遊んでいないと、カーソルは「戻る」から始まる(2曲続けて開いても戻る)
+            if (!courseChosenThisRun) diffCursor = 0;
         }
 
         // 難易度の板を閉じて、曲の一覧へ(曲は流したまま)
@@ -1265,6 +1268,7 @@ namespace TakeTaikoSimulator.Scenes
             MenuVoice.Play(DecideDifficultyVoice);
             diffDecideTime = 0f;
             lastCourse = type;
+            courseChosenThisRun = true;
             lastSongKey = diffSong.Key;
             SongHistory.AddPlayed(diffSong.Key);
             preview.Dispose();
