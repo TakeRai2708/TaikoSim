@@ -11,7 +11,7 @@ internal sealed class GitHubReleaseSource
     private readonly Uri releases;
     private readonly string token;
 
-    internal GitHubReleaseSource(HttpClient http, string? repository)
+    internal GitHubReleaseSource(HttpClient http, string? repository, string? accessToken = null)
     {
         string[] parts = (repository ?? "").Split('/');
         if (parts.Length != 2 || parts.Any(part => part.Length == 0 || part is "." or ".." ||
@@ -20,7 +20,7 @@ internal sealed class GitHubReleaseSource
 
         this.http = http;
         releases = new Uri($"https://api.github.com/repos/{parts[0]}/{parts[1]}/releases/");
-        token = Environment.GetEnvironmentVariable("TAKETAIKO_GITHUB_TOKEN")?.Trim() ?? "";
+        token = (accessToken ?? Environment.GetEnvironmentVariable("TAKETAIKO_GITHUB_TOKEN"))?.Trim() ?? "";
         if (token.Length == 0)
             throw new InvalidDataException("この GitHub リリースを読むには TAKETAIKO_GITHUB_TOKEN が必要です。");
     }

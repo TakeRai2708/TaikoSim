@@ -7,7 +7,7 @@ using System.Text.Json;
 namespace TakeTaikoSimulator.Updates;
 
 internal sealed record GameRelease(Version Version, Uri DownloadUrl, long Size, byte[] Sha256,
-    DateTimeOffset ExpiresUtc, string Notes, GitHubReleaseSource? GitHub = null);
+    DateTimeOffset ExpiresUtc, string Notes, GitHubReleaseSource? GitHub = null, InviteReleaseSource? Invite = null);
 
 internal sealed class UpdateFeed(HttpClient http)
 {
@@ -28,6 +28,15 @@ internal sealed class UpdateFeed(HttpClient http)
         key.ImportFromPem(settings.RootElement.GetProperty("publicKeyPem").GetString());
         if (key.KeySize < 2048)
             throw new InvalidDataException("配布元の公開鍵が短すぎます。");
+
+        if (settings.RootElement.TryGetProperty("relayUrl", out var relayUrl))
+        {
+            var invite = new InviteReleaseSource(http, HttpsUri(relayUrl.GetString()),
+                settings.RootElement.GetProperty("inviteCode").GetString());
+            using var relayResponse = await invite.ReadManifestAsync(cancellationToken);
+            var release = await ReadSignedReleaseAsync(relayResponse, key, cancellationToken);
+            return release with { Invite = invite };
+        }
 
         if (settings.RootElement.TryGetProperty("githubRepository", out var repository))
         {
@@ -102,7 +111,9 @@ internal sealed class UpdateFeed(HttpClient http)
         CancellationToken cancellationToken)
     {
         EnsureNotExpired(release.ExpiresUtc);
-        using var response = release.GitHub is { } github
+        using var response = release.Invite is { } invite
+            ? await invite.DownloadAsync(release.DownloadUrl, cancellationToken)
+            : release.GitHub is { } github
             ? await github.GetAssetAsync(release.DownloadUrl, cancellationToken)
             : await http.GetAsync(release.DownloadUrl, HttpCompletionOption.ResponseHeadersRead, cancellationToken);
         response.EnsureSuccessStatusCode();

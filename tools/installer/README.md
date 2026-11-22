@@ -48,6 +48,28 @@ dotnet publish ./TakeTaikoSimulator/TakeTaikoSimulator.csproj -c Release -r win-
 3. `update-feed.json` に `publicKeyPem` と `"githubRepository": "TakeRai2708/TaikoSim"` を設定します。プレリリースを読むときは `githubTag` にそのタグ名も指定します。省略時は GitHub の最新正式リリースが対象です。
 4. そのリポジトリの Contents を読み取れる各自の認証用トークンを、起動するプロセスの `TAKETAIKO_GITHUB_TOKEN` 環境変数で渡します。トークンは配布物や JSON に含めません。この方式では、友達にもリポジトリの読み取り権限と自分の認証情報が必要です。
 
+## 招待された人だけに配布する
+
+`InviteRelay` は非公開 GitHub Releases を読み、招待を持つインストーラーとゲームへだけ配布します。招待は初回インストール時にゲームへ引き継がれます。プレイヤーの GitHub アカウントは不要です。インストーラーや招待設定をコピーすると同じ招待を使えるため、本人に直接渡してください。招待の失効後は新規取得と更新が止まり、手元にあるゲームは起動できます。
+
+1. 招待設定を組み込まずにゲームを発行し、ZIP と署名済み `latest.json` を同じ非公開リリースに添付します。署名するダウンロード URL には ZIP の GitHub API 添付 URL を使います。全員が使うゲーム ZIP に個別の招待を含めないでください。
+2. .NET 10 が動く HTTPS 配布先に下のコマンドで発行した `InviteRelay` を配置します。HTTPS はサーバーまたは手前の HTTPS プロキシで終端し、HTTP のバックエンドをインターネットに公開しないでください。認証ヘッダーをログに残さず、招待ファイルは公開ディレクトリの外で管理します。
+
+```powershell
+dotnet publish ./tools/installer/InviteRelay/InviteRelay.csproj -c Release -o ./work/invite-relay
+```
+
+サーバーの環境変数に `TAKETAIKO_RELAY_REPOSITORY`（例 `TakeRai2708/TaikoSim`）、`TAKETAIKO_RELAY_INVITES`（許可する招待ハッシュを記録したファイルのパス）、`TAKETAIKO_RELAY_GITHUB_TOKEN`（そのリポジトリの Contents の読み取り権限だけを持つトークン）を設定し、`dotnet InviteRelay.dll` を起動します。任意の `TAKETAIKO_RELAY_TAG` でテスト用リリースを固定できます。省略時は最新の正式リリースが対象です。
+
+3. 受取人ごとに招待を作り、出力した JSON を `TakeTaikoFeedConfig` に指定して発行します。その発行物の `TakeTaiko.exe` を `TakeTaikoSetup.exe` に改名し、本人に渡します。作成時に表示される識別子をサーバーの許可リストから消すと、その人の招待だけを失効できます。
+
+```powershell
+./tools/installer/New-Invite.ps1 -RelayUrl 'https://updates.example.invalid/' -PublicKeyPath ./work/public.pem -ConfigPath ./work/invite-friend.json -AllowlistPath ./work/allowed-invites.txt
+$inviteConfig = (Resolve-Path ./work/invite-friend.json).Path
+dotnet publish ./TakeTaikoSimulator/TakeTaikoSimulator.csproj -c Release -r win-x64 "-p:TakeTaikoFeedConfig=$inviteConfig" -o ./work/setup-friend
+Copy-Item ./work/setup-friend/TakeTaiko.exe ./work/setup-friend/TakeTaikoSetup.exe
+```
+
 ## ゲーム起動時
 
 起動時に最新版と実際の exe のファイルバージョンを比較します。「いいえ」や確認時の通信エラーでは、そのままゲームを起動します。「はい」を押すとゲームの隣の `temp/TakeTaikoUpdate-…` に受信し、署名、サイズ、SHA-256、ZIP 内の exe の版を確認して展開します。再起動の案内を約3秒表示した後、ゲームの終了を待って補助プロセスが差し替えます。新しいゲームの起動時に今回の `temp` の作業ファイルを削除します。
