@@ -292,6 +292,8 @@ namespace TakeTaikoSimulator.Scenes
             wasScanning = SongList.IsScanning;
             searchFocused = false;
             if (!SongList.IsScanning) Rebuild(keepPlace: true);
+            // 最初の Update は暗転解除後になる。曲名のフォントは黒幕中の Enter で準備する。
+            PreloadListText();
             list.Reset(CurrentPos);
             afterBlink = null;
             MenuSkin.Preload(MenuSkin.SongFolder, MenuSkin.BarImages.Concat(MenuSkin.SongImages).Concat(MenuSkin.TnSongImages).Concat(SongRecordPanel.Images));
@@ -1380,8 +1382,6 @@ namespace TakeTaikoSimulator.Scenes
             List<SongCategory> categories = SongList.Categories;
             if (SongList.IsScanning) return;
             if (ReferenceEquals(categories, preloadedCategories) && preloadedFont == FontManager.SkinMainGeneration) return;
-            preloadedCategories = categories;
-            preloadedFont = FontManager.SkinMainGeneration;
 
             IEnumerable<string> Texts()
             {
@@ -1398,6 +1398,8 @@ namespace TakeTaikoSimulator.Scenes
                 }
             }
             FontManager.PreloadSkinMain(Texts()); // 文字はスキンの太字フォントで描く
+            preloadedCategories = categories;
+            preloadedFont = FontManager.SkinMainGeneration;
         }
 
         // ===== TaikøNauts のスキン(02.SongSelect の Bar/番号.png など) =====
