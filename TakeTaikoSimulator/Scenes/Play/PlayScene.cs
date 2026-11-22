@@ -666,6 +666,7 @@ namespace TakeTaikoSimulator.Scenes
         {
             double first = (course != null && course.BarLines.Count > 0) ? course.BarLines[0].TimeMs : 0;
             nowMs = Math.Min(0, first) - 3000;
+            if (isTraining) trainingNoteStartMs = double.NegativeInfinity;
 
             // 曲は止めておいて、時間が0になったら鳴らし始める
             song?.Stop();
@@ -1358,6 +1359,7 @@ namespace TakeTaikoSimulator.Scenes
 
                 var hit = autoHits.Dequeue();
                 Note note = course.Notes[hit.Index];
+                if (IsBeforeTrainingStart(note)) continue; // 助走中の小節はオートでも叩かない
                 if (!branches.IsActive(note)) continue; // ほかの分岐の音符は叩かない
                 if (IsHittable(note))
                 {
@@ -1583,6 +1585,7 @@ namespace TakeTaikoSimulator.Scenes
             foreach (int index in rolls)
             {
                 Note note = course!.Notes[index];
+                if (IsBeforeTrainingStart(note)) continue; // 前の小節から続く連打・風船を除外
                 if (!branches.IsActive(note)) continue; // ほかの分岐の連打・風船
                 if (IsRollNote(note))
                 {
@@ -1757,6 +1760,7 @@ namespace TakeTaikoSimulator.Scenes
         // 割れた風船も消す
         private bool IsHidden(int index)
         {
+            if (course != null && index < course.Notes.Count && IsBeforeTrainingStart(course.Notes[index])) return true;
             if (isTraining && trainingPaused && index < trainingHistory.Length && trainingHistory[index] != null) return false;
             if (course != null && index < course.Notes.Count && !branches.IsActive(course.Notes[index])) return true; // ほかの分岐
             if (isTraining && trainingPaused && IsHittable(course!.Notes[index])) return false;
@@ -2020,6 +2024,7 @@ namespace TakeTaikoSimulator.Scenes
             foreach (int index in rolls)
             {
                 Note note = course!.Notes[index];
+                if (IsBeforeTrainingStart(note)) continue;
                 if (!IsBalloonNote(note) || balloonPopped[index] || rollHits[index] == 0) continue;
                 if (gameMs >= note.TimeMs - BalloonEarlyMs && gameMs < note.EndTimeMs) return index;
             }
