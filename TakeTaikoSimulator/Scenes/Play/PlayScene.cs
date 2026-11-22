@@ -662,7 +662,7 @@ namespace TakeTaikoSimulator.Scenes
         }
 
         // 最初から(最初の小節の3秒前から始める)
-        private void Restart(bool keepBackground = false)
+        private void Restart(bool keepBackground = false, bool preserveTrainingVisuals = false)
         {
             double first = (course != null && course.BarLines.Count > 0) ? course.BarLines[0].TimeMs : 0;
             nowMs = Math.Min(0, first) - 3000;
@@ -695,7 +695,8 @@ namespace TakeTaikoSimulator.Scenes
                     combo = dan.Combo;
                     maxCombo = dan.MaxCombo;
                 }
-                hud.Reset(course, chart?.Title ?? "");
+                // 特訓の停止中に小節を移動するときは、スコアの表示とアニメーションを継続する。
+                if (!preserveTrainingVisuals) hud.Reset(course, chart?.Title ?? "");
                 // 前の自己ベスト（こえたら「ベストスコア更新」の札）。オート・段位・特訓・2人プレイでは出さない
                 long best = 0;
                 if (!autoPlay && dan == null && !isTraining && !localPlay)
@@ -703,11 +704,11 @@ namespace TakeTaikoSimulator.Scenes
                     try { best = SongHistory.GetRecord(SongHistory.KeyFor(path), course.Type).Score; }
                     catch (Exception ex) when (ex is IOException || ex is UnauthorizedAccessException || ex is System.Text.Json.JsonException) { best = 0; }
                 }
-                hud.SetBestScore(best);
+                if (!preserveTrainingVisuals) hud.SetBestScore(best);
             }
             branches.Reset(course, () => stats.Score);
             branchLane.Reset(course?.HasBranch ?? false);
-            scoreboard.Set(0, 0, 0, 0);
+            if (!preserveTrainingVisuals) scoreboard.Set(0, 0, 0, 0);
             latencyAverageMs = 0;
             latencyMeasured = false;
             lastDeltaMs = null;
@@ -737,8 +738,9 @@ namespace TakeTaikoSimulator.Scenes
             poppedBalloon = -1;
             popTimer = 0f;
 
-            effects.Reset();
-            if (combo > 0) effects.SetCombo(combo);   // 段位：前の曲から続くコンボ
+            // 判定枠の炎・光・コンボなどは小節移動で巻き戻さない。
+            if (!preserveTrainingVisuals) effects.Reset();
+            if (combo > 0 && !preserveTrainingVisuals) effects.SetCombo(combo);   // 段位：前の曲から続くコンボ
             if (!keepBackground) background.Reset();
             ResetAutoPlay();
 
@@ -752,7 +754,7 @@ namespace TakeTaikoSimulator.Scenes
             ApplyMusicVolume(1f);
 
             // どんちゃん（段位の次の曲はゲージが続くので、今のゲージの状態から）
-            chara.Reset(stats.IsClear, stats.IsMax);
+            if (!preserveTrainingVisuals) chara.Reset(stats.IsClear, stats.IsMax);
             charaBalloon = -1;
         }
 
