@@ -61,6 +61,14 @@ dotnet publish ./tools/installer/InviteRelay/InviteRelay.csproj -c Release -o ./
 
 サーバーの環境変数に `TAKETAIKO_RELAY_REPOSITORY`（例 `TakeRai2708/TaikoSim`）、`TAKETAIKO_RELAY_INVITES`（許可する招待ハッシュを記録したファイルのパス）、`TAKETAIKO_RELAY_GITHUB_TOKEN`（そのリポジトリの Contents の読み取り権限だけを持つトークン）を設定し、`dotnet InviteRelay.dll` を起動します。任意の `TAKETAIKO_RELAY_TAG` でテスト用リリースを固定できます。省略時は最新の正式リリースが対象です。
 
+コンテナー対応の配信先では、リポジトリのルートをビルドのコンテキストにします。
+
+```powershell
+docker build -f tools/installer/InviteRelay/Dockerfile -t taketaiko-invite-relay .
+```
+
+コンテナーのポートは `10000` です。配信サービスの HTTPS 入口からこのポートに転送します。認証情報や招待ハッシュは起動時にだけ配信サービスの設定から渡します。
+
 3. 受取人ごとに招待を作り、出力した JSON を `TakeTaikoFeedConfig` に指定して発行します。その発行物の `TakeTaiko.exe` を `TakeTaikoSetup.exe` に改名し、本人に渡します。作成時に表示される識別子をサーバーの許可リストから消すと、その人の招待だけを失効できます。
 
 ```powershell
