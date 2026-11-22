@@ -149,33 +149,44 @@ internal static class StartupUpdate
             }
 
             UpdatePackage.RejectLinks(drive, Path.GetRelativePath(drive, location).Replace('\\', '/'));
-            using var installLock = Acquire(location, TimeSpan.Zero);
-            if (installLock is null || (Directory.Exists(location) && Directory.EnumerateFileSystemEntries(location).Any()))
+            using (var installLock = Acquire(location, TimeSpan.Zero))
             {
-                SafeNotice("保存先を選び直してください", $"この TakeTaiko フォルダーにはすでにファイルがあります。「参照…」で作成場所を選んでください。\n\n{location}");
-                continue;
+                if (installLock is null || (Directory.Exists(location) && Directory.EnumerateFileSystemEntries(location).Any()))
+                {
+                    SafeNotice("保存先を選び直してください", $"この TakeTaiko フォルダーにはすでにファイルがあります。「参照…」で作成場所を選んでください。\n\n{location}");
+                    continue;
+                }
+
+                string stage = CreateStage(location);
+                bool keepStage = false;
+                try
+                {
+                    Download(feed, release, stage, install: true);
+                    File.WriteAllBytes(Path.Combine(stage, "expanded", UpdatePackage.FeedFile), installedSettings);
+                    ApplyWithMarker(location, stage, install: true);
+                }
+                catch (RollbackFailedExceptionMarker)
+                {
+                    keepStage = true;
+                    throw;
+                }
+                finally
+                {
+                    if (!keepStage)
+                        RemoveStage(stage);
+                }
             }
 
-            string stage = CreateStage(location);
-            bool keepStage = false;
-            try
-            {
-                Download(feed, release, stage, install: true);
-                File.WriteAllBytes(Path.Combine(stage, "expanded", UpdatePackage.FeedFile), installedSettings);
-                ApplyWithMarker(location, stage, install: true);
-            }
-            catch (RollbackFailedExceptionMarker)
-            {
-                keepStage = true;
-                throw;
-            }
-            finally
-            {
-                if (!keepStage)
-                    RemoveStage(stage);
-            }
             CreateStartMenuShortcut(location);
-            SafeNotice("インストールが完了しました", $"TakeTaiko を起動できます。\n\n{location}");
+            string game = Path.Combine(location, UpdatePackage.GameExe);
+            if (UpdateDialog.Confirm("インストールが完了しました", $"TakeTaiko を起動しますか？\n\n{location}"))
+            {
+                try { using var started = StartProcess(game, location); }
+                catch (Exception ex) when (ExpectedError(ex))
+                {
+                    SafeNotice("TakeTaiko を起動できませんでした", $"インストール先から TakeTaiko.exe を開いてください。\n\n{location}");
+                }
+            }
             return;
         }
     }
