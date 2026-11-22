@@ -133,14 +133,16 @@ internal static class StartupUpdate
         settings.ReadExactly(installedSettings);
         string location = Path.Combine(local, "Programs", "TakeTaiko");
         string prompt = $"最新版 {release.Version}\n\n保存先を選んで「インストール」を押すと、ゲーム本体と必要なファイルをダウンロードします。";
-        while (UpdateDialog.ChooseInstallFolder(prompt, location) is { } selected)
+        bool desktopShortcut = false;
+        while (UpdateDialog.ChooseInstallFolder(prompt, location, desktopShortcut) is { } selected)
         {
-            if (!Path.IsPathFullyQualified(selected))
+            desktopShortcut = selected.DesktopShortcut;
+            if (!Path.IsPathFullyQualified(selected.Folder))
             {
                 SafeNotice("保存先を確認してください", "ドライブ名から始まるフォルダーの場所を指定してください。");
                 continue;
             }
-            location = Path.TrimEndingDirectorySeparator(Path.GetFullPath(selected));
+            location = Path.TrimEndingDirectorySeparator(Path.GetFullPath(selected.Folder));
             string drive = Path.GetPathRoot(location) ?? throw new IOException("インストール先を取得できません。");
             if (location.Equals(drive, StringComparison.OrdinalIgnoreCase))
             {
@@ -179,7 +181,16 @@ internal static class StartupUpdate
 
             CreateStartMenuShortcut(location);
             string game = Path.Combine(location, UpdatePackage.GameExe);
-            if (UpdateDialog.Confirm("インストールが完了しました", $"TakeTaiko を起動しますか？\n\n{location}"))
+            string launchPrompt = $"TakeTaiko を起動しますか？\n\n{location}";
+            if (desktopShortcut)
+            {
+                try { ShellShortcut.CreateOnDesktop(game, location); }
+                catch (Exception ex) when (ExpectedError(ex))
+                {
+                    launchPrompt += "\n\nデスクトップのショートカットを作成できませんでした。";
+                }
+            }
+            if (UpdateDialog.Confirm("インストールが完了しました", launchPrompt))
             {
                 try { using var started = StartProcess(game, location); }
                 catch (Exception ex) when (ExpectedError(ex))

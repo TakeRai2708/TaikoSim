@@ -12,8 +12,12 @@ internal sealed class UpdateWindow(string heading, string body, string? primary,
     private const int Cancel = 102;
     private const int Close = 103;
     private const int Browse = 104;
+    private const string DesktopShortcutLabel = "デスクトップにショートカットを追加";
+    private const uint GetCheck = 0x00F0;
+    private const uint SetCheck = 0x00F1;
     private const string WindowClass = "TakeTaiko.UpdateWindow";
     private static readonly WindowProc Callback = Dispatch;
+    private static readonly WindowProc CheckBoxCallback = DrawCheckBox;
     private static bool registered;
     [ThreadStatic] private static UpdateWindow? current;
 
@@ -26,6 +30,8 @@ internal sealed class UpdateWindow(string heading, string body, string? primary,
     private static readonly uint Border = Rgb(67, 42, 53);
 
     private nint window, brand, title, details, folderField, question;
+    private nint desktopCheckBox;
+    private nint originalCheckBoxProc;
     private nint regularFont, headingFont, brandFont, backgroundBrush, panelBrush;
     private readonly Dictionary<int, nint> buttons = [];
     private Rect panel, progress;
@@ -35,6 +41,7 @@ internal sealed class UpdateWindow(string heading, string body, string? primary,
     private int? percent;
 
     internal string? Folder { get; set; }
+    internal bool DesktopShortcut { get; set; }
     internal Action? Tick { get; set; }
     internal int? Progress
     {
@@ -101,7 +108,7 @@ internal sealed class UpdateWindow(string heading, string body, string? primary,
                     continue;
                 }
                 if (message.Id == 0x0100 && message.Parameter == 13 &&
-                    buttons.ContainsValue(GetFocus()))
+                    (buttons.ContainsValue(GetFocus()) || GetFocus() == desktopCheckBox && desktopCheckBox != 0))
                 {
                     SendMessage(GetFocus(), 0x00F5, 0, 0); // BM_CLICK
                     continue;
@@ -161,6 +168,14 @@ internal sealed class UpdateWindow(string heading, string body, string? primary,
             folderField = Child("EDIT", Folder, 0x00010080, margin + 18, height - 119,
                 width - 207, 25, 0, regularFont);
             Button("参照…", width - 151, height - 124, 102, 33, Browse);
+            desktopCheckBox = Child("BUTTON", DesktopShortcutLabel, 0x00010003,
+                margin, height - 51, Math.Max(200, width - 300), 30, 105, regularFont);
+            originalCheckBoxProc = SetWindowLongPtr(desktopCheckBox, -4,
+                Marshal.GetFunctionPointerForDelegate(CheckBoxCallback)); // GWLP_WNDPROC
+            if (originalCheckBoxProc == 0)
+                throw new Win32Exception();
+            if (DesktopShortcut)
+                SendMessage(desktopCheckBox, SetCheck, 1, 0);
         }
         progress = new Rect(margin + 18, height - 121, width - margin - 18, height - 83);
         nint focus = 0;
@@ -258,6 +273,7 @@ internal sealed class UpdateWindow(string heading, string body, string? primary,
                             var path = new StringBuilder(GetWindowTextLength(folderField) + 1);
                             GetWindowText(folderField, path, path.Capacity);
                             Folder = path.ToString().Trim();
+                            DesktopShortcut = SendMessage(desktopCheckBox, GetCheck, 0, 0) == 1;
                         }
                         if (primary is not null) Finish(Accept);
                         break;
@@ -314,6 +330,58 @@ internal sealed class UpdateWindow(string heading, string body, string? primary,
             _ => "×"
         };
         DrawLabel(item.Canvas, label, item.Bounds, close ? headingFont : regularFont, Text, 0x25);
+    }
+
+    // Windows のチェック状態・キーボード操作は使い、見た目だけを描き替える。
+    private static nint DrawCheckBox(nint control, uint message, nuint parameter, nint data)
+    {
+        var owner = current;
+        if (owner is null)
+            return DefWindowProc(control, message, parameter, data);
+        if (message is 0x000F or 0x0318) // WM_PAINT / WM_PRINTCLIENT
+        {
+            PaintData paint = default;
+            bool repaint = message == 0x000F;
+            nint canvas = repaint ? BeginPaint(control, out paint) : (nint)parameter;
+            try
+            {
+                GetClientRect(control, out Rect bounds);
+                FillRect(canvas, ref bounds, owner.backgroundBrush);
+                bool isChecked = SendMessage(control, GetCheck, 0, 0) == 1;
+                bool focused = GetFocus() == control;
+                int top = (bounds.Bottom - 18) / 2;
+                var indicator = new Rect(1, top, 19, top + 18);
+                Rounded(canvas, indicator, isChecked ? Sakura : Panel, isChecked || focused ? Sakura : Muted, 6);
+                if (isChecked)
+                {
+                    nint pen = CreatePen(0, 2, Background);
+                    nint previous = SelectObject(canvas, pen);
+                    MoveToEx(canvas, 5, top + 9, 0);
+                    LineTo(canvas, 8, top + 12);
+                    LineTo(canvas, 15, top + 5);
+                    SelectObject(canvas, previous);
+                    DeleteObject(pen);
+                }
+                bounds.Left = 28;
+                DrawLabel(canvas, DesktopShortcutLabel, bounds, owner.regularFont, Text, 0x24);
+            }
+            finally
+            {
+                if (repaint)
+                    EndPaint(control, ref paint);
+            }
+            return 0;
+        }
+        if (message == 0x0014) // WM_ERASEBKGND
+            return 1;
+
+        nint result = CallWindowProc(owner.originalCheckBoxProc, control, message, parameter, data);
+        if (message is SetCheck or 0x0007 or 0x0008 or 0x0202 or 0x0101)
+        {
+            GetClientRect(control, out Rect bounds);
+            InvalidateRect(control, ref bounds, false);
+        }
+        return result;
     }
 
     private static void Rounded(nint canvas, Rect box, uint fill, uint edge, int radius)
@@ -418,12 +486,18 @@ internal sealed class UpdateWindow(string heading, string body, string? primary,
     [DllImport("user32.dll", EntryPoint = "SetWindowTextW", CharSet = CharSet.Unicode)] private static extern bool SetWindowText(nint window, string text);
     [DllImport("user32.dll", EntryPoint = "GetWindowTextLengthW")] private static extern int GetWindowTextLength(nint window);
     [DllImport("user32.dll", EntryPoint = "GetWindowTextW", CharSet = CharSet.Unicode)] private static extern int GetWindowText(nint window, StringBuilder text, int capacity);
+    [DllImport("user32.dll", EntryPoint = "SetWindowLongPtrW", SetLastError = true)]
+    private static extern nint SetWindowLongPtr(nint window, int index, nint value);
+    [DllImport("user32.dll", EntryPoint = "CallWindowProcW")]
+    private static extern nint CallWindowProc(nint procedure, nint window, uint message, nuint parameter, nint data);
     [DllImport("gdi32.dll", EntryPoint = "CreateFontW", CharSet = CharSet.Unicode)] private static extern nint CreateFont(int height, int width, int angle, int orientation, int weight, uint italic, uint underline, uint strike, uint charset, uint precision, uint clip, uint quality, uint pitch, string face);
     [DllImport("gdi32.dll")] private static extern nint CreateSolidBrush(uint color);
     [DllImport("gdi32.dll")] private static extern nint CreatePen(int style, int width, uint color);
     [DllImport("gdi32.dll")] private static extern nint SelectObject(nint canvas, nint handle);
     [DllImport("gdi32.dll")] private static extern bool DeleteObject(nint handle);
     [DllImport("gdi32.dll")] private static extern bool RoundRect(nint canvas, int left, int top, int right, int bottom, int width, int height);
+    [DllImport("gdi32.dll")] private static extern bool MoveToEx(nint canvas, int x, int y, nint previous);
+    [DllImport("gdi32.dll")] private static extern bool LineTo(nint canvas, int x, int y);
     [DllImport("gdi32.dll")] private static extern uint SetTextColor(nint canvas, uint color);
     [DllImport("gdi32.dll")] private static extern uint SetBkColor(nint canvas, uint color);
     [DllImport("gdi32.dll")] private static extern int SetBkMode(nint canvas, int mode);

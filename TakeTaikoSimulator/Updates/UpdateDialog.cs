@@ -9,13 +9,16 @@ internal static class UpdateDialog
     internal static bool Confirm(string heading, string text) =>
         Show(heading, text, "はい", "いいえ") == UpdateWindow.Accept;
 
-    internal static string? ChooseInstallFolder(string text, string defaultFolder)
+    internal static (string Folder, bool DesktopShortcut)? ChooseInstallFolder(
+        string text, string defaultFolder, bool desktopShortcut)
     {
         var window = new UpdateWindow("TakeTaiko をインストール", text, "インストール", "キャンセル", true)
         {
-            Folder = defaultFolder
+            Folder = defaultFolder,
+            DesktopShortcut = desktopShortcut
         };
-        return window.Show() == UpdateWindow.Accept ? window.Folder : null;
+        return window.Show() == UpdateWindow.Accept && window.Folder is { } folder
+            ? (folder, window.DesktopShortcut) : null;
     }
 
     internal static void Notice(string heading, string text) => Show(heading, text, "OK");
