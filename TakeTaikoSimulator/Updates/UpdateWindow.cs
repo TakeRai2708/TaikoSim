@@ -1,5 +1,6 @@
 using System.ComponentModel;
 using System.Runtime.InteropServices;
+using System.Text;
 using TakeTaikoSimulator.Platform;
 
 namespace TakeTaikoSimulator.Updates;
@@ -155,9 +156,9 @@ internal sealed class UpdateWindow(string heading, string body, string? primary,
 
         if (Folder is not null)
         {
-            question = Child("STATIC", "保存先（選んだ場所にフォルダーを作成）", 0,
+            question = Child("STATIC", "インストール先", 0,
                 margin + 18, height - 145, width - 84, 20, 0, regularFont);
-            folderField = Child("EDIT", Folder, 0x880, margin + 18, height - 119,
+            folderField = Child("EDIT", Folder, 0x00010080, margin + 18, height - 119,
                 width - 207, 25, 0, regularFont);
             Button("参照…", width - 151, height - 124, 102, 33, Browse);
         }
@@ -252,6 +253,12 @@ internal sealed class UpdateWindow(string heading, string body, string? primary,
                 switch (id)
                 {
                     case Accept:
+                        if (folderField != 0)
+                        {
+                            var path = new StringBuilder(GetWindowTextLength(folderField) + 1);
+                            GetWindowText(folderField, path, path.Capacity);
+                            Folder = path.ToString().Trim();
+                        }
                         if (primary is not null) Finish(Accept);
                         break;
                     case Cancel:
@@ -409,6 +416,8 @@ internal sealed class UpdateWindow(string heading, string body, string? primary,
     [DllImport("user32.dll", EntryPoint = "DrawTextW", CharSet = CharSet.Unicode)] private static extern int DrawText(nint canvas, string text, int length, ref Rect bounds, uint format);
     [DllImport("user32.dll", EntryPoint = "SendMessageW")] private static extern nint SendMessage(nint window, uint message, nint parameter, nint data);
     [DllImport("user32.dll", EntryPoint = "SetWindowTextW", CharSet = CharSet.Unicode)] private static extern bool SetWindowText(nint window, string text);
+    [DllImport("user32.dll", EntryPoint = "GetWindowTextLengthW")] private static extern int GetWindowTextLength(nint window);
+    [DllImport("user32.dll", EntryPoint = "GetWindowTextW", CharSet = CharSet.Unicode)] private static extern int GetWindowText(nint window, StringBuilder text, int capacity);
     [DllImport("gdi32.dll", EntryPoint = "CreateFontW", CharSet = CharSet.Unicode)] private static extern nint CreateFont(int height, int width, int angle, int orientation, int weight, uint italic, uint underline, uint strike, uint charset, uint precision, uint clip, uint quality, uint pitch, string face);
     [DllImport("gdi32.dll")] private static extern nint CreateSolidBrush(uint color);
     [DllImport("gdi32.dll")] private static extern nint CreatePen(int style, int width, uint color);

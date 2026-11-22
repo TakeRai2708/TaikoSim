@@ -11,7 +11,7 @@ internal static class UpdateDialog
 
     internal static string? ChooseInstallFolder(string text, string defaultFolder)
     {
-        var window = new UpdateWindow("TakeTaiko をインストール", text, "はい", "いいえ", true)
+        var window = new UpdateWindow("TakeTaiko をインストール", text, "インストール", "キャンセル", true)
         {
             Folder = defaultFolder
         };
@@ -36,7 +36,10 @@ internal static class UpdateDialog
     {
         long received = 0;
         using var cancel = new CancellationTokenSource(TimeSpan.FromMinutes(30));
-        var window = new UpdateWindow("ダウンロードしています", "受信した更新ファイルを検証して展開します。",
+        string description = InstallerAppearance
+            ? "ゲーム本体と必要なファイルをダウンロードしています。"
+            : "受信した更新ファイルを検証して展開します。";
+        var window = new UpdateWindow("ダウンロードしています", description,
             null, "中止", InstallerAppearance);
         Task<T> task = Task.Run(() => action(bytes => Interlocked.Exchange(ref received, bytes), cancel.Token));
         window.Progress = 0;

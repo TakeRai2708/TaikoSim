@@ -132,9 +132,14 @@ internal static class StartupUpdate
         byte[] installedSettings = new byte[checked((int)settings.Length)];
         settings.ReadExactly(installedSettings);
         string location = Path.Combine(local, "Programs", "TakeTaiko");
-        string prompt = $"最新版 {release.Version}\n\n{Notes(release)}\n\nインストールしますか？";
+        string prompt = $"最新版 {release.Version}\n\n保存先を選んで「インストール」を押すと、ゲーム本体と必要なファイルをダウンロードします。";
         while (UpdateDialog.ChooseInstallFolder(prompt, location) is { } selected)
         {
+            if (!Path.IsPathFullyQualified(selected))
+            {
+                SafeNotice("保存先を確認してください", "ドライブ名から始まるフォルダーの場所を指定してください。");
+                continue;
+            }
             location = Path.TrimEndingDirectorySeparator(Path.GetFullPath(selected));
             string drive = Path.GetPathRoot(location) ?? throw new IOException("インストール先を取得できません。");
             if (location.Equals(drive, StringComparison.OrdinalIgnoreCase))
