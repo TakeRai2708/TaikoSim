@@ -159,16 +159,18 @@ public partial class PlayScene
         var deltas = trainingDeltas;
         int early = trainingEarlyOk, late = trainingLateOk;
         int good = goodCount, ok = okCount, bad = badCount, roll = totalRollHits;
+        int previousCombo = combo, previousMaxCombo = maxCombo;
         double gauge = stats.Gauge;
         long score = stats.Score;
         // 履歴を見ているだけでクリア背景が最初に戻ったり、通常背景へ戻ったりしないようにする。
-        Restart(keepBackground: keepReview);
+        Restart(keepBackground: keepReview, preserveTrainingVisuals: keepReview);
         if (keepReview)
         {
             trainingHistory = history;
             trainingDeltas = deltas;
             trainingEarlyOk = early; trainingLateOk = late;
             goodCount = good; okCount = ok; badCount = bad; totalRollHits = roll;
+            combo = previousCombo; maxCombo = previousMaxCombo;
             stats.SetGauge(gauge);
             stats.SetScore(score);
         }
