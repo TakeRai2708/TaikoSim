@@ -26,6 +26,10 @@ public partial class PlayScene
     private double?[] trainingDeltas = Array.Empty<double?>();
     private int trainingEarlyOk, trainingLateOk;
     private string trainingNotice = "";
+    // 再開時に選択した小節より前の音符を描画・判定しないための開始時刻。
+    // 通常の特訓開始時や一時停止中の小節移動では制限しない。
+    private double trainingNoteStartMs = double.NegativeInfinity;
+    private bool IsBeforeTrainingStart(Note note) => isTraining && note.TimeMs + 0.001 < trainingNoteStartMs;
     private double PlaybackRate => isTraining ? trainingTimeline?.Rate ?? 1.0 : playSpeed;
 
     private static bool IsTrainingKey(KeyboardKey key) => ConfigManager.Key.SystemKeys
@@ -102,13 +106,21 @@ public partial class PlayScene
         {
             if (trainingPaused)
             {
-                // 小節の先頭で突然叩かせず、ひとつ前の小節から流し直す。
+                // 選択した小節の2小節前から助走。前の小節の音符は表示も判定もしない。
                 int measure = trainingTimeline.At(nowMs - AudioOffsetMs);
-                if (measure == 0) Restart(); // OFFSETと通常の開始前の空白をそのまま使う
-                else SeekTraining(trainingTimeline[measure - 1], keepReview: false);
+                double targetMs = trainingTimeline[measure];
+                if (measure == 0) Restart(); // 先頭は従来の開始前の余白を使う
+                else
+                {
+                    // 判定・連打・オートは選択小節を開始点として準備し、時計だけ2小節前に戻す。
+                    SeekTraining(targetMs, keepReview: false);
+                    nowMs = trainingTimeline.LeadInStart(measure) + AudioOffsetMs;
+                }
+                trainingNoteStartMs = targetMs;
                 trainingScroll.Reset(nowMs);
                 trainingPaused = false;
-                trainingNotice = "1小節前から再生しています";
+                trainingNotice = measure == 0 ? "曲の頭から再生しています"
+                    : $"{Math.Min(2, measure)}小節前から再生しています（選択小節より前の音符は流れません）";
                 ClearTrainingInput();
             }
             else PauseTraining();
@@ -294,6 +306,7 @@ public partial class PlayScene
         {
             if (trainingHistory[i] is not Judge judge) continue;
             Note note = course.Notes[i];
+            if (IsBeforeTrainingStart(note)) continue;
             float x = GetX(note.TimeMs, note.Bpm, note.Scroll, viewMs);
             if (x < LaneX + 30 || x > Screen.Width - 30) continue;
             string text = judge == Judge.Good ? "良" : judge == Judge.Bad ? "不可"
