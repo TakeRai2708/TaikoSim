@@ -1873,9 +1873,55 @@ namespace TakeTaikoSimulator.Scenes
             return Raylib.ColorFromHSV(hsv.X, Math.Min(1f, hsv.Y * 1.15f), 0.45f);
         }
 
+        // ===== 曲の板の左はしの記録の印（王冠＋難易度・スコアランク＋難易度） =====
+        //   11/25 たけらいのスクショ（TaikøNauts）：一度遊んだ曲は板の左はしに、上に王冠・下にスコアランク。
+        //   どちらも記録のある一番むずかしい難易度のものを出す。おにと裏の両方にあるときは交互に出す（交互の間隔は推測で2秒）
+        //   閉じた板：真ん中が板の左上から (+37, +34) と (+37, +86)、80px のマスを 0.66 倍
+        //   開いた板：(+41, +43) と (+40, +113)、0.9 倍
+        private const float RecordSwapSeconds = 2f;
+        private static readonly CourseType[] RecordOrder = { CourseType.Edit, CourseType.Oni, CourseType.Hard, CourseType.Normal, CourseType.Easy };
+
+        private void DrawRecordMarks(SongEntry song, Rectangle area, float open, float alpha)
+        {
+            if (alpha <= 0f) return;
+            (CourseType Course, SongClearType Clear)? crown = null, crownAlt = null;
+            (CourseType Course, int Rank)? rank = null, rankAlt = null;
+            foreach (CourseType c in RecordOrder)
+            {
+                var r = SongHistory.GetRecord(song.Key, c);
+                if (r.Clear > SongClearType.None)
+                {
+                    if (crown == null) crown = (c, r.Clear);
+                    else if (crownAlt == null && crown.Value.Course == CourseType.Edit && c == CourseType.Oni) crownAlt = (c, r.Clear);
+                }
+                if (r.Rank > 0)
+                {
+                    if (rank == null) rank = (c, r.Rank);
+                    else if (rankAlt == null && rank.Value.Course == CourseType.Edit && c == CourseType.Oni) rankAlt = (c, r.Rank);
+                }
+            }
+            if (crown == null && rank == null) return;
+            bool second = ((int)(Raylib.GetTime() / RecordSwapSeconds) & 1) == 1;
+            if (second && crownAlt != null) crown = crownAlt;
+            if (second && rankAlt != null) rank = rankAlt;
+
+            float o = Math.Clamp(open, 0f, 1f);
+            float size = 80f * (0.66f + (0.9f - 0.66f) * o);
+            float cx = area.X + 37f + 4f * o, crownY = area.Y + 34f + 9f * o;
+            float rankX = area.X + 37f + 3f * o, rankY = area.Y + 86f + 27f * o;
+            Color tint = MenuSkin.White(alpha);
+            if (crown is var (cc, clear))
+                MenuSkin.Cell(Tn + "ClearType_Symbol.png", (int)cc * 3 + (int)clear - 1, 3, 5,
+                    new Rectangle(cx - size / 2f, crownY - size / 2f, size, size), tint);
+            if (rank is var (rc, rv))
+                MenuSkin.Cell(Tn + "ScoreRank_Symbol.png", (int)rc * 7 + rv - 1, 7, 5,
+                    new Rectangle(rankX - size / 2f, rankY - size / 2f, size, size), tint);
+        }
+
         private void DrawSongBar(Item item, Rectangle inner, float open, Color ink, float alpha)
         {
             SongEntry song = item.Song!;
+            DrawRecordMarks(song, new Rectangle(inner.X - 70, inner.Y - 22, inner.Width + 140, inner.Height + 44), open, alpha);
             bool favorite = SongHistory.IsFavorite(song.Key);
             Color titleColor = song.HasError ? ErrorColor : Color.White;
 
