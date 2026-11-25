@@ -153,6 +153,8 @@ namespace TakeTaikoSimulator.Graphics
                     .Concat(skinMainPreparedText.EnumerateRunes().Select(rune => rune.Value)));
                 if (skinMainFont != null)
                     Console.WriteLine($"[Font] 曲名用：{path}");
+                else
+                    Console.WriteLine($"[Font] 曲名用のフォント {path} を読み込めませんでした(.ttc・.woff などの形式は使えません。.ttf か .otf にしてね)。いつものフォントを使います");
             }
             // 未配置・読み込み失敗時も、システムフォントで曲名を表示できるようにする。
             PrepareSkinMainText(skinMainPreparedText);
@@ -205,6 +207,7 @@ namespace TakeTaikoSimulator.Graphics
             if (path == null) return;
             skinDetailFont = DynamicFont.Load(path, InitialCodepoints());
             if (skinDetailFont != null) Console.WriteLine($"[Font] 細かい字：{path}");
+            else Console.WriteLine($"[Font] 細かい字のフォント {path} を読み込めませんでした(.ttf か .otf にしてね)");
         }
 
         private static string? FindSkinFontFile(string? skinPath, string baseName)
