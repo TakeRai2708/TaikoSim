@@ -64,7 +64,7 @@ namespace TakeTaikoSimulator.Scenes
         }
 
         // 聞く必要がある叩く場所(キーが0個の場所だけ)
-        private DrumPart[] partsToAsk = Parts;
+        private DrumPart[] partsToAsk = Parts.Take(4).ToArray();   // 1P の4か所だけ聞く
 
         // 初回起動か(1Pの4つとも空なら初回扱い。2Pは初期値を表示して変更できる)
         private bool isFirstRun = true;
@@ -477,8 +477,9 @@ namespace TakeTaikoSimulator.Scenes
         private void DrawKeys()
         {
             Title("叩くキー");
-            FontManager.Draw("1Pと2Pのキーを確認できます。変更ボタンを押してから、新しいキーを押してください。", Left, 330, 26, Color.White);
-            for (int player = 0; player < 2; player++)
+            FontManager.Draw("変更ボタンを押してから、新しいキーを押してください。", Left, 330, 26, Color.White);
+            // 1P だけ。2P のキーは設定できない（いつも C・V・N・M。11/26 たけらい）
+            for (int player = 0; player < 1; player++)
             {
                 float x = Left + player * 820;
                 FontManager.Draw($"{player + 1}P", x, 380, 32, player == 0 ? Gui.AccentColor : Color.SkyBlue);
@@ -497,7 +498,6 @@ namespace TakeTaikoSimulator.Scenes
                     if (Gui.Button(new(x + 650, y + 10, 112, 44), "変更")) changingPart = part;
                 }
             }
-            FontManager.Draw("2P初期値：カッ C / M　ドン V / N　※ 同じキーを両側に登録することはできません", Left, 760, 24, Gui.SubTextColor);
             if (messageTimer <= 0) FontManager.Draw(keyIndex >= partsToAsk.Length && changingPart == null ? "設定を確認したら「次へ」を押してください" : "Esc：変更をキャンセル／1つ前をやり直す", Left, 802, 24, Gui.SubTextColor);
         }
 
@@ -527,8 +527,8 @@ namespace TakeTaikoSimulator.Scenes
                 Left, y, 30, Color.White);
             y += 60;
 
-            // 8か所を左右2列にして、完了画面の下にはみ出さないようにする。
-            for (int player = 0; player < 2; player++)
+            // 1P の4か所（2P は設定しない）
+            for (int player = 0; player < 1; player++)
             {
                 for (int i = 0; i < 4; i++)
                 {

@@ -754,7 +754,8 @@ namespace TakeTaikoSimulator.Scenes
             }
 
             // 2人目の途中参加：まだ使っていない方のキーのドン
-            if (!training && afterBlink == null && PlayerJoin.NewPlayerPressed)
+            //   曲が1曲も無いときは入らない（11/26 たけらい「曲入れてない状態でどん、カッ押したら名前決める画面が出てくる」）
+            if (!training && afterBlink == null && SongList.Categories.Count > 0 && PlayerJoin.NewPlayerPressed)
             {
                 join.OpenForNewPlayer();
                 return;

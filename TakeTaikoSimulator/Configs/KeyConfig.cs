@@ -272,7 +272,9 @@ namespace TakeTaikoSimulator.Configs
             foreach (DrumPart part in Enum.GetValues<DrumPart>())
             {
                 // ファイルに書いてなければ初期値(空)
-                List<KeyboardKey> keys = DrumKeys.TryGetValue(part, out List<KeyboardKey>? k) && k != null
+                //   2P は設定できなくした（11/26 たけらい）ので、いつも初期値（C・V・N・M）。1P とかぶったキーは下で捨てる
+                List<KeyboardKey> keys = part >= DrumPart.P2LeftKa ? defaultDrums[part]
+                    : DrumKeys.TryGetValue(part, out List<KeyboardKey>? k) && k != null
                     ? k
                     : defaultDrums[part];
 
