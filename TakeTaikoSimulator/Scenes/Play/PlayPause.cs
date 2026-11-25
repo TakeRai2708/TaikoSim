@@ -199,7 +199,7 @@ public partial class PlayScene
             bool clicked = i == pauseCursor ? Gui.PrimaryButton(box, items[i]) : Gui.Button(box, items[i]);
             if (clicked) { ChoosePause(i); return; }
         }
-        FontManager.Draw("カッ・↑↓：えらぶ　　ドン・Enter：決定　　Esc：つづける", panel.X, panel.Y + panel.Height + 20f, 22, Gui.SubTextColor);
+        // 11/26 たけらい「ここの説明書きいらない」：下の操作の説明は出さない
     }
 
     // 再開の前の 3・2・1（1秒ごとに、数字が少し大きい所から縮んで出る）

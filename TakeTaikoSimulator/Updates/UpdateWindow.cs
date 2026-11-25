@@ -47,6 +47,10 @@ internal sealed class UpdateWindow(string heading, string body, string? primary,
     internal bool EditableBody { get; set; }
     internal string BodyText { get; private set; } = body;
     internal bool DesktopShortcut { get; set; }
+    // インストール先の欄が無い画面でも、左下にチェックボックスを1つ出せる（スキンの更新の「ダウンロードフォルダーに保存」など）
+    //   値は DesktopShortcut に入る
+    internal string? CheckBoxLabel { get; set; }
+    private string CheckText => Folder is not null ? DesktopShortcutLabel : CheckBoxLabel ?? "";
     internal Action? Tick { get; set; }
     internal int? Progress
     {
@@ -194,7 +198,10 @@ internal sealed class UpdateWindow(string heading, string body, string? primary,
             folderField = Child("EDIT", Folder, 0x00010080, margin + 18, height - 119,
                 width - 207, 25, 0, regularFont);
             Button("参照…", width - 151, height - 124, 102, 33, Browse);
-            desktopCheckBox = Child("BUTTON", DesktopShortcutLabel, 0x00010003,
+        }
+        if (Folder is not null || CheckBoxLabel is not null)
+        {
+            desktopCheckBox = Child("BUTTON", CheckText, 0x00010003,
                 margin, height - 51, Math.Max(200, width - 300), 30, 105, regularFont);
             originalCheckBoxProc = SetWindowLongPtr(desktopCheckBox, -4,
                 Marshal.GetFunctionPointerForDelegate(CheckBoxCallback)); // GWLP_WNDPROC
@@ -315,8 +322,9 @@ internal sealed class UpdateWindow(string heading, string body, string? primary,
                             var path = new StringBuilder(GetWindowTextLength(folderField) + 1);
                             GetWindowText(folderField, path, path.Capacity);
                             Folder = path.ToString().Trim();
-                            DesktopShortcut = SendMessage(desktopCheckBox, GetCheck, 0, 0) == 1;
                         }
+                        if (desktopCheckBox != 0)
+                            DesktopShortcut = SendMessage(desktopCheckBox, GetCheck, 0, 0) == 1;
                         if (primary is not null) Finish(Accept);
                         break;
                     case Cancel:
@@ -406,7 +414,7 @@ internal sealed class UpdateWindow(string heading, string body, string? primary,
                     DeleteObject(pen);
                 }
                 bounds.Left = owner.Scale(28);
-                DrawLabel(canvas, DesktopShortcutLabel, bounds, owner.regularFont, Text, 0x24);
+                DrawLabel(canvas, owner.CheckText, bounds, owner.regularFont, Text, 0x24);
             }
             finally
             {

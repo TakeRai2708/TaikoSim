@@ -14,6 +14,9 @@ internal static class UpdatePackage
         "THIRD-PARTY-NOTICES.txt", "Assets/Fonts/NotoSansJP-Regular.ttf"
     };
 
+    internal const string SimpleSkinPrefix = "Skins/TaikoSim-Simple/";
+    internal const string SkinStageFolder = "skin";
+
     internal static Version ReadVersion(string path)
     {
         var file = FileVersionInfo.GetVersionInfo(path);
@@ -47,13 +50,15 @@ internal static class UpdatePackage
                 name.StartsWith("Skins/TaikoSim-Simple/", StringComparison.OrdinalIgnoreCase);
             if (!RuntimeFiles.Contains(name) && !bundled)
                 throw new InvalidDataException("ZIP に配布対象外のファイルがあります。");
-            if (bundled && !install)
+            bool simpleSkin = name.StartsWith(SimpleSkinPrefix, StringComparison.OrdinalIgnoreCase);
+            // 更新のときは音色（HitSounds）はさわらない。Simple スキンは別の場所に出しておいて、上書きするかを聞く（11/26 たけらい：案A）
+            if (bundled && !install && !simpleSkin)
                 continue;
 
             if (entry.Length < 0 || entry.Length > 2L * 1024 * 1024 * 1024 - total)
                 throw new InvalidDataException("ZIP の展開サイズが上限を超えました。");
             total += entry.Length;
-            string destination = Path.Combine(expanded, name);
+            string destination = Path.Combine(simpleSkin && !install ? Path.Combine(stage, SkinStageFolder) : expanded, name);
             Directory.CreateDirectory(Path.GetDirectoryName(destination)!);
             using var source = entry.Open();
             using var target = new FileStream(destination, FileMode.CreateNew, FileAccess.Write);
@@ -95,7 +100,7 @@ internal static class UpdatePackage
             foreach (string source in files)
             {
                 string relative = Path.GetRelativePath(expanded, source).Replace('\\', '/');
-                if (!install && !RuntimeFiles.Contains(relative))
+                if (!install && !RuntimeFiles.Contains(relative) && !relative.StartsWith(SimpleSkinPrefix, StringComparison.OrdinalIgnoreCase))
                     throw new InvalidDataException("更新対象外のファイルです。");
                 string destination = Path.Combine(root, relative);
                 RejectLinks(root, relative);

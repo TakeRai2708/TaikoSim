@@ -77,6 +77,7 @@ internal static class StartupUpdate
             stage = CreateStage(root);
             ownsStage = true;
             Download(feed, release, stage, install: false);
+            OfferSimpleSkin(root, stage, release.Version);
             string workerPath = Path.Combine(stage, WorkerExe);
             File.Copy(Path.Combine(root, UpdatePackage.GameExe), workerPath);
             bool restartAfterUpdate = UpdateDialog.Confirm("ダウンロード完了しました",
@@ -115,6 +116,104 @@ internal static class StartupUpdate
             }
         }
     }
+
+    // 更新の ZIP に入っている Simple スキンが今のものと違うときだけ聞く（11/26 たけらい）
+    //   はい → 今のスキンに上書き（ほかの更新ファイルと一緒に差し替える。失敗したら元に戻る）
+    //   はい ＋「上書きせず…」にチェック → ダウンロードフォルダーの TaikoSim-Simple-版 に保存して、今のスキンはそのまま
+    //   いいえ → 何もしない
+    private static void OfferSimpleSkin(string root, string stage, Version version)
+    {
+        string skinStage = Path.Combine(stage, UpdatePackage.SkinStageFolder);
+        string skinFiles = Path.Combine(skinStage, "Skins", "TaikoSim-Simple");
+        if (!Directory.Exists(skinFiles))
+            return;
+        try
+        {
+            if (!SkinChanged(skinFiles, Path.Combine(root, "Skins", "TaikoSim-Simple")))
+                return;
+            var window = new UpdateWindow("スキンを更新しますか？",
+                "TaikoSim-Simple スキンの新しい版があります。", "はい", "いいえ", false)
+            {
+                CheckBoxLabel = "上書きせず、ダウンロードフォルダーに保存する"
+            };
+            if (window.Show() != UpdateWindow.Accept)
+                return;
+            if (window.DesktopShortcut)
+            {
+                string target = FreeFolder(Path.Combine(DownloadsFolder(), $"TaikoSim-Simple-{version}"));
+                CopyFolder(skinFiles, target);
+                SafeNotice("スキンを保存しました", target);
+                return;
+            }
+            string expanded = Path.Combine(stage, "expanded");
+            foreach (string file in Directory.EnumerateFiles(skinStage, "*", SearchOption.AllDirectories))
+            {
+                string destination = Path.Combine(expanded, Path.GetRelativePath(skinStage, file));
+                Directory.CreateDirectory(Path.GetDirectoryName(destination)!);
+                File.Move(file, destination);
+            }
+        }
+        catch (Exception ex) when (ex is IOException or UnauthorizedAccessException)
+        {
+            SafeNotice("スキンを更新できませんでした", "ゲームの更新はこのまま続けます。");
+        }
+        finally
+        {
+            if (Directory.Exists(skinStage))
+                Directory.Delete(skinStage, recursive: true);
+        }
+    }
+
+    private static bool SkinChanged(string newFolder, string oldFolder)
+    {
+        foreach (string file in Directory.EnumerateFiles(newFolder, "*", SearchOption.AllDirectories))
+        {
+            string old = Path.Combine(oldFolder, Path.GetRelativePath(newFolder, file));
+            if (!File.Exists(old) || new FileInfo(old).Length != new FileInfo(file).Length)
+                return true;
+            using var a = File.OpenRead(file);
+            using var b = File.OpenRead(old);
+            if (!System.Security.Cryptography.SHA256.HashData(a).AsSpan().SequenceEqual(System.Security.Cryptography.SHA256.HashData(b)))
+                return true;
+        }
+        return false;
+    }
+
+    private static string FreeFolder(string path)
+    {
+        string candidate = path;
+        for (int i = 2; Directory.Exists(candidate) || File.Exists(candidate); i++)
+            candidate = $"{path} ({i})";
+        return candidate;
+    }
+
+    private static void CopyFolder(string source, string destination)
+    {
+        foreach (string file in Directory.EnumerateFiles(source, "*", SearchOption.AllDirectories))
+        {
+            string target = Path.Combine(destination, Path.GetRelativePath(source, file));
+            Directory.CreateDirectory(Path.GetDirectoryName(target)!);
+            File.Copy(file, target);
+        }
+    }
+
+    // Windows の「ダウンロード」フォルダー（場所を変えていてもそこを使う）
+    private static string DownloadsFolder()
+    {
+        var downloads = new Guid("374DE290-123F-4565-9164-39C4925E467B");
+        if (SHGetKnownFolderPath(ref downloads, 0, 0, out nint path) == 0)
+        {
+            try { return System.Runtime.InteropServices.Marshal.PtrToStringUni(path) ?? DefaultDownloads(); }
+            finally { System.Runtime.InteropServices.Marshal.FreeCoTaskMem(path); }
+        }
+        return DefaultDownloads();
+    }
+
+    private static string DefaultDownloads() =>
+        Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.UserProfile), "Downloads");
+
+    [System.Runtime.InteropServices.DllImport("shell32.dll")]
+    private static extern int SHGetKnownFolderPath(ref Guid id, uint flags, nint token, out nint path);
 
     private static void Install(string setupDirectory)
     {
