@@ -25,6 +25,10 @@ namespace TakeTaikoSimulator.Scenes
         private static Scene? waiting; // 暗くし終わったら切り替える画面
         private static bool showBlackBeforeSwap;
         private static bool waitingForFirstDraw;
+        // 11/25 真っ黒の時間は、暗くなりきった瞬間から実時間で数える(次の画面の準備にかかった時間もこの中に含める)
+        //   前は準備が終わってから 1.05秒数えていたので、選曲画面の準備(約0.7秒)の分だけ真っ黒が長くなっていた
+        private static long holdStartedTicks;
+        private static float HoldElapsed => (float)System.Diagnostics.Stopwatch.GetElapsedTime(holdStartedTicks).TotalSeconds;
 
         // ===== TaikøNauts の動画を測った秒数(暗くする・真っ黒・明るくする) =====
         // モード選択 → 選曲：0.5秒で暗く → 1.05秒真っ黒 → 0.3秒で明るく
@@ -80,6 +84,7 @@ namespace TakeTaikoSimulator.Scenes
             {
                 next = scene;
                 phase = holdSeconds > 0f ? Phase.Hold : fadeInSeconds > 0f ? Phase.FadeIn : Phase.None;
+                holdStartedTicks = System.Diagnostics.Stopwatch.GetTimestamp();
             }
         }
 
@@ -100,9 +105,10 @@ namespace TakeTaikoSimulator.Scenes
                     timer = 0f;
                     phase = holdSeconds > 0f ? Phase.Hold : fadeInSeconds > 0f ? Phase.FadeIn : Phase.None;
                     showBlackBeforeSwap = phase == Phase.Hold;
+                    holdStartedTicks = System.Diagnostics.Stopwatch.GetTimestamp();
                     break;
                 case Phase.Hold:
-                    if (next != null || waitingForFirstDraw || timer < holdSeconds) return; // 新画面を黒幕の下で描くまで待つ
+                    if (next != null || waitingForFirstDraw || HoldElapsed < holdSeconds) return; // 新画面を黒幕の下で描くまで待つ
                     timer = 0f;
                     phase = fadeInSeconds > 0f ? Phase.FadeIn : Phase.None;
                     break;
@@ -128,7 +134,6 @@ namespace TakeTaikoSimulator.Scenes
             waitingForFirstDraw = phase == Phase.Hold;
             DebugLog.Event("画面の準備", $"{Current.GetType().Name} の準備(Exit + Enter)にかかった時間",
                 System.Diagnostics.Stopwatch.GetElapsedTime(started).TotalMilliseconds);
-            if (phase == Phase.Hold) timer = 0f; // 準備に時間がかかっても、真っ黒の時間はそのあと数える
         }
 
         // 黒い幕と、曲の読み込み画面(Game が画面を描いたあとに呼ぶ)
