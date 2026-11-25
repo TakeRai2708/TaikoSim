@@ -51,6 +51,14 @@ namespace TakeTaikoSimulator.Scenes
         {
             this.training = training;
             this.returningFromDifficulty = returningFromDifficulty || afterPlay;
+            // 演奏・リザルトのあとは、開いていたジャンルを閉じて、ジャンルの一覧(そのジャンルを選んだまま)に戻る
+            //   11/26 TaikøNauts の録画：リザルトのあとは J-POP の中ではなく、閉じた J-POP の箱に戻っていた(特訓から戻ったときも同じ)
+            //   選んでいた曲(lastSongKey)は覚えたままなので、もう一度開くと同じ曲にカーソルがある
+            if (afterPlay && inSongs)
+            {
+                inSongs = false;
+                if (openSpecial == Special.Search) { searchText = ""; openSpecial = Special.None; }
+            }
         }
         private readonly bool returningFromDifficulty;
 
@@ -989,11 +997,15 @@ namespace TakeTaikoSimulator.Scenes
 
         private void OpenGenre(Special special, int cat)
         {
+            // 前に開いていたのと同じジャンルなら、前に選んでいた曲から(TaikøNauts の録画：リザルトのあと J-POP を開き直すと、遊んだ曲にカーソルがあった)
+            bool same = special == openSpecial && cat == openCat;
+            string previous = lastSongKey;
             openSpecial = special;
             openCat = cat;
             inSongs = true;
             BuildSongs();
             songPos = FirstSongPos; // 最初の「とじる」の次(最初の曲)
+            if (same && previous.Length > 0) SelectSong(previous);
             if (songs[Mod(songPos, songs.Count)] is { Kind: Kind.Song } first) lastSongKey = first.Song!.Key;
             list.Reset(songPos);
         }
