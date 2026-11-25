@@ -204,8 +204,14 @@ namespace TakeTaikoSimulator.Overlays
         {
             closing = false;
             bool wasFullScreen = fullScreen;
-            bool reloadSkin = !wasFullScreen && savedSkin != null
-                && !ConfigManager.Same(savedSkin, ConfigManager.Skin);
+            // F1 で選んだだけのスキン(［スキンを適用］を押していない)は、閉じたら元に戻す
+            //   11/26 たけらい「スキン入れたときにもう反映されてる」：前は閉じたときに読み直して切り替えていた
+            if (!wasFullScreen && savedSkin != null && !ConfigManager.Same(savedSkin, ConfigManager.Skin))
+            {
+                ConfigManager.Skin.SkinsFolder = savedSkin.SkinsFolder;
+                ConfigManager.Skin.SkinName = savedSkin.SkinName;
+                ConfigManager.Skin.Fix();
+            }
             IsOpen = false;
             Gui.Reset();
             waitingTarget = null;
@@ -222,8 +228,7 @@ namespace TakeTaikoSimulator.Overlays
             draftSkin = savedSkin = null;
             if (!wasFullScreen)
             {
-                ConfigManager.SaveAll(); // スキンを含め、次回起動しても選んだ設定を使う
-                if (reloadSkin && !InPlay) SkinManager.Reload();   // 演奏中は読み直さない（次に設定を閉じたときか、次の起動で切り替わる）
+                ConfigManager.SaveAll(); // 次回起動しても選んだ設定を使う(スキンは［スキンを適用］したものだけ)
             }
         }
 
@@ -1075,10 +1080,6 @@ namespace TakeTaikoSimulator.Overlays
             if (newIndex != index && newIndex >= 0)
             {
                 skin.SkinName = names[newIndex];
-                if (!fullScreen)
-                {
-                    ConfigManager.SaveSkin(); // F1 はすぐ保存し、閉じたときに画像を読み直す
-                }
                 ShowMessage($"{skin.SkinName} を選びました（［スキンを適用］ですぐ切り替わります）", SuccessColor);
             }
 
@@ -1612,12 +1613,11 @@ namespace TakeTaikoSimulator.Overlays
             }
             if (beforeFolder == skin.SkinsFolder && beforeName == skin.SkinName) return;
             skin.Fix();
-            ConfigManager.SaveSkin(); // 次回起動に備えて選んだ名前も保存
 
             if (visibleSkinNames.Count == 0)
                 ShowMessage("このフォルダにスキンが見つかりませんでした", ErrorColor);
             else
-                ShowMessage($"スキンフォルダを保存しました（{visibleSkinNames.Count}個、設定を閉じると {skin.SkinName} に切り替わります）", SuccessColor);
+                ShowMessage($"スキンフォルダを選びました（{visibleSkinNames.Count}個、［スキンを適用］で {skin.SkinName} に切り替わります）", SuccessColor);
         }
 
         private static bool SameSkinPath(string? a, string? b) =>
@@ -1645,16 +1645,16 @@ namespace TakeTaikoSimulator.Overlays
                 ShowMessage($"スキンが {visibleSkinNames.Count}個見つかりました（［適用］で切り替え）", SuccessColor);
                 return;
             }
-            SkinManager.Reload();
-            savedSkin = ConfigManager.Copy(ConfigManager.Skin);
-            visibleSkinNames = SkinManager.SkinNames.ToList();
-            if (SkinManager.SkinNames.Count == 0)
+            // 一覧だけ読み直す。選んでいるのが今使っているスキンのときだけ、画像も読み直す(切り替わりはしない)
+            //   ほかのスキンを選んでいるときは、［スキンを適用］を押すまで切り替えない
+            if (!InPlay && SameSkinPath(ActiveSkin.GetCurrentSkinPath(), SkinManager.CurrentPath)) SkinManager.Reload();
+            if (visibleSkinNames.Count == 0)
             {
                 ShowMessage("スキンが見つかりませんでした", ErrorColor);
             }
             else
             {
-                ShowMessage($"スキン一覧を更新しました（{SkinManager.SkinNames.Count}個、使用中：{SkinManager.CurrentName}）", SuccessColor);
+                ShowMessage($"スキン一覧を更新しました（{visibleSkinNames.Count}個、使用中：{SkinManager.CurrentName}）", SuccessColor);
             }
         }
 
