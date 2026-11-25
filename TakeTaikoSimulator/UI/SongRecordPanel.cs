@@ -19,6 +19,34 @@ public static class SongRecordPanel
         "Difficulty_Select/Crown.png", "Difficulty_Select/ScoreRank.png",
     };
 
+    private static Texture2D? cleanBestPanel;
+    private static int cleanBestGeneration = -1;
+
+    // 焼きこまれた「自己ベスト」の字を、左右(x119 と x216)の色を横につないでぬりつぶした絵
+    private static unsafe Texture2D? CleanBestPanel()
+    {
+        if (cleanBestGeneration == SkinManager.Generation) return cleanBestPanel;
+        cleanBestGeneration = SkinManager.Generation;
+        if (cleanBestPanel is Texture2D old) Raylib.UnloadTexture(old);
+        cleanBestPanel = null;
+        if (SkinManager.GetTexture(Folder + "BestScorePanel/Panel.png") is not Texture2D tex || tex.Width != 340 || tex.Height != 105) return null;
+        Image img = Raylib.LoadImageFromTexture(tex);
+        Raylib.ImageFormat(ref img, PixelFormat.UncompressedR8G8B8A8);
+        byte* px = (byte*)img.Data;
+        const int x0 = 119, x1 = 216;
+        for (int y = 16; y <= 42; y++)
+            for (int x = x0 + 1; x < x1; x++)
+            {
+                float t = (x - x0) / (float)(x1 - x0);
+                for (int c = 0; c < 4; c++)
+                    px[(y * 340 + x) * 4 + c] = (byte)(px[(y * 340 + x0) * 4 + c] * (1 - t) + px[(y * 340 + x1) * 4 + c] * t);
+            }
+        cleanBestPanel = Raylib.LoadTextureFromImage(img);
+        Raylib.UnloadImage(img);
+        Raylib.SetTextureFilter(cleanBestPanel.Value, TextureFilter.Bilinear);
+        return cleanBestPanel;
+    }
+
     public static void DrawSummary(RecordGroup group, float alpha, SongRecordSummary? records = null, int? profile = null, int side = 0)
     {
         using var placement = SidePlacement(side, Layout.SummaryOffset);
@@ -57,7 +85,16 @@ public static class SongRecordPanel
         //   パネル Panel.png（340×105）は原寸で (16,572)。前は 332×90 につぶして描いていたので、数字が大きく見えていた
         //   難易度の印 CourseSymbol.png（54×40）は (55,611)、数字 Number.png（1文字 24×28）は原寸で、1けたのとき真ん中 (279.5, 632.5)
         Rectangle panel = new(16, 572, 340, 105);
-        if (!MenuSkin.Whole(Folder + "BestScorePanel/Panel.png", panel, MenuSkin.White(alpha)))
+        // 11/25 たけらい「自己ベストの文字の解像度が低い」：絵に焼きこまれた小さい文字(絵の中 x122〜213・y17〜41)を
+        //   まわりの色でぬりつぶした絵を作って、その上にフォントで書き直す
+        if (CleanBestPanel() is Texture2D clean)
+        {
+            Raylib.DrawTexturePro(clean, new Rectangle(0, 0, clean.Width, clean.Height), panel, Vector2.Zero, 0f, MenuSkin.White(alpha));
+            using (MenuDraw.UseOutlineRatio(3f / 23f))
+                MenuDraw.Outlined("自己ベスト", new Rectangle(panel.X + 112, panel.Y + 15, 112, 28), 23f,
+                    MenuDraw.Fade(Color.White, alpha), MenuDraw.Fade(Color.Black, alpha));
+        }
+        else if (!MenuSkin.Whole(Folder + "BestScorePanel/Panel.png", panel, MenuSkin.White(alpha)))
         {
             Background(panel, alpha);
             Label("自己ベスト", new(38, 582, 296, 30), 24, Color.Gold, alpha);
