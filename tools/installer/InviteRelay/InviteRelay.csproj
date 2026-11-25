@@ -1,0 +1,12 @@
+<Project Sdk="Microsoft.NET.Sdk.Web">
+  <PropertyGroup>
+    <TargetFramework>net10.0</TargetFramework>
+    <Nullable>enable</Nullable>
+    <ImplicitUsings>enable</ImplicitUsings>
+  </PropertyGroup>
+  <ItemGroup>
+    <Compile Include="../../../TakeTaikoSimulator/Updates/GitHubReleaseSource.cs" />
+    <Compile Include="../../../TakeTaikoSimulator/Updates/InviteReleaseSource.cs" />
+    <Compile Include="../../../TakeTaikoSimulator/Updates/UpdateFeed.cs" />
+  </ItemGroup>
+</Project>

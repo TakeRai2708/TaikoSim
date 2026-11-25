@@ -19,7 +19,7 @@ namespace TakeTaikoSimulator.Scenes
     //   操作：カッ・←→・ホイール：えらぶ／ドン・Enter・クリック：決定／Esc：モード選択へ／F2：読み込み直し
     public sealed class DanSelectScene : Scene
     {
-        public override Platform.DiscordPresence.Info? Presence => new("段位道場", "段位を選んでいます");
+        public override Platform.DiscordPresence.Info? Presence => new("段位道場で段位を選択中");
 
         // 前に開いていた場所を覚えておく（段位から戻ってきたとき同じところに居る）
         private static int categoryCursor;

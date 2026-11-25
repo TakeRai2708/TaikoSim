@@ -46,6 +46,13 @@ try
     Check(timeline.Move(99999, 1) == 2, "末尾を越えない");
     Near(timeline[99], 2250, "末尾の安全な参照");
     Near(timeline[-99], -1000, "先頭の安全な参照");
+    Near(timeline.LeadInStart(2), -1000, "選択小節の2小節前に戻る");
+    Near(timeline.LeadInStart(1), -1000, "2小節未満なら先頭まで戻る");
+    Near(timeline.LeadInStart(0), -1000, "先頭小節を選択した場合");
+    var fourBars = new Course();
+    foreach (double time in new[] { 0d, 2000d, 3250d, 4800d })
+        fourBars.BarLines.Add(new BarLine { TimeMs = time });
+    Near(new TrainingTimeline(fourBars).LeadInStart(3), 2000, "変拍子でも実際の2小節前の位置を使う");
     for (int i = 5; i <= 10; i++)
     {
         timeline.SetSpeed(i);

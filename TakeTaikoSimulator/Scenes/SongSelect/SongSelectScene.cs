@@ -29,7 +29,9 @@ namespace TakeTaikoSimulator.Scenes
     // 選んでいた場所は static に覚えておくので、演奏から戻ってきても同じ曲を選んだまま
     public class SongSelectScene : Scene
     {
-        public override Platform.DiscordPresence.Info? Presence => new("曲を選んでいます");
+        public override Platform.DiscordPresence.Info? Presence => training
+            ? new("特訓モードで曲を選択中")
+            : new("曲を選んでいます");
 
         // プレイヤーを変えたら、その人のお気に入り・最近の曲で一覧を作り直す。
         public static void ResetForProfile()
@@ -44,7 +46,12 @@ namespace TakeTaikoSimulator.Scenes
         }
 
         private readonly bool training;
-        public SongSelectScene(bool training = false) => this.training = training;
+        public SongSelectScene(bool training = false, bool returningFromDifficulty = false)
+        {
+            this.training = training;
+            this.returningFromDifficulty = returningFromDifficulty;
+        }
+        private readonly bool returningFromDifficulty;
 
         // ===== 一覧の項目 =====
 
@@ -187,7 +194,8 @@ namespace TakeTaikoSimulator.Scenes
         public override string? MenuBgmFile => MenuBgm.SongSelectFile;
         public override double MenuBgmLoopMs => MenuBgm.SongSelectLoopMs;
         private bool leavingForDifficulty;
-        public override bool MenuBgmMuted => preview.HasPlaybackRequest || leavingForDifficulty || SongLoading.IsActive;
+        public override bool MenuBgmMuted => ((inSongs || diffOpen) && preview.HasPlaybackRequest) ||
+            leavingForDifficulty || SongLoading.IsActive;
         private string toast = "";
         private float toastTimer;
         private bool wasScanning;
@@ -274,8 +282,11 @@ namespace TakeTaikoSimulator.Scenes
         {
             chara.Load();
             chara.SetIdle("songselect_loop", c => c.SongSelectLoopTime);
-            MenuVoice.Loop(SelectStartVoice);
-            selectPrompt = true;
+            if (!returningFromDifficulty)
+            {
+                MenuVoice.Loop(SelectStartVoice);
+                selectPrompt = true;
+            }
             guideClock = 0f;
             diffDecideTime = -1f;
             returnTime = -1f;
@@ -286,6 +297,8 @@ namespace TakeTaikoSimulator.Scenes
             wasScanning = SongList.IsScanning;
             searchFocused = false;
             if (!SongList.IsScanning) Rebuild(keepPlace: true);
+            // 最初の Update は暗転解除後になる。曲名のフォントは黒幕中の Enter で準備する。
+            PreloadListText();
             list.Reset(CurrentPos);
             afterBlink = null;
             MenuSkin.Preload(MenuSkin.SongFolder, MenuSkin.BarImages.Concat(MenuSkin.SongImages).Concat(MenuSkin.TnSongImages).Concat(SongRecordPanel.Images));
@@ -1112,6 +1125,7 @@ namespace TakeTaikoSimulator.Scenes
             // 11/8 の TaikøNauts の録画：難易度の板は一瞬で消えて、選んでいた曲の板は閉じた形にもどる。
             //   そこから 0.43秒で黄色い枠、0.45秒で開く（BarList.CollapseAfterDifficulty）。フェードはしない
             MenuSounds.Cancel();
+            MenuVoice.Stop();
             options.CloseNow();
             diffOpen = false;
             diffSong = null;
@@ -1376,8 +1390,6 @@ namespace TakeTaikoSimulator.Scenes
             List<SongCategory> categories = SongList.Categories;
             if (SongList.IsScanning) return;
             if (ReferenceEquals(categories, preloadedCategories) && preloadedFont == FontManager.SkinMainGeneration) return;
-            preloadedCategories = categories;
-            preloadedFont = FontManager.SkinMainGeneration;
 
             IEnumerable<string> Texts()
             {
@@ -1394,6 +1406,8 @@ namespace TakeTaikoSimulator.Scenes
                 }
             }
             FontManager.PreloadSkinMain(Texts()); // 文字はスキンの太字フォントで描く
+            preloadedCategories = categories;
+            preloadedFont = FontManager.SkinMainGeneration;
         }
 
         // ===== TaikøNauts のスキン(02.SongSelect の Bar/番号.png など) =====

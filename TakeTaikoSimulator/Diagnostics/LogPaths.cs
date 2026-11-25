@@ -2,7 +2,7 @@ namespace TakeTaikoSimulator.Diagnostics
 {
     // ログの置き場所（11/22 たけらい「システムのログなのか入力のログなのか分からん」）
     //
-    //   ドキュメント\TakeTaikoSimulator\Logs\
+    //   TakeTaiko.exe と同じフォルダーの Logs\
     //     TaikoSimLog_20261122_015000\     ← 1回起動するごとに1つ
     //       System\TaikoSim.log          … 黒い画面に出る文（raylib の INFO / WARNING も）
     //       Debug\frames_*.csv, events_*.csv … デバッグ記録(CSV)をONにしたときの重さの記録

@@ -107,7 +107,7 @@ public sealed class LocalDifficultyScene(SongEntry song) : Scene
         if (optionPlayer >= 0) { LocalSession.WithOptions(optionPlayer, options.Close); return; }
         if (ready.Any(r => r)) { Array.Clear(ready); MenuSounds.Cancel(); return; }
         MenuSounds.Cancel();
-        SceneManager.Simple(new SongSelectScene());
+        SceneManager.Simple(new SongSelectScene(returningFromDifficulty: true));
     }
 
     public override void Draw()

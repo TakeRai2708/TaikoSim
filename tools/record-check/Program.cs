@@ -220,6 +220,9 @@ using (var music = new TakeTaikoSimulator.Audio.MenuBgmPlayer(file =>
     Check(entryMusic.Plays == 1 && entryMusic.Loop && entryMusic.Volume == .8f, "エントリーBGMをループ再生");
     music.Update(TakeTaikoSimulator.Audio.MenuBgm.EntryFile, 1, 1, false, .7f, 5);
     Check(musicLoads.Count == 1 && entryMusic.Plays == 1 && entryMusic.Stops == 0, "モード選択へ移っても同じBGMを読み直し・停止・巻き戻ししない");
+    entryMusic.IsPlaying = false;
+    music.Update(TakeTaikoSimulator.Audio.MenuBgm.EntryFile, 1, 1, false, .7f, .016f);
+    Check(entryMusic.Plays == 2 && entryMusic.LastPositionMs == 0, "停止したエントリーBGMを再開する");
     music.Update(TakeTaikoSimulator.Audio.MenuBgm.SongSelectFile, 1, 1, false, .6f, .016f, 4060);
     var selectMusic = musicTracks.Last();
     Check(entryMusic.Disposes == 1 && selectMusic.Plays == 1 && !selectMusic.Loop, "選曲へ移ったらエントリーBGMを片付けて選曲BGMへ");
@@ -247,6 +250,14 @@ using (var music = new TakeTaikoSimulator.Audio.MenuBgmPlayer(file =>
     Check(musicLoads.Count == attempts, "無いBGMを毎フレーム読み直さない");
     music.Update("missing.ogg", 3, 2, false, .4f, .016f);
     Check(musicLoads.Count == attempts + 1, "スキン変更後は無かったBGMも再確認");
+}
+using (var introMusic = new TakeTaikoSimulator.Audio.MenuBgmPlayer(_ => { var t = new FakeMenuBgm(); musicTracks.Add(t); return t; }))
+{
+    introMusic.Update("select.ogg", 1, 1, false, 1, .016f, introMs: 1000);
+    var track = musicTracks.Last();
+    track.IsPlaying = false;
+    introMusic.Update("select.ogg", 1, 1, false, 1, .2f, introMs: 1000);
+    Check(track.Plays == 2 && track.LastPositionMs == 1000, "途中停止したBGMはイントロ後から繰り返す");
 }
 using (var mutedMusic = new TakeTaikoSimulator.Audio.MenuBgmPlayer(_ => { var t = new FakeMenuBgm(); musicTracks.Add(t); return t; }))
 {

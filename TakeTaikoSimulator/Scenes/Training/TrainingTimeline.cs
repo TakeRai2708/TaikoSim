@@ -25,5 +25,12 @@ public sealed class TrainingTimeline
     }
 
     public int Move(double timeMs, int direction) => Math.Clamp(At(timeMs) + Math.Sign(direction), 0, Count - 1);
+
+    // 再開時は選択した小節の2小節前から助走する。先頭側に小節がなければ先頭で止める。
+    public double LeadInStart(int targetMeasure)
+    {
+        int target = Math.Clamp(targetMeasure, 0, Count - 1);
+        return starts[Math.Max(0, target - 2)];
+    }
     public void SetSpeed(int tenths) => SpeedTenths = Math.Clamp(tenths, 5, 10);
 }

@@ -26,6 +26,10 @@ public partial class PlayScene
     private double?[] trainingDeltas = Array.Empty<double?>();
     private int trainingEarlyOk, trainingLateOk;
     private string trainingNotice = "";
+    // 再開時に選択した小節より前の音符を描画・判定しないための開始時刻。
+    // 通常の特訓開始時や一時停止中の小節移動では制限しない。
+    private double trainingNoteStartMs = double.NegativeInfinity;
+    private bool IsBeforeTrainingStart(Note note) => isTraining && note.TimeMs + 0.001 < trainingNoteStartMs;
     private double PlaybackRate => isTraining ? trainingTimeline?.Rate ?? 1.0 : playSpeed;
 
     private static bool IsTrainingKey(KeyboardKey key) => ConfigManager.Key.SystemKeys
@@ -102,13 +106,21 @@ public partial class PlayScene
         {
             if (trainingPaused)
             {
-                // 小節の先頭で突然叩かせず、ひとつ前の小節から流し直す。
+                // 選択した小節の2小節前から助走。前の小節の音符は表示も判定もしない。
                 int measure = trainingTimeline.At(nowMs - AudioOffsetMs);
-                if (measure == 0) Restart(); // OFFSETと通常の開始前の空白をそのまま使う
-                else SeekTraining(trainingTimeline[measure - 1], keepReview: false);
+                double targetMs = trainingTimeline[measure];
+                if (measure == 0) Restart(); // 先頭は従来の開始前の余白を使う
+                else
+                {
+                    // 判定・連打・オートは選択小節を開始点として準備し、時計だけ2小節前に戻す。
+                    SeekTraining(targetMs, keepReview: false);
+                    nowMs = trainingTimeline.LeadInStart(measure) + AudioOffsetMs;
+                }
+                trainingNoteStartMs = targetMs;
                 trainingScroll.Reset(nowMs);
                 trainingPaused = false;
-                trainingNotice = "1小節前から再生しています";
+                trainingNotice = measure == 0 ? "曲の頭から再生しています"
+                    : $"{Math.Min(2, measure)}小節前から再生しています（選択小節より前の音符は流れません）";
                 ClearTrainingInput();
             }
             else PauseTraining();
@@ -147,16 +159,18 @@ public partial class PlayScene
         var deltas = trainingDeltas;
         int early = trainingEarlyOk, late = trainingLateOk;
         int good = goodCount, ok = okCount, bad = badCount, roll = totalRollHits;
+        int previousCombo = combo, previousMaxCombo = maxCombo;
         double gauge = stats.Gauge;
         long score = stats.Score;
         // 履歴を見ているだけでクリア背景が最初に戻ったり、通常背景へ戻ったりしないようにする。
-        Restart(keepBackground: keepReview);
+        Restart(keepBackground: keepReview, preserveTrainingVisuals: keepReview);
         if (keepReview)
         {
             trainingHistory = history;
             trainingDeltas = deltas;
             trainingEarlyOk = early; trainingLateOk = late;
             goodCount = good; okCount = ok; badCount = bad; totalRollHits = roll;
+            combo = previousCombo; maxCombo = previousMaxCombo;
             stats.SetGauge(gauge);
             stats.SetScore(score);
         }
@@ -202,8 +216,9 @@ public partial class PlayScene
 
     private void DrawTraining()
     {
-        Color bg = new(13, 19, 30, 255), panel = new(22, 31, 46, 255);
-        Color border = new(49, 64, 84, 255), blue = new(91, 172, 255, 255);
+        // 特訓モードも他の設定画面と同じ桜色テーマに統一する。
+        Color bg = Gui.BackgroundColor, panel = Gui.BoxColor;
+        Color border = Gui.BorderColor, accent = Gui.AccentColor, sakura = Gui.SakuraColor;
         double logicalTime = nowMs;
         if (trainingPaused) nowMs = trainingScroll.Position;
         try { DrawPlayScreen(); }
@@ -211,7 +226,7 @@ public partial class PlayScene
         if (course == null || chart == null)
         {
             FontManager.Draw(error, 48, 120, 30, Color.Orange);
-            FontManager.Draw("Esc：選曲へ戻る", 48, 190, 28, Color.White);
+            FontManager.Draw("Esc：選曲へ戻る", 48, 190, 28, Gui.TextColor);
             return;
         }
 
@@ -223,40 +238,43 @@ public partial class PlayScene
         }
         // 上半分は通常演奏そのもの。特訓の情報だけ下半分に重ねる。
         Raylib.DrawRectangle(0, 540, 1920, 540, bg);
+        Raylib.DrawLine(0, 540, 1920, 540, border);
         double gameMs = nowMs - AudioOffsetMs;
-        Text("特訓モード", 48, 550, 28, blue);
+        Text("特訓モード", 48, 550, 28, sakura);
         Text(trainingPaused ? "一時停止中" : "練習中", 1510, 570, 36,
-            trainingPaused ? Color.Orange : blue, 360);
-        Text($"再生速度  {PlaybackRate:0.0}×", 1510, 630, 32, Color.White, 360);
+            trainingPaused ? accent : sakura, 360);
+        Text($"再生速度  {PlaybackRate:0.0}×", 1510, 630, 32, Gui.TextColor, 360);
         int measure = (trainingTimeline?.At(gameMs) ?? 0) + 1;
-        Text($"小節  {measure} / {trainingTimeline?.Count ?? 1}", 690, 600, 42, Color.White);
-        Text($"曲の位置  {Math.Max(0, nowMs) / 1000:0.00} 秒", 690, 664, 28, Color.LightGray);
-        Text("今回の判定", 48, 595, 28, Color.LightGray);
+        Text($"小節  {measure} / {trainingTimeline?.Count ?? 1}", 690, 600, 42, Gui.TextColor);
+        Text($"曲の位置  {Math.Max(0, nowMs) / 1000:0.00} 秒", 690, 664, 28, Gui.SubTextColor);
+        Text("今回の判定", 48, 595, 28, Gui.SubTextColor);
         string[] labels = { "良", "可", "不可", "連打数" };
         int[] counts = { goodCount, okCount, badCount, totalRollHits };
-        Color[] colors = { new(255, 197, 78, 255), Color.White, new(142, 177, 255, 255), new(255, 197, 78, 255) };
+        Color[] colors = { new(255, 197, 78, 255), Gui.TextColor, Gui.SubTextColor, sakura };
         for (int i = 0; i < labels.Length; i++)
         {
             float y = 640 + 76 * i;
-            Raylib.DrawRectangle(48, (int)y, 550, 66, panel);
+            Rectangle row = new(48, y, 550, 66);
+            SmoothShapes.Rectangle(row, 8f, panel);
+            SmoothShapes.Border(row, 8f, 1f, border);
             if (i == 1)
             {
-                Text($"−可 {trainingEarlyOk}", 65, y + 16, 26, new Color(120, 197, 255, 255), 155);
-                Text($"可 {okCount}", 245, y + 16, 26, Color.White, 155);
+                Text($"−可 {trainingEarlyOk}", 65, y + 16, 26, sakura, 155);
+                Text($"可 {okCount}", 245, y + 16, 26, Gui.TextColor, 155);
                 Text($"+可 {trainingLateOk}", 425, y + 16, 26, new Color(255, 168, 130, 255), 155);
                 continue;
             }
             Text(labels[i], 72, y + 12, 34, colors[i]);
             string value = counts[i].ToString();
-            Text(value, 565 - FontManager.Measure(value, 46).X, y + 5, 46, Color.White);
+            Text(value, 565 - FontManager.Measure(value, 46).X, y + 5, 46, Gui.TextColor);
         }
-        Text($"早可 −可 {trainingEarlyOk}    遅可 +可 {trainingLateOk}", 690, 730, 32, blue);
-        Text($"{TrainingKey(SystemAction.TrainingPause)}  一時停止／再開", 690, 970, 28, Color.White, 650);
-        Text($"{TrainingKey(SystemAction.TrainingPreviousBar)} / {TrainingKey(SystemAction.TrainingNextBar)}  小節移動（一時停止中）", 1200, 970, 22, Color.LightGray, 660);
-        Text($"{TrainingKey(SystemAction.TrainingSlower)} / {TrainingKey(SystemAction.TrainingFaster)}  速度変更", 1200, 1006, 22, Color.LightGray, 660);
+        Text($"早可 −可 {trainingEarlyOk}    遅可 +可 {trainingLateOk}", 690, 730, 32, sakura);
+        Text($"{TrainingKey(SystemAction.TrainingPause)}  一時停止／再開", 690, 970, 28, Gui.TextColor, 650);
+        Text($"{TrainingKey(SystemAction.TrainingPreviousBar)} / {TrainingKey(SystemAction.TrainingNextBar)}  小節移動（一時停止中）", 1200, 970, 22, Gui.SubTextColor, 660);
+        Text($"{TrainingKey(SystemAction.TrainingSlower)} / {TrainingKey(SystemAction.TrainingFaster)}  速度変更", 1200, 1006, 22, Gui.SubTextColor, 660);
         Raylib.DrawLine(48, 950, 1872, 950, border);
-        Text("Esc  選曲へ戻る", 48, 978, 28, Color.White);
-        Text(trainingNotice.Length > 0 ? trainingNotice : "練習の成績は保存されません。低速再生では音程も下がります。", 48, 1035, 20, Color.LightGray, 1800);
+        Text("Esc  選曲へ戻る", 48, 978, 28, Gui.TextColor);
+        Text(trainingNotice.Length > 0 ? trainingNotice : "練習の成績は保存されません。低速再生では音程も下がります。", 48, 1035, 20, Gui.SubTextColor, 1800);
         if (audioMessage.Length > 0) Text(audioMessage, 690, 918, 20, Color.Orange, 1160);
     }
     private static bool TrainingHeld(SystemAction action) =>
@@ -290,13 +308,14 @@ public partial class PlayScene
         {
             if (trainingHistory[i] is not Judge judge) continue;
             Note note = course.Notes[i];
+            if (IsBeforeTrainingStart(note)) continue;
             float x = GetX(note.TimeMs, note.Bpm, note.Scroll, viewMs);
             if (x < LaneX + 30 || x > Screen.Width - 30) continue;
             string text = judge == Judge.Good ? "良" : judge == Judge.Bad ? "不可"
                 : trainingDeltas[i] < 0 ? "−可" : "+可";
             Color color = judge == Judge.Good ? new Color(255, 197, 78, 255)
-                : judge == Judge.Bad ? Color.LightGray
-                : trainingDeltas[i] < 0 ? new Color(120, 197, 255, 255) : new Color(255, 168, 130, 255);
+                : judge == Judge.Bad ? Gui.SubTextColor
+                : trainingDeltas[i] < 0 ? Gui.SakuraColor : new Color(255, 168, 130, 255);
             const float size = 26;
             float width = FontManager.Measure(text, size).X;
             FontManager.DrawOutlined(text, x - width / 2, NoteY - NoteHalf - size - 3,
