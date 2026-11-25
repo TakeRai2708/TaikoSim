@@ -119,7 +119,6 @@ namespace TakeTaikoSimulator.Scenes
         //   すべっている間も板は濃いまま。曲の板の中身は最初の 0.15秒でじわっと出る
         private const float FlipInShift = 340f, FlipContentFade = 0.15f;
         private const float FlipThinScale = 0f;
-        private const float FlipTallExtra = 94f;   // 広がるときの板は、開いた曲の板の高さ(中の水色 175 → 269px。下はそのまま。TaikøNauts の録画は縦が 0.979 倍に縮んでいたので戻した)
         // つぶれていく幅(793px を 1 として、1/60秒ごと。TaikøNauts の 11/22 の録画)
         private static readonly float[] FlipSquashWidths = { 1f, 0.928f, 0.784f, 0.662f, 0.542f, 0.433f, 0.340f, 0.257f, 0.189f, 0.126f, 0.075f, 0.040f, 0.015f, 0f };
         private float flipTime = -1f;      // めくれ始めてからの時間(-1 ならめくっていない)
@@ -1683,7 +1682,8 @@ namespace TakeTaikoSimulator.Scenes
                     // めくれている間：枠は出さない。板は真ん中を中心に大きく・細くする。中身はだんだん消す・出す
                     Rectangle box = new Rectangle(sel.X + sel.Width * (1f - flip.ScaleX) / 2f, sel.Y + sel.Height * (1f - flip.ScaleY) / 2f,
                         sel.Width * flip.ScaleX, sel.Height * flip.ScaleY);
-                    if (flipTall && !flipOpened) { box.Y -= FlipTallExtra; box.Height += FlipTallExtra; }   // 下そろえで上に高くする
+                    // 広がる途中も板の外の大きさは開いた板のまま。中の明るい板だけ上まで広がる(framed:false)
+                    //   11/26 TaikøNauts の録画(15-05-30)：縁は 382〜697 のまま変わらない。前は上に 94px 高くしていて、入れ替わるときに跳んでいた
                     // 「とじる」：細い線から広がるところは、戻り先のジャンルの色の空の板（11/8 の TaikøNauts の録画では J-POP の水色だった）
                     Item flipItem = flipFromBack && !flipOpened && flipTime >= FlipThinEnd && GenreItemOpen is Item back ? back : selectedItem;
                     DrawBar(flipItem, box, list.Expand, alpha, framed: !(flipTall && !flipOpened) && (!flipOpened || list.FrameShown), contentAlpha: flip.Content);   // 広がる途中は、中まで明るい空の板(TaikøNauts と同じ)
