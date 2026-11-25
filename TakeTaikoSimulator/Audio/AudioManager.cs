@@ -67,6 +67,12 @@ namespace TakeTaikoSimulator.Audio
 
         // WASAPI のとき、実際のバッファの長さ(ms)
         private static double wasapiBufferMs = 0;
+        // WASAPI 共有のとき、BASS のバッファから出た音が Windows の音声エンジンを通ってスピーカーに届くまでの時間(ms)の目安
+        //   11/26 たけらい：WASAPI 共有で曲が遅れて聞こえ、音オフセット −20ms でちょうどよかった（友達は −50ms）
+        //   エンジンは「デバイスの周期」（ふつう 10ms）ずつ受け渡すので、その 2 つ分を引く（推測。−20ms とぴったり合う）
+        //   排他（エンジンを通らない）・ASIO・BASS では 0
+        private static double wasapiEngineMs = 0;
+        public static double WasapiEngineMs => wasapiEngineMs;
 
         // ASIO のとき、1秒あたりのサンプル数
         private static double asioRate = 0;
@@ -309,12 +315,16 @@ namespace TakeTaikoSimulator.Audio
             // 排他のイベント方式では、この長さのバッファを2つ交互に使う。
             double actualMs = mixerBytesPerSecond > 0 ? info.BufferLength * 1000.0 / mixerBytesPerSecond : 0;
             wasapiBufferMs = actualMs * (eventDriven ? 2 : 1);
+            wasapiEngineMs = 0;
+            if (!exclusive && BassWasapi.GetDeviceInfo(BassWasapi.CurrentDevice, out var outputDevice))
+                wasapiEngineMs = Math.Clamp(outputDevice.DefaultUpdatePeriod * 1000.0 * 2, 0, 60);
 
             string name = exclusive ? "WASAPI 排他" : "WASAPI 共有";
             string wantedText = bufferMs > 0 ? $"{bufferMs}ms" : "自動";
             string buffers = eventDriven ? $"{actualMs:0.#}ms×2" : $"{actualMs:0.#}ms";
-            Status = $"{name}（バッファ {buffers}／希望 {wantedText}・{info.Frequency}Hz）";
-            if (SharedEffectsUseSamples) Status = $"{name}（曲 {actualMs:0.#}ms／打音は別共有）";
+            string engine = wasapiEngineMs > 0 ? $"＋エンジン {wasapiEngineMs:0.#}ms" : "";
+            Status = $"{name}（バッファ {buffers}{engine}／希望 {wantedText}・{info.Frequency}Hz）";
+            if (SharedEffectsUseSamples) Status = $"{name}（曲 {actualMs:0.#}ms{engine}／打音は別共有）";
             error = "";
             return true;
         }
@@ -417,6 +427,7 @@ namespace TakeTaikoSimulator.Audio
             Mixer = 0;
             mixerBytesPerSecond = 0;
             wasapiBufferMs = 0;
+            wasapiEngineMs = 0;
             asioRate = 0;
             bassDeviceLatencyMs = 0;
             BassBufferMs = 0;
@@ -437,11 +448,12 @@ namespace TakeTaikoSimulator.Audio
                     if (wasapiInitialized && mixerBytesPerSecond > 0)
                     {
                         // WASAPI の中にたまっていて、まだ鳴っていない音の量(OpenTaiko と同じ計算)
+                        //   共有のときは、そのあと Windows の音声エンジンを通る分（wasapiEngineMs）も足す
                         int queued = BassWasapi.GetData(IntPtr.Zero, (int)DataFlags.Available);
-                        if (queued >= 0) return queued * 1000.0 / mixerBytesPerSecond;
+                        if (queued >= 0) return queued * 1000.0 / mixerBytesPerSecond + wasapiEngineMs;
 
                         // 量が取れなかったときは、だいたいバッファの半分たまっていることにする
-                        return wasapiBufferMs / 2;
+                        return wasapiBufferMs / 2 + wasapiEngineMs;
                     }
                     if (asioInitialized && asioRate > 0)
                     {
