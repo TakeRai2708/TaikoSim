@@ -428,8 +428,7 @@ namespace TakeTaikoSimulator.Scenes
             else
             {
                 Text("モードをえらぶ", 40, 26, 44, Color.White);
-                DrawHint("カッ・↑↓：えらぶ　ドン・Enter：決定　Esc：エントリーへ", 1030);
-                DrawHint("テスト：.tja ファイルをウィンドウにドラッグ＆ドロップすると譜面が流れます", 984, new Color(240, 205, 120, 255), 20);
+                // 11/26 たけらい「左下説明いらない」：操作の説明と .tja ドラッグ＆ドロップの説明は出さない
             }
 
             // 左上の太鼓の案内
@@ -694,14 +693,6 @@ namespace TakeTaikoSimulator.Scenes
             if (type == 1)
                 MenuSkin.Whole(EntryBarFolder + "1POnly.png",
                     new Rectangle(area.X - 80, area.Y - 35, 400, 70), Color.White);
-        }
-
-        // 下の操作説明(うしろに薄い帯)
-        private static void DrawHint(string hint, float y, Color? color = null, float size = 24)
-        {
-            var measured = Measure(hint, size);
-            SmoothShapes.Rounded(new Rectangle(28, y - 7, measured.X + 32, measured.Y + 14), 0.5f, 8, new Color(0, 0, 0, 150));
-            Text(hint, 44, y, size, color ?? new Color(220, 224, 236, 255));
         }
 
         private static void DrawBanner(string text, Color color) => Gui.Notice(text);

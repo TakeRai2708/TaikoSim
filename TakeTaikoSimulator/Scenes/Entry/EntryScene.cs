@@ -47,6 +47,9 @@ public sealed class EntryScene : Scene
         ? new(SideX[1] + 25, SideY + 20, SideWidth - 50, SideHeight - 40)
         : new(SideX[index] + 60, SideY + 20, SideWidth - 120, SideHeight - 40);
 
+    // 絵が無いスキン（Simple）の箱：3つを重ならないように同じ幅で並べる（11/26 たけらい「ボックスが重なってる」）
+    private static Rectangle PlainSideBox(int index) => new(500 + index * 320, SideY + 20, 280, SideHeight - 40);
+
     private readonly PlayerJoin join = new();
     private readonly MenuChara chara = new();   // ③ のどんちゃん（選曲と同じくり返しの動き）
     private readonly bool selectData;
@@ -350,14 +353,18 @@ public sealed class EntryScene : Scene
         for (int i = 0; i < 2; i++)
         {
             Rectangle row = new(Layout.StartRow.X, Layout.StartRow.Y + i * Layout.StartRowSpacing, Layout.StartRow.Width, Layout.StartRow.Height);
-            if (!MenuSkin.Cell(Folder + "CreditBar.png", i, 1, 2, row, MenuSkin.White(fade)))
+            bool baked = MenuSkin.Cell(Folder + "CreditBar.png", i, 1, 2, row, MenuSkin.White(fade));
+            if (!baked)
             {
+                // 絵が無いスキン（Simple）：黄色い板の上下まん中に「1P」と文字をそろえる
+                //   11/26 たけらい「エントリー画面は文字がずれてる」（前は A-Style の焼き込み文字の場所に合わせていた）
                 SmoothShapes.Rounded(new(row.X + 13, row.Y + 14, 1146, 160), .2f, 12, Fade(new Color(255, 226, 61, 255), fade));
-                Outlined(i == 0 ? "1P" : "2P", new(row.X + 70, row.Y + 30, 320, 110), 56, Fade(Color.Black, fade), Fade(Color.White, fade));
+                Outlined(i == 0 ? "1P" : "2P", new(row.X + 70, row.Y + 94 - 55, 320, 110), 56, Fade(Color.Black, fade), Fade(Color.White, fade));
             }
             const string message = "太鼓をたたいてスタート!";
             // CreditBarの焼き込み文字は、2行目だけセル内で14px上にある。
-            Rectangle messageBox = i == 0 ? Layout.StartMessage1 : Layout.StartMessage2;
+            Rectangle messageBox = !baked ? new(Layout.StartMessage1.X, 94 - Layout.StartMessage1.Height / 2, Layout.StartMessage1.Width, Layout.StartMessage1.Height)
+                : i == 0 ? Layout.StartMessage1 : Layout.StartMessage2;
             Rectangle area = new(row.X + messageBox.X, row.Y + messageBox.Y, messageBox.Width, messageBox.Height);
             Rectangle ink = FontManager.MeasureSkinMainInk(message, Layout.StartMessageSize);
             float size = Layout.StartMessageSize * Math.Min(1, (area.Width - 12) / Math.Max(1, ink.Width));
@@ -417,7 +424,7 @@ public sealed class EntryScene : Scene
             Color[] colors = { new(226, 58, 58, 255), Gui.TrackColor, new(58, 120, 226, 255) };
             for (int i = 0; i < 3; i++)
             {
-                Rectangle box = SideBox(i);
+                Rectangle box = PlainSideBox(i);
                 bool selected = i == sideCursor;
                 if (selected) Gui.Glow(box, 18f, Color.White, open * pulse);
                 SmoothShapes.Rectangle(box, 18f, Gui.WithAlpha(selected ? colors[i] : Gui.Lerp(colors[i], Gui.PanelColor, .55f), open));
@@ -428,7 +435,8 @@ public sealed class EntryScene : Scene
         }
 
         if (!interactive || open < 1f || sideDecide >= 0f) return;
+        bool plain = !MenuSkin.Has(Folder + "Playside_Panel.png", Folder + "Playside_Bar.png");
         for (int i = 0; i < 3; i++)
-            if (Gui.Clicked(SideBox(i))) { DecideSide(i); break; }
+            if (Gui.Clicked(plain ? PlainSideBox(i) : SideBox(i))) { DecideSide(i); break; }
     }
 }
