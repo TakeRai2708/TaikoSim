@@ -72,6 +72,8 @@ namespace TakeTaikoSimulator.Scenes
         private const float ScorePopupRisePixels = 24f;
         private const int MaxScorePopups = 32;
         private readonly List<ScorePopup> scorePopups = new(MaxScorePopups);
+        // 11/25 TaikøNauts の録画(R-Style)で測った数字の間隔：0 と 0 の中心が 30px(前は 34px で広かった。右端はそのまま)
+        private const float ScoreDigitStep = 30f;
         private static readonly string[] ScoreDigitText = { "0", "1", "2", "3", "4", "5", "6", "7", "8", "9" };
         private float soulFlashAge = 1f;
         private const float SongTitleRight = 1872f, SongTitleY = 44f;
@@ -289,7 +291,7 @@ namespace TakeTaikoSimulator.Scenes
         {
             if (SkinManager.GetTexture(ScoreNumber) is not Texture2D texture) return false;
             float width = texture.Width / 10f, height = texture.Height / 3f;
-            float step = 34f * scale;
+            float step = ScoreDigitStep * scale;
             // 下端を固定して縦だけ伸ばす。加点直後から約150msで元の高さに戻る。
             float drawHeight = height * scale * (1f + bounce);
             float drawY = y + height * scale - drawHeight;
@@ -309,7 +311,7 @@ namespace TakeTaikoSimulator.Scenes
             Texture2D? numberTexture = SkinManager.GetTexture(ScoreNumber);
             float width = numberTexture is Texture2D digits ? digits.Width / 10f : 20f;
             float height = numberTexture is Texture2D image ? image.Height / 3f : 32f;
-            float spacing = numberTexture.HasValue ? 34f : 20f;
+            float spacing = numberTexture.HasValue ? ScoreDigitStep : 20f;
             foreach (ScorePopup popup in scorePopups)
             {
                 // 合計点と同じ右端にそろえる。出てくるときだけ右からすべり込む
