@@ -181,8 +181,18 @@ namespace TakeTaikoSimulator.Graphics
             else DrawOutlined(text, x, y, size, fill, outline, thickness);
         }
 
+        // スキンの太字フォントで、縁なしのくっきりした字(大きい字用。SDF を引き伸ばさず、その大きさで文字を作る)
+        public static void DrawSkinMainSharp(string text, float x, float y, float size, Color color)
+        {
+            if (skinMainFont != null) skinMainFont.DrawSharp(text, new Vector2(x, y), size, color);
+            else Draw(text, x, y, size, color);
+        }
+
         public static Vector2 MeasureSkinMain(string text, float size) =>
             skinMainFont?.Measure(text, size) ?? Measure(text, size);
+
+        public static Rectangle MeasureSkinMainInkSharp(string text, float size) =>
+            skinMainFont?.InkBoundsSharp(text, size) ?? systemFont?.InkBoundsSharp(text, size) ?? new(0, 0, Measure(text, size).X, size);
 
         public static Rectangle MeasureSkinMainInk(string text, float size) =>
             skinMainFont?.InkBounds(text, size) ?? systemFont?.InkBounds(text, size) ?? new(0, 0, Measure(text, size).X, size);

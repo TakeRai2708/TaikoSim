@@ -568,7 +568,10 @@ namespace TakeTaikoSimulator.Scenes
             {
                 Item selectedItem = Items[selectedPos];
                 int entryType = EntryBarType(selectedItem);
-                list.DrawFrame(sel, 1f, entryType >= 0 ? EntryBarFolder + "Selected.png" : null);
+                // 素材のない板(特訓モード・着せ替え・設定)も、素材のある板と同じ枠と光(01.Entry/Bar/Selected.png)を使う
+                //   11/26 たけらい「素材ないやつの周りのグローの感じが違うからまねして」
+                string? entrySelected = MenuSkin.Has(EntryBarFolder + "Selected.png") ? EntryBarFolder + "Selected.png" : null;
+                list.DrawFrame(sel, 1f, entrySelected);
                 DrawItem(selectedItem, sel, list.Expand);
                 if (entryType == 0 && list.FrameShown)
                 {
@@ -645,8 +648,17 @@ namespace TakeTaikoSimulator.Scenes
             Color colorOutline = Raylib.ColorBrightness(barColor, -0.28f);
 
             // 外から黒 → 板より少し濃い色 → 白。二つの縁は同じ字形・同じ位置に重ねる。
-            FontManager.DrawSkinMainOutlined(title, x, y, size, text, Color.Black, outer);
-            FontManager.DrawSkinMainOutlined(title, x, y, size, text, colorOutline, inner);
+            // 縁は SDF(太らせた形)で描き、白い字だけはその大きさで作ったくっきりした字で上に重ねる
+            //   11/26 たけらい「素材ないやつの文字が見ずらい。ぼやけてる…AAが効いてない」：
+            //   SDF は 48px で持っている字を 80px 以上に引き伸ばしていて、画数の多い字(訓・替)の角が丸くぼやけていた
+            FontManager.DrawSkinMainOutlined(title, x, y, size, colorOutline, Color.Black, outer);
+            FontManager.DrawSkinMainOutlined(title, x, y, size, colorOutline, colorOutline, inner);
+            Rectangle sharpInk = FontManager.MeasureSkinMainInkSharp(title, size);
+            Rectangle sdfInk = FontManager.MeasureSkinMainInk(title, size);
+            // くっきりした字と SDF の字は、作り方の違いで少しずれるので、見える字の真ん中どうしを合わせる
+            float sx = x + (sdfInk.X + sdfInk.Width / 2f) - (sharpInk.X + sharpInk.Width / 2f);
+            float sy = y + (sdfInk.Y + sdfInk.Height / 2f) - (sharpInk.Y + sharpInk.Height / 2f);
+            FontManager.DrawSkinMainSharp(title, sx, sy, size, text);
         }
 
         // 980×160 の板とタイトル。開いたときは土台だけ伸ばし、タイトルは原寸で上に置く
