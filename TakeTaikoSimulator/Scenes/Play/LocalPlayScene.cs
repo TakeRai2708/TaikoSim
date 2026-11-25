@@ -110,7 +110,7 @@ public sealed class LocalPlayScene : Scene
         }
     }
 
-    public override void OnBack() => SceneManager.Simple(new SongSelectScene());
+    public override void OnBack() => SceneManager.Simple(new SongSelectScene(afterPlay: true));
 
     public override void Draw()
     {

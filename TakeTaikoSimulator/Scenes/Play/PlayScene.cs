@@ -1814,7 +1814,7 @@ namespace TakeTaikoSimulator.Scenes
                 dan.Quit = true;
                 SceneManager.Simple(new DanSelectScene());
             }
-            else if (returnToSelect) SceneManager.Simple(new SongSelectScene(training: isTraining));
+            else if (returnToSelect) SceneManager.Simple(new SongSelectScene(training: isTraining, afterPlay: true));
             else SceneManager.Simple(new ModeSelectScene());
         }
 

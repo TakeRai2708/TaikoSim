@@ -253,7 +253,7 @@ namespace TakeTaikoSimulator.Scenes
         private void GoBack()
         {
             bgm?.Stop();
-            if (returnToSelect) SceneManager.AfterResult(new SongSelectScene());
+            if (returnToSelect) SceneManager.AfterResult(new SongSelectScene(afterPlay: true));
             else SceneManager.AfterResult(new ModeSelectScene());
         }
 

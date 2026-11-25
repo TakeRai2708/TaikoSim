@@ -46,10 +46,11 @@ namespace TakeTaikoSimulator.Scenes
         }
 
         private readonly bool training;
-        public SongSelectScene(bool training = false, bool returningFromDifficulty = false)
+        // afterPlay：演奏・リザルトのあとに戻ってきたとき。「好きな曲を選ぶドン」（SelectStart）を言わない（11/26 たけらい）
+        public SongSelectScene(bool training = false, bool returningFromDifficulty = false, bool afterPlay = false)
         {
             this.training = training;
-            this.returningFromDifficulty = returningFromDifficulty;
+            this.returningFromDifficulty = returningFromDifficulty || afterPlay;
         }
         private readonly bool returningFromDifficulty;
 
@@ -305,6 +306,11 @@ namespace TakeTaikoSimulator.Scenes
             PreloadListText();
             list.Reset(CurrentPos);
             afterBlink = null;
+            // 画面が明るくなる最初の1枚から背景を出す（11/26 たけらい「演奏ゲームに移行するときの画面、背景がついてきてない」）
+            //   前は最初の Update（暗転が明けたあと）で背景の番号が決まるまで、背景が無いまま明るくなっていた
+            bgShown = bgPrevious = -1;
+            UpdateTnBackground(0f);
+            if (bgShown >= 0) SkinManager.GetTexture(Tn + $"Background/{bgShown}.png");   // 黒幕の間に読んでおく
             MenuSkin.Preload(MenuSkin.SongFolder, MenuSkin.BarImages.Concat(MenuSkin.SongImages).Concat(MenuSkin.TnSongImages).Concat(SongRecordPanel.Images));
             SongLoading.Preload(); // 曲の読み込み画面の画像(決めた瞬間に止まらないように)
             smallControlGuide?.Unload();
@@ -605,6 +611,7 @@ namespace TakeTaikoSimulator.Scenes
         // 画面の切り替え中(難易度を決めてから幕が閉じるまで)も、どんちゃんとカーソルの点滅は進める
         public override void UpdateBlocked(float dt)
         {
+            UpdateTnBackground(dt);   // 暗転・幕の間も背景は流し続ける（明るくなったときに止まって見えないように）
             chara.Update(dt);
             guideClock += dt;
             if (diffDecideTime >= 0f) diffDecideTime += dt;
