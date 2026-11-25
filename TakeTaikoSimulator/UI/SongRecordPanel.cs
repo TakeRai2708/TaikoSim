@@ -62,9 +62,11 @@ public static class SongRecordPanel
             {
                 int col = i == 0 ? 2 : (i - 1) % 3;
                 int line = i == 0 ? 0 : (i - 1) / 3 + 1;
-                RankFallback(rankOrder[i], new(42 + col * 94, 330 + line * 40, 40, 36), alpha);
+                // 11/26 たけらい「ここの数字ずれてる」：字の高さのまん中を、となりの数字の高さ（Layout の個数の場所）にそろえる
+                float countY = i == 0 ? Layout.HighestCount.Y : line == 1 ? Layout.UpperCounts[col].Y : Layout.LowerCounts[col].Y;
+                RankFallback(rankOrder[i], new(42 + col * 94, countY - 18, 40, 36), alpha);
             }
-            for (int i = 0; i < 3; i++) CrownFallback((SongClearType)(i + 1), new(42 + i * 94, 452, 36, 30), alpha);
+            for (int i = 0; i < 3; i++) CrownFallback((SongClearType)(i + 1), new(42 + i * 94, Layout.CrownCounts[i].Y - 15, 36, 30), alpha);
         }
         // パネルの絵に印が入っているので、ここでは数字だけを重ねる。
         Count(totals.Ranks[6], Layout.HighestCount, alpha);
