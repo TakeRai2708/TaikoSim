@@ -1111,6 +1111,10 @@ namespace TakeTaikoSimulator.Scenes
             SceneManager.ChangeScene(new DanResultScene(dan));
         }
 
+        // 設定で音量を変えたとき（F1 のパネルはバーを動かしたらすぐ反映する）。曲の終わりのフェード中は、フェードの量のまま
+        public override void ApplyVolume() =>
+            ApplyMusicVolume(endFadeElapsed < 0f ? 1f : 1f - Math.Clamp(endFadeElapsed / EndFadeSeconds, 0f, 1f));
+
         // 曲の音量(rate：1 で設定どおり、0 で無音)
         private void ApplyMusicVolume(float rate)
         {

@@ -789,7 +789,9 @@ namespace TakeTaikoSimulator.Overlays
 
             SoundConfig sound = ActiveSound;
 
-            // 全画面では値だけ編集中にして、下の［適用］でまとめて反映する
+            // バーを動かしたらすぐ反映する（11/26 たけらい「音量適用押してなくてもされるようにしたい」）
+            //   F1 のパネル：今鳴っている音にすぐかけ直す。保存はパネルを閉じたとき（FinishClose の SaveAll）
+            //   全画面の設定：下書きに入れて、［保存］でまとめて反映する（今までどおり）
             volumeMaster = SliderRow("master", "Master", volumeMaster, 0, 100);
             volumeSe = SliderRow("se", "SE", volumeSe, 0, 100);
             volumeMusic = SliderRow("music", "Music", volumeMusic, 0, 100);
@@ -807,17 +809,13 @@ namespace TakeTaikoSimulator.Overlays
 
             bool volumePending = volumeMaster != sound.MasterVolume || volumeSe != sound.SeVolume
                 || volumeMusic != sound.MusicVolume || volumeBgm != sound.BgmVolume || volumeVoice != sound.VoiceVolume;
-            string volumeLabel = volumePending ? "音量を適用（まだ反映されていません）" : "音量を適用";
-            if (!fullScreen && Gui.Button(new Rectangle(LabelX, ToScreenY(cursorY), RightEdge - LabelX, 40), volumeLabel) && volumePending)
-            {
+            if (!fullScreen && volumePending)
                 ApplyVolumes();
-            }
-            if (!fullScreen) cursorY += 52;
 
             DrawAudioOutputRows(sound);
         }
 
-        // ----- 音量(［音量を適用］を押すまで、ここに置いておく) -----
+        // ----- 音量(バーの値。F1 のパネルでは動かしたらすぐ設定に入れる) -----
         private int volumeMaster, volumeSe, volumeMusic, volumeBgm, volumeVoice;
 
         // 今の設定の音量を、バーの値に読み込む(パネルを開いたとき)
@@ -831,7 +829,7 @@ namespace TakeTaikoSimulator.Overlays
             volumeVoice = sound.VoiceVolume;
         }
 
-        // バーの値を設定に入れて、保存して、今鳴っている曲(選曲画面のプレビュー・リザルトの曲)にかけ直す
+        // バーの値を設定に入れて、今鳴っている曲(選曲画面のプレビュー・リザルトの曲)にかけ直す（保存はパネルを閉じたとき）
         //   効果音と声は、鳴らすたびに設定を読むので、次に鳴る音から変わる
         private void ApplyVolumes()
         {
@@ -843,9 +841,7 @@ namespace TakeTaikoSimulator.Overlays
             sound.VoiceVolume = volumeVoice;
             sound.Fix();
             LoadVolumes(); // 直した値(範囲の外だったときなど)をバーにも戻す
-            ConfigManager.SaveSound();
             SceneManager.Current?.ApplyVolume();
-            ShowMessage("音量を適用しました", SuccessColor);
         }
 
         // ----- 音の出力(出力方式・バッファ) -----

@@ -18,6 +18,12 @@ public sealed class LocalPlayScene : Scene
 
     private readonly SongEntry song;
     private readonly PlayScene[] players;
+
+    // 曲を鳴らしているのは 1P の側だけなので、両方に伝えても音が重なることはない
+    public override void ApplyVolume()
+    {
+        foreach (PlayScene player in players) player.ApplyVolume();
+    }
     private bool finished;
     private double startTime;
     private string error = "";
