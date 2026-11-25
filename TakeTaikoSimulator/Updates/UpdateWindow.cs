@@ -31,6 +31,7 @@ internal sealed class UpdateWindow(string heading, string body, string? primary,
 
     private nint window, brand, title, details, folderField, question;
     private nint desktopCheckBox;
+    private bool checkInPanel;
     private nint originalCheckBoxProc;
     private nint inputBrush;
     private Rect inputArea;
@@ -99,6 +100,10 @@ internal sealed class UpdateWindow(string heading, string body, string? primary,
                 width, height, 0, 0, instance, 0);
             if (window == 0)
                 throw new Win32Exception();
+            // Windows 11 のウィンドウと同じように角を少し丸くする（11/26 たけらい）。Windows 10 では何もしない
+            int round = 2; // DWMWCP_ROUND
+            try { DwmSetWindowAttribute(window, 33, ref round, sizeof(int)); } // DWMWA_WINDOW_CORNER_PREFERENCE
+            catch (Exception ex) when (ex is DllNotFoundException or EntryPointNotFoundException) { }
             nint focus = CreateControls(logicalWidth, logicalHeight);
             ShowWindow(window, 5);
             SetFocus(focus);
@@ -168,7 +173,7 @@ internal sealed class UpdateWindow(string heading, string body, string? primary,
 
         panel = new Rect(Scale(margin), Scale(52), Scale(width - margin), Scale(height - 67));
         title = Child("STATIC", heading, 0, margin + 18, 69, width - 84, 35, 0, headingFont);
-        int bodyBottom = Folder is null ? height - (percent is null ? 88 : 129) : height - 159;
+        int bodyBottom = Folder is null ? height - (percent is null ? (CheckBoxLabel is null ? 88 : 118) : 129) : height - 159;
         int bodyHeight = Math.Max(34, bodyBottom - 122);
         string content = BodyText.ReplaceLineEndings("\r\n");
         int charsPerLine = Math.Max(1, (width - 84) / 15);
@@ -201,8 +206,11 @@ internal sealed class UpdateWindow(string heading, string body, string? primary,
         }
         if (Folder is not null || CheckBoxLabel is not null)
         {
-            desktopCheckBox = Child("BUTTON", CheckText, 0x00010003,
-                margin, height - 51, Math.Max(200, width - 300), 30, 105, regularFont);
+            // インストーラーは今までどおり左下。それ以外（スキンの更新など）は、パネルの中の下に横いっぱいで置く（11/26 たけらい「ちとずれてる」：文字が切れていた）
+            checkInPanel = Folder is null;
+            desktopCheckBox = checkInPanel
+                ? Child("BUTTON", CheckText, 0x00010003, margin + 18, height - 108, width - 2 * margin - 36, 30, 105, regularFont)
+                : Child("BUTTON", CheckText, 0x00010003, margin, height - 51, Math.Max(200, width - 300), 30, 105, regularFont);
             originalCheckBoxProc = SetWindowLongPtr(desktopCheckBox, -4,
                 Marshal.GetFunctionPointerForDelegate(CheckBoxCallback)); // GWLP_WNDPROC
             if (originalCheckBoxProc == 0)
@@ -396,7 +404,7 @@ internal sealed class UpdateWindow(string heading, string body, string? primary,
             try
             {
                 GetClientRect(control, out Rect bounds);
-                FillRect(canvas, ref bounds, owner.backgroundBrush);
+                FillRect(canvas, ref bounds, owner.checkInPanel ? owner.panelBrush : owner.backgroundBrush);
                 bool isChecked = SendMessage(control, GetCheck, 0, 0) == 1;
                 bool focused = GetFocus() == control;
                 int top = (bounds.Bottom - owner.Scale(18)) / 2;
@@ -404,15 +412,8 @@ internal sealed class UpdateWindow(string heading, string body, string? primary,
                 Rounded(canvas, indicator, isChecked ? Sakura : Panel, isChecked || focused ? Sakura : Muted,
                     owner.Scale(6));
                 if (isChecked)
-                {
-                    nint pen = CreatePen(0, owner.Scale(2), Background);
-                    nint previous = SelectObject(canvas, pen);
-                    MoveToEx(canvas, owner.Scale(5), top + owner.Scale(9), 0);
-                    LineTo(canvas, owner.Scale(8), top + owner.Scale(12));
-                    LineTo(canvas, owner.Scale(15), top + owner.Scale(5));
-                    SelectObject(canvas, previous);
-                    DeleteObject(pen);
-                }
+                    CheckMark(canvas, owner.Scale(5), top + owner.Scale(9), owner.Scale(8.5f), top + owner.Scale(12.5f),
+                        owner.Scale(15), top + owner.Scale(5.5f), owner.Scale(2.2f), Background);
                 bounds.Left = owner.Scale(28);
                 DrawLabel(canvas, owner.CheckText, bounds, owner.regularFont, Text, 0x24);
             }
@@ -435,8 +436,12 @@ internal sealed class UpdateWindow(string heading, string body, string? primary,
         return result;
     }
 
+    // 角丸の四角。GDI+ でなめらか（アンチエイリアス）に描く。GDI+ が使えないときだけ、前の GDI（ギザギザ）で描く
+    //   radius は GDI の RoundRect と同じ「角の円の直径」
     private static void Rounded(nint canvas, Rect box, uint fill, uint edge, int radius)
     {
+        if (Gdip.Ready && Gdip.RoundedRect(canvas, box.Left, box.Top, box.Right - box.Left, box.Bottom - box.Top, radius, Argb(fill), Argb(edge)))
+            return;
         nint brush = CreateSolidBrush(fill);
         nint pen = CreatePen(0, 1, edge);
         nint oldBrush = SelectObject(canvas, brush);
@@ -447,6 +452,22 @@ internal sealed class UpdateWindow(string heading, string body, string? primary,
         DeleteObject(pen);
         DeleteObject(brush);
     }
+
+    private static void CheckMark(nint canvas, float x1, float y1, float x2, float y2, float x3, float y3, float width, uint color)
+    {
+        if (Gdip.Ready && Gdip.Polyline(canvas, [x1, y1, x2, y2, x3, y3], width, Argb(color)))
+            return;
+        nint pen = CreatePen(0, (int)MathF.Round(width), color);
+        nint previous = SelectObject(canvas, pen);
+        MoveToEx(canvas, (int)x1, (int)y1, 0);
+        LineTo(canvas, (int)x2, (int)y2);
+        LineTo(canvas, (int)x3, (int)y3);
+        SelectObject(canvas, previous);
+        DeleteObject(pen);
+    }
+
+    // COLORREF（0x00BBGGRR）→ GDI+ の ARGB（不透明）
+    private static uint Argb(uint color) => 0xFF000000u | ((color & 0xFF) << 16) | (color & 0xFF00) | ((color >> 16) & 0xFF);
 
     private static void DrawLabel(nint canvas, string text, Rect box, nint font, uint color, uint format)
     {
@@ -459,6 +480,8 @@ internal sealed class UpdateWindow(string heading, string body, string? primary,
 
     private static nint MakeFont(int size, int weight) =>
         CreateFont(-size, 0, 0, 0, weight, 0, 0, 0, 1, 0, 0, 5, 0, "Yu Gothic UI");
+
+    private float Scale(float value) => (float)(value * scale);
 
     private static uint Rgb(uint red, uint green, uint blue) => red | (green << 8) | (blue << 16);
 
@@ -509,6 +532,7 @@ internal sealed class UpdateWindow(string heading, string body, string? primary,
         public nuint ItemData;
     }
 
+    [DllImport("dwmapi.dll")] private static extern int DwmSetWindowAttribute(nint window, int attribute, ref int value, int size);
     [DllImport("kernel32.dll", EntryPoint = "GetModuleHandleW")] private static extern nint GetModuleHandle([MarshalAs(UnmanagedType.LPWStr)] string? module);
     [DllImport("user32.dll", EntryPoint = "RegisterClassW", SetLastError = true)] private static extern ushort RegisterClass(ref WindowDefinition definition);
     [DllImport("user32.dll", EntryPoint = "CreateWindowExW", CharSet = CharSet.Unicode, SetLastError = true)] private static extern nint CreateWindowEx(uint extended, string type, string title, uint style, int x, int y, int width, int height, nint parent, nint id, nint instance, nint parameter);
