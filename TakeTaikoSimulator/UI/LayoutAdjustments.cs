@@ -31,7 +31,10 @@ public static class LayoutAdjustments
         public const float RankTextSize = 24;
         public static readonly Rectangle NameWithRank = new(143, 38, 183, 33); // 段位あり：名前を中央に収める範囲（＝名前の白い欄。長い名前は縦はそのまま横だけ縮める）
         public static readonly Rectangle NameWithoutRank = new(76, 37, 249, 33); // 段位なし：名前を中央に収める範囲
-        public const float NameSize = 25, NameOutline = 3; // 名前の大きさ / 黒縁の太さ
+        // 名前の大きさ / いちばん小さくするときの大きさ / ふちの太さ(0 = ふちなし)。字の色は TaikøNauts のスクショの濃い字
+        //   NameOutlineDark：プレートの絵が無いとき(暗い板に白い字)の黒いふち
+        public const float NameSize = 25, NameMinSize = 17, NameOutline = 0, NameOutlineDark = 3;
+        public static readonly Raylib_cs.Color NameColor = new(34, 34, 40, 255);
         public const float OtherTextOutline = 2; // 称号・段位・素材なしの1P/2P文字の縁
     }
 

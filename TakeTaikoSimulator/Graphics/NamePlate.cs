@@ -153,23 +153,37 @@ public static class NamePlate
             // 段位欄の上にバッジを重ねる。各バッジは82px刻みで、80pxでは右端が切れる。
             if (SkinManager.GetTexture(Root + "NamePlate_Base.png") is Texture2D badgeSheet)
                 Raylib.DrawTexturePro(badgeSheet, new(side == 0 ? 0 : 164, 80, 82, 80), Layout.PlayerBadge, Vector2.Zero, 0, white);
-            NameText(data.Name, rank ? Layout.NameWithRank : Layout.NameWithoutRank, white, Raylib.ColorAlpha(Color.Black, alpha));
+            // プレートの絵があるときは白い欄に濃い字。絵が無いとき(暗い板)は今までどおり白い字に黒いふち
+            bool whiteField = SkinManager.GetTexture(Root + "NamePlate_Base.png") is Texture2D;
+            NameText(data.Name, rank ? Layout.NameWithRank : Layout.NameWithoutRank,
+                whiteField ? Raylib.ColorAlpha(Layout.NameColor, alpha) : white,
+                Raylib.ColorAlpha(Color.Black, alpha), whiteField ? Layout.NameOutline : Layout.NameOutlineDark);
         }
         finally { Rlgl.PopMatrix(); }
     }
-    // 名前の高さは固定。長い場合も縦を潰さず、横だけ縮めて中央に収める。
-    private static void NameText(string text, Rectangle area, Color fill, Color outline)
+    // 名前：白い欄に、濃い字(TaikøNauts と同じ。黒いふちは付けない)
+    //   11/26 たけらい「はみ出すときある。あとアニメーションあるとき黒ふちが邪魔してる」
+    //   長い名前は、まず字を小さくして(NameMinSize まで)、それでも入らなければ横だけ縮める
+    //   (前は大きさそのままで横だけ 0.3 倍とかにしていたので、ふちがくっついて黒い帯になっていた)
+    private static void NameText(string text, Rectangle area, Color fill, Color outline, float edge)
     {
         if (text.Length == 0) return;
-        const float size = Layout.NameSize, edge = Layout.NameOutline, padding = 2;
+        const float padding = 4;
+        float room = area.Width - 2 * (padding + edge);
+        float size = Layout.NameSize;
         Rectangle ink = FontManager.MeasureSkinMainInk(text, size);
-        float scaleX = Math.Min(1, (area.Width - 2 * padding) / Math.Max(1, ink.Width + 2 * edge));
+        if (ink.Width > room)
+        {
+            size = Math.Max(Layout.NameMinSize, size * room / Math.Max(1, ink.Width));
+            ink = FontManager.MeasureSkinMainInk(text, size);
+        }
+        float scaleX = Math.Min(1, room / Math.Max(1, ink.Width));
         Rlgl.PushMatrix();
         try
         {
             Rlgl.Translatef(area.X + area.Width / 2, area.Y + (area.Height - ink.Height) / 2 - ink.Y, 0);
             Rlgl.Scalef(scaleX, 1, 1);
-            FontManager.DrawSkinMainOutlined(text, -ink.X - ink.Width / 2, 0, size, fill, outline, edge);
+            FontManager.DrawSkinMainOutlined(text, -ink.X - ink.Width / 2, 0, size, fill, edge > 0 ? outline : Color.Blank, edge);
         }
         finally { Rlgl.PopMatrix(); }
     }
