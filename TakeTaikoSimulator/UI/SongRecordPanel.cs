@@ -234,6 +234,10 @@ public static class SongRecordPanel
 
     private static void CrownFallback(SongClearType clear, Rectangle rect, float alpha)
     {
+        // 難易度パネルの王冠の絵があれば、それを使う（Simple スキンも 11/26 から絵を持っている）
+        float w = rect.Height * 50f / 40f;
+        if (MenuSkin.Cell(Folder + "Difficulty_Select/Crown.png", (int)clear, 4, 1,
+                new Rectangle(rect.X + (rect.Width - w) / 2f, rect.Y, w, rect.Height), MenuSkin.White(alpha))) return;
         Vector2 P(float x, float y) => new(rect.X + rect.Width * x, rect.Y + rect.Height * y);
         Vector2[] points = { P(0, 0), P(.27f, .4f), P(.5f, 0), P(.73f, .4f), P(1, 0), P(.86f, 1), P(.14f, 1) };
         Color fill = clear == SongClearType.Cleared ? Color.LightGray : clear == SongClearType.FullCombo ? Color.Gold : Color.SkyBlue;
