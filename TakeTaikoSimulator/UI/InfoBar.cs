@@ -29,7 +29,7 @@ namespace TakeTaikoSimulator.UI
         private const float ImageWidth = 940f, ImageHeight = 110f;
         private const float DrawWidth = 921f;                       // 絵の幅（余白こみ）。940 から 19px 縮めた
         private const float PadLeft = 18f, PadRight = 6f, PadTop = 17f, VisibleHeight = 79f;   // 絵の中の、帯が見えている所
-        private const float TextSize = 23f;
+        private const float TextSize = 23f, TextRaise = 4f;
 
         /// <summary>帯を、絵の左上 (x, y) に描く。alpha 0〜1</summary>
         public static void Draw(float x, float y, string text, float alpha = 1f)
@@ -45,7 +45,8 @@ namespace TakeTaikoSimulator.UI
                 Rectangle inner = new(line.X + 4, line.Y + 4, line.Width - 8, line.Height - 8);
                 SmoothShapes.Rounded(inner, 1f, 16, Fade(new Color(62, 62, 62, 255), alpha));
             }
-            Rectangle area = new(visible.X + 40, visible.Y, visible.Width - 80, visible.Height);
+            // 11/25 たけらいのスクショ：文字の真ん中が帯の中の黒い所の真ん中より 4.5px 下だった → 4px 上げる
+            Rectangle area = new(visible.X + 40, visible.Y - TextRaise, visible.Width - 80, visible.Height);
             Outlined(text, area, TextSize, Fade(Color.White, alpha), Fade(Color.Black, alpha));
         }
 

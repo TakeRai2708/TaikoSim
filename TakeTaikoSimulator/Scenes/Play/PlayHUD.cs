@@ -72,9 +72,11 @@ namespace TakeTaikoSimulator.Scenes
         private const float ScorePopupRisePixels = 24f;
         private const int MaxScorePopups = 32;
         private readonly List<ScorePopup> scorePopups = new(MaxScorePopups);
+        // 11/25 TaikøNauts の録画(R-Style)で測った数字の間隔：0 と 0 の中心が 30px(前は 34px で広かった。右端はそのまま)
+        private const float ScoreDigitStep = 30f;
         private static readonly string[] ScoreDigitText = { "0", "1", "2", "3", "4", "5", "6", "7", "8", "9" };
         private float soulFlashAge = 1f;
-        private const float SongTitleRight = 1872f, SongTitleY = 44f;
+        private const float SongTitleRight = 1872f, SongTitleY = 36f;   // 11/25：TaikøNauts の録画で縁こみ y34〜94。うちは y39〜102 で、札とのすき間が無かった → 8px 上げて少し小さく
         // 曲名は「曲数の札(1曲目 / 3曲)」の真ん中にそろえる。長くて右へはみ出すときだけ、右はしを SongTitleRight にそろえる
         //   11/19 TaikøNauts の録画：「スマイル」は真ん中 約1745・「エイリアンエイリアン」は右はし 約1865
         //   (前は全部右そろえだった。たけらい「今だと右揃え。曲名は大体曲数の真ん中ぐらい」)
@@ -84,7 +86,7 @@ namespace TakeTaikoSimulator.Scenes
         //   TaikøNauts の動画（10/31 の段位道場、AUTO を付けた演奏）で測った：AUTO の 40×40 の左上が (170, 353)。
         //   前は推測で曲名の下に置いていた
         private const float OptionBadgeX = 170f, OptionBadgeY = 353f, OptionBadgeScale = 1f;
-        private const float SongTitleMaxWidth = 1000f, SongTitleFontSize = 58f, SongTitleOutline = 6f; // 輪郭は 4px(3px だと細いフォントで目立たなかった)
+        private const float SongTitleMaxWidth = 1000f, SongTitleFontSize = 55f, SongTitleOutline = 6f; // 輪郭は 4px(3px だと細いフォントで目立たなかった)
         private string songTitle = "";
         private float songTitleX, songTitleSize;
         private int songTitleSkinGeneration = -1;
@@ -289,7 +291,7 @@ namespace TakeTaikoSimulator.Scenes
         {
             if (SkinManager.GetTexture(ScoreNumber) is not Texture2D texture) return false;
             float width = texture.Width / 10f, height = texture.Height / 3f;
-            float step = 34f * scale;
+            float step = ScoreDigitStep * scale;
             // 下端を固定して縦だけ伸ばす。加点直後から約150msで元の高さに戻る。
             float drawHeight = height * scale * (1f + bounce);
             float drawY = y + height * scale - drawHeight;
@@ -309,7 +311,7 @@ namespace TakeTaikoSimulator.Scenes
             Texture2D? numberTexture = SkinManager.GetTexture(ScoreNumber);
             float width = numberTexture is Texture2D digits ? digits.Width / 10f : 20f;
             float height = numberTexture is Texture2D image ? image.Height / 3f : 32f;
-            float spacing = numberTexture.HasValue ? 34f : 20f;
+            float spacing = numberTexture.HasValue ? ScoreDigitStep : 20f;
             foreach (ScorePopup popup in scorePopups)
             {
                 // 合計点と同じ右端にそろえる。出てくるときだけ右からすべり込む
@@ -394,17 +396,19 @@ namespace TakeTaikoSimulator.Scenes
 
                 void DrawRainbowFrame(Texture2D texture, int frameIndex, float frameHeight, Color tint)
                 {
+                    // 11/25 リザルト(0.7倍)だと虹が TaikøNauts より 1px 下に出て、上の黒い縁が 1px 太く見えた → リザルトだけ 1px(縮小前で 1.4px)上げる
+                    float rainbowY = GaugeY + 6 - (result ? 1.4f : 0f);
                     if (stats.Norma == templateNorma)
                         DrawPart(texture, new Rectangle(0, frameIndex * frameHeight, texture.Width, frameHeight),
-                            GaugeX + 6, GaugeY + 6, tint: tint);
+                            GaugeX + 6, rainbowY, tint: tint);
                     else
                     {
                         // ★11以上でも背景・目盛りと同じ場所に段差を置く。
                         float sourceStep = templateStep - 6, targetStep = stepX - 6;
                         DrawPart(texture, new Rectangle(0, frameIndex * frameHeight, sourceStep, frameHeight),
-                            GaugeX + 6, GaugeY + 6, targetStep, frameHeight, tint);
+                            GaugeX + 6, rainbowY, targetStep, frameHeight, tint);
                         DrawPart(texture, new Rectangle(sourceStep, frameIndex * frameHeight, texture.Width - sourceStep, frameHeight),
-                            GaugeX + 6 + targetStep, GaugeY + 6, texture.Width - targetStep, frameHeight, tint);
+                            GaugeX + 6 + targetStep, rainbowY, texture.Width - targetStep, frameHeight, tint);
                     }
                 }
             }

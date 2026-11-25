@@ -85,6 +85,7 @@ namespace TakeTaikoSimulator.Scenes
         private static int openCat = -1;
         private static string lastSongKey = "";        // 最後に選んでいた曲(一覧を作り直しても同じ曲に戻すため)
         private static CourseType lastCourse = CourseType.Oni;
+        private static bool courseChosenThisRun;   // 起動してから一度でも難易度を決めて遊んだか
         private static string searchText = "";
         private static List<SongCategory>? builtFor;   // 今の一覧を作ったときのカテゴリ(読み直したら作り直す)
 
@@ -95,25 +96,33 @@ namespace TakeTaikoSimulator.Scenes
         private readonly BarList list = new(MenuSkin.SongFolder);         // 斜めの板の動き
         private Action? afterBlink;                    // 決定の点滅が終わったらすること(ジャンルを開く・とじる)
 
-        // ===== ジャンルを決めたあとの「ポンッ → めくれる」 =====
-        //   決めた瞬間を 0 として：0〜0.53秒 枠が点滅 → 0.63秒まで白 → ここから下の時間(FlipStart からの秒)
-        //   10/30 の TaikøNauts の動画(ボーカロイドを決めたところ)を 1/60秒ずつ測り直した
-        //   (10/29 の A.mp4 は、広がる途中で 0.13秒止まってからパッと戻っていた。曲の一覧を作る重さで止まっていたみたい)
-        //   0〜0.067   板がポンッと大きくなる(横 1.21倍・縦 1.14倍)。枠は消える
-        //   0〜0.12    ジャンル名・キャラ・吹き出しが消えていく(中身の無い板だけが残る)
-        //   0.11〜0.22 上の板は上へ、下の板は下へ 150px すべりながら消える
-        //   0.26〜0.41 板が横につぶれていく(幅 933 → 794 → 556 → 355 → 204 → 0px。はじめが速い)
-        //   0.41〜0.60 細い線のまま
-        //   0.60〜0.77 元の幅まで広がる(161 → 363 → 654 → 933px。ほぼ一定の速さ。中身は空っぽ)
-        //   0.77      中身が最初の曲の板(開いた形)になる
-        //   0.77〜0.90 曲の板の中身と、上下の板がじわっと出る。黄色い枠は 0.77 から 0.33秒あとに出る
-        private const float FlipStart = 0.63f;
-        private const float FlipPopEnd = 0.067f, FlipPopScaleX = 1.21f, FlipPopScaleY = 1.14f;
-        private const float FlipFadeEnd = 0.12f;
-        private const float FlipOthersStart = 0.11f, FlipOthersEnd = 0.22f, FlipOthersShift = 150f;
-        private const float FlipSquashStart = 0.26f, FlipSquashEnd = 0.41f, FlipThinEnd = 0.60f, FlipSwitch = 0.77f, FlipEnd = 0.90f;
-        private const float FlipThinScale = 5f / 933f;
+        // ===== ジャンルを決めたあとの「めくれる」 =====
+        //   決めた瞬間を 0 として：0〜0.53秒 枠が点滅 → ここから下の時間(FlipStart からの秒)
+        //   11/22 TaikøNauts の録画(J-POP を開く・閉じる)を 1/60秒ずつ測り直した。TakeTaiko の録画と並べて、ずれていた所を直した
+        //   (前の 10/30 の測り方とくらべて：ポンッと大きくなるのが無い・細い線のまま止まる時間がほぼ無い・広がるのは加速しながら)
+        //   0〜0.20    ジャンル名・キャラ・吹き出しが消えていく(中身の無い板だけが残る)
+        //   0.04〜0.34 上の板は上へ、下の板は下へ、加速しながら 400px すべって画面の外へ(11/25 測り直し)
+        //   0.337〜0.553 板が横につぶれていく(幅 793 → 736 → 622 → 525 → 430 → … → 32 → 12 → 0px)
+        //   0.553〜0.603 見えない(幅 0)
+        //   0.603〜0.837 開いた板の高さ(下そろえで上に 94px 高い)になって、加速しながら元の幅まで広がる(8 → 24 → 45 → 77 → 116 → … → 793px)
+        //   0.837〜0.904 中身の無い開いた板のまま
+        //   0.904      中身が最初の曲の板(開いた形)になる(11/25 に測り直し)
+        //   0.904〜1.184 上下の板が 340px 外からすべり込む。曲の板の中身は 0.15秒でじわっと出る
+        private const float FlipStart = 0.53f;
+        private const float FlipPopEnd = 0f, FlipPopScaleX = 1f, FlipPopScaleY = 1f;
+        private const float FlipFadeEnd = 0.20f;
+        // 11/25 録画(15-05-30)：まわりの板は消えずに、だんだん速くなりながら画面の外まで 400px すべっていく(0.04〜0.34)
+        private const float FlipOthersStart = 0.04f, FlipOthersEnd = 0.34f, FlipOthersShift = 400f;
+        private const float FlipSquashStart = 0.337f, FlipSquashEnd = 0.553f, FlipThinEnd = 0.603f, FlipGrowEnd = 0.837f, FlipSwitch = 0.904f, FlipEnd = 1.184f;
+        // 11/25 TaikøNauts の録画(15-05-30)：開ききって 0.067秒後から、上の板は上から・下の板は下から 340px すべり込む(0.28秒・最後ゆっくり)。
+        //   すべっている間も板は濃いまま。曲の板の中身は最初の 0.15秒でじわっと出る
+        private const float FlipInShift = 340f, FlipContentFade = 0.15f;
+        private const float FlipThinScale = 0f;
+        private const float FlipTallExtra = 94f;   // 広がるときの板は、開いた曲の板の高さ(中の水色 175 → 269px。下はそのまま。TaikøNauts の録画は縦が 0.979 倍に縮んでいたので戻した)
+        // つぶれていく幅(793px を 1 として、1/60秒ごと。TaikøNauts の 11/22 の録画)
+        private static readonly float[] FlipSquashWidths = { 1f, 0.928f, 0.784f, 0.662f, 0.542f, 0.433f, 0.340f, 0.257f, 0.189f, 0.126f, 0.075f, 0.040f, 0.015f, 0f };
         private float flipTime = -1f;      // めくれ始めてからの時間(-1 ならめくっていない)
+        private bool flipTall;             // めくれて広がっている途中：開いた曲の板の高さで描く
         private Action? flipOpen;          // 0.70秒で開くジャンル
         private bool flipOpened;
         private bool flipFromBack;         // 「とじる」でめくっている(細い線から広がるときは、戻り先のジャンルの色の板にする)
@@ -1110,6 +1119,8 @@ namespace TakeTaikoSimulator.Scenes
                 start = PanelCourses.LastOrDefault(c => HasCourse(c) || (c == CourseType.Oni && hasUra), CourseType.Easy);
             }
             diffCursor = 2 + Array.IndexOf(PanelCourses, start);
+            // 11/22 TaikøNauts の録画：起動してからまだ遊んでいないと、カーソルは「戻る」から始まる(2曲続けて開いても戻る)
+            if (!courseChosenThisRun) diffCursor = 0;
         }
 
         // 難易度の板を閉じて、曲の一覧へ(曲は流したまま)
@@ -1275,6 +1286,7 @@ namespace TakeTaikoSimulator.Scenes
             MenuVoice.Play(DecideDifficultyVoice);
             diffDecideTime = 0f;
             lastCourse = type;
+            courseChosenThisRun = true;
             lastSongKey = diffSong.Key;
             SongHistory.AddPlayed(diffSong.Key);
             preview.Dispose();
@@ -1663,9 +1675,10 @@ namespace TakeTaikoSimulator.Scenes
                     // めくれている間：枠は出さない。板は真ん中を中心に大きく・細くする。中身はだんだん消す・出す
                     Rectangle box = new Rectangle(sel.X + sel.Width * (1f - flip.ScaleX) / 2f, sel.Y + sel.Height * (1f - flip.ScaleY) / 2f,
                         sel.Width * flip.ScaleX, sel.Height * flip.ScaleY);
+                    if (flipTall && !flipOpened) { box.Y -= FlipTallExtra; box.Height += FlipTallExtra; }   // 下そろえで上に高くする
                     // 「とじる」：細い線から広がるところは、戻り先のジャンルの色の空の板（11/8 の TaikøNauts の録画では J-POP の水色だった）
                     Item flipItem = flipFromBack && !flipOpened && flipTime >= FlipThinEnd && GenreItemOpen is Item back ? back : selectedItem;
-                    DrawBar(flipItem, box, list.Expand, alpha, framed: !flipOpened || list.FrameShown, contentAlpha: flip.Content);
+                    DrawBar(flipItem, box, list.Expand, alpha, framed: !(flipTall && !flipOpened) && (!flipOpened || list.FrameShown), contentAlpha: flip.Content);   // 広がる途中は、中まで明るい空の板(TaikøNauts と同じ)
                     if (selectedItem.Kind == Kind.Genre && !flipOpened) DrawGenrePop(selectedItem, sel, alpha * flip.Content, force: true);
                     return;
                 }
@@ -1693,26 +1706,31 @@ namespace TakeTaikoSimulator.Scenes
             {
                 float fade = 1f - Math.Clamp(t / FlipFadeEnd, 0f, 1f);
                 float o = Math.Clamp((t - FlipOthersStart) / (FlipOthersEnd - FlipOthersStart), 0f, 1f);
-                float others = 1f - o, shift = FlipOthersShift * o * o; // だんだん速くすべっていく
+                float others = 1f - Math.Clamp((o - 0.8f) / 0.2f, 0f, 1f), shift = FlipOthersShift * MathF.Pow(o, 2.5f); // だんだん速くすべっていく(最後の2割だけ消える)
                 float sx = 1f, sy = 1f;
+                bool tall = false;
                 if (t < FlipPopEnd) { sx = FlipPopScaleX; sy = FlipPopScaleY; }
                 else if (t >= FlipSquashStart && t < FlipSquashEnd)
                 {
-                    // はじめが速く、だんだんゆっくり細くなる(測った幅：85% → 60% → 38% → 22% → 0%)
-                    float p = (t - FlipSquashStart) / (FlipSquashEnd - FlipSquashStart);
-                    sx = Math.Max(FlipThinScale, MathF.Pow(1f - p, 1.3f));
+                    // はじめが少しゆっくり → まんなかは一定 → 最後はゆっくり細くなる(測った幅の表をなめらかにつなぐ)
+                    float p = (t - FlipSquashStart) / (FlipSquashEnd - FlipSquashStart) * (FlipSquashWidths.Length - 1);
+                    int i = Math.Clamp((int)p, 0, FlipSquashWidths.Length - 2);
+                    sx = FlipSquashWidths[i] + (FlipSquashWidths[i + 1] - FlipSquashWidths[i]) * (p - i);
                 }
                 else if (t >= FlipSquashEnd && t < FlipThinEnd) sx = FlipThinScale;
                 else if (t >= FlipThinEnd)
                 {
-                    // ほぼ一定の速さで元の幅まで広がる(17% → 39% → 70% → 100%)
-                    float p = (t - FlipThinEnd) / (FlipSwitch - FlipThinEnd);
-                    sx = FlipThinScale + (1f - FlipThinScale) * p;
+                    // 開いた板の高さで、加速しながら元の幅まで広がる(半分の時間で 27%。ほぼ p²)
+                    float p = Math.Clamp((t - FlipThinEnd) / (FlipGrowEnd - FlipThinEnd), 0f, 1f);
+                    sx = 0.01f + 0.99f * p * p;
+                    tall = !flipFromBack;
                 }
+                flipTall = tall;
                 return (true, sx, sy, others, fade, shift);
             }
-            float appear = Math.Clamp((t - FlipSwitch) / (FlipEnd - FlipSwitch), 0f, 1f);
-            return (true, 1f, 1f, appear, appear, 0f);
+            float rest = 1f - Math.Clamp((t - FlipSwitch) / (FlipEnd - FlipSwitch), 0f, 1f);
+            float content = Math.Clamp((t - FlipSwitch) / FlipContentFade, 0f, 1f);
+            return (true, 1f, 1f, 1f, content, FlipInShift * rest * rest * rest);
         }
 
         // ===== 開いたジャンルの板のまわり(TaikøNauts の動画を測った値) =====
@@ -1855,9 +1873,55 @@ namespace TakeTaikoSimulator.Scenes
             return Raylib.ColorFromHSV(hsv.X, Math.Min(1f, hsv.Y * 1.15f), 0.45f);
         }
 
+        // ===== 曲の板の左はしの記録の印（王冠＋難易度・スコアランク＋難易度） =====
+        //   11/25 たけらいのスクショ（TaikøNauts）：一度遊んだ曲は板の左はしに、上に王冠・下にスコアランク。
+        //   どちらも記録のある一番むずかしい難易度のものを出す。おにと裏の両方にあるときは交互に出す（交互の間隔は推測で2秒）
+        //   閉じた板：真ん中が板の左上から (+37, +34) と (+37, +86)、80px のマスを 0.66 倍
+        //   開いた板：(+41, +43) と (+40, +113)、0.9 倍
+        private const float RecordSwapSeconds = 2f;
+        private static readonly CourseType[] RecordOrder = { CourseType.Edit, CourseType.Oni, CourseType.Hard, CourseType.Normal, CourseType.Easy };
+
+        private void DrawRecordMarks(SongEntry song, Rectangle area, float open, float alpha)
+        {
+            if (alpha <= 0f) return;
+            (CourseType Course, SongClearType Clear)? crown = null, crownAlt = null;
+            (CourseType Course, int Rank)? rank = null, rankAlt = null;
+            foreach (CourseType c in RecordOrder)
+            {
+                var r = SongHistory.GetRecord(song.Key, c);
+                if (r.Clear > SongClearType.None)
+                {
+                    if (crown == null) crown = (c, r.Clear);
+                    else if (crownAlt == null && crown.Value.Course == CourseType.Edit && c == CourseType.Oni) crownAlt = (c, r.Clear);
+                }
+                if (r.Rank > 0)
+                {
+                    if (rank == null) rank = (c, r.Rank);
+                    else if (rankAlt == null && rank.Value.Course == CourseType.Edit && c == CourseType.Oni) rankAlt = (c, r.Rank);
+                }
+            }
+            if (crown == null && rank == null) return;
+            bool second = ((int)(Raylib.GetTime() / RecordSwapSeconds) & 1) == 1;
+            if (second && crownAlt != null) crown = crownAlt;
+            if (second && rankAlt != null) rank = rankAlt;
+
+            float o = Math.Clamp(open, 0f, 1f);
+            float size = 80f * (0.66f + (0.9f - 0.66f) * o);
+            float cx = area.X + 37f + 4f * o, crownY = area.Y + 34f + 9f * o;
+            float rankX = area.X + 37f + 3f * o, rankY = area.Y + 86f + 27f * o;
+            Color tint = MenuSkin.White(alpha);
+            if (crown is var (cc, clear))
+                MenuSkin.Cell(Tn + "ClearType_Symbol.png", (int)cc * 3 + (int)clear - 1, 3, 5,
+                    new Rectangle(cx - size / 2f, crownY - size / 2f, size, size), tint);
+            if (rank is var (rc, rv))
+                MenuSkin.Cell(Tn + "ScoreRank_Symbol.png", (int)rc * 7 + rv - 1, 7, 5,
+                    new Rectangle(rankX - size / 2f, rankY - size / 2f, size, size), tint);
+        }
+
         private void DrawSongBar(Item item, Rectangle inner, float open, Color ink, float alpha)
         {
             SongEntry song = item.Song!;
+            DrawRecordMarks(song, new Rectangle(inner.X - 70, inner.Y - 22, inner.Width + 140, inner.Height + 44), open, alpha);
             bool favorite = SongHistory.IsFavorite(song.Key);
             Color titleColor = song.HasError ? ErrorColor : Color.White;
 

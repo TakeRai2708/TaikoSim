@@ -95,7 +95,7 @@ namespace TakeTaikoSimulator.Scenes
         // ※ 13%はスクショ確認用の仮調整値。実機で比べて最終調整する
         private const float LaneFlashSeconds = 0.150f;
         private const float LaneFlashHoldSeconds = 0.080f;
-        private const float LaneFlashStrength = 0.13f;
+        private const float LaneFlashStrength = 0.15f;   // 11/25：TaikøNauts のレーンの光は 0.13 のときより約15%明るかった
         // ゴーゴーのレーン：TaikoNauts の動画で測った値(加算合成で約50%の強さ)
         private const float GoGoLaneStrength = 0.5f;
         // 判定枠の中の顔：TaikoNauts の動画で測った値(150ms そのまま → 300ms で消える)
@@ -105,11 +105,14 @@ namespace TakeTaikoSimulator.Scenes
         // 大音符：TaikøNauts の動画(60fps)で測った値
         //   点々の輪は小さい音符よりゆっくり(1コマ40ms × 5コマ ＝ 約0.2秒)
         //   光の線は、点々の輪が終わるころ(叩いて0.17秒後)から出て、0.16秒かけて外に広がりながら消える
-        private const float BigExplosionFrameSeconds = 0.040f;
-        private const float BigRaysStart = 0.17f, BigRaysSeconds = 0.16f;
+        // 11/25 R-Style で「123〜恋がはじまる〜」の大ドンを TaikøNauts と並べて1/60秒ずつ測り直した：
+        //   ・点々の輪が明るいのが TaikøNauts は約0.05秒長い → 1コマ 40 → 48ms
+        //   ・細い光の線は叩いて約0.03秒後から出ていて、0.33秒ごろまで残る(前は 0.17秒から 0.16秒だけで、うすかった)
+        private const float BigExplosionFrameSeconds = 0.048f;
+        private const float BigRaysStart = 0.03f, BigRaysSeconds = 0.30f;
         private const float BigRaysScaleFrom = 0.85f, BigRaysScaleTo = 1.10f;
         // 光の線の濃さ：TaikøNauts は細く薄く見えたので、最大60%。だんだん濃くなって(前半)、だんだん消える(後半)
-        private const float BigRaysMaxAlpha = 0.6f;
+        private const float BigRaysMaxAlpha = 0.8f;   // 11/25：60% だと TaikøNauts より暗かった
         private const float MiniTaikoStepSeconds = 0.020f; // ミニ太鼓の明るさが1段下がる時間(20ms。8段)
         private const int MiniTaikoMaxBright = 8;
         private const float ComboBumpStep = 0.012f;     // コンボの数字が伸び縮みする1段(12ms)

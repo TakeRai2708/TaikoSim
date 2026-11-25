@@ -100,7 +100,8 @@ namespace TakeTaikoSimulator.Scenes
             step = isFirstRun ? Step.Welcome : Step.Keys;
             if (PlayerMode)
             {
-                // 新しいデータ：ようこそ → 音量 → キー → 完了。キーは今のものを見せて、変えたい所だけ変える
+                // 2個目からの新しいデータ（11/25 たけらい「初回セットアップ全く同じ奴を出してほしい」）：
+                //   ようこそ → 画面 → 音量 → キー → 完了。見出し・文も初期設定と同じ。キーは全員共通なので、今のものを見せて変えたい所だけ変える
                 isFirstRun = false;
                 step = Step.Welcome;
                 // 途中参加（もうだれかが遊んでいる）なら、ここで動かす音量はその人のものなので、あとで戻す
@@ -178,7 +179,7 @@ namespace TakeTaikoSimulator.Scenes
             switch (step)
             {
                 case Step.Welcome:
-                    step = PlayerMode ? Step.Sound : Step.Display;
+                    step = Step.Display;
                     break;
 
                 case Step.Display:
@@ -213,7 +214,7 @@ namespace TakeTaikoSimulator.Scenes
                     break;
 
                 case Step.Sound:
-                    step = PlayerMode ? Step.Welcome : Step.Display;
+                    step = Step.Display;
                     break;
 
                 case Step.Keys:
@@ -280,7 +281,7 @@ namespace TakeTaikoSimulator.Scenes
             SmoothShapes.Rounded(Panel, 0.009f, 8, Gui.PanelColor);
 
             // 文字と細い進行線だけで、どこまで設定したか分かるようにする
-            FontManager.Draw(PlayerMode ? "はじめの設定" : isFirstRun ? "初期設定" : "キーの設定", Left, 32, 38, Color.White);
+            FontManager.Draw(isFirstRun || PlayerMode ? "初期設定" : "キーの設定", Left, 32, 38, Color.White);
             if (isFirstRun || PlayerMode)
             {
                 DrawProgress();
@@ -312,9 +313,9 @@ namespace TakeTaikoSimulator.Scenes
 
         private void DrawProgress()
         {
-            string[] names = PlayerMode ? new[] { "ようこそ", "音量", "キー", "完了" } : new[] { "ようこそ", "画面", "音量", "キー", "完了" };
+            string[] names = { "ようこそ", "画面", "音量", "キー", "完了" };
             float first = Left + 60f, last = Right - 60f, gap = (last - first) / (names.Length - 1);
-            int current = PlayerMode && step > Step.Welcome ? (int)step - 1 : (int)step;   // 画面のページが無いぶん詰める
+            int current = (int)step;
 
             // 青い線の伸び（ページが変わったら、今の長さから次の長さへ）
             float target = current;
@@ -359,14 +360,7 @@ namespace TakeTaikoSimulator.Scenes
         // 1ページ目：ようこそ
         private void DrawWelcome()
         {
-            if (PlayerMode)
-            {
-                FontManager.Draw($"{PlayerDataStore.DisplayName(playerSlot)} さん、ようこそ！", Left, 300, 64, Color.White);
-                FontManager.Draw("音量と叩くキーを確かめます。演奏の設定（はやさ・音色など）は初期値から始まります。", Left, 430, 32, Color.White);
-                FontManager.Draw("あとからいつでも設定（F1）と演奏オプションで変更できます。", Left, 480, 28, Gui.SubTextColor);
-                return;
-            }
-            FontManager.Draw("TaikoSimへようこそ！", Left, 300, 64, Color.White);
+            FontManager.Draw("TakeTaikoへようこそ！", Left, 300, 64, Color.White);
             FontManager.Draw("最初に、画面・音量・叩くキーを設定します。", Left, 430, 32, Color.White);
             FontManager.Draw("あとからいつでも設定（F1）で変更できます。", Left, 480, 28, Gui.SubTextColor);
         }

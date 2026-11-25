@@ -25,6 +25,7 @@ namespace TakeTaikoSimulator.Scenes;
 //   ・11/12 たけらい「作った後に、初期セットアップ画面流れるようにして」（③A・④B）
 //     → 新しいデータは、名前を入れたあとに「はじめの設定」（はやさ・音色・音量）を出す。途中参加のときも、その場で出す。
 //       叩くキーと画面は全員共通なので、ここでは聞かない。決めた値は、そのデータの設定（Configs/PlayerSettings.cs）に保存する
+//     11/25：1個目のデータは出さない（起動のときの初期設定と続けて2回出ていた）。2個目からは初期設定と全く同じ画面
 //   ・時間は前のまま（参考動画 32.9〜37.3秒を測ったもの）：0.3秒で板が消える → 通信中 → 2.2秒で完了 → 4.4秒で終わり
 public sealed class PlayerJoin
 {
@@ -208,9 +209,19 @@ public sealed class PlayerJoin
                     var plate = PlayerDataStore.Copy(PlayerDataStore.NamePlate(cursor + 1));
                     plate.Name = nameInput.Value;
                     PlayerDataStore.Save(Slot, plate);
+                    bool firstData = true;
+                    for (int i = 0; i < registered.Length; i++) if (i != cursor && registered[i]) firstData = false;
                     registered[cursor] = true;
                     naming = false;
-                    // 名前が入ったら「はじめの設定」へ（画面が切りかわる。戻ってきたら Resume）
+                    // 11/25 たけらい「初回セットアップしたのにデータ作成でまた設定が出てくる」：
+                    //   1個目のデータ（名前のあるデータがほかに無い）は、起動のときの初期設定で決めたので出さない → そのまま通信中へ
+                    //   2個目からは、初期設定と同じ画面へ（画面が切りかわる。戻ってきたら Resume）
+                    if (firstData)
+                    {
+                        PlayerSettings.Save(Slot, PlayerSettings.ForNewData());
+                        Decide();
+                        return Result.None;
+                    }
                     Active = false;
                     return Result.Setup;
                 }

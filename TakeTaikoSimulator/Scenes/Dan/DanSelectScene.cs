@@ -315,7 +315,7 @@ namespace TakeTaikoSimulator.Scenes
             MenuSounds.Don();
             MenuVoice.Play(ConfirmVoice);
             confirming = course;
-            confirmChoice = 1;
+            confirmChoice = 2;   // 11/22 TaikøNauts の録画：最初は「挑戦しない」にカーソル
             confirmAge = 0f;
         }
 
