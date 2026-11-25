@@ -396,17 +396,19 @@ namespace TakeTaikoSimulator.Scenes
 
                 void DrawRainbowFrame(Texture2D texture, int frameIndex, float frameHeight, Color tint)
                 {
+                    // 11/25 リザルト(0.7倍)だと虹が TaikøNauts より 1px 下に出て、上の黒い縁が 1px 太く見えた → リザルトだけ 1px(縮小前で 1.4px)上げる
+                    float rainbowY = GaugeY + 6 - (result ? 1.4f : 0f);
                     if (stats.Norma == templateNorma)
                         DrawPart(texture, new Rectangle(0, frameIndex * frameHeight, texture.Width, frameHeight),
-                            GaugeX + 6, GaugeY + 6, tint: tint);
+                            GaugeX + 6, rainbowY, tint: tint);
                     else
                     {
                         // ★11以上でも背景・目盛りと同じ場所に段差を置く。
                         float sourceStep = templateStep - 6, targetStep = stepX - 6;
                         DrawPart(texture, new Rectangle(0, frameIndex * frameHeight, sourceStep, frameHeight),
-                            GaugeX + 6, GaugeY + 6, targetStep, frameHeight, tint);
+                            GaugeX + 6, rainbowY, targetStep, frameHeight, tint);
                         DrawPart(texture, new Rectangle(sourceStep, frameIndex * frameHeight, texture.Width - sourceStep, frameHeight),
-                            GaugeX + 6 + targetStep, GaugeY + 6, texture.Width - targetStep, frameHeight, tint);
+                            GaugeX + 6 + targetStep, rainbowY, texture.Width - targetStep, frameHeight, tint);
                     }
                 }
             }
