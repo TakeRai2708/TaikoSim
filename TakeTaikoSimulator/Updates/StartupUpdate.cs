@@ -48,7 +48,8 @@ internal static class StartupUpdate
             {
                 stage = GetRestartStage(root, args);
                 RemoveStage(stage);
-                return true;
+                stage = null;
+                // 更新のあとの再起動でも、下でスキンの版を確かめる（1.0.14 → 1.0.15 の人にも新しいスキンを届けるため）
             }
 
             if (HasInterruptedUpdate(root))
@@ -69,15 +70,19 @@ internal static class StartupUpdate
             using var http = CreateClient();
             var feed = new UpdateFeed(http);
             GameRelease release = ReadLatest(feed, settings);
-            if (release.Version <= installed ||
-                !UpdateDialog.Confirm("更新を確認しました",
+            if (release.Version <= installed)
+            {
+                if (release.Version == installed)
+                    OfferSimpleSkin(root, feed, release);
+                return true;
+            }
+            if (!UpdateDialog.Confirm("更新を確認しました",
                     $"バージョン {release.Version}\n\n{Notes(release)}\n\n更新しますか？"))
                 return true;
 
             stage = CreateStage(root);
             ownsStage = true;
             Download(feed, release, stage, install: false);
-            OfferSimpleSkin(root, stage, release.Version);
             string workerPath = Path.Combine(stage, WorkerExe);
             File.Copy(Path.Combine(root, UpdatePackage.GameExe), workerPath);
             bool restartAfterUpdate = UpdateDialog.Confirm("ダウンロード完了しました",
@@ -117,66 +122,77 @@ internal static class StartupUpdate
         }
     }
 
-    // 更新の ZIP に入っている Simple スキンが今のものと違うときだけ聞く（11/26 たけらい）
-    //   はい → 今のスキンに上書き（ほかの更新ファイルと一緒に差し替える。失敗したら元に戻る）
-    //   はい ＋「上書きせず…」にチェック → ダウンロードフォルダーの TaikoSim-Simple-版 に保存して、今のスキンはそのまま
-    //   いいえ → 何もしない
-    private static void OfferSimpleSkin(string root, string stage, Version version)
+    // Simple スキンの版（skin-revision.txt）が、このゲームの版より古いときだけ聞く（11/26 たけらい）
+    //   ゲームの更新とは別に、起動したときに確かめる。だから更新の作業をする古いゲームに、この処理が無くても届く
+    //   はい → 今のゲームと同じ版の ZIP をもう一回ダウンロードして（署名も確かめる）、スキンだけ入れかえる
+    //   はい ＋「上書きせず…」にチェック → ダウンロードフォルダーの TaikoSim-Simple-版 に保存。今のスキンはそのまま
+    //   いいえ → この版ではもう聞かない（skin-revision-skipped.txt に覚える）
+    private static void OfferSimpleSkin(string root, UpdateFeed feed, GameRelease release)
     {
-        string skinStage = Path.Combine(stage, UpdatePackage.SkinStageFolder);
-        string skinFiles = Path.Combine(skinStage, "Skins", "TaikoSim-Simple");
-        if (!Directory.Exists(skinFiles))
+        string skin = Path.Combine(root, "Skins", "TaikoSim-Simple");
+        if (!Directory.Exists(skin) || ReadRevision(Path.Combine(skin, UpdatePackage.SkinRevisionFile)) >= UpdatePackage.SimpleSkinRevision ||
+            ReadRevision(Path.Combine(skin, SkippedRevisionFile)) >= UpdatePackage.SimpleSkinRevision)
             return;
+
+        string? stage = null;
         try
         {
-            if (!SkinChanged(skinFiles, Path.Combine(root, "Skins", "TaikoSim-Simple")))
-                return;
             var window = new UpdateWindow("スキンを更新しますか？",
                 "TaikoSim-Simple スキンの新しい版があります。", "はい", "いいえ", false)
             {
                 CheckBoxLabel = "上書きせず、ダウンロードフォルダーに保存する"
             };
             if (window.Show() != UpdateWindow.Accept)
+            {
+                RememberSkipped(skin);
                 return;
+            }
+
+            stage = CreateStage(root);
+            Download(feed, release, stage, install: false);
+            string files = Path.Combine(stage, UpdatePackage.SkinStageFolder, "Skins", "TaikoSim-Simple");
+            if (!Directory.Exists(files))
+                throw new InvalidDataException("配布 ZIP にスキンが入っていません。");
             if (window.DesktopShortcut)
             {
-                string target = FreeFolder(Path.Combine(DownloadsFolder(), $"TaikoSim-Simple-{version}"));
-                CopyFolder(skinFiles, target);
+                string target = FreeFolder(Path.Combine(DownloadsFolder(), $"TaikoSim-Simple-{release.Version}"));
+                CopyFolder(files, target, overwrite: false);
+                RememberSkipped(skin);
                 SafeNotice("スキンを保存しました", target);
-                return;
             }
-            string expanded = Path.Combine(stage, "expanded");
-            foreach (string file in Directory.EnumerateFiles(skinStage, "*", SearchOption.AllDirectories))
+            else
             {
-                string destination = Path.Combine(expanded, Path.GetRelativePath(skinStage, file));
-                Directory.CreateDirectory(Path.GetDirectoryName(destination)!);
-                File.Move(file, destination);
+                UpdatePackage.RejectLinks(root, "Skins/TaikoSim-Simple");
+                CopyFolder(files, skin, overwrite: true);
             }
         }
-        catch (Exception ex) when (ex is IOException or UnauthorizedAccessException)
+        catch (Exception ex) when (ExpectedError(ex) || ex is OperationCanceledException)
         {
-            SafeNotice("スキンを更新できませんでした", "ゲームの更新はこのまま続けます。");
+            SafeNotice("スキンを更新できませんでした", "ゲームはこのまま起動します。");
         }
         finally
         {
-            if (Directory.Exists(skinStage))
-                Directory.Delete(skinStage, recursive: true);
+            if (stage is not null)
+                RemoveStage(stage);
         }
     }
 
-    private static bool SkinChanged(string newFolder, string oldFolder)
+    private const string SkippedRevisionFile = "skin-revision-skipped.txt";
+
+    // ファイルが無い・読めないときは 1（skin-revision.txt を入れる前の版）
+    private static int ReadRevision(string path)
     {
-        foreach (string file in Directory.EnumerateFiles(newFolder, "*", SearchOption.AllDirectories))
+        try
         {
-            string old = Path.Combine(oldFolder, Path.GetRelativePath(newFolder, file));
-            if (!File.Exists(old) || new FileInfo(old).Length != new FileInfo(file).Length)
-                return true;
-            using var a = File.OpenRead(file);
-            using var b = File.OpenRead(old);
-            if (!System.Security.Cryptography.SHA256.HashData(a).AsSpan().SequenceEqual(System.Security.Cryptography.SHA256.HashData(b)))
-                return true;
+            return File.Exists(path) && int.TryParse(File.ReadAllText(path).Trim(), NumberStyles.Integer, CultureInfo.InvariantCulture, out int value) ? value : 1;
         }
-        return false;
+        catch (Exception ex) when (ex is IOException or UnauthorizedAccessException) { return 1; }
+    }
+
+    private static void RememberSkipped(string skin)
+    {
+        try { File.WriteAllText(Path.Combine(skin, SkippedRevisionFile), UpdatePackage.SimpleSkinRevision.ToString(CultureInfo.InvariantCulture)); }
+        catch (Exception ex) when (ex is IOException or UnauthorizedAccessException) { }
     }
 
     private static string FreeFolder(string path)
@@ -187,13 +203,13 @@ internal static class StartupUpdate
         return candidate;
     }
 
-    private static void CopyFolder(string source, string destination)
+    private static void CopyFolder(string source, string destination, bool overwrite)
     {
         foreach (string file in Directory.EnumerateFiles(source, "*", SearchOption.AllDirectories))
         {
             string target = Path.Combine(destination, Path.GetRelativePath(source, file));
             Directory.CreateDirectory(Path.GetDirectoryName(target)!);
-            File.Copy(file, target);
+            File.Copy(file, target, overwrite);
         }
     }
 

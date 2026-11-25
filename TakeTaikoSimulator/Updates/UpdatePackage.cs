@@ -16,6 +16,11 @@ internal static class UpdatePackage
 
     internal const string SimpleSkinPrefix = "Skins/TaikoSim-Simple/";
     internal const string SkinStageFolder = "skin";
+    // Simple スキンの版。スキンの絵を変えたら1つ上げて、Skins/TaikoSim-Simple/skin-revision.txt も同じ数字にする
+    //   起動したとき、手元のスキンの版がこれより古ければ「スキンを更新しますか？」を出す（StartupUpdate.OfferSimpleSkin）
+    //   2：11/26 王冠・エントリーの板を足した
+    internal const int SimpleSkinRevision = 2;
+    internal const string SkinRevisionFile = "skin-revision.txt";
 
     internal static Version ReadVersion(string path)
     {
@@ -51,7 +56,8 @@ internal static class UpdatePackage
             if (!RuntimeFiles.Contains(name) && !bundled)
                 throw new InvalidDataException("ZIP に配布対象外のファイルがあります。");
             bool simpleSkin = name.StartsWith(SimpleSkinPrefix, StringComparison.OrdinalIgnoreCase);
-            // 更新のときは音色（HitSounds）はさわらない。Simple スキンは別の場所に出しておいて、上書きするかを聞く（11/26 たけらい：案A）
+            // 更新のときは音色（HitSounds）はさわらない。Simple スキンは別の場所（stage/skin）に出しておく
+            //   ゲームの更新では入れかえない。起動したときに StartupUpdate.OfferSimpleSkin が版を見て、入れかえるかを聞く
             if (bundled && !install && !simpleSkin)
                 continue;
 
