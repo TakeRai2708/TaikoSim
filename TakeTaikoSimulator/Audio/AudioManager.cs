@@ -488,9 +488,11 @@ namespace TakeTaikoSimulator.Audio
         //   11/14 たけらい「曲聞いてたたくと可の数やばい。判定見ながらだと曲ずれてる気がする」：
         //   BASS のときだけ、曲の位置から遅れを引いていなかった（WASAPI / ASIO は引いている）。
         //   そのため音符が判定枠に来る時刻より、曲が聞こえるのが遅れていて、耳で叩くと遅い（可）になっていた。
-        //   OpenTaiko の BASS モードと同じく「機器の遅れ(Info.Latency) ＋ バッファ」を引く
+        //   11/26 バッファを足すのをやめた：Info.Latency は「再生を始めてから聞こえるまで」を BASS が実際に測った値なので、
+        //   機器のバッファ(DeviceBufferLength)はもう入っている。前は バッファ(15ms) を二重に引いていて、
+        //   たけらいは音オフセット −20ms にしないと合わなかった(TaikøNauts は 0 で合う)
         public static double BassOutputLatencyMs =>
-            Mixer == 0 && bassInitialized ? bassDeviceLatencyMs + Math.Max(0, BassBufferMs) : 0;
+            Mixer == 0 && bassInitialized ? bassDeviceLatencyMs : 0;
 
         // WASAPI が「次の音をちょうだい」と言ってきたときに呼ばれる(別の流れから呼ばれる)
         // ミキサーで混ぜた音を、そのまま渡す
