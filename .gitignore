@@ -368,3 +368,6 @@ TakeTaikoSimulator/Skins/*
 # dan-check の出力
 tools/dan-check/bin/
 tools/dan-check/obj/
+
+# リリース作業用（署名鍵の場所のメモや発行物が入るので上げない）
+work/
