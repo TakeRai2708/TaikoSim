@@ -14,6 +14,37 @@ internal static class StartupUpdate
     private const string ApplyMode = "--apply-taketaiko-update";
     private const string RestartMode = "--finish-taketaiko-update";
     private const string WorkerExe = "TakeTaikoUpdateWorker.exe";
+    // 見た目を確かめるだけのモード：TakeTaiko.exe --update-ui-preview で、インストーラーと更新の画面を順に出す（何もダウンロードしない）
+    private const string PreviewMode = "--update-ui-preview";
+
+    private static void PreviewWindows()
+    {
+        FreeConsole();
+        UpdateDialog.InstallerAppearance = true;
+        UpdateDialog.InstallerFooter = ["v1.0.16", "約 34 MB", "GitHub から取得"];
+        if (UpdateDialog.ChooseInstallFolder("", @"C:\Users\you\AppData\Local\Programs\TakeTaiko", false) is null) return;
+        UpdateDialog.Download(async (progress, token) =>
+        {
+            for (long bytes = 0; bytes <= 35_000_000; bytes += 700_000)
+            {
+                progress(bytes);
+                await Task.Delay(60, token);
+            }
+            return true;
+        }, 35_000_000);
+        UpdateDialog.InstallerStep = 2;
+        UpdateDialog.Ask("インストールが完了しました", @"C:\Users\you\AppData\Local\Programs\TakeTaiko", "TakeTaiko を起動しますか？", "起動する", "閉じる", UpdateWindow.IconDone);
+
+        UpdateDialog.InstallerAppearance = false;
+        UpdateDialog.Ask("更新があります", "1.0.15 → 1.0.16", "・起動とロード明けのフェード\n・箱の開け閉めアニメ\n・曲のバーに王冠とランク", "更新する", "あとで");
+        new UpdateWindow("スキンを更新しますか？", "", "はい", "いいえ", false)
+        {
+            Subtitle = "TaikoSim-Simple の新しい版があります",
+            Icon = UpdateWindow.IconSkin,
+            CheckBoxLabel = "上書きせず、ダウンロードフォルダーに保存する"
+        }.Show();
+        UpdateDialog.Notice("スキンを保存しました", @"C:\Users\you\Downloads\TaikoSim-Simple-1.0.16.0");
+    }
 
     internal static bool TryStartGame(string[] args, out IDisposable? applicationLock)
     {
@@ -30,6 +61,11 @@ internal static class StartupUpdate
             if (worker)
             {
                 RunWorker(root, args);
+                return false;
+            }
+            if (args.Length > 0 && args[0] == PreviewMode)
+            {
+                PreviewWindows();
                 return false;
             }
             if (setup)
@@ -76,8 +112,7 @@ internal static class StartupUpdate
                     OfferSimpleSkin(root, feed, release);
                 return true;
             }
-            if (!UpdateDialog.Confirm("更新を確認しました",
-                    $"バージョン {release.Version}\n\n{Notes(release)}\n\n更新しますか？"))
+            if (!UpdateDialog.Ask("更新があります", $"{Short(installed)} → {Short(release.Version)}", Notes(release), "更新する", "あとで"))
                 return true;
 
             stage = CreateStage(root);
@@ -85,8 +120,8 @@ internal static class StartupUpdate
             Download(feed, release, stage, install: false);
             string workerPath = Path.Combine(stage, WorkerExe);
             File.Copy(Path.Combine(root, UpdatePackage.GameExe), workerPath);
-            bool restartAfterUpdate = UpdateDialog.Confirm("ダウンロード完了しました",
-                "更新を適用したあと、TakeTaiko を再起動しますか？\n\n「いいえ」でも更新を適用して終了します。");
+            bool restartAfterUpdate = UpdateDialog.Ask("ダウンロードが終わりました", $"{Short(release.Version)} に更新します",
+                "更新したあと、TakeTaiko をもう一度起動しますか？", "起動する", "閉じる", UpdateWindow.IconDone);
             using var current = Process.GetCurrentProcess();
             using var child = StartProcess(workerPath, stage, ApplyMode,
                 current.Id.ToString(CultureInfo.InvariantCulture), current.StartTime.ToUniversalTime().Ticks.ToString(CultureInfo.InvariantCulture),
@@ -137,9 +172,10 @@ internal static class StartupUpdate
         string? stage = null;
         try
         {
-            var window = new UpdateWindow("スキンを更新しますか？",
-                "TaikoSim-Simple スキンの新しい版があります。", "はい", "いいえ", false)
+            var window = new UpdateWindow("スキンを更新しますか？", "", "はい", "いいえ", false)
             {
+                Subtitle = "TaikoSim-Simple の新しい版があります",
+                Icon = UpdateWindow.IconSkin,
                 CheckBoxLabel = "上書きせず、ダウンロードフォルダーに保存する"
             };
             if (window.Show() != UpdateWindow.Accept)
@@ -250,7 +286,8 @@ internal static class StartupUpdate
         byte[] installedSettings = new byte[checked((int)settings.Length)];
         settings.ReadExactly(installedSettings);
         string location = Path.Combine(local, "Programs", "TakeTaiko");
-        string prompt = $"最新版 {release.Version}\n\n保存先を選んで「インストール」を押すと、ゲーム本体と必要なファイルをダウンロードします。";
+        string prompt = "";
+        UpdateDialog.InstallerFooter = [$"v{Short(release.Version)}", $"約 {release.Size / 1048576.0:0} MB", "GitHub から取得"];
         bool desktopShortcut = false;
         while (UpdateDialog.ChooseInstallFolder(prompt, location, desktopShortcut) is { } selected)
         {
@@ -299,7 +336,7 @@ internal static class StartupUpdate
 
             CreateStartMenuShortcut(location);
             string game = Path.Combine(location, UpdatePackage.GameExe);
-            string launchPrompt = $"TakeTaiko を起動しますか？\n\n{location}";
+            string launchPrompt = "TakeTaiko を起動しますか？";
             if (desktopShortcut)
             {
                 try { ShellShortcut.CreateOnDesktop(game, location); }
@@ -308,7 +345,8 @@ internal static class StartupUpdate
                     launchPrompt += "\n\nデスクトップのショートカットを作成できませんでした。";
                 }
             }
-            if (UpdateDialog.Confirm("インストールが完了しました", launchPrompt))
+            UpdateDialog.InstallerStep = 2;
+            if (UpdateDialog.Ask("インストールが完了しました", location, launchPrompt, "起動する", "閉じる", UpdateWindow.IconDone))
             {
                 try { using var started = StartProcess(game, location); }
                 catch (Exception ex) when (ExpectedError(ex))
@@ -496,6 +534,9 @@ internal static class StartupUpdate
             UpdatePackage.Extract(zip, stage, release.Version, install, token);
             return true;
         }, release.Size);
+
+    // 1.0.15.0 → 1.0.15
+    private static string Short(Version version) => $"{version.Major}.{version.Minor}.{Math.Max(0, version.Build)}";
 
     private static string Notes(GameRelease release) =>
         string.IsNullOrWhiteSpace(release.Notes) ? "更新内容の記載はありません。" : release.Notes;

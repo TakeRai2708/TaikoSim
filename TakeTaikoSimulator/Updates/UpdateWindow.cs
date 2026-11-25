@@ -5,53 +5,71 @@ using TakeTaikoSimulator.Platform;
 
 namespace TakeTaikoSimulator.Updates;
 
-// 描画方式の選択より先に使う画面なので、ゲームの描画ライブラリは初期化しない。
+// インストーラー・更新の画面（描画方式の選択より先に使う画面なので、ゲームの描画ライブラリは使わない）
+//   11/26 たけらい「アップデーターとインストーラーのUIださい。今のピンクっぽくしてほしい」→ 見本（チャットの絵）の形
+//   インストーラー：左に「インストール先 → ダウンロード → 完了」の進み具合、右に札・見出し・カード、下に版などの帯
+//   更新など　　　：左上に札と見出し、まん中にカード、右下にボタン
+//   文字は Windows の文字（ClearType）、角丸・丸・スイッチは GDI+ でなめらかに描く（Gdip.cs）
 internal sealed class UpdateWindow(string heading, string body, string? primary, string? secondary, bool installer)
 {
     internal const int Accept = 101;
     private const int Cancel = 102;
     private const int Close = 103;
     private const int Browse = 104;
-    private const string DesktopShortcutLabel = "デスクトップにショートカットを追加";
+    private const string DesktopShortcutLabel = "デスクトップにショートカット";
     private const uint GetCheck = 0x00F0;
     private const uint SetCheck = 0x00F1;
     private const string WindowClass = "TakeTaiko.UpdateWindow";
     private static readonly WindowProc Callback = Dispatch;
-    private static readonly WindowProc CheckBoxCallback = DrawCheckBox;
+    private static readonly WindowProc SwitchCallback = DrawSwitch;
     private static bool registered;
     [ThreadStatic] private static UpdateWindow? current;
 
+    // 札に出す記号（Segoe MDL2 Assets の文字）。null のときは「T」の札
+    internal const char IconFolder = '', IconDownload = '', IconDone = '', IconInfo = '', IconSkin = '';
+    private static readonly string[] Steps = ["インストール先", "ダウンロード", "完了"];
+
+    // 色（ゲームの設定画面と同じ桜色）
     private static readonly uint Background = Rgb(18, 10, 13);
-    private static readonly uint Panel = Rgb(27, 16, 20);
+    private static readonly uint Card = Rgb(27, 16, 20);
+    private static readonly uint Field = Rgb(38, 23, 29);
+    private static readonly uint FieldEdge = Rgb(74, 50, 60);
+    private static readonly uint Raised = Rgb(51, 32, 42);
     private static readonly uint Sakura = Rgb(249, 188, 206);
     private static readonly uint Text = Rgb(252, 238, 242);
     private static readonly uint Muted = Rgb(191, 165, 174);
-    private static readonly uint Accent = Rgb(163, 4, 27);
+    private static readonly uint Dim = Rgb(122, 100, 109);
+    private static readonly uint Accent = Rgb(226, 58, 94);
+    private static readonly uint AccentPressed = Rgb(190, 40, 74);
     private static readonly uint Border = Rgb(67, 42, 53);
+    private static readonly uint White = Rgb(255, 255, 255);
 
-    private nint window, brand, title, details, folderField, question;
-    private nint desktopCheckBox;
-    private bool checkInPanel;
-    private nint originalCheckBoxProc;
-    private nint inputBrush;
-    private Rect inputArea;
-    private nint regularFont, headingFont, brandFont, backgroundBrush, panelBrush;
+    private nint window, details, folderField, toggle;
+    private nint originalSwitchProc;
+    private nint regularFont, smallFont, headingFont, brandFont, iconFont, bigIconFont;
+    private nint backgroundBrush, cardBrush, fieldBrush;
     private readonly Dictionary<int, nint> buttons = [];
-    private Rect panel, progress;
+    private Rect cardArea, fieldArea, progressArea;
+    private int contentLeft, logicalWidth, logicalHeight;
     private int result;
     private bool complete;
     private Exception? failure;
     private int? percent;
+    private string? progressText;
     private double scale = 1;
 
     internal string? Folder { get; set; }
-    internal bool EditableBody { get; set; }
-    internal string BodyText { get; private set; } = body;
     internal bool DesktopShortcut { get; set; }
-    // インストール先の欄が無い画面でも、左下にチェックボックスを1つ出せる（スキンの更新の「ダウンロードフォルダーに保存」など）
+    // インストール先の欄が無い画面でも、カードの下にスイッチを1つ出せる（スキンの更新の「ダウンロードフォルダーに保存」など）
     //   値は DesktopShortcut に入る
     internal string? CheckBoxLabel { get; set; }
-    private string CheckText => Folder is not null ? DesktopShortcutLabel : CheckBoxLabel ?? "";
+    private string SwitchText => Folder is not null ? DesktopShortcutLabel : CheckBoxLabel ?? "";
+    internal string? Subtitle { get; set; }
+    internal char? Icon { get; set; }
+    // インストーラーの左の進み具合（0 インストール先・1 ダウンロード・2 完了）
+    internal int Step { get; set; }
+    // インストーラーの下の帯（版・大きさなど。null なら出さない）
+    internal string[]? Footer { get; set; }
     internal Action? Tick { get; set; }
     internal int? Progress
     {
@@ -61,9 +79,28 @@ internal sealed class UpdateWindow(string heading, string body, string? primary,
             if (percent == value)
                 return;
             percent = value;
-            if (window != 0)
-                InvalidateRect(window, ref progress, false);
+            Repaint();
         }
+    }
+    // ダウンロード中の「22.9 / 33.6 MB」（見出しの下に出す）
+    internal string? ProgressText
+    {
+        get => progressText;
+        set
+        {
+            if (progressText == value)
+                return;
+            progressText = value;
+            Repaint();
+        }
+    }
+
+    private void Repaint()
+    {
+        if (window == 0)
+            return;
+        GetClientRect(window, out Rect client);
+        InvalidateRect(window, ref client, false);
     }
 
     internal int Show()
@@ -83,8 +120,8 @@ internal sealed class UpdateWindow(string heading, string body, string? primary,
             registered = true;
         }
 
-        int logicalWidth = installer ? 660 : 600;
-        int logicalHeight = installer ? 396 : 360;
+        logicalWidth = installer ? 760 : 600;
+        logicalHeight = installer ? 460 : 360;
         if (!SystemParametersInfo(0x0030, 0, out Rect area, 0))
             throw new Win32Exception();
         scale = Math.Min(installer ? 1.15 : 1.0, Math.Min(
@@ -104,7 +141,7 @@ internal sealed class UpdateWindow(string heading, string body, string? primary,
             int round = 2; // DWMWCP_ROUND
             try { DwmSetWindowAttribute(window, 33, ref round, sizeof(int)); } // DWMWA_WINDOW_CORNER_PREFERENCE
             catch (Exception ex) when (ex is DllNotFoundException or EntryPointNotFoundException) { }
-            nint focus = CreateControls(logicalWidth, logicalHeight);
+            nint focus = CreateControls();
             ShowWindow(window, 5);
             SetFocus(focus);
             if (Tick is not null && SetTimer(window, 1, 50, 0) == 0)
@@ -126,7 +163,7 @@ internal sealed class UpdateWindow(string heading, string body, string? primary,
                     continue;
                 }
                 if (message.Id == 0x0100 && message.Parameter == 13 &&
-                    (buttons.ContainsValue(GetFocus()) || GetFocus() == desktopCheckBox && desktopCheckBox != 0))
+                    (buttons.ContainsValue(GetFocus()) || GetFocus() == toggle && toggle != 0))
                 {
                     SendMessage(GetFocus(), 0x00F5, 0, 0); // BM_CLICK
                     continue;
@@ -149,82 +186,86 @@ internal sealed class UpdateWindow(string heading, string body, string? primary,
                 DestroyWindow(window);
                 window = 0;
             }
-            foreach (nint resource in new[] { regularFont, headingFont, brandFont, backgroundBrush, panelBrush, inputBrush })
+            foreach (nint resource in new[] { regularFont, smallFont, headingFont, brandFont, iconFont, bigIconFont, backgroundBrush, cardBrush, fieldBrush })
                 if (resource != 0)
                     DeleteObject(resource);
             current = null;
         }
     }
 
-    private nint CreateControls(int width, int height)
+    // ===== 置き場所（すべて 1 倍のときの座標。Scale で画面の大きさに合わせる） =====
+    private const int SideWidth = 180;
+    private const int FooterHeight = 34;
+    private int ButtonTop => logicalHeight - (Footer is not null ? FooterHeight : 0) - 54;
+
+    private nint CreateControls()
     {
-        const int margin = 24;
-        regularFont = MakeFont(Scale(16), 400);
-        headingFont = MakeFont(Scale(26), 600);
-        brandFont = MakeFont(Scale(15), 600);
+        int width = logicalWidth;
+        regularFont = MakeFont(Scale(15), 400);
+        smallFont = MakeFont(Scale(12), 400);
+        headingFont = MakeFont(Scale(20), 700);
+        brandFont = MakeFont(Scale(15), 700);
+        iconFont = MakeFont(Scale(20), 400, "Segoe MDL2 Assets");
+        bigIconFont = MakeFont(Scale(16), 400, "Segoe MDL2 Assets");
         backgroundBrush = CreateSolidBrush(Background);
-        panelBrush = CreateSolidBrush(Panel);
-        if (EditableBody)
-            inputBrush = CreateSolidBrush(Rgb(38, 23, 29));
-        brand = Child("STATIC", installer ? "TakeTaiko インストーラー" : "TakeTaiko", 0,
-            margin, 12, width - 100, 20, 0, brandFont);
+        cardBrush = CreateSolidBrush(Card);
+        fieldBrush = CreateSolidBrush(Field);
+
+        contentLeft = installer ? SideWidth + 22 : 24;
+        int right = width - 24;
+        int cardTop = 88;
+        int cardBottom = ButtonTop - 14;
+        cardArea = new Rect(Scale(contentLeft), Scale(cardTop), Scale(right), Scale(cardBottom));
+
         if (CanClose)
-            Button("閉じる", width - 54, 4, 46, 34, Close);
+            Button("", width - 48, 10, 36, 32, Close);
 
-        panel = new Rect(Scale(margin), Scale(52), Scale(width - margin), Scale(height - 67));
-        title = Child("STATIC", heading, 0, margin + 18, 69, width - 84, 35, 0, headingFont);
-        int bodyBottom = Folder is null ? height - (percent is null ? (CheckBoxLabel is null ? 88 : 118) : 129) : height - 159;
-        int bodyHeight = Math.Max(34, bodyBottom - 122);
-        string content = BodyText.ReplaceLineEndings("\r\n");
-        int charsPerLine = Math.Max(1, (width - 84) / 15);
-        int lines = content.Split('\n').Sum(line => Math.Max(1, (line.TrimEnd('\r').Length + charsPerLine - 1) / charsPerLine));
-        uint scroll = lines * 20 > bodyHeight ? 0x00200000u : 0;
-        int inputTop = EditableBody ? 140 : 122;
-        int inputHeight = EditableBody ? bodyHeight - 40 : bodyHeight;
-        inputArea = new Rect(Scale(margin + 17), Scale(inputTop - 7),
-            Scale(width - margin - 17), Scale(inputTop + inputHeight + 7));
-        if (EditableBody)
-        {
-            Child("STATIC", "ご意見・不具合の内容（ここに入力）", 0, margin + 18, 111,
-                width - 84, 24, 0, regularFont);
-            Child("STATIC", "1400文字まで・次の画面で確認して投稿（GitHubログインが必要）", 0,
-                margin + 18, height - 91, width - 84, 22, 0, regularFont);
-        }
-        details = Child("EDIT", content, EditableBody ? 0x00011044u : scroll | 0x0844,
-            margin + (EditableBody ? 28 : 18), inputTop, width - (EditableBody ? 104 : 84),
-            inputHeight, 0, regularFont);
-        if (EditableBody)
-            SendMessage(details, 0x00C5, 1400, 0); // EM_SETLIMITTEXT
-
+        int inner = contentLeft + 16, innerRight = right - 16;
+        int y = cardTop + 14;
         if (Folder is not null)
         {
-            question = Child("STATIC", "インストール先", 0,
-                margin + 18, height - 145, width - 84, 20, 0, regularFont);
-            folderField = Child("EDIT", Folder, 0x00010080, margin + 18, height - 119,
-                width - 207, 25, 0, regularFont);
-            Button("参照…", width - 151, height - 124, 102, 33, Browse);
+            // 保存先：入力欄（角丸の枠は WM_PAINT で描く）と［参照…］
+            fieldArea = new Rect(Scale(inner), Scale(y + 22), Scale(innerRight - 104), Scale(y + 22 + 36));
+            folderField = Child("EDIT", Folder, 0x00010080, inner + 12, y + 31, innerRight - 104 - inner - 24, 20, 0, regularFont);
+            Button("参照…", innerRight - 96, y + 22, 96, 36, Browse);
+            y += 22 + 36 + 18;
         }
-        if (Folder is not null || CheckBoxLabel is not null)
+        if (percent is not null)
         {
-            // インストーラーは今までどおり左下。それ以外（スキンの更新など）は、パネルの中の下に横いっぱいで置く（11/26 たけらい「ちとずれてる」：文字が切れていた）
-            checkInPanel = Folder is null;
-            desktopCheckBox = checkInPanel
-                ? Child("BUTTON", CheckText, 0x00010003, margin + 18, height - 108, width - 2 * margin - 36, 30, 105, regularFont)
-                : Child("BUTTON", CheckText, 0x00010003, margin, height - 51, Math.Max(200, width - 300), 30, 105, regularFont);
-            originalCheckBoxProc = SetWindowLongPtr(desktopCheckBox, -4,
-                Marshal.GetFunctionPointerForDelegate(CheckBoxCallback)); // GWLP_WNDPROC
-            if (originalCheckBoxProc == 0)
+            progressArea = new Rect(Scale(inner), Scale(y), Scale(innerRight), Scale(y + 36));
+            y += 50;
+        }
+        bool hasSwitch = Folder is not null || CheckBoxLabel is not null;
+        int switchTop = cardBottom - 14 - 34;
+        if (Folder is null && body.Length > 0)
+        {
+            int bottom = (hasSwitch ? switchTop - 8 : cardBottom - 12);
+            string content = body.ReplaceLineEndings("\r\n");
+            int charsPerLine = Math.Max(1, (innerRight - inner) / 15);
+            int lines = content.Split('\n').Sum(line => Math.Max(1, (line.TrimEnd('\r').Length + charsPerLine - 1) / charsPerLine));
+            uint scroll = lines * 22 > bottom - y ? 0x00200000u : 0;
+            details = Child("EDIT", content, scroll | 0x0844, inner, y, innerRight - inner, Math.Max(24, bottom - y), 0, regularFont);
+        }
+        if (hasSwitch)
+        {
+            toggle = Child("BUTTON", SwitchText, 0x00010003, inner, Folder is not null ? y : switchTop, innerRight - inner, 34, 105, regularFont);
+            originalSwitchProc = SetWindowLongPtr(toggle, -4, Marshal.GetFunctionPointerForDelegate(SwitchCallback)); // GWLP_WNDPROC
+            if (originalSwitchProc == 0)
                 throw new Win32Exception();
             if (DesktopShortcut)
-                SendMessage(desktopCheckBox, SetCheck, 1, 0);
+                SendMessage(toggle, SetCheck, 1, 0);
         }
-        progress = new Rect(Scale(margin + 18), Scale(height - 121), Scale(width - margin - 18), Scale(height - 83));
+
         nint focus = 0;
+        int buttonY = ButtonTop;
         if (primary is not null)
-            focus = Button(primary, width - (secondary is null ? 138 : 254), height - 53, 114, 35, Accept);
+            focus = Button(primary, right - (secondary is null ? 0 : 120) - 120, buttonY, 120, 38, Accept);
         if (secondary is not null)
-            focus = Button(secondary, width - 132, height - 53, 108, 35, Cancel);
-        return EditableBody ? details : focus == 0 ? window : focus;
+        {
+            nint second = Button(secondary, right - 120, buttonY, 120, 38, Cancel);
+            if (focus == 0) focus = second;
+        }
+        return focus == 0 ? window : focus;
     }
 
     private bool CanClose => primary is not null || secondary is not null;
@@ -232,12 +273,6 @@ internal sealed class UpdateWindow(string heading, string body, string? primary,
 
     private void Finish(int value)
     {
-        if (EditableBody && details != 0)
-        {
-            var text = new StringBuilder(GetWindowTextLength(details) + 1);
-            GetWindowText(details, text, text.Capacity);
-            BodyText = text.ToString();
-        }
         result = value;
         complete = true;
     }
@@ -260,6 +295,8 @@ internal sealed class UpdateWindow(string heading, string body, string? primary,
     }
 
     private int Scale(int value) => (int)Math.Round(value * scale);
+    private float Scale(float value) => (float)(value * scale);
+    private Rect Box(int x, int y, int width, int height) => new(Scale(x), Scale(y), Scale(x + width), Scale(y + height));
 
     private static nint Dispatch(nint hwnd, uint message, nuint parameter, nint data)
     {
@@ -281,40 +318,17 @@ internal sealed class UpdateWindow(string heading, string body, string? primary,
         {
             case 0x000F: // WM_PAINT
                 nint canvas = BeginPaint(hwnd, out PaintData paint);
-                try
-                {
-                    GetClientRect(hwnd, out Rect client);
-                    FillRect(canvas, ref client, backgroundBrush);
-                    Rounded(canvas, panel, Panel, Border, Scale(18));
-                    if (EditableBody)
-                        Rounded(canvas, inputArea, Rgb(38, 23, 29), Sakura, Scale(10));
-                    if (percent is int value)
-                    {
-                        Rect track = new(progress.Left, progress.Top + Scale(24), progress.Right, progress.Top + Scale(31));
-                        Rounded(canvas, track, Border, Border, Scale(6));
-                        track.Right = track.Left + (track.Right - track.Left) * value / 100;
-                        if (track.Right > track.Left)
-                            Rounded(canvas, track, Rgb(226, 58, 94), Rgb(226, 58, 94), Scale(6));
-                        DrawLabel(canvas, $"{value}%", progress, regularFont, Sakura, 0x20);
-                    }
-                }
+                try { Paint(canvas); }
                 finally { EndPaint(hwnd, ref paint); }
                 return 0;
             case 0x0014: // WM_ERASEBKGND
                 return 1;
             case 0x0133: // WM_CTLCOLOREDIT
             case 0x0138: // WM_CTLCOLORSTATIC
-                if (EditableBody && data == details)
-                {
-                    SetTextColor((nint)parameter, Text);
-                    SetBkColor((nint)parameter, Rgb(38, 23, 29));
-                    return inputBrush;
-                }
-                bool inPanel = data == title || data == details || data == folderField || data == question;
-                SetTextColor((nint)parameter, data == title || data == brand || data == question ? Sakura :
-                    data == folderField ? Muted : Text);
-                SetBkColor((nint)parameter, inPanel ? Panel : Background);
-                return inPanel ? panelBrush : backgroundBrush;
+                bool field = data == folderField;
+                SetTextColor((nint)parameter, Text);
+                SetBkColor((nint)parameter, field ? Field : Card);
+                return field ? fieldBrush : cardBrush;
             case 0x002B: // WM_DRAWITEM
                 DrawButton(Marshal.PtrToStructure<DrawItem>(data));
                 return 1;
@@ -331,8 +345,8 @@ internal sealed class UpdateWindow(string heading, string body, string? primary,
                             GetWindowText(folderField, path, path.Capacity);
                             Folder = path.ToString().Trim();
                         }
-                        if (desktopCheckBox != 0)
-                            DesktopShortcut = SendMessage(desktopCheckBox, GetCheck, 0, 0) == 1;
+                        if (toggle != 0)
+                            DesktopShortcut = SendMessage(toggle, GetCheck, 0, 0) == 1;
                         if (primary is not null) Finish(Accept);
                         break;
                     case Cancel:
@@ -349,13 +363,13 @@ internal sealed class UpdateWindow(string heading, string body, string? primary,
                         break;
                 }
                 return 0;
-            case 0x0084: // WM_NCHITTEST
+            case 0x0084: // WM_NCHITTEST：上の帯をつかんでウィンドウを動かせる（×ボタンの所は除く）
                 var point = new Point { X = (short)(data & 0xffff), Y = (short)(data >> 16) };
                 ScreenToClient(hwnd, ref point);
-                if (point.Y >= 0 && point.Y < Scale(44))
+                if (point.Y >= 0 && point.Y < Scale(80))
                 {
                     GetClientRect(hwnd, out Rect bounds);
-                    if (!CanClose || point.X < bounds.Right - Scale(57))
+                    if (!CanClose || point.X < bounds.Right - Scale(56))
                         return 2; // HTCAPTION
                 }
                 break;
@@ -369,29 +383,135 @@ internal sealed class UpdateWindow(string heading, string body, string? primary,
         return DefWindowProc(hwnd, message, parameter, data);
     }
 
+    // ===== 描く =====
+
+    private void Paint(nint canvas)
+    {
+        GetClientRect(window, out Rect client);
+        FillRect(canvas, ref client, backgroundBrush);
+        int width = logicalWidth;
+
+        if (installer)
+            PaintSidebar(canvas);
+
+        // 見出し：札（記号）＋大きい文字＋小さい説明
+        int headerTop = 22;
+        Rect tile = Box(contentLeft, headerTop, 44, 44);
+        if (Icon is char glyph)
+        {
+            Rounded(canvas, tile, Raised, Raised, Scale(14));
+            DrawLabel(canvas, glyph.ToString(), tile, iconFont, Sakura, 0x25);
+        }
+        else
+        {
+            Rounded(canvas, tile, Accent, Accent, Scale(14));
+            DrawLabel(canvas, "T", tile, headingFont, White, 0x25);
+        }
+        int textLeft = contentLeft + 58;
+        string? subtitle = progressText ?? Subtitle;
+        DrawLabel(canvas, heading, Box(textLeft, subtitle is null ? headerTop + 8 : headerTop - 1, width - 70 - textLeft, 28), headingFont, Text, 0x24);
+        if (subtitle is not null)
+            DrawLabel(canvas, subtitle, Box(textLeft, headerTop + 27, width - 70 - textLeft, 20), smallFont, Muted, 0x24);
+
+        // カード
+        Rounded(canvas, cardArea, Card, Border, Scale(16));
+        if (Folder is not null)
+        {
+            DrawLabel(canvas, "保存先", new Rect(fieldArea.Left, fieldArea.Top - Scale(22), fieldArea.Right, fieldArea.Top - Scale(4)), smallFont, Muted, 0x24);
+            Rounded(canvas, fieldArea, Field, FieldEdge, Scale(10));
+        }
+        if (percent is int value)
+        {
+            int barTop = progressArea.Top + Scale(24);
+            Rect track = new(progressArea.Left, barTop, progressArea.Right, barTop + Scale(8));
+            Rounded(canvas, track, FieldEdge, FieldEdge, Scale(8));
+            Rect fill = track;
+            fill.Right = track.Left + (track.Right - track.Left) * Math.Clamp(value, 0, 100) / 100;
+            if (fill.Right - fill.Left >= Scale(8))
+                Rounded(canvas, fill, Accent, Accent, Scale(8));
+            DrawLabel(canvas, $"{value}%", new Rect(progressArea.Left, progressArea.Top, progressArea.Right, barTop - Scale(4)), brandFont, Sakura, 0x2A);
+        }
+
+        // インストーラーの下の帯（版・大きさ・取得元）
+        if (Footer is { Length: > 0 } cells)
+        {
+            int top = logicalHeight - FooterHeight;
+            FillColor(canvas, Box(0, top, width, 1), Border);
+            int cellWidth = width / cells.Length;
+            for (int i = 0; i < cells.Length; i++)
+            {
+                if (i > 0) FillColor(canvas, Box(i * cellWidth, top, 1, FooterHeight), Border);
+                DrawLabel(canvas, cells[i], Box(i * cellWidth + 16, top, cellWidth - 24, FooterHeight), smallFont, Muted, 0x24);
+            }
+        }
+    }
+
+    private void PaintSidebar(nint canvas)
+    {
+        int bottom = logicalHeight - (Footer is not null ? FooterHeight : 0);
+        FillColor(canvas, Box(0, 0, SideWidth, bottom), Card);
+        FillColor(canvas, Box(SideWidth, 0, 1, bottom), Border);
+
+        // ロゴの札と名前
+        Rect logo = Box(18, 22, 36, 36);
+        Rounded(canvas, logo, Accent, Accent, Scale(12));
+        DrawLabel(canvas, "T", logo, brandFont, White, 0x25);
+        DrawLabel(canvas, "TakeTaiko", Box(64, 22, SideWidth - 70, 20), brandFont, Text, 0x24);
+        DrawLabel(canvas, "インストーラー", Box(64, 41, SideWidth - 70, 18), smallFont, Muted, 0x24);
+
+        // 進み具合（終わった所＝桜色のチェック・今の所＝枠つき・まだの所＝うすい番号）
+        for (int i = 0; i < Steps.Length; i++)
+        {
+            int y = 88 + i * 46;
+            bool done = i < Step, now = i == Step;
+            if (now)
+                Rounded(canvas, Box(10, y, SideWidth - 20, 38), Raised, Accent, Scale(12));
+            Rect circle = Box(22, y + 8, 22, 22);
+            if (done)
+            {
+                Rounded(canvas, circle, Sakura, Sakura, Scale(22));
+                CheckMark(canvas, circle.Left + Scale(6f), circle.Top + Scale(11f), circle.Left + Scale(9.5f), circle.Top + Scale(14.5f),
+                    circle.Left + Scale(16f), circle.Top + Scale(7.5f), Scale(2f), Card);
+            }
+            else
+            {
+                Rounded(canvas, circle, now ? Accent : Card, now ? Accent : Dim, Scale(22));
+                DrawLabel(canvas, (i + 1).ToString(), circle, smallFont, now ? White : Dim, 0x25);
+            }
+            DrawLabel(canvas, Steps[i], Box(54, y, SideWidth - 64, 38), regularFont, now ? Sakura : done ? Text : Dim, 0x24);
+        }
+    }
+
     private void DrawButton(DrawItem item)
     {
         bool close = item.ControlId == Close;
         bool pressed = (item.State & 1) != 0;
         bool focused = (item.State & 0x10) != 0;
-        bool inPanel = item.ControlId == Browse;
-        FillRect(item.Canvas, ref item.Bounds, inPanel ? panelBrush : backgroundBrush);
-        uint fill = item.ControlId == Accept ? Accent : Rgb(51, 32, 42);
-        if (!close || pressed || focused)
-            Rounded(item.Canvas, item.Bounds, pressed ? Border : fill,
-                !close && focused ? Sakura : pressed ? Border : fill, Scale(9));
+        bool inCard = item.ControlId == Browse;
+        FillRect(item.Canvas, ref item.Bounds, inCard ? cardBrush : backgroundBrush);
+        if (close)
+        {
+            if (pressed || focused)
+                Rounded(item.Canvas, item.Bounds, Raised, focused ? Sakura : Raised, Scale(10));
+            DrawLabel(item.Canvas, "", item.Bounds, bigIconFont, Muted, 0x25); // ×
+            return;
+        }
+        bool primaryButton = item.ControlId == Accept;
+        uint fill = primaryButton ? (pressed ? AccentPressed : Accent) : (pressed ? Border : Raised);
+        uint edge = focused ? Sakura : primaryButton ? fill : Border;
+        Rounded(item.Canvas, item.Bounds, fill, edge, Scale(12));
         string label = item.ControlId switch
         {
             Accept => primary!,
             Cancel => secondary!,
-            Browse => "参照…",
-            _ => "×"
+            _ => "参照…"
         };
-        DrawLabel(item.Canvas, label, item.Bounds, close ? headingFont : regularFont, Text, 0x25);
+        DrawLabel(item.Canvas, label, item.Bounds, primaryButton ? brandFont : regularFont, primaryButton ? White : Text, 0x25);
     }
 
-    // Windows のチェック状態・キーボード操作は使い、見た目だけを描き替える。
-    private static nint DrawCheckBox(nint control, uint message, nuint parameter, nint data)
+    // スイッチ（Windows のチェックボックスの状態・キーボード操作はそのまま使い、見た目だけ描き替える）
+    //   左に文字、右に横長のスイッチ（オン＝桜色の濃い方・白い丸が右）
+    private static nint DrawSwitch(nint control, uint message, nuint parameter, nint data)
     {
         var owner = current;
         if (owner is null)
@@ -404,18 +524,19 @@ internal sealed class UpdateWindow(string heading, string body, string? primary,
             try
             {
                 GetClientRect(control, out Rect bounds);
-                FillRect(canvas, ref bounds, owner.checkInPanel ? owner.panelBrush : owner.backgroundBrush);
+                FillRect(canvas, ref bounds, owner.cardBrush);
                 bool isChecked = SendMessage(control, GetCheck, 0, 0) == 1;
                 bool focused = GetFocus() == control;
-                int top = (bounds.Bottom - owner.Scale(18)) / 2;
-                var indicator = new Rect(owner.Scale(1), top, owner.Scale(19), top + owner.Scale(18));
-                Rounded(canvas, indicator, isChecked ? Sakura : Panel, isChecked || focused ? Sakura : Muted,
-                    owner.Scale(6));
-                if (isChecked)
-                    CheckMark(canvas, owner.Scale(5), top + owner.Scale(9), owner.Scale(8.5f), top + owner.Scale(12.5f),
-                        owner.Scale(15), top + owner.Scale(5.5f), owner.Scale(2.2f), Background);
-                bounds.Left = owner.Scale(28);
-                DrawLabel(canvas, owner.CheckText, bounds, owner.regularFont, Text, 0x24);
+                int w = owner.Scale(42), h = owner.Scale(24);
+                int top = (bounds.Bottom - h) / 2;
+                var pill = new Rect(bounds.Right - w, top, bounds.Right, top + h);
+                Rounded(canvas, pill, isChecked ? Accent : FieldEdge, focused ? Sakura : isChecked ? Accent : FieldEdge, h);
+                int knob = h - owner.Scale(6);
+                int knobLeft = isChecked ? pill.Right - owner.Scale(3) - knob : pill.Left + owner.Scale(3);
+                Rounded(canvas, new Rect(knobLeft, top + owner.Scale(3), knobLeft + knob, top + owner.Scale(3) + knob),
+                    isChecked ? White : Muted, isChecked ? White : Muted, knob);
+                bounds.Right -= w + owner.Scale(12);
+                DrawLabel(canvas, owner.SwitchText, bounds, owner.regularFont, Text, 0x24);
             }
             finally
             {
@@ -427,13 +548,20 @@ internal sealed class UpdateWindow(string heading, string body, string? primary,
         if (message == 0x0014) // WM_ERASEBKGND
             return 1;
 
-        nint result = CallWindowProc(owner.originalCheckBoxProc, control, message, parameter, data);
+        nint result = CallWindowProc(owner.originalSwitchProc, control, message, parameter, data);
         if (message is SetCheck or 0x0007 or 0x0008 or 0x0202 or 0x0101)
         {
             GetClientRect(control, out Rect bounds);
             InvalidateRect(control, ref bounds, false);
         }
         return result;
+    }
+
+    private static void FillColor(nint canvas, Rect box, uint color)
+    {
+        nint brush = CreateSolidBrush(color);
+        FillRect(canvas, ref box, brush);
+        DeleteObject(brush);
     }
 
     // 角丸の四角。GDI+ でなめらか（アンチエイリアス）に描く。GDI+ が使えないときだけ、前の GDI（ギザギザ）で描く
@@ -478,10 +606,8 @@ internal sealed class UpdateWindow(string heading, string body, string? primary,
         SelectObject(canvas, old);
     }
 
-    private static nint MakeFont(int size, int weight) =>
-        CreateFont(-size, 0, 0, 0, weight, 0, 0, 0, 1, 0, 0, 5, 0, "Yu Gothic UI");
-
-    private float Scale(float value) => (float)(value * scale);
+    private static nint MakeFont(int size, int weight, string face = "Yu Gothic UI") =>
+        CreateFont(-size, 0, 0, 0, weight, 0, 0, 0, 1, 0, 0, 5, 0, face);
 
     private static uint Rgb(uint red, uint green, uint blue) => red | (green << 8) | (blue << 16);
 
