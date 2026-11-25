@@ -19,7 +19,7 @@ internal static class UpdatePackage
     // Simple スキンの版。スキンの絵を変えたら1つ上げて、Skins/TaikoSim-Simple/skin-revision.txt も同じ数字にする
     //   起動したとき、手元のスキンの版がこれより古ければ「スキンを更新しますか？」を出す（StartupUpdate.OfferSimpleSkin）
     //   2：11/26 王冠・エントリーの板を足した
-    internal const int SimpleSkinRevision = 2;
+    internal const int SimpleSkinRevision = 3;
     internal const string SkinRevisionFile = "skin-revision.txt";
 
     internal static Version ReadVersion(string path)

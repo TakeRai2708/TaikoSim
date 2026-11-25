@@ -194,14 +194,16 @@ def tn_chips():
         c.rect(x + 92, y + 7, x + W - 7, y + H - 7, fill=bright(col, -0.25) + (255,), radius=7)
         c.text(x + 47, y + 30, mark, 38, WHITE, stroke=3, stroke_fill=ink)
         fit_text(c, x + 47, y + 70, name, 19, 84, WHITE, stroke=2, stroke_fill=ink)
-        star_poly(c, x + 114, y + 41, 15, WHITE + (255,), INK2 + (255,), 2)
+        # ★は A-Style と同じ場所・大きさ(白い所が札の中の 100〜129 × 28〜55)。数字はプログラムが ★ の右に書く
+        star_poly(c, x + 115, y + 43.5, 16, WHITE + (255,), INK2 + (255,), 2)
     c.save(S + 'Difficulty_Panel.png')
 
 def number_sheet(rel, cw, ch, size, stroke):
     """0〜9 を横に10個(白い数字に黒いふち)"""
     c = Canvas(cw * 10, ch)
     for n in range(10):
-        fit_text(c, cw * n + cw / 2, ch / 2, str(n), size, cw - 2, WHITE, stroke=stroke, stroke_fill=INK2)
+        # 字は少し下に寄るので、上へ 2px（A-Style の数字と同じく、字の上下のまんなかが画像のまんなかに来る）
+        fit_text(c, cw * n + cw / 2, ch / 2 - 2, str(n), size, cw - 2, WHITE, stroke=stroke, stroke_fill=INK2)
     c.save(rel)
 
 def tn_cards():

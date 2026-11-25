@@ -2013,7 +2013,13 @@ namespace TakeTaikoSimulator.Scenes
             if (MenuSkin.Part(Tn + "Difficulty_Panel.png", new Rectangle(3 + 182 * (int)type, 2, 176, 86), chip, MenuSkin.White(alpha)))
             {
                 float k = chip.Height / 86f;
-                if (!MenuSkin.Digits(Tn + "Difficulty_Level_Number.png", level.ToString(), chip.X + ChipNumberX * k, chip.Y + ChipNumberY * k, ChipNumberAdvance, k, MenuSkin.White(alpha)))
+                // 2けた(★10 など)は、そのままだと ★ と札の右はしにはみ出すので、少し小さく・つめて ★ の右の箱に収める
+                //   11/26 たけらい「シンプルスキンとa-styleの難易度の数字の座標ずれてる」(★ の右は 133、箱の右は 166)
+                string digits = level.ToString();
+                bool two = digits.Length >= 2;
+                float nk = two ? k * ChipTwoDigitScale : k;
+                float nx = two ? ChipTwoDigitX : ChipNumberX;
+                if (!MenuSkin.Digits(Tn + "Difficulty_Level_Number.png", digits, chip.X + nx * k, chip.Y + ChipNumberY * k, two ? ChipTwoDigitAdvance : ChipNumberAdvance, nk, MenuSkin.White(alpha)))
                     Outlined(level.ToString(), new Rectangle(chip.X + 128, chip.Y + 20, 44, 46), 36, Fade(Color.White, alpha), Fade(InkColor, alpha));
                 return;
             }
@@ -2295,6 +2301,8 @@ namespace TakeTaikoSimulator.Scenes
         //   11/11：録画(2026-11-11 23-44-20.mp4 の 10秒)に A-Style の札と数字を 0.5px ずつずらして重ねて、いちばん合う所にした
         //   (前は 146, 43。右へ 1.5px・下へ 0.5px ずれていた)
         private const float ChipNumberX = 147.5f, ChipNumberY = 43.5f, ChipNumberAdvance = 24;
+        // 2けたのとき：大きさ 0.8 倍・字の間 19(0.8 倍する前)・2文字のまんなか 150。推測なんだけど、TaikøNauts も ★ に重ならないように収めている
+        private const float ChipTwoDigitScale = 0.8f, ChipTwoDigitAdvance = 19f, ChipTwoDigitX = 150f;
         // 難易度のカード(196×354)：★の右に数字、下の点々の列に★
         //   ★は 64〜91・250〜277(真ん中 77.5,263.5)、点々は 30,45,…,165 の10個・高さ 293(画像を測った)
         //   11/11：録画(同じ動画の 80秒)にカード・数字・★を 0.5px ずつずらして重ねて、いちばん合う所にした
