@@ -117,7 +117,7 @@ $tag = "v$version"
 $out = "./work/release-$version"
 $publish = "./work/publish-$version"
 $feed = (Resolve-Path "./work/update-feed.json").Path
-$key = "C:\\secure\\taketaiko-signing.pem" # example; actual existing private key
+$key = "C:\secure\taketaiko-signing.pem" # example; actual existing private key
 $repo = "TakeRai2708/TaikoSim"
 
 dotnet publish ./TakeTaikoSimulator/TakeTaikoSimulator.csproj -c Release -r win-x64 -p:Version=$version "-p:TakeTaikoFeedConfig=$feed" -o $publish
