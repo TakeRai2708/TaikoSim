@@ -161,6 +161,11 @@ namespace TakeTaikoSimulator.Configs
                 return false;
             }
 
+            // 2P は設定できない（見えない）ので、1P に入れるキーが 2P の初期値とかぶったら 2P の方から外す
+            if (part < DrumPart.P2LeftKa)
+                foreach (DrumPart p2 in Enum.GetValues<DrumPart>().Skip(4))
+                    DrumKeys.GetValueOrDefault(p2)?.Remove(key);
+
             string? owner = FindOwner(key);
             if (owner != null)
             {
