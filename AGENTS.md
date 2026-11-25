@@ -101,6 +101,59 @@ This file (AGENTS.md) is where we record **values we actually measured** from vi
 - **Not yet verified**: whether the Raylib-cs 8.1.0 and ManagedBass NuGet packages work under AOT (たけらい must publish and check on his PC).
   If publish emits IL warnings or fails, those library types may need to be preserved with `[DynamicDependency]` etc.
 
+### Creating an update ZIP and GitHub Release (verified repository procedure, 2026-11-25)
+
+**Source of truth:** `tools/installer/README.md`, `New-ReleasePackage.ps1`, `New-UpdateManifest.ps1`, `TakeTaikoSimulator/Updates/`, and the latest actual GitHub Release. This section documents a reproducible procedure from the checked-in scripts; the exact commands historically used to upload older releases were **not verified**. As of 2026-11-25, the latest observed Release is **v1.0.13** (2026-11-22), with exactly three assets: `TakeTaiko-1.0.13.0-win-x64.zip`, `latest.json`, and `TakeTaikoSetup.exe`.
+
+**Permissions:** Merely updating AGENTS.md is not approval to publish a new Release. Build and inspect first; ask たけらい for explicit permission before creating/updating/publishing a GitHub Release. Never alter GitHub repository visibility or release unauthorized third-party songs, skins, or copyrighted assets. The GitHub repository API returned `public` on 2026-11-25, contradicting the old "private" instruction at the top of this file: check the live setting and resolve this conflict with the owner before the next public release. Never commit or upload signing private keys, GitHub tokens, invite codes, or user data.
+
+**Requirements:** Windows x64, .NET 10 SDK, Visual Studio C++ desktop toolchain for Native AOT, PowerShell 7 (`pwsh`), authenticated GitHub CLI (`gh auth login`), the **existing** RSA signing private key (2048+ bit), and the corresponding public-key/update-feed config. Do not silently generate a fresh signing key: existing clients trust the previously embedded public key. Prepare `work/update-feed.json` outside the published ZIP (e.g. `githubRepository`, `githubPublic: true`, `publicKeyPem` for publicly downloadable Releases; see installer README). Build with `TakeTaikoFeedConfig` pointing to that file, so the installed application knows where to check for updates. Keep the same trusted public key across releases.
+
+Example PowerShell commands from the repository root (replace the sample version, notes and **private** key location):
+
+```powershell
+$version = "1.0.14"  # example; first verify that this version/tag is unused
+$tag = "v$version"
+$out = "./work/release-$version"
+$publish = "./work/publish-$version"
+$feed = (Resolve-Path "./work/update-feed.json").Path
+$key = "C:\\secure\\taketaiko-signing.pem" # example; actual existing private key
+$repo = "TakeRai2708/TaikoSim"
+
+dotnet publish ./TakeTaikoSimulator/TakeTaikoSimulator.csproj -c Release -r win-x64 -p:Version=$version "-p:TakeTaikoFeedConfig=$feed" -o $publish
+./tools/installer/New-ReleasePackage.ps1 -PublishDirectory $publish -OutputDirectory $out
+
+$zip = (Get-ChildItem $out -Filter "TakeTaiko-*-win-x64.zip" -File | Select-Object -First 1).FullName
+$setup = Join-Path $out "TakeTaikoSetup.exe"
+```
+
+`New-ReleasePackage.ps1` reads the **actual Windows FileVersion** from `TakeTaiko.exe`, creates `TakeTaiko-<FileVersion>-win-x64.zip` (the ZIP has `TakeTaiko.exe` at its root), and copies the same published EXE as `TakeTaikoSetup.exe`. This is not a separately compiled installer. It packages required runtime DLLs, font, `THIRD-PARTY-NOTICES.txt`, and bundled `Skins/TaikoSim-Simple` / `HitSounds`, but **no user Songs, Config, records, logs, other skins or personal data**. Mandatory files include `TakeTaiko.exe`, `bass.dll`, `raylib.dll`, and `Assets/Fonts/NotoSansJP-Regular.ttf`. If the output ZIP already exists the script uses `CreateNew` and fails; do not overwrite an already-released ZIP in place.
+
+Once たけらい approves release publishing, create a **draft first** with the ZIP and setup EXE, keeping everything unpublished until the signed manifest is ready:
+
+```powershell
+gh auth status
+gh release create $tag $zip $setup -R $repo --draft --target master --title "TakeTaiko $version" --notes "リリース内容をここに記載"
+$release = gh api "repos/$repo/releases/tags/$tag" | ConvertFrom-Json
+$asset = $release.assets | Where-Object { $_.name -eq (Split-Path $zip -Leaf) } | Select-Object -First 1
+if (-not $asset) { throw "Release ZIP asset not found" }
+$url = $asset.browser_download_url    # public Release; for private token-based access use the API asset URL instead
+./tools/installer/New-UpdateManifest.ps1 -PackagePath $zip -DownloadUrl $url -PrivateKeyPath $key -ValidHours 8760 -Notes "リリース内容をここに記載" |
+    Set-Content -Encoding utf8NoBOM (Join-Path $out "latest.json")
+gh release upload $tag (Join-Path $out "latest.json") -R $repo
+gh release view $tag -R $repo --json tagName,isDraft,assets
+# Publish ONLY once all three assets, ZIP contents, signature and release notes have been verified:
+gh release edit $tag -R $repo --draft=false --latest
+```
+
+`New-UpdateManifest.ps1` verifies the ZIP's contained EXE file version, computes ZIP byte size and SHA-256, produces an expiration timestamp, and signs the JSON payload using RSA-PSS/SHA-256. It emits the `payload` and `signature` fields in `latest.json`. **Default validity is only 72 hours**; the example explicitly passes `-ValidHours 8760` (script maximum: one year). Before publishing, verify the requested lifetime and ensure the latest feed will not expire without replacement. Never edit signed `latest.json` by hand.
+
+**Checks before publishing:** ZIP root includes `TakeTaiko.exe` with the exact advertised version; necessary DLLs/fonts are present; `latest.json` URL points to this exact ZIP and its SHA-256/size match; signing key corresponds to the public key embedded by `TakeTaikoFeedConfig`; EXE and ZIP are malware-scanned, legal to distribute, and tested on clean Windows if possible; `gh release view` shows ZIP, `latest.json`, and setup EXE. Once published, test installation and update from an older version and ensure songs, scores, skins and settings survive. Do **not** re-upload a different ZIP under the same version/tag as existing users could have cached the old manifest. For updates create a *new* version and tag.
+
+**Private repository caveat:** The public GitHub `browser_download_url` approach works only if release assets can be downloaded anonymously. For a private repo, consult `tools/installer/README.md`: use the API asset `url` with appropriate access token, or the separate InviteRelay distribution path. Never embed an access token in a game or installer sent to friends. Publishing a Release is not the same as making a private repository publicly downloadable.
+
+---
+
 ### Window modes (11/8): only "framed window" or "real fullscreen", like OpenTaiko
 - The self-made borderless (undecorated window exactly the monitor size) was removed. Windows seemed to treat it as a fullscreen game
   (independent flip?): Claude's computer-use screenshots of TakeTaikoSimulator stayed stale and clicks were judged to land on "the desktop". OBS window capture was fine
