@@ -101,18 +101,22 @@ namespace TakeTaikoSimulator.Scenes
         //   11/22 TaikøNauts の録画(J-POP を開く・閉じる)を 1/60秒ずつ測り直した。TakeTaiko の録画と並べて、ずれていた所を直した
         //   (前の 10/30 の測り方とくらべて：ポンッと大きくなるのが無い・細い線のまま止まる時間がほぼ無い・広がるのは加速しながら)
         //   0〜0.20    ジャンル名・キャラ・吹き出しが消えていく(中身の無い板だけが残る)
-        //   0.04〜0.22 上の板は上へ、下の板は下へ 150px すべりながら消える
+        //   0.04〜0.34 上の板は上へ、下の板は下へ、加速しながら 400px すべって画面の外へ(11/25 測り直し)
         //   0.337〜0.553 板が横につぶれていく(幅 793 → 736 → 622 → 525 → 430 → … → 32 → 12 → 0px)
         //   0.553〜0.603 見えない(幅 0)
         //   0.603〜0.837 開いた板の高さ(下そろえで上に 94px 高い)になって、加速しながら元の幅まで広がる(8 → 24 → 45 → 77 → 116 → … → 793px)
-        //   0.837〜0.937 中身の無い開いた板のまま
-        //   0.937      中身が最初の曲の板(開いた形)になる
-        //   0.937〜1.07 曲の板の中身と、上下の板がじわっと出る。黄色い枠は 0.937 から 0.33秒あとに出る
+        //   0.837〜0.904 中身の無い開いた板のまま
+        //   0.904      中身が最初の曲の板(開いた形)になる(11/25 に測り直し)
+        //   0.904〜1.184 上下の板が 340px 外からすべり込む。曲の板の中身は 0.15秒でじわっと出る
         private const float FlipStart = 0.53f;
         private const float FlipPopEnd = 0f, FlipPopScaleX = 1f, FlipPopScaleY = 1f;
         private const float FlipFadeEnd = 0.20f;
-        private const float FlipOthersStart = 0.04f, FlipOthersEnd = 0.22f, FlipOthersShift = 150f;
-        private const float FlipSquashStart = 0.337f, FlipSquashEnd = 0.553f, FlipThinEnd = 0.603f, FlipGrowEnd = 0.837f, FlipSwitch = 0.937f, FlipEnd = 1.07f;
+        // 11/25 録画(15-05-30)：まわりの板は消えずに、だんだん速くなりながら画面の外まで 400px すべっていく(0.04〜0.34)
+        private const float FlipOthersStart = 0.04f, FlipOthersEnd = 0.34f, FlipOthersShift = 400f;
+        private const float FlipSquashStart = 0.337f, FlipSquashEnd = 0.553f, FlipThinEnd = 0.603f, FlipGrowEnd = 0.837f, FlipSwitch = 0.904f, FlipEnd = 1.184f;
+        // 11/25 TaikøNauts の録画(15-05-30)：開ききって 0.067秒後から、上の板は上から・下の板は下から 340px すべり込む(0.28秒・最後ゆっくり)。
+        //   すべっている間も板は濃いまま。曲の板の中身は最初の 0.15秒でじわっと出る
+        private const float FlipInShift = 340f, FlipContentFade = 0.15f;
         private const float FlipThinScale = 0f;
         private const float FlipTallExtra = 94f;   // 広がるときの板は、開いた曲の板の高さ(中の水色 175 → 269px。下はそのまま。TaikøNauts の録画は縦が 0.979 倍に縮んでいたので戻した)
         // つぶれていく幅(793px を 1 として、1/60秒ごと。TaikøNauts の 11/22 の録画)
@@ -1702,7 +1706,7 @@ namespace TakeTaikoSimulator.Scenes
             {
                 float fade = 1f - Math.Clamp(t / FlipFadeEnd, 0f, 1f);
                 float o = Math.Clamp((t - FlipOthersStart) / (FlipOthersEnd - FlipOthersStart), 0f, 1f);
-                float others = 1f - o, shift = FlipOthersShift * o * o; // だんだん速くすべっていく
+                float others = 1f - Math.Clamp((o - 0.8f) / 0.2f, 0f, 1f), shift = FlipOthersShift * MathF.Pow(o, 2.5f); // だんだん速くすべっていく(最後の2割だけ消える)
                 float sx = 1f, sy = 1f;
                 bool tall = false;
                 if (t < FlipPopEnd) { sx = FlipPopScaleX; sy = FlipPopScaleY; }
@@ -1724,8 +1728,9 @@ namespace TakeTaikoSimulator.Scenes
                 flipTall = tall;
                 return (true, sx, sy, others, fade, shift);
             }
-            float appear = Math.Clamp((t - FlipSwitch) / (FlipEnd - FlipSwitch), 0f, 1f);
-            return (true, 1f, 1f, appear, appear, 0f);
+            float rest = 1f - Math.Clamp((t - FlipSwitch) / (FlipEnd - FlipSwitch), 0f, 1f);
+            float content = Math.Clamp((t - FlipSwitch) / FlipContentFade, 0f, 1f);
+            return (true, 1f, 1f, 1f, content, FlipInShift * rest * rest * rest);
         }
 
         // ===== 開いたジャンルの板のまわり(TaikøNauts の動画を測った値) =====
