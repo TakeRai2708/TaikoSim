@@ -1,7 +1,10 @@
 ﻿<Project Sdk="Microsoft.NET.Sdk">
 
 	<PropertyGroup>
+		<!-- Release（配る版）は黒い画面（ターミナル）を出さない。Debug は今までどおり出す（11/26 たけらい）
+		     黒い画面に出ていた文は、どちらでも Logs\TaikoSimLog_…\System\TaikoSim.log に残る -->
 		<OutputType>Exe</OutputType>
+		<OutputType Condition="'$(Configuration)' == 'Release'">WinExe</OutputType>
 		<AssemblyName>TakeTaiko</AssemblyName>
 		<RootNamespace>TakeTaikoSimulator</RootNamespace>
 		<AssemblyTitle>TakeTaiko</AssemblyTitle>
