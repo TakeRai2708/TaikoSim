@@ -1623,8 +1623,13 @@ namespace TakeTaikoSimulator.Scenes
         {
             if (training)
             {
-                Raylib.DrawRectangle(1490, 120, 370, 52, new Color(18, 25, 38, 235));
-                Text("特訓モード", 1530, 128, 28, Color.SkyBlue);
+                // 11/26 たけらい「つけるんだったら曲名みたいに右上に15%大きく。文字のバックグラウンドいらない」
+                //   演奏画面の曲名（PlayHUD：太字＋縁・真ん中 x1745・右はし 1872・y36・55px）と同じ書き方で 1.15 倍
+                const string label = "特訓モード";
+                const float size = 55f * 1.15f, centerX = 1745f, right = 1872f, top = 36f, outline = 6f * 1.15f;
+                float width = FontManager.MeasureSkinMain(label, size).X;
+                float x = Math.Min(centerX - width / 2f, right - width);
+                FontManager.DrawSkinMainOutlined(label, x, top, size, Gui.WithAlpha(Color.White, ReturnAlpha), Gui.WithAlpha(new Color(205, 35, 45, 255), ReturnAlpha), outline);   // 縁は赤（11/26 たけらい）
             }
             // 左上の太鼓の案内(難易度をえらんでいる間・検索の箱が出ている間は出さない)
             if (!SkinManager.SystemSkin && largeControlGuide is Aup2 guide && !(diffOpen && diffTime >= GuideHideAt)
