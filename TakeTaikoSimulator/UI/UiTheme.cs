@@ -39,8 +39,9 @@ namespace TakeTaikoSimulator.UI
             Background = new(18, 10, 13, 255), Panel = new(27, 16, 20, 255), Border = new(67, 42, 53, 255), Track = new(74, 50, 60, 255),
             PrimaryHover = new(240, 96, 127, 255), TrackHover = new(92, 62, 74, 255), BubbleText = new(27, 16, 20, 255),
             OnAccent = new(255, 255, 255, 255), KnobDot = new(226, 58, 94, 255),
-            PanelFrom = new(22, 12, 17, 255), PanelTo = new(66, 22, 40, 255),
-            BackFrom = new(12, 7, 10, 255), BackTo = new(46, 15, 28, 255),
+            // 11/26 たけらい「ダークのグラデーションわかりずらい」「トーストみたいな感じにして」→ パネルはトーストと同じ色。背景は少し暗く
+            PanelFrom = new(20, 11, 16, 255), PanelTo = new(130, 32, 66, 255),
+            BackFrom = new(12, 7, 10, 255), BackTo = new(98, 24, 50, 255),
             ToastFrom = new(20, 11, 16, 255), ToastTo = new(130, 32, 66, 255),
             ToastText = new(252, 238, 242, 255), ToastTextOutline = new(0, 0, 0, 0), ToastBar = new(226, 58, 94, 255), ToastBorder = new(90, 55, 70, 255),
             ToastBoldFont = false,
