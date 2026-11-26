@@ -1224,9 +1224,11 @@ namespace TakeTaikoSimulator.Overlays
         }
 
         // 見出し
+        private string sectionTitle = "";   // 今描いている見出し（小見出しのカードの名前を、見出しごとに分けるため）
         private void Section(Category category, string title)
         {
             EndCard();
+            sectionTitle = title;
             if (category != Category.General && !fullScreen) cursorY += 24;
             sectionPos[category] = cursorY;
             float y = ToScreenY(cursorY);
@@ -1407,7 +1409,9 @@ namespace TakeTaikoSimulator.Overlays
             EndCard();
             FontManager.Draw(text, SectionX + 6, ToScreenY(cursorY), 23, Gui.SakuraColor);
             cursorY += 36;
-            BeginCard("sub:" + text);
+            // カードの高さは名前で覚えている。11/26「プリセット」が「音」と「キー」の両方にあって、高さが混ざっていた
+            //   → 見出しごとに分ける（例：sub:音/プリセット）
+            BeginCard("sub:" + sectionTitle + "/" + text);
         }
 
         // 叩く場所1つ分(開閉できる見出し＋キー一覧＋追加ボタン)
@@ -1541,6 +1545,7 @@ namespace TakeTaikoSimulator.Overlays
             HelpTip("出力方式・バッファ・ASIO の機器・音オフセット・譜面オフセットを、3つまで覚えておけます。選んでいる間に変えた値は、そのプリセットに入ります（イヤホン用・スピーカー用など）");
             if (chosen != p.AudioActive) SwitchAudioPreset(chosen);
             PresetNameButton(1, PresetConfig.Label(p.Audio[p.AudioActive].Name, p.AudioActive));
+            SubHeader("音量");   // 音量は、プリセットとは別のカードに（プリセットには入らない）
         }
 
         private void DrawKeyPresetRows()
@@ -1970,7 +1975,9 @@ namespace TakeTaikoSimulator.Overlays
             float best = -1f;
             foreach (var pair in sectionPos)
             {
-                if (pair.Value <= scroll + 10f && pair.Value > best)
+                // 11/26：見出しが画面の上の方（上から 150px まで）に来たら、そのカテゴリにする
+                //   前は一番上まで来ないと切り替わらず、「音」が見えているのに「画面」が光っていた
+                if (pair.Value <= scroll + 150f && pair.Value > best)
                 {
                     best = pair.Value;
                     current = pair.Key;
