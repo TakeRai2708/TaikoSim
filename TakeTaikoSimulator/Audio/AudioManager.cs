@@ -55,6 +55,22 @@ namespace TakeTaikoSimulator.Audio
         // 共有の効果音用。機器側の最小単位に合わせて、実際の長さは切り上げられる。
         private const int SharedEffectsBufferMs = 5;
 
+        // 機器の更新間隔（BASS の DevicePeriod）。11/27 たけらい「音色が遅い？」→ 録画で、叩いた音が音符より
+        //   BASS 30ms で +81ms、WASAPI 共有で +40ms 遅れていた（OBS の録音の時点。耳にはさらに約20ms 遅れる）
+        //   BASS は WASAPI 共有で鳴らしていて、更新間隔は機器のふつうの値（10ms くらい）。1ms を頼むと、
+        //   機器と Windows が対応していれば（Windows 10 以降の低遅延の共有モード）いちばん短い間隔になり、
+        //   ためておく量も減らせる（推測。たけらいの PC で効くかは、録画で確かめる）。対応していなければ BASS がふつうの値に戻す
+        private const int LowLatencyPeriodMs = 1;
+        private static int? defaultDevicePeriod;
+        private static void UseLowLatencyPeriod(bool on)
+        {
+            defaultDevicePeriod ??= Bass.GetConfig(Configuration.DevicePeriod);
+            Bass.Configure(Configuration.DevicePeriod, on ? LowLatencyPeriodMs : defaultDevicePeriod.Value);
+        }
+
+        /// <summary>叩いた音が鳴るまでの遅れの目安（ms。BASS が測った機器の遅れ＋エンジン）。設定の「今の出力」に出す</summary>
+        public static double HitSoundLatencyEstimateMs { get; private set; }
+
         // BASS がもともと持っているバッファの長さ(ms)。バッファ 0(自動)のときに戻すため、最初に覚えておく
         private static int? defaultDeviceBufferMs = null;
 
@@ -204,6 +220,7 @@ namespace TakeTaikoSimulator.Audio
             Bass.Configure(Configuration.UpdateThreads, 1);
             Bass.Configure(Configuration.UpdatePeriod, UpdatePeriodMs);
             Bass.Configure(Configuration.DeviceBufferLength, bufferMs > 0 ? Math.Max(bufferMs, UpdatePeriodMs + 1) : defaultDeviceBufferMs.Value);
+            UseLowLatencyPeriod(!directSound);   // DirectSound には効かない
 
             // -1 = いつもの出力先(Windowsで「既定」になっているスピーカー)、44100Hz
             // Latency = 遅延を測っておく
@@ -223,10 +240,11 @@ namespace TakeTaikoSimulator.Audio
             bassDeviceLatencyMs = info.Latency;
             BassBufferMs = Bass.GetConfig(Configuration.DeviceBufferLength);
             bassEngineMs = DefaultOutputEngineMs();
+            HitSoundLatencyEstimateMs = bassDeviceLatencyMs + bassEngineMs;
 
             string name = directSound ? "DirectSound" : "BASS";
             string buffer = bufferMs > 0 ? $"{bufferMs}ms" : "自動";
-            Status = $"{name}（バッファ {buffer}＋エンジン {bassEngineMs:0}ms）　BASS {Bass.Version}";
+            Status = $"{name}（バッファ {buffer}＋エンジン {bassEngineMs:0}ms・叩いた音 約{HitSoundLatencyEstimateMs:0}ms）　BASS {Bass.Version}";
             error = "";
             return true;
         }
@@ -241,6 +259,7 @@ namespace TakeTaikoSimulator.Audio
                 Bass.Configure(Configuration.UpdatePeriod, 1);
                 Bass.Configure(Configuration.UpdateThreads, 1);
                 Bass.Configure(Configuration.DeviceBufferLength, SharedEffectsBufferMs);
+                UseLowLatencyPeriod(true);
                 // BASSの「Default」は機器IDを持たない別名なので、対応する実機を選ぶ。
                 int effectsDeviceIndex = FindSharedEffectsDevice();
                 directEffectsReady = effectsDeviceIndex >= 0 && Bass.Init(effectsDeviceIndex, 44100, DeviceInitFlags.Latency);
@@ -249,6 +268,7 @@ namespace TakeTaikoSimulator.Audio
                     bassInitialized = true;
                     Bass.GetInfo(out var effectsInfo);
                     SharedEffectsLatencyEstimateMs = effectsInfo.Latency;
+                    HitSoundLatencyEstimateMs = effectsInfo.Latency + EngineMsForShared();
                 }
             }
 
@@ -326,7 +346,7 @@ namespace TakeTaikoSimulator.Audio
             string buffers = eventDriven ? $"{actualMs:0.#}ms×2" : $"{actualMs:0.#}ms";
             string engine = wasapiEngineMs > 0 ? $"＋エンジン {wasapiEngineMs:0.#}ms" : "";
             Status = $"{name}（バッファ {buffers}{engine}／希望 {wantedText}・{info.Frequency}Hz）";
-            if (SharedEffectsUseSamples) Status = $"{name}（曲 {actualMs:0.#}ms{engine}／打音は別共有）";
+            if (SharedEffectsUseSamples) Status = $"{name}（曲 {actualMs:0.#}ms{engine}／叩いた音は別の共有 約{HitSoundLatencyEstimateMs:0}ms）";
             error = "";
             return true;
         }
@@ -426,6 +446,7 @@ namespace TakeTaikoSimulator.Audio
             bassInitialized = false;
             SharedEffectsUseSamples = false;
             SharedEffectsLatencyEstimateMs = 0;
+            HitSoundLatencyEstimateMs = 0;
             Mixer = 0;
             mixerBytesPerSecond = 0;
             wasapiBufferMs = 0;
@@ -502,6 +523,8 @@ namespace TakeTaikoSimulator.Audio
         //     → WASAPI 共有と同じ「既定の出力機器の周期 × 2」（ふつう 20ms）を足す
         public static double BassOutputLatencyMs =>
             Mixer == 0 && bassInitialized ? bassDeviceLatencyMs + bassEngineMs : 0;
+
+        private static double EngineMsForShared() => DefaultOutputEngineMs();
 
         // 既定の出力機器の、Windows の音声エンジンの遅れの目安（周期 × 2、0〜60ms）。取れなければ 0
         private static double DefaultOutputEngineMs()
