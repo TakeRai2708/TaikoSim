@@ -11,7 +11,10 @@ internal static class UpdatePackage
     {
         GameExe, "bass.dll", "bassmix.dll", "basswasapi.dll", "bassasio.dll",
         "raylib.dll", "raylib_angle.dll", "libEGL.dll", "libGLESv2.dll", "vulkan-1.dll",
-        "THIRD-PARTY-NOTICES.txt", "Assets/Fonts/NotoSansJP-Regular.ttf"
+        "THIRD-PARTY-NOTICES.txt", "Assets/Fonts/NotoSansJP-Regular.ttf",
+        // 11/26：1.0.17 で ZIP に入れたら、1.0.16 までの更新が「配布対象外のファイル」で止まった。
+        //   この版（1.0.18）から受け取れるようにして、PDF を ZIP に入れるのは次の版から
+        "遊び方.pdf"
     };
 
     internal const string SimpleSkinPrefix = "Skins/TaikoSim-Simple/";
