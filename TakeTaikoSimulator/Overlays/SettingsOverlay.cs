@@ -154,7 +154,7 @@ namespace TakeTaikoSimulator.Overlays
         private static Color NeutralColor => UiTheme.P.Neutral;
 
         // キー入力待ち中か(Game がスクショキーを無視するのに使う)
-        public bool IsWaitingKey => waitingTarget != null;
+        public bool IsWaitingKey => waitingTarget != null || presetNaming >= 0;
 
         // ===== 閉じるときの確認ダイアログ =====
         private bool confirmOpen = false;
@@ -373,6 +373,14 @@ namespace TakeTaikoSimulator.Overlays
 
             blinkTimer += dt;
             if (messageTimer > 0f) messageTimer -= dt;
+
+            // プリセットの名前を入れている間（Esc でやめる。変換中の Esc は IME に渡す）
+            if (presetNaming >= 0)
+            {
+                if (InputManager.IsBackPressed()) { if (!WindowsIme.IsComposing) presetNaming = -1; return; }
+                if (presetNameInput.Update()) FinishPresetName();
+                return;
+            }
             UpdateSecret(dt);
 
             // 「フォルダを選択」が押されていたら、Windowsの選択画面を出す
@@ -526,7 +534,7 @@ namespace TakeTaikoSimulator.Overlays
             Screen.EndScissorMode();
             DrawScrollbar(content);
 
-            if (confirmOpen || unsavedOpen || restartOpen || resetStep != 0) Gui.SetClip(NoClickArea);
+            if (confirmOpen || unsavedOpen || restartOpen || resetStep != 0 || presetNaming >= 0) Gui.SetClip(NoClickArea);
             DrawHeader();
             DrawSidebar();
             DrawHint();
@@ -539,6 +547,7 @@ namespace TakeTaikoSimulator.Overlays
             else if (confirmOpen) DrawConfirmDialog();
             else if (unsavedOpen) DrawUnsavedDialog();
             else if (restartOpen) DrawRestartDialog();
+            else if (presetNaming >= 0) presetNameInput.Draw();
             else Gui.DrawPopups();
 
             Rlgl.PopMatrix();
@@ -838,6 +847,7 @@ namespace TakeTaikoSimulator.Overlays
         {
             Section(Category.Sound, "音");
 
+            DrawAudioPresetRows();
             SoundConfig sound = ActiveSound;
 
             // バーを動かしたらすぐ反映する（11/26 たけらい「音量適用押してなくてもされるようにしたい」）
@@ -1037,6 +1047,7 @@ namespace TakeTaikoSimulator.Overlays
         {
             Section(Category.Key, "キー");
 
+            DrawKeyPresetRows();
             KeyConfig key = ActiveKey;
 
             // ----- 叩くキー -----
@@ -1517,6 +1528,90 @@ namespace TakeTaikoSimulator.Overlays
         }
 
         // 結果メッセージを出す
+        // ===== プリセット（Configs/PresetConfig.cs。11/26 たけらい「音オフセットとかキー配置のプリセットを作ろう」） =====
+        //   今選んでいるプリセットに、自動で保存する（ConfigManager.SaveAll → SavePresets）。切り替えたらすぐ反映して保存
+        private readonly PlayerNameInput presetNameInput = new();
+        private int presetNaming = -1;   // 名前を入れているプリセット：0 キー・1 音・-1 入れていない
+
+        private void DrawAudioPresetRows()
+        {
+            SubHeader("プリセット");
+            PresetConfig p = ConfigManager.Presets;
+            int chosen = DropdownRow("audioPreset", "音の出力のプリセット", p.AudioLabels(), p.AudioActive);
+            HelpTip("出力方式・バッファ・ASIO の機器・音オフセット・譜面オフセットを、3つまで覚えておけます。選んでいる間に変えた値は、そのプリセットに入ります（イヤホン用・スピーカー用など）");
+            if (chosen != p.AudioActive) SwitchAudioPreset(chosen);
+            PresetNameButton(1, PresetConfig.Label(p.Audio[p.AudioActive].Name, p.AudioActive));
+        }
+
+        private void DrawKeyPresetRows()
+        {
+            SubHeader("プリセット");
+            PresetConfig p = ConfigManager.Presets;
+            int chosen = DropdownRow("keyPreset", "キー配置のプリセット", p.KeyLabels(), p.KeyActive);
+            HelpTip("叩くキー（1P・2P）を、3つまで覚えておけます。選んでいる間に変えたキーは、そのプリセットに入ります（キーボード用・太鼓コン用など）");
+            if (chosen != p.KeyActive) SwitchKeyPreset(chosen);
+            PresetNameButton(0, PresetConfig.Label(p.Keys[p.KeyActive].Name, p.KeyActive));
+        }
+
+        private void PresetNameButton(int kind, string label)
+        {
+            Rectangle button = new Rectangle(LabelX, ToScreenY(cursorY), RightEdge - LabelX, 44);
+            if (Gui.Button(button, $"名前を変える（今：{label}）"))
+            {
+                PresetConfig p = ConfigManager.Presets;
+                string now = kind == 0 ? p.Keys[p.KeyActive].Name : p.Audio[p.AudioActive].Name;
+                presetNameInput.Open(now, "プリセットの名前", $"{PresetConfig.NameLimit}文字まで。空にして Enter で「プリセット○」に戻ります", PresetConfig.NameLimit, allowEmpty: true);
+                presetNaming = kind;
+            }
+            cursorY += 56;
+        }
+
+        private void FinishPresetName()
+        {
+            PresetConfig p = ConfigManager.Presets;
+            string name = NamePlateConfig.CleanText(presetNameInput.Value, PresetConfig.NameLimit);
+            if (presetNaming == 0) p.Keys[p.KeyActive].Name = name;
+            else p.Audio[p.AudioActive].Name = name;
+            presetNaming = -1;
+            ConfigManager.SavePresets();
+            ShowMessage("プリセットの名前を変えました", SuccessColor);
+        }
+
+        private void SwitchAudioPreset(int index)
+        {
+            PresetConfig p = ConfigManager.Presets;
+            // 今の値（全画面なら、まだ適用していない下書きも）を、前のプリセットに入れておく
+            PresetConfig.CaptureAudio(p.Audio[p.AudioActive], ActiveGame, ActiveSound);
+            SoundConfig live = ConfigManager.Sound;
+            var before = (live.OutputType, live.BassBufferMs, live.WasapiBufferMs, live.AsioDevice);
+            p.AudioActive = index;
+            p.LoadAudio(index, ConfigManager.Game, ConfigManager.Sound);
+            if (fullScreen)
+            {
+                p.LoadAudio(index, draftGame!, draftSound!);
+                p.LoadAudio(index, savedGame!, savedSound!);   // 「変更があります」にしない（もう保存した）
+            }
+            ConfigManager.SaveAll();
+            bool outputChanged = before != (live.OutputType, live.BassBufferMs, live.WasapiBufferMs, live.AsioDevice);
+            if (outputChanged && !InPlay) AudioManager.Restart();
+            ShowMessage($"音の出力のプリセットを「{PresetConfig.Label(p.Audio[index].Name, index)}」にしました", SuccessColor);
+        }
+
+        private void SwitchKeyPreset(int index)
+        {
+            PresetConfig p = ConfigManager.Presets;
+            p.CaptureKeys(p.KeyActive, ActiveKey);
+            p.KeyActive = index;
+            p.LoadKeys(index, ConfigManager.Key);
+            if (fullScreen)
+            {
+                p.LoadKeys(index, draftKey!);
+                p.LoadKeys(index, savedKey!);
+            }
+            ConfigManager.SaveAll();
+            ShowMessage($"キー配置のプリセットを「{PresetConfig.Label(p.Keys[index].Name, index)}」にしました", SuccessColor);
+        }
+
         // 裏コマンド：d・e・b・u・g を順に打ったか数える
         private void UpdateSecret(float dt)
         {

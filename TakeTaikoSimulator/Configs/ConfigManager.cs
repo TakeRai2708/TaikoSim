@@ -54,12 +54,14 @@ namespace TakeTaikoSimulator.Configs
             Game = Load(GameConfig.FileName, AppJsonContext.Default.GameConfig);
             Key = Load(KeyConfig.FileName, AppJsonContext.Default.KeyConfig);
             Skin = Load(SkinConfig.FileName, AppJsonContext.Default.SkinConfig);
+            Presets = Load(PresetConfig.FileName, AppJsonContext.Default.PresetConfig);   // 無ければ、下の Fix で3つとも今の値で作る
 
             // おかしな値(音量が200とか)を直す
             Sound.Fix();
             Game.Fix();
             Key.Fix();
             Skin.Fix();
+            Presets.Fix(Game, Sound, Key);
             UI.UiTheme.Apply(Game);
 
             // 直した値や、新しく増えた項目をファイルに反映
@@ -73,6 +75,7 @@ namespace TakeTaikoSimulator.Configs
             Save(GameConfig.FileName, Game, AppJsonContext.Default.GameConfig);
             Save(KeyConfig.FileName, Key, AppJsonContext.Default.KeyConfig);
             Save(SkinConfig.FileName, Skin, AppJsonContext.Default.SkinConfig);
+            SavePresets();
             PlayerSettings.SaveActive();   // 今遊んでいる人のデータにも書く（Configs/PlayerSettings.cs）
         }
 
@@ -88,6 +91,16 @@ namespace TakeTaikoSimulator.Configs
                 // 保存できなくても、ゲームは止めない(パネルを閉じたとき・終了したときにもう一度保存する)
                 Console.WriteLine($"[Config] {SkinConfig.FileName} を保存できませんでした: {ex.Message}");
             }
+        }
+
+        // プリセット（PresetConfig.cs）：今の値を、今選んでいるプリセットに写して保存する
+        public static PresetConfig Presets { get; private set; } = new();
+        public static void SavePresets()
+        {
+            Presets.Capture(Game, Sound, Key);
+            try { Save(PresetConfig.FileName, Presets, AppJsonContext.Default.PresetConfig); }
+            catch (Exception ex) when (ex is IOException || ex is UnauthorizedAccessException)
+            { Console.WriteLine($"[Config] {PresetConfig.FileName} を保存できませんでした: {ex.Message}"); }
         }
 
         // ゲームの設定だけ、すぐ保存する(設定パネルでデバッグのカテゴリを出し入れしたとき。11/26)
