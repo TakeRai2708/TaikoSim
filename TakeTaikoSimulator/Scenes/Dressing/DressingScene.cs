@@ -18,10 +18,10 @@ public sealed class DressingScene : Scene
     {
         public NamePlateConfig Plate;
         public PlayerAppearanceConfig Appearance;
-        private (string, string, string, bool, int) originalPlate;
+        private (string, string, string, string, bool, int) originalPlate;
         private (string, int, bool, string, int) originalAppearance;
         private (string, int, bool, string, int) Options => (Appearance.DonchanId, Appearance.DonchanType, Appearance.IsUsePuchiChara, Appearance.PuchiCharaId, Appearance.PuchiCharaType);
-        private (string, string, string, bool, int) Identity => (Plate.NamePlateId, Plate.Name, Plate.Rank, Plate.IsRankGold, Plate.RankType);
+        private (string, string, string, string, bool, int) Identity => (Plate.NamePlateId, Plate.Name, Plate.Title, Plate.Rank, Plate.IsRankGold, Plate.RankType);
         public bool Dirty => Identity != originalPlate || Options != originalAppearance;
         public void Saved() { originalPlate = Identity; originalAppearance = Options; }
         public Draft(int slot) { Plate = PlayerDataStore.Copy(PlayerDataStore.NamePlate(slot)); Appearance = PlayerDataStore.Copy(PlayerDataStore.Appearance(slot)); Saved(); }
@@ -33,6 +33,7 @@ public sealed class DressingScene : Scene
     private bool asking, readFailed;
     private readonly PlayerNameInput nameInput = new();
     private bool naming;
+    private bool namingTitle;   // 入力の画面で、称号を書いているか（false = 名前）
     private float appliedAge = -1;
     private readonly Dictionary<int, RankChoice[]> rankChoices = new();
     private sealed record RankChoice(string Name, bool Gold, int Type)
@@ -74,17 +75,22 @@ public sealed class DressingScene : Scene
         catch (Exception ex) when (ex is IOException or UnauthorizedAccessException or JsonException)
         { error = "設定が読めません：" + ex.Message; readFailed = true; }
     }
-    private int Count => category == 0 ? characters.Length : category == 1 ? puchi.Length + 1 : category == 2 ? plates.Length : rankChoices[Slot].Length + 1;
+    // 「名前・段位」の上の2行：名前を変更・称号を変更（11/26 たけらい「ネームプレートのタイトル書けるようにしたい」）。段位はその下
+    private const int NameRows = 2;
+    // ネームプレートの一番上は「おまかせ」（1P は 02・2P は 03。NamePlate.ResolveId）
+    private int Count => category == 0 ? characters.Length : category == 1 ? puchi.Length + 1 : category == 2 ? plates.Length + 1 : rankChoices[Slot].Length + NameRows;
     private string Label(int i) => category == 0 ? characters[i] : category == 1 ? i == 0 ? "なし" : Path.GetFileName(puchi[i - 1])
-        : category == 2 ? plates[i] : i == 0 ? "名前を変更" : rankChoices[Slot][i - 1].Label;
+        : category == 2 ? i == 0 ? $"おまかせ（1P は {NamePlate.Default1P}・2P は {NamePlate.Default2P}）" : plates[i - 1]
+        : i == 0 ? "名前を変更" : i == 1 ? (Current.Plate.Title.Length == 0 ? "称号を書く（今はなし）" : $"称号を変更（{Current.Plate.Title}）")
+        : rankChoices[Slot][i - NameRows].Label;
     private void SyncCursor()
     {
         if (!drafts.ContainsKey(Slot)) return;
         var a = Current.Appearance;
         cursor = category == 0 ? Array.IndexOf(characters, CosmeticCatalog.Choose(characters, a.DonchanId, a.DonchanType))
             : category == 1 ? !a.IsUsePuchiChara ? 0 : Math.Max(0, Array.FindIndex(puchi, p => Path.GetFileName(p) == a.PuchiCharaId)) + 1
-            : category == 2 ? Array.IndexOf(plates, Current.Plate.NamePlateId)
-            : Math.Max(0, Array.FindIndex(rankChoices[Slot], c => c.Name == Current.Plate.Rank && c.Gold == Current.Plate.IsRankGold && c.Type == Current.Plate.RankType) + 1);
+            : category == 2 ? Current.Plate.NamePlateId.Length == 0 ? 0 : Array.IndexOf(plates, Current.Plate.NamePlateId) + 1
+            : Math.Max(0, Array.FindIndex(rankChoices[Slot], c => c.Name == Current.Plate.Rank && c.Gold == Current.Plate.IsRankGold && c.Type == Current.Plate.RankType)) + NameRows;
         cursor = Math.Clamp(cursor, 0, Math.Max(0, Count - 1));
         top = Math.Clamp(cursor - 4, 0, Math.Max(0, Count - 9));
     }
@@ -98,10 +104,10 @@ public sealed class DressingScene : Scene
             Current.Appearance.IsUsePuchiChara = cursor > 0;
             if (cursor > 0) { Current.Appearance.PuchiCharaId = Path.GetFileName(puchi[cursor - 1]); Current.Appearance.PuchiCharaType = cursor - 1; }
         }
-        else if (category == 2) Current.Plate.NamePlateId = plates[cursor];
-        else if (cursor > 0)
+        else if (category == 2) Current.Plate.NamePlateId = cursor == 0 ? "" : plates[cursor - 1];
+        else if (cursor >= NameRows)
         {
-            var rank = rankChoices[Slot][cursor - 1];
+            var rank = rankChoices[Slot][cursor - NameRows];
             Current.Plate.Rank = rank.Name; Current.Plate.IsRankGold = rank.Gold; Current.Plate.RankType = rank.Type;
         }
         appliedAge = -1;
@@ -114,7 +120,12 @@ public sealed class DressingScene : Scene
         if (readFailed || asking) return;
         if (naming)
         {
-            if (nameInput.Update()) { Current.Plate.Name = nameInput.Value.Trim(); naming = false; appliedAge = -1; }
+            if (nameInput.Update())
+            {
+                if (namingTitle) Current.Plate.Title = nameInput.Value.Trim();
+                else Current.Plate.Name = nameInput.Value.Trim();
+                naming = false; appliedAge = -1;
+            }
             return;
         }
         if (Raylib.IsKeyPressed(KeyboardKey.Tab) && LocalSession.Count > 1)
@@ -128,11 +139,17 @@ public sealed class DressingScene : Scene
         if (move != 0 && Count > 0) Select(cursor + move);
         if (InputManager.IsDonPressed(side) || Raylib.IsKeyPressed(KeyboardKey.Enter))
         {
-            if (category == 3 && cursor == 0) BeginNameEdit();
+            if (category == 3 && cursor < NameRows) BeginNameEdit(cursor == 1);
             else Apply();
         }
     }
-    private void BeginNameEdit() { nameInput.Open(Current.Plate.Name); naming = true; appliedAge = -1; }
+    private void BeginNameEdit(bool title = false)
+    {
+        namingTitle = title;
+        if (title) nameInput.Open(Current.Plate.Title, "称号を入力", $"{NamePlateConfig.TitleLimit}文字まで。空にして Enter で、称号を消します", NamePlateConfig.TitleLimit, allowEmpty: true);
+        else nameInput.Open(Current.Plate.Name);
+        naming = true; appliedAge = -1;
+    }
     private bool Apply()
     {
         bool changeChara = false;
@@ -141,12 +158,13 @@ public sealed class DressingScene : Scene
             foreach (var (slot, draft) in drafts)
             {
                 if (!draft.Dirty) continue;
-                // 称号と未知の項目は維持し、画面で変更した値だけを保存する。
+                // 未知の項目は維持し、画面で変更した値だけを保存する。
                 var previous = PlayerDataStore.Appearance(slot);
                 changeChara |= previous.DonchanId != draft.Appearance.DonchanId || previous.DonchanType != draft.Appearance.DonchanType;
                 var saved = PlayerDataStore.Copy(PlayerDataStore.NamePlate(slot));
                 saved.NamePlateId = draft.Plate.NamePlateId;
                 saved.Name = draft.Plate.Name;
+                saved.Title = draft.Plate.Title;
                 saved.Rank = draft.Plate.Rank;
                 saved.IsRankGold = draft.Plate.IsRankGold;
                 saved.RankType = draft.Plate.RankType;
@@ -225,7 +243,7 @@ public sealed class DressingScene : Scene
             }
             // 一覧を描き終えてから、一つの行だけ選択する。
             if (clickedRow >= 0)
-            { Select(clickedRow); if (category == 3 && clickedRow == 0) BeginNameEdit(); }
+            { Select(clickedRow); if (category == 3 && clickedRow < NameRows) BeginNameEdit(clickedRow == 1); }
             string title = $"{side + 1}P  {Current.Plate.Name}";
             FontManager.Draw(title, Layout.PreviewTitle.X, Layout.PreviewTitle.Y, 36 * Math.Min(1, 910 / Math.Max(1, FontManager.Measure(title, 36).X)), Color.White);
             NamePlate.Draw(Slot, side, Layout.PlatePosition.X, Layout.PlatePosition.Y, preview: Current.Plate);

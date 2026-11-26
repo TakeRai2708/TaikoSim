@@ -78,6 +78,19 @@ public static class NamePlate
         string? image = SkinManager.GetTexture(rel + "Base.png") != null ? rel + "Base.png" : null;
         return art[id] = new(anime, image, x + Layout.TitleArtOffset.X, y + Layout.TitleArtOffset.Y);
     }
+    // おまかせ（まだ選んでいない）のときのネームプレート：1P は 02、2P は 03（11/26 たけらい）。
+    //   スキンにそのフォルダが無いときは 00
+    public const string Default1P = "02", Default2P = "03";
+    public static string DefaultId(int side)
+    {
+        string id = side == 1 ? Default2P : Default1P;
+        string? root = SkinManager.CurrentPath;
+        if (root == null) return "00";
+        string folder = Path.Combine(root, Root, "Plates", id);
+        return File.Exists(Path.Combine(folder, "Base.png")) || File.Exists(Path.Combine(folder, "Anime.aup2")) ? id : "00";
+    }
+    public static string ResolveId(string? id, int side) => CosmeticCatalog.SafeId(id) ? id! : DefaultId(side);
+
     public static void Preload()
     {
         SkinManager.GetTexture(Root + "NamePlate_Base.png");
@@ -85,7 +98,7 @@ public static class NamePlate
         {
             try
             {
-                var data = PlayerDataStore.NamePlate(slot); Prepare(data.NamePlateId);
+                var data = PlayerDataStore.NamePlate(slot); Prepare(ResolveId(data.NamePlateId, 0)); Prepare(ResolveId(data.NamePlateId, 1));
                 FontManager.PreloadSkinMain(new[] { data.Name, data.Title, data.Rank });
             }
             catch (Exception ex) when (ex is IOException or UnauthorizedAccessException or JsonException)
@@ -105,7 +118,7 @@ public static class NamePlate
         try { data = preview ?? PlayerDataStore.NamePlate(slot); }
         catch (Exception ex) when (ex is IOException or UnauthorizedAccessException or JsonException)
         { data = new() { Name = $"プレイヤー{slot}" }; }
-        Art image = Prepare(CosmeticCatalog.SafeId(data.NamePlateId) ? data.NamePlateId : "00");
+        Art image = Prepare(ResolveId(data.NamePlateId, side));
         Color white = Raylib.ColorAlpha(Color.White, alpha);
         Rlgl.PushMatrix(); Rlgl.Translatef(x, y, 0); Rlgl.Scalef(scale, scale, 1);
         try

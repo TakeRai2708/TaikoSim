@@ -12,9 +12,12 @@ public sealed class NamePlateConfig
     [JsonPropertyName("title")] public string Title { get; set; } = "";
     [JsonPropertyName("rank")] public string Rank { get; set; } = "";
     [JsonPropertyName("isRankGold")] public bool IsRankGold { get; set; }
-    [JsonPropertyName("namePlateId")] public string NamePlateId { get; set; } = "00";
+    // 空 = まだ選んでいない（おまかせ）。1P は "02"、2P は "03" を出す（NamePlate.ResolveId。11/26 たけらい「初期のネームプレートは02が1pで03が2p」）
+    [JsonPropertyName("namePlateId")] public string NamePlateId { get; set; } = "";
     [JsonPropertyName("rankType")] public int RankType { get; set; }
     [JsonExtensionData] public Dictionary<string, JsonElement>? Extra { get; set; }
+
+    public const int TitleLimit = 24;   // 称号の文字数（着せ替えで入れられる長さ。11/26）
 
     public static string CleanText(string? value, int count, bool trim = true)
     {
@@ -29,9 +32,9 @@ public sealed class NamePlateConfig
     {
         Name = CleanText(Name, 24);
         if (Name.Length == 0) Name = slot == PlayerDataStore.GuestSlot ? PlayerDataStore.GuestName : $"プレイヤー{slot}";
-        Title = CleanText(Title, 48);
+        Title = CleanText(Title, TitleLimit);
         Rank = CleanText(Rank, 24);
-        NamePlateId = CosmeticCatalog.SafeId(NamePlateId) ? NamePlateId : "00";
+        NamePlateId = CosmeticCatalog.SafeId(NamePlateId) ? NamePlateId : "";
         RankType = Math.Clamp(RankType, 0, 2);
     }
 }
