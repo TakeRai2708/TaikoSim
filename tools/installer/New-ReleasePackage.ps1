@@ -13,7 +13,7 @@ if (-not $gameVersion) { throw '先にゲームを Native AOT で発行してく
 
 $files = @('TakeTaiko.exe', 'bass.dll', 'bassmix.dll', 'basswasapi.dll', 'bassasio.dll',
     'raylib.dll', 'raylib_angle.dll', 'libEGL.dll', 'libGLESv2.dll', 'vulkan-1.dll',
-    'THIRD-PARTY-NOTICES.txt', 'Assets/Fonts/NotoSansJP-Regular.ttf')
+    'THIRD-PARTY-NOTICES.txt', 'Assets/Fonts/NotoSansJP-Regular.ttf', '遊び方.pdf')
 $required = @('TakeTaiko.exe', 'bass.dll', 'raylib.dll', 'Assets/Fonts/NotoSansJP-Regular.ttf')
 foreach ($name in $required) {
     if (-not (Test-Path -LiteralPath (Join-Path $publishPath $name) -PathType Leaf)) {
