@@ -765,7 +765,11 @@ namespace TakeTaikoSimulator.Scenes
         private void DrawComboSparkles(float rightX, float padding, int count, float digitWidth, float digitHeight, float bottomY)
         {
             if (SkinManager.GetTexture(ComboSparkleImage) is not Texture2D source) return;
-            Texture2D star = PrepareSparkle(source);
+            // 11/26 たけらい「数字の中に描画してるように見える」：A-Style の 20:18 の録画（I444）で、星は「白い芯だけ」が
+            //   数字のふちあたりに小さく見えていた（黄色い腕は金の数字に溶けて見えない）。色を白にすると30pxの白い十字が数字に乗る
+            //   → 元の色のまま加算する（白くするのはやめた。ふち付きの星は今まで通り）
+            PrepareSparkle(source);
+            Texture2D star = source;
             int v = (int)(comboSparkleTime / ComboSparkleStep) % ComboSparkleSteps;
             float within = comboSparkleTime / ComboSparkleStep % 1f; // 段の中の進み具合(ふくらみをなめらかにする)
             Raylib.BeginBlendMode(sparkleHasOutline ? BlendMode.Alpha : BlendMode.Additive);
