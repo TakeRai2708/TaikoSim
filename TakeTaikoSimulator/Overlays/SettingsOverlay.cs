@@ -739,28 +739,32 @@ namespace TakeTaikoSimulator.Overlays
                 HelpTip(SettingTexts.FullscreenNote);
             }
 
-            // 描画方式（再起動で反映。今の起動で使っているものと違えば、そう書く）
-            int backendIndex = Array.IndexOf(BackendTypes, game.GraphicsBackend);
-            int newBackendIndex = DropdownRow("graphicsBackend", "描画方式", BackendNames, backendIndex);
-            if (newBackendIndex >= 0 && newBackendIndex != backendIndex) game.GraphicsBackend = BackendTypes[newBackendIndex];
-
-            // ［描画方式を適用］：選んだ方式を保存して「再起動しますか？」を出す（11/22 たけらい：選ぶ所のすぐ下に）
-            Rectangle applyBackend = new Rectangle(LabelX, ToScreenY(cursorY), RightEdge - LabelX, 44);
-            if (game.GraphicsBackend != GraphicsBackend.Active)
+            // 描画方式は Windows だけ(ANGLE の DirectX 11 / Vulkan)。ほかの OS は OpenGL だけなので出さない
+            if (OperatingSystem.IsWindows())
             {
-                if (Gui.PrimaryButton(applyBackend, "描画方式を適用"))
+                // 描画方式（再起動で反映。今の起動で使っているものと違えば、そう書く）
+                int backendIndex = Array.IndexOf(BackendTypes, game.GraphicsBackend);
+                int newBackendIndex = DropdownRow("graphicsBackend", "描画方式", BackendNames, backendIndex);
+                if (newBackendIndex >= 0 && newBackendIndex != backendIndex) game.GraphicsBackend = BackendTypes[newBackendIndex];
+
+                // ［描画方式を適用］：選んだ方式を保存して「再起動しますか？」を出す（11/22 たけらい：選ぶ所のすぐ下に）
+                Rectangle applyBackend = new Rectangle(LabelX, ToScreenY(cursorY), RightEdge - LabelX, 44);
+                if (game.GraphicsBackend != GraphicsBackend.Active)
                 {
-                    ConfigManager.Game.GraphicsBackend = game.GraphicsBackend;
-                    if (savedGame != null) savedGame.GraphicsBackend = game.GraphicsBackend;   // 全画面の［適用］で二重に聞かない
-                    ConfigManager.SaveAll();
-                    restartOpen = true;
-                    Gui.Reset();
+                    if (Gui.PrimaryButton(applyBackend, "描画方式を適用"))
+                    {
+                        ConfigManager.Game.GraphicsBackend = game.GraphicsBackend;
+                        if (savedGame != null) savedGame.GraphicsBackend = game.GraphicsBackend;   // 全画面の［適用］で二重に聞かない
+                        ConfigManager.SaveAll();
+                        restartOpen = true;
+                        Gui.Reset();
+                    }
                 }
+                else Gui.DrawCentered($"{GraphicsBackend.Name(GraphicsBackend.Active)} で動いています", applyBackend, 22, Gui.SubTextColor);
+                cursorY += 56;
+                HelpTip(SettingTexts.GraphicsBackend);
+                if (GraphicsBackend.FallbackReason != null) NoteRow(GraphicsBackend.FallbackReason);
             }
-            else Gui.DrawCentered($"{GraphicsBackend.Name(GraphicsBackend.Active)} で動いています", applyBackend, 22, Gui.SubTextColor);
-            cursorY += 56;
-            HelpTip(SettingTexts.GraphicsBackend);
-            if (GraphicsBackend.FallbackReason != null) NoteRow(GraphicsBackend.FallbackReason);
 
             // 垂直同期
             bool vsync = CheckboxRow("垂直同期", game.VSync);
@@ -884,8 +888,10 @@ namespace TakeTaikoSimulator.Overlays
             }
 
             // ----- 出力方式 -----
-            int selected = Math.Clamp((int)sound.OutputType, 0, OutputTypeNames.Length - 1);
-            sound.OutputType = (AudioOutputType)DropdownRow("outputType", "出力方式", OutputTypeNames, selected);
+            // Windows 以外は BASS だけ(DirectSound・WASAPI・ASIO は Windows の仕組み)
+            string[] names = OperatingSystem.IsWindows() ? OutputTypeNames : OutputTypeNames[..1];
+            int selected = Math.Clamp((int)sound.OutputType, 0, names.Length - 1);
+            sound.OutputType = (AudioOutputType)DropdownRow("outputType", "出力方式", names, selected);
             HelpTip(GetOutputDescription(sound.OutputType));
 
             // ----- バッファ(方式ごと) -----

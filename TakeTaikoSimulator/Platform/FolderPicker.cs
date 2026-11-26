@@ -50,6 +50,10 @@ namespace TakeTaikoSimulator.Platform
         // フォルダを選ばせて、選んだフォルダの場所を返す(キャンセルや失敗なら null)
         public static string? Pick(string title, IntPtr owner = default)
         {
+            if (OperatingSystem.IsMacOS()) return PickMac(title);
+            if (OperatingSystem.IsLinux()) return PickLinux(title);
+            if (!OperatingSystem.IsWindows()) return null;   // iOS・Android は、それぞれの画面を作るときに別で用意する
+
             if (owner != IntPtr.Zero && Thread.CurrentThread.GetApartmentState() == ApartmentState.STA)
                 return PickCore(title, owner);
 
@@ -100,5 +104,37 @@ namespace TakeTaikoSimulator.Platform
                 OleUninitialize();
             }
         }
-    }
+    
+        // macOS：AppleScript の「フォルダを選択」を出す(osascript。macOS に最初から入っている)
+        private static string? PickMac(string title)
+        {
+            string escaped = title.Replace("\\", "\\\\").Replace("\"", "\\\"");
+            return RunAndReadLine("/usr/bin/osascript", ["-e", $"POSIX path of (choose folder with prompt \"{escaped}\")"]);
+        }
+
+        // Linux：zenity があれば、それでフォルダを選ばせる(無ければ選べない)
+        private static string? PickLinux(string title) =>
+            RunAndReadLine("zenity", ["--file-selection", "--directory", $"--title={title}"]);
+
+        // コマンドを動かして、1行目(選んだ場所)を返す。キャンセル・失敗なら null
+        private static string? RunAndReadLine(string file, string[] arguments)
+        {
+            try
+            {
+                var info = new System.Diagnostics.ProcessStartInfo(file) { RedirectStandardOutput = true, UseShellExecute = false };
+                foreach (string argument in arguments) info.ArgumentList.Add(argument);
+                using var process = System.Diagnostics.Process.Start(info);
+                if (process == null) return null;
+                string output = process.StandardOutput.ReadToEnd().Trim();
+                process.WaitForExit();
+                if (process.ExitCode != 0 || output.Length == 0) return null;
+                return Path.TrimEndingDirectorySeparator(output);
+            }
+            catch (Exception ex) when (ex is System.ComponentModel.Win32Exception || ex is InvalidOperationException)
+            {
+                Console.WriteLine($"[FolderPicker] フォルダ選択の画面を出せませんでした: {ex.Message}");
+                return null;
+            }
+        }
+}
 }

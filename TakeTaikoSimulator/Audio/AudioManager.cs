@@ -152,6 +152,12 @@ namespace TakeTaikoSimulator.Audio
         private static bool TryInit(AudioOutputType type, int bufferMs, int asioDevice, out string error)
         {
             error = "";
+            // DirectSound・WASAPI・ASIO は Windows だけ。ほかの OS(macOS など)では BASS(その OS のふつうの出し方)にする
+            if (type != AudioOutputType.Bass && !OperatingSystem.IsWindows())
+            {
+                error = "Windows だけの方式です";
+                return false;
+            }
             try
             {
                 bool ok = type switch

@@ -9,11 +9,15 @@
 		<RootNamespace>TakeTaikoSimulator</RootNamespace>
 		<AssemblyTitle>TakeTaiko</AssemblyTitle>
 		<Product>TakeTaiko</Product>
-		<ApplicationIcon>Assets/Branding/AppIcon.ico</ApplicationIcon>
-		<ApplicationManifest>app.manifest</ApplicationManifest>
+		<ApplicationIcon Condition="'$(OS)' == 'Windows_NT'">Assets/Branding/AppIcon.ico</ApplicationIcon>
+		<ApplicationManifest Condition="'$(OS)' == 'Windows_NT'">app.manifest</ApplicationManifest>
 		<!-- exe横の既存データを引き継ぐため、ビルド出力先は旧プロジェクトと同じ場所にする -->
 		<BaseOutputPath>$(MSBuildThisFileDirectory)../TaikoSim/bin/</BaseOutputPath>
-		<TargetFramework>net10.0-windows</TargetFramework>
+		<!-- Windows でビルドしたときは今までどおり net10.0-windows（出力先のフォルダ名も同じ）。
+		     macOS などでビルドしたときは net10.0（Windows 専用の部分は、動かしたときに OperatingSystem.IsWindows() で避ける）
+		     11/26 たけらい「ios、android、mac os 対応させたい」：まずは macOS から -->
+		<TargetFramework Condition="'$(OS)' == 'Windows_NT'">net10.0-windows</TargetFramework>
+		<TargetFramework Condition="'$(OS)' != 'Windows_NT'">net10.0</TargetFramework>
 		<ImplicitUsings>enable</ImplicitUsings>
 		<Nullable>enable</Nullable>
 		<!-- SDF フォント(Graphics/DynamicFont.cs)で、Raylib の LoadFontData にフォントのデータを直接渡すため -->
@@ -66,34 +70,46 @@
 			<CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory>
 		</None>
 		<!-- BASS本体(64bit版)。ビルドすると exe の横にコピーされる -->
-		<None Update="bass.dll">
+		<None Update="bass.dll" Condition="'$(OS)' == 'Windows_NT'">
 			<CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory>
 		</None>
 		<!-- BASS の追加部品(64bit版)。無くてもビルドはできる(その方式が使えないだけ) -->
-		<None Update="bassmix.dll">
+		<None Update="bassmix.dll" Condition="'$(OS)' == 'Windows_NT'">
 			<CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory>
 		</None>
-		<None Update="basswasapi.dll">
+		<None Update="basswasapi.dll" Condition="'$(OS)' == 'Windows_NT'">
 			<CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory>
 		</None>
-		<None Update="bassasio.dll">
+		<None Update="bassasio.dll" Condition="'$(OS)' == 'Windows_NT'">
 			<CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory>
 		</None>
 		<!-- 描画方式 DirectX 11 / Vulkan 用（Graphics/GraphicsBackend.cs）
 		     raylib_angle.dll … raylib 6.0 を OpenGL ES 3.0 でビルドしたもの（tools/angle-build で作る）
 		     libEGL.dll・libGLESv2.dll … ANGLE（BSD ライセンス。OpenTaiko の Libs/win-x64 から） -->
-		<None Update="raylib_angle.dll">
+		<None Update="raylib_angle.dll" Condition="'$(OS)' == 'Windows_NT'">
 			<CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory>
 		</None>
-		<None Update="libEGL.dll">
+		<None Update="libEGL.dll" Condition="'$(OS)' == 'Windows_NT'">
 			<CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory>
 		</None>
-		<None Update="libGLESv2.dll">
+		<None Update="libGLESv2.dll" Condition="'$(OS)' == 'Windows_NT'">
 			<CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory>
 		</None>
 		<!-- Vulkan の入り口（Khronos Vulkan-Loader。Apache-2.0。OpenTaiko の Libs/win-x64 から）。
 		     ANGLE は自分の横の vulkan-1.dll を使うので、これが無いと Vulkan で EGL を始められなかった（11/22） -->
-		<None Update="vulkan-1.dll">
+		<None Update="vulkan-1.dll" Condition="'$(OS)' == 'Windows_NT'">
+			<CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory>
+		</None>
+	</ItemGroup>
+
+	<!-- macOS 用の BASS（un4seen.com の「bass24-osx.zip」と「bassmix24-osx.zip」の中の .dylib）。
+	     プロジェクトのフォルダに置いておくと、macOS でビルドしたときに実行ファイルの横へコピーされる。
+	     WASAPI・ASIO は Windows だけなので、macOS は BASS（標準）だけで鳴らす -->
+	<ItemGroup Condition="'$(OS)' != 'Windows_NT'">
+		<None Include="libbass.dylib" Condition="Exists('libbass.dylib')">
+			<CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory>
+		</None>
+		<None Include="libbassmix.dylib" Condition="Exists('libbassmix.dylib')">
 			<CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory>
 		</None>
 	</ItemGroup>

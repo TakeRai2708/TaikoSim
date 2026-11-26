@@ -49,6 +49,13 @@ internal static class StartupUpdate
     internal static bool TryStartGame(string[] args, out IDisposable? applicationLock)
     {
         applicationLock = null;
+        // 自動更新・インストーラーは今は Windows だけ(画面が Win32)。ほかの OS はそのまま起動する
+        //   (同時に2つ起動しないための鍵は、どの OS でも同じものを使う)
+        if (!OperatingSystem.IsWindows())
+        {
+            applicationLock = Acquire(Path.TrimEndingDirectorySeparator(Configs.DataPaths.Root), TimeSpan.Zero);
+            return applicationLock is not null;
+        }
         string root = Path.TrimEndingDirectorySeparator(AppContext.BaseDirectory);
         bool setup = string.Equals(Path.GetFileName(Environment.ProcessPath), "TakeTaikoSetup.exe", StringComparison.OrdinalIgnoreCase);
         bool ownsStage = false;
