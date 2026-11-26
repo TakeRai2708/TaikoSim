@@ -2550,7 +2550,7 @@ namespace TakeTaikoSimulator.Scenes
             string latencyText = !latencyMeasured ? "（曲が鳴ると出ます）"
                 : AudioManager.Mixer != 0
                     ? $"まだ鳴っていない量 平均 {latencyAverageMs:0.0} ms（曲の位置から引いている）"
-                    : $"機器の遅れ＋バッファ 平均 {latencyAverageMs:0.0} ms（バッファ {AudioManager.BassBufferMs} ms。曲の位置から引いている）";
+                    : $"機器の遅れ＋エンジン 平均 {latencyAverageMs:0.0} ms（バッファ {AudioManager.BassBufferMs} ms。曲の位置から引いている）";
             string lagText = AudioManager.HitSoundLagMs > 0 ? $"　効果音の遅れ（補正はしない） 約{AudioManager.HitSoundLagMs:0.0} ms" : "";
             Line($"出力 {AudioManager.GetTypeName(AudioManager.CurrentType)}　{latencyText}{lagText}", Color.White);
             Line($"入力 {DrumInputScheduler.ModeName(ConfigManager.Game.InputTiming)} / 60打制限 {(ConfigManager.Game.LimitDrumHitsTo60PerSecond ? "ON" : "OFF")}",

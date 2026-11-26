@@ -913,9 +913,9 @@ namespace TakeTaikoSimulator.Overlays
         // 方式ごとの説明
         private static string GetOutputDescription(AudioOutputType type) => type switch
         {
-            AudioOutputType.Bass => "BASS におまかせで鳴らします（中では WASAPI 共有）。いちばん安定しています。",
-            AudioOutputType.DirectSound => "昔の方式です。ほかの方式でうまく鳴らないときに使ってください。遅延は少し増えます。",
-            AudioOutputType.WasapiShared => "Windows の普通の出し方です。ほかのアプリの音も一緒に鳴ります。※ bassmix.dll と basswasapi.dll が必要です",
+            AudioOutputType.Bass => "BASS におまかせで鳴らします（中では WASAPI 共有）。いちばん安定しています。Windows の音声エンジンを通る分の遅れ（ふつう約20ms）も、自動で引いて合わせます。",
+            AudioOutputType.DirectSound => "昔の方式です。ほかの方式でうまく鳴らないときに使ってください。遅延は少し増えます。Windows の音声エンジンの遅れ（ふつう約20ms）は、自動で引いて合わせます。",
+            AudioOutputType.WasapiShared => "Windows の普通の出し方です。ほかのアプリの音も一緒に鳴ります。Windows の音声エンジンの遅れ（ふつう約20ms）は、自動で引いて合わせます。※ bassmix.dll と basswasapi.dll が必要です",
             AudioOutputType.WasapiExclusive => "TakeTaikoSimulator が音の出口を独り占めします。遅延がかなり減るかわりに、起動中はほかのアプリの音が出なくなります。※ bassmix.dll と basswasapi.dll が必要です",
             AudioOutputType.Asio => "ASIO ドライバで出します。いちばん速いですが、対応した機器（オーディオインターフェースなど）が必要です。※ bassmix.dll と bassasio.dll が必要です",
             _ => "",
