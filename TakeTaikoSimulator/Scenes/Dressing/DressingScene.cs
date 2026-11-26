@@ -180,7 +180,12 @@ public sealed class DressingScene : Scene
                 if (!draft.Dirty) continue;
                 // 未知の項目は維持し、画面で変更した値だけを保存する。
                 var previous = PlayerDataStore.Appearance(slot);
-                changeChara |= previous.DonchanId != draft.Appearance.DonchanId || previous.DonchanType != draft.Appearance.DonchanType;
+                // 11/26 たけらい「キャラ変えずにほかを適応するたびにキャラの読み込みが始まる」
+                //   前は DonchanId・DonchanType の文字や番号をそのまま比べていた。ファイルの値が空（""）や古い番号のままだと、
+                //   一覧で同じキャラを選んだだけでも「変わった」になり、毎回キャラを読み込み直していた（CharaBaker.Start）
+                //   → 実際に使うキャラ（CosmeticCatalog.Choose で決まるフォルダ）が変わったときだけ読み込み直す
+                changeChara |= CosmeticCatalog.Choose(characters, previous.DonchanId, previous.DonchanType)
+                    != CosmeticCatalog.Choose(characters, draft.Appearance.DonchanId, draft.Appearance.DonchanType);
                 var saved = PlayerDataStore.Copy(PlayerDataStore.NamePlate(slot));
                 saved.NamePlateId = draft.Plate.NamePlateId;
                 saved.Name = draft.Plate.Name;
