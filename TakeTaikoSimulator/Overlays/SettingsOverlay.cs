@@ -81,6 +81,10 @@ namespace TakeTaikoSimulator.Overlays
         private bool unsavedOpen;
         private bool restartOpen;   // 描画方式を変えて適用したあとの「再起動しますか？」
         private GameConfig ActiveGame => fullScreen ? draftGame! : ConfigManager.Game;
+        // 右の中身のパネル（グラデーションの基準の四角。上に重ねる帯もこの四角の続きの色でぬる）
+        private Rectangle PanelArea => new Rectangle(SidebarWidth, HeaderHeight, CurrentWidth - SidebarWidth, Screen.Height - HeaderHeight - HintHeight);
+        private Rectangle BackArea => new Rectangle(0, 0, CurrentWidth, Screen.Height);   // 背景のグラデーションの基準
+        private static readonly string[] UiThemeNames = { "ダーク", "ピンク" };   // UiThemeKind の順
         private SoundConfig ActiveSound => fullScreen ? draftSound! : ConfigManager.Sound;
         private KeyConfig ActiveKey => fullScreen ? draftKey! : ConfigManager.Key;
         private SkinConfig ActiveSkin => fullScreen ? draftSkin! : ConfigManager.Skin;
@@ -223,6 +227,7 @@ namespace TakeTaikoSimulator.Overlays
             fullScreen = false;
             skinPreview.Unload(); // プレビューの画像を片付ける
             draftGame = savedGame = null;
+            UiTheme.Apply(ConfigManager.Game);   // 全画面の設定で色を試して、取り消したときに戻す
             draftSound = savedSound = null;
             draftKey = savedKey = null;
             draftSkin = savedSkin = null;
@@ -309,7 +314,7 @@ namespace TakeTaikoSimulator.Overlays
         {
             Raylib.DrawRectangle(0, 0, Screen.Width, Screen.Height, new Color(0, 0, 0, 175));
             Rectangle box = new Rectangle(530, 360, 860, 330);
-            SmoothShapes.Rectangle(box, 20, Gui.PanelColor);
+            UiTheme.FillPanel(box, 20);
             SmoothShapes.Border(box, 20, 1.5f, Gui.BorderColor);
 
             FontManager.Draw("再起動しますか？", box.X + 50, box.Y + 48, 38, Color.White);
@@ -452,10 +457,8 @@ namespace TakeTaikoSimulator.Overlays
             Rlgl.PushMatrix();
             Rlgl.Translatef(slideX, 0f, 0f);
 
-            if (fullScreen) Raylib.DrawRectangle(0, 0, Screen.Width, Screen.Height, Gui.BackgroundColor);
-            Raylib.DrawRectangle(0, 0, (int)CurrentWidth, Screen.Height, Gui.BackgroundColor);
-            Raylib.DrawRectangleRec(new Rectangle(SidebarWidth, HeaderHeight,
-                CurrentWidth - SidebarWidth, Screen.Height - HeaderHeight - HintHeight), Gui.PanelColor);
+            UiTheme.FillBackground(BackArea);   // 11/26 背景も斜めのグラデーション（全画面は画面全体、パネルはパネルの幅）
+            UiTheme.FillPanel(PanelArea, 0f);   // 11/26 パネルは斜めのグラデーション（UiTheme）
             Raylib.DrawLine((int)SidebarWidth, (int)HeaderHeight, (int)SidebarWidth,
                 Screen.Height - (int)HintHeight, Gui.BorderColor);
 
@@ -498,7 +501,7 @@ namespace TakeTaikoSimulator.Overlays
 
             // カテゴリを変えた直後：上に背景と同じ色をうすくしながら重ねて、中身がじわっと出てくるように見せる
             if (swEase < 1f)
-                Raylib.DrawRectangleRec(content, Gui.WithAlpha(Gui.PanelColor, 1f - swEase));
+                UiTheme.FillPanelPart(PanelArea, content, 1f - swEase);
 
             Gui.ResetClip();
             Screen.EndScissorMode();
@@ -629,7 +632,7 @@ namespace TakeTaikoSimulator.Overlays
             if (resetStep == 1)
             {
                 Rectangle box = new Rectangle(510, 200, 900, 680);
-                SmoothShapes.Rectangle(box, 20, Gui.PanelColor);
+                UiTheme.FillPanel(box, 20);
                 SmoothShapes.Border(box, 20, 1.5f, Gui.BorderColor);
                 FontManager.Draw($"{who} の初期化", box.X + 50, box.Y + 40, 36, Color.White);
                 FontManager.Draw("消す物にチェックを入れてください", box.X + 50, box.Y + 96, 24, Gui.SubTextColor);
@@ -656,7 +659,7 @@ namespace TakeTaikoSimulator.Overlays
             }
 
             Rectangle confirm = new Rectangle(510, 300, 900, 480);
-            SmoothShapes.Rectangle(confirm, 20, Gui.PanelColor);
+            UiTheme.FillPanel(confirm, 20);
             SmoothShapes.Border(confirm, 20, 1.5f, Gui.BorderColor);
             FontManager.Draw("！ 本当に初期化しますか？", confirm.X + 50, confirm.Y + 40, 36, ErrorColor);
             FontManager.Draw(who, confirm.X + 50, confirm.Y + 108, 30, Color.White);
@@ -713,6 +716,16 @@ namespace TakeTaikoSimulator.Overlays
 
             GameConfig game = ActiveGame;
             bool windowChanged = false;
+
+            // UI の色（11/26 たけらい）。押したらその場で色が変わる（全画面の設定でも、閉じて取り消せば元に戻る）
+            int themeIndex = (int)UiTheme.Parse(game.UiTheme);
+            int newThemeIndex = DropdownRow("uiTheme", "UIの色", UiThemeNames, themeIndex);
+            if (newThemeIndex >= 0 && newThemeIndex != themeIndex)
+            {
+                game.UiTheme = ((UiThemeKind)newThemeIndex).ToString();
+                UiTheme.Apply(game);
+            }
+            HelpTip(SettingTexts.UiTheme);
 
             // 画面解像度
             int resIndex = Array.FindIndex(GameConfig.Resolutions, r => r.Width == game.WindowWidth && r.Height == game.WindowHeight);
@@ -959,6 +972,19 @@ namespace TakeTaikoSimulator.Overlays
             game.AudioOffsetMs = SliderRow("audioOffset", "音オフセット[ms]", game.AudioOffsetMs, GameConfig.OffsetMin, GameConfig.OffsetMax);
             HelpTip("判定のタイミングごとずらします（判定が合わないとき）");
 
+            // ［タイミングを測る］：メトロノームに合わせて叩いて、音オフセットを決める(Scenes/TimingCalibrationScene.cs)
+            //   演奏中は曲を止めることになるので出さない
+            if (!InPlay)
+            {
+                Rectangle measure = new Rectangle(LabelX, ToScreenY(cursorY), RightEdge - LabelX, 44);
+                if (Gui.Button(measure, "タイミングを測る（叩いて音オフセットを決める）"))
+                {
+                    Close();
+                    SceneManager.Simple(new TimingCalibrationScene());
+                }
+                cursorY += 56;
+            }
+
             // 譜面オフセット(見た目だけずらす)
             game.ChartOffsetMs = SliderRow("chartOffset", "譜面オフセット[ms]", game.ChartOffsetMs, GameConfig.OffsetMin, GameConfig.OffsetMax);
             HelpTip("音符の見た目だけずらします（判定は変わりません）");
@@ -1090,7 +1116,7 @@ namespace TakeTaikoSimulator.Overlays
             {
                 if (Gui.PrimaryButton(applySkin, "スキンを適用")) ApplySkinNow(skin);
             }
-            else Gui.DrawCentered($"{skin.SkinName} を使っています", applySkin, 22, Gui.SubTextColor);
+            else Gui.DrawCentered($"{names[index]} を使っています", applySkin, 22, Gui.SubTextColor);
             cursorY += 56;
 
             // ----- プレビュー(選んでいるスキンの音符。まだ切り替えていないスキンも、そのスキンの画像で見せる) -----
@@ -1395,6 +1421,11 @@ namespace TakeTaikoSimulator.Overlays
             {
                 DrawWaitingBox(new Rectangle(LabelX + 34, addY + 2, RightEdge - LabelX - 34, 36), "キーを押してください（Escでキャンセル）");
             }
+            else if (keys.Count >= KeyConfig.MaxKeysPerPart)
+            {
+                // 4つ入っていたら追加ボタンの代わりに説明（11/26 たけらい）
+                FontManager.Draw($"{KeyConfig.MaxKeysPerPart} つまでです（×で外すと追加できます）", LabelX + 34, addY + 8, 22, Gui.SubTextColor);
+            }
             else if (Gui.Button(new Rectangle(LabelX + 34, addY + 2, 160, 36), "＋ 追加"))
             {
                 waitingTarget = new KeyTarget(true, part, default);
@@ -1467,7 +1498,7 @@ namespace TakeTaikoSimulator.Overlays
 
             // 操作説明の1段上に出す
             Rectangle bar = new Rectangle(SidebarWidth, Screen.Height - HintHeight - 64, CurrentWidth - SidebarWidth, 64);
-            Raylib.DrawRectangleRec(bar, Gui.PanelColor);
+            UiTheme.FillPanelPart(PanelArea, bar);
             FontManager.Draw(FitText(message, CurrentWidth - LabelX - 20, 26), LabelX, bar.Y + 18, 26, messageColor);
         }
 
@@ -1485,7 +1516,7 @@ namespace TakeTaikoSimulator.Overlays
             else hint = fullScreen ? "Esc：戻る　スライダーは←→でも調整できます" : "Esc：閉じる　スライダーは←→でも調整できます";
 
             Rectangle bar = new Rectangle(0, Screen.Height - HintHeight, CurrentWidth, HintHeight);
-            Raylib.DrawRectangleRec(bar, Gui.BackgroundColor);
+            UiTheme.FillBackgroundPart(BackArea, bar);
             Raylib.DrawLine(0, (int)bar.Y, (int)CurrentWidth, (int)bar.Y, Gui.BorderColor);
             FontManager.Draw(hint, fullScreen ? LabelX : 24, bar.Y + 26, 20, Gui.SubTextColor);
             if (fullScreen)
@@ -1510,7 +1541,7 @@ namespace TakeTaikoSimulator.Overlays
         {
             Raylib.DrawRectangle(0, 0, Screen.Width, Screen.Height, new Color(0, 0, 0, 175));
             Rectangle box = new Rectangle(530, 360, 860, 330);
-            SmoothShapes.Rectangle(box, 20, Gui.PanelColor);
+            UiTheme.FillPanel(box, 20);
             SmoothShapes.Border(box, 20, 1.5f, Gui.BorderColor);
 
             Rectangle close = new Rectangle(box.X + 20, box.Y + 18, 50, 48);
@@ -1536,7 +1567,7 @@ namespace TakeTaikoSimulator.Overlays
             Raylib.DrawRectangle(0, 0, Screen.Width, Screen.Height, new Color(0, 0, 0, 160));
 
             Rectangle box = new Rectangle(560, 340, 800, 400);
-            SmoothShapes.Rectangle(box, 20, Gui.PanelColor);
+            UiTheme.FillPanel(box, 20);
             SmoothShapes.Border(box, 20, 1.5f, Gui.BorderColor);
 
             string names = string.Join("・", confirmEmptyParts.Select(KeyConfig.GetDrumPartName));
@@ -1699,6 +1730,7 @@ namespace TakeTaikoSimulator.Overlays
         private void UpdateScroll(Rectangle content)
         {
             float maxScroll = Math.Max(0f, contentHeight - content.Height);
+            lastMaxScroll = maxScroll;
 
             // スクロールバーをつまむか、レールを押すとその場所へ移動する
             if (maxScroll > 0f && !Gui.IsPopupOpen)
@@ -1740,10 +1772,17 @@ namespace TakeTaikoSimulator.Overlays
         }
 
         // 今見ているカテゴリ(左の文字を目立たせる用)
+        private float lastMaxScroll;   // いちばん下までスクロールできる量（UpdateScroll で覚える）
+
         private Category GetCurrentCategory()
         {
             if (fullScreen) return selectedCategory;
             if (clickedCategory != null) return clickedCategory.Value;
+
+            // 11/26 一番下までスクロールしたら、最後のカテゴリ（スキン）にする。
+            //   スキンは短いので、見出しが上まで来る前に一番下に着いてしまい、ずっと「キー」が光っていた
+            if (lastMaxScroll > 0f && scroll >= lastMaxScroll - 2f && sectionPos.Count > 0)
+                return sectionPos.MaxBy(pair => pair.Value).Key;
 
             Category current = Category.General;
             float best = -1f;
@@ -1762,7 +1801,7 @@ namespace TakeTaikoSimulator.Overlays
 
         private void DrawHeader()
         {
-            Raylib.DrawRectangle(0, 0, (int)CurrentWidth, (int)HeaderHeight, Gui.BackgroundColor);
+            UiTheme.FillBackgroundPart(BackArea, new Rectangle(0, 0, CurrentWidth, HeaderHeight));
             Raylib.DrawLine(0, (int)HeaderHeight, (int)CurrentWidth, (int)HeaderHeight, Gui.BorderColor);
             if (fullScreen)
             {
@@ -1789,8 +1828,7 @@ namespace TakeTaikoSimulator.Overlays
 
         private void DrawSidebar()
         {
-            Raylib.DrawRectangle(0, (int)HeaderHeight, (int)SidebarWidth,
-                Screen.Height - (int)HeaderHeight - (int)HintHeight, Gui.BackgroundColor);
+            UiTheme.FillBackgroundPart(BackArea, new Rectangle(0, HeaderHeight, SidebarWidth, Screen.Height - HeaderHeight - HintHeight));
             FontManager.Draw("カテゴリ", 28, HeaderHeight + 20, 19, Gui.SubTextColor);
             Category current = GetCurrentCategory();
             Category[] categories = Enum.GetValues<Category>();

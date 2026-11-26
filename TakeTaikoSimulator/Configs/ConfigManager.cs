@@ -40,6 +40,7 @@ namespace TakeTaikoSimulator.Configs
         public static void Replace(GameConfig game, SoundConfig sound, KeyConfig key, SkinConfig skin)
         {
             Game = game;
+            UI.UiTheme.Apply(game);
             Sound = sound;
             Key = key;
             Skin = skin;
@@ -59,6 +60,7 @@ namespace TakeTaikoSimulator.Configs
             Game.Fix();
             Key.Fix();
             Skin.Fix();
+            UI.UiTheme.Apply(Game);
 
             // 直した値や、新しく増えた項目をファイルに反映
             SaveAll();

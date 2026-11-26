@@ -317,8 +317,36 @@ internal sealed class UpdateWindow(string heading, string body, string? primary,
         switch (message)
         {
             case 0x000F: // WM_PAINT
+                // 11/26 たけらい「画面更新時に点滅する」→ 画面に直接描くと「背景で塗りつぶす→上に描く」途中が一瞬見えるので、
+                //   見えない紙（メモリ上の絵）に全部描いてから、1 回で画面に写す（ダブルバッファ）
                 nint canvas = BeginPaint(hwnd, out PaintData paint);
-                try { Paint(canvas); }
+                try
+                {
+                    GetClientRect(hwnd, out Rect client);
+                    int w = Math.Max(1, client.Right - client.Left), h = Math.Max(1, client.Bottom - client.Top);
+                    nint memory = CreateCompatibleDC(canvas);
+                    nint bitmap = memory != 0 ? CreateCompatibleBitmap(canvas, w, h) : 0;
+                    if (bitmap == 0)
+                    {
+                        if (memory != 0) DeleteDC(memory);
+                        Paint(canvas);
+                    }
+                    else
+                    {
+                        nint old = SelectObject(memory, bitmap);
+                        try
+                        {
+                            Paint(memory);
+                            BitBlt(canvas, 0, 0, w, h, memory, 0, 0, 0x00CC0020); // SRCCOPY
+                        }
+                        finally
+                        {
+                            SelectObject(memory, old);
+                            DeleteObject(bitmap);
+                            DeleteDC(memory);
+                        }
+                    }
+                }
                 finally { EndPaint(hwnd, ref paint); }
                 return 0;
             case 0x0014: // WM_ERASEBKGND
@@ -404,8 +432,11 @@ internal sealed class UpdateWindow(string heading, string body, string? primary,
         }
         else
         {
-            Rounded(canvas, tile, Accent, Accent, Scale(14));
-            DrawLabel(canvas, "T", tile, headingFont, White, 0x25);
+            if (!DrawAppIcon(canvas, tile))
+            {
+                Rounded(canvas, tile, Accent, Accent, Scale(14));
+                DrawLabel(canvas, "T", tile, headingFont, White, 0x25);
+            }
         }
         int textLeft = contentLeft + 58;
         string? subtitle = progressText ?? Subtitle;
@@ -446,6 +477,36 @@ internal sealed class UpdateWindow(string heading, string body, string? primary,
         }
     }
 
+    // exe に入っているアイコン（csproj の ApplicationIcon）を、その大きさで取り出して描く。大きさごとに 1 回だけ取り出して使い回す
+    private readonly Dictionary<int, nint> appIcons = new();
+
+    private bool DrawAppIcon(nint canvas, Rect area)
+    {
+        int size = Math.Min(area.Right - area.Left, area.Bottom - area.Top);
+        if (size <= 0) return false;
+        if (!appIcons.TryGetValue(size, out nint icon))
+        {
+            icon = 0;
+            try
+            {
+                string? exe = Environment.ProcessPath;
+                if (!string.IsNullOrEmpty(exe))
+                {
+                    var icons = new nint[1];
+                    var ids = new uint[1];
+                    if (PrivateExtractIcons(exe, 0, size, size, icons, ids, 1, 0) >= 1)
+                        icon = icons[0];
+                }
+            }
+            catch { icon = 0; }
+            appIcons[size] = icon;
+        }
+        if (icon == 0) return false;
+        int x = area.Left + (area.Right - area.Left - size) / 2;
+        int y = area.Top + (area.Bottom - area.Top - size) / 2;
+        return DrawIconEx(canvas, x, y, icon, size, size, 0, 0, 3);
+    }
+
     private void PaintSidebar(nint canvas)
     {
         int bottom = logicalHeight - (Footer is not null ? FooterHeight : 0);
@@ -454,8 +515,12 @@ internal sealed class UpdateWindow(string heading, string body, string? primary,
 
         // ロゴの札と名前
         Rect logo = Box(18, 22, 36, 36);
-        Rounded(canvas, logo, Accent, Accent, Scale(12));
-        DrawLabel(canvas, "T", logo, brandFont, White, 0x25);
+        // 11/26 たけらい「左上のアイコンは今使ってるのにしよ」→ exe に入っているアイコン（AppIcon.ico）。取れないときだけ前の「T」の札
+        if (!DrawAppIcon(canvas, logo))
+        {
+            Rounded(canvas, logo, Accent, Accent, Scale(12));
+            DrawLabel(canvas, "T", logo, brandFont, White, 0x25);
+        }
         DrawLabel(canvas, "TakeTaiko", Box(64, 22, SideWidth - 70, 20), brandFont, Text, 0x24);
         DrawLabel(canvas, "インストーラー", Box(64, 41, SideWidth - 70, 18), smallFont, Muted, 0x24);
 
@@ -672,6 +737,8 @@ internal sealed class UpdateWindow(string heading, string body, string? primary,
     [DllImport("user32.dll")] private static extern nint SetFocus(nint window);
     [DllImport("user32.dll")] private static extern nint GetFocus();
     [DllImport("user32.dll")] private static extern bool DestroyWindow(nint window);
+    [DllImport("user32.dll", CharSet = CharSet.Unicode)] private static extern uint PrivateExtractIcons(string file, int index, int width, int height, nint[] icons, uint[] ids, uint count, uint flags);
+    [DllImport("user32.dll")] private static extern bool DrawIconEx(nint canvas, int x, int y, nint icon, int width, int height, uint step, nint background, uint flags);
     [DllImport("user32.dll", EntryPoint = "LoadCursorW")] private static extern nint LoadCursor(nint instance, nint id);
     [DllImport("user32.dll", EntryPoint = "SystemParametersInfoW")] private static extern bool SystemParametersInfo(uint action, uint parameter, out Rect value, uint flags);
     [DllImport("user32.dll")] private static extern bool ScreenToClient(nint window, ref Point point);
@@ -696,6 +763,10 @@ internal sealed class UpdateWindow(string heading, string body, string? primary,
     [DllImport("gdi32.dll")] private static extern nint CreatePen(int style, int width, uint color);
     [DllImport("gdi32.dll")] private static extern nint SelectObject(nint canvas, nint handle);
     [DllImport("gdi32.dll")] private static extern bool DeleteObject(nint handle);
+    [DllImport("gdi32.dll")] private static extern nint CreateCompatibleDC(nint canvas);
+    [DllImport("gdi32.dll")] private static extern nint CreateCompatibleBitmap(nint canvas, int width, int height);
+    [DllImport("gdi32.dll")] private static extern bool DeleteDC(nint canvas);
+    [DllImport("gdi32.dll")] private static extern bool BitBlt(nint target, int x, int y, int width, int height, nint source, int sourceX, int sourceY, uint operation);
     [DllImport("gdi32.dll")] private static extern bool RoundRect(nint canvas, int left, int top, int right, int bottom, int width, int height);
     [DllImport("gdi32.dll")] private static extern bool MoveToEx(nint canvas, int x, int y, nint previous);
     [DllImport("gdi32.dll")] private static extern bool LineTo(nint canvas, int x, int y);

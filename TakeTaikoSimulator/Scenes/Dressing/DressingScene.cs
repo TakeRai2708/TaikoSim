@@ -177,7 +177,8 @@ public sealed class DressingScene : Scene
     {
         Gui.BeginFrame();
         Gui.ResetClip(); // 前の画面のクリック範囲を引き継がない
-        Raylib.ClearBackground(Gui.BackgroundColor);   // 11/12：設定と同じ色にそろえた
+        Raylib.ClearBackground(Gui.BackgroundColor);
+        UiTheme.FillBackground(new Rectangle(0, 0, Screen.Width, Screen.Height));   // 11/26 背景も斜めのグラデーション   // 11/12：設定と同じ色にそろえた
         FontManager.Draw("着せ替え", 80, 55, 48, Gui.TextColor);
         for (int player = 0; player < 2; player++)
         {
@@ -193,7 +194,7 @@ public sealed class DressingScene : Scene
             if (clicked && !asking && !readFailed && !naming)
             { category = i; SyncCursor(); }
         }
-        SmoothShapes.Rectangle(List, 18, Gui.PanelColor);
+        UiTheme.FillPanel(List, 18);
         SmoothShapes.Border(List, 18, 1.5f, Gui.BorderColor);
         if (drafts.ContainsKey(Slot))
         {
@@ -264,7 +265,7 @@ public sealed class DressingScene : Scene
         if (naming) { nameInput.Draw(); return; }
         if (!asking) return;
         Raylib.DrawRectangle(0, 0, 1920, 1080, new Color(0, 0, 0, 190));
-        SmoothShapes.Rectangle(new(450, 350, 1020, 350), 20, Gui.PanelColor);
+        UiTheme.FillPanel(new(450, 350, 1020, 350), 20);
         SmoothShapes.Border(new(450, 350, 1020, 350), 20, 1.5f, Gui.BorderColor);
         if (Gui.Button(new(470, 365, 60, 50), "×")) asking = false;
         FontManager.Draw("保存していない設定があります", 580, 440, 40, Gui.TextColor);

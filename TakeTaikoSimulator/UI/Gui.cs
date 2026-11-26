@@ -18,22 +18,24 @@ namespace TakeTaikoSimulator.UI
         //   アイコン(TakeTaiko の丸い絵)の色＝黒・深い赤・朱色・桜色・白っぽいピンク を、見やすいように落ち着かせた：
         //     背景やパネルは、ほぼ黒に赤みを少しだけ。朱色は「選んでいる物」「決定」だけ。桜色は見出しと光だけ
         //   前は 紺の背景＋青のアクセントだった
-        public static readonly Color TextColor = new Color(252, 238, 242, 255);       // 文字
-        public static readonly Color SubTextColor = new Color(191, 165, 174, 255);    // うすい文字
-        public static readonly Color MutedTextColor = new Color(125, 103, 112, 255);  // もっとうすい文字(補足)
-        public static readonly Color BoxColor = new Color(38, 23, 29, 255);           // 箱
-        public static readonly Color BoxHoverColor = new Color(51, 32, 42, 255);      // マウスを乗せた箱
-        public static readonly Color FillColor = new Color(226, 58, 94, 255);         // スライダーの塗り
-        public static readonly Color AccentColor = new Color(226, 58, 94, 255);       // 朱色(選んでいる物・決定)
-        public static readonly Color AccentDeepColor = new Color(163, 4, 27, 255);    // 押したとき
-        public static readonly Color SakuraColor = new Color(249, 188, 206, 255);     // 桜色(見出し・光)
-        public static readonly Color BackgroundColor = new Color(18, 10, 13, 255);    // 背景
-        public static readonly Color PanelColor = new Color(27, 16, 20, 255);         // パネル
-        public static readonly Color BorderColor = new Color(67, 42, 53, 255);        // 線
-        public static readonly Color TrackColor = new Color(74, 50, 60, 255);         // スイッチ・スライダーの溝
-        private static readonly Color PrimaryHoverColor = new Color(240, 96, 127, 255);
-        private static readonly Color TrackHoverColor = new Color(92, 62, 74, 255);
-        private static readonly Color BubbleTextColor = new Color(27, 16, 20, 255);
+        public static Color TextColor => UiTheme.P.Text;       // 文字
+        public static Color SubTextColor => UiTheme.P.SubText;    // うすい文字
+        public static Color MutedTextColor => UiTheme.P.MutedText;  // もっとうすい文字(補足)
+        public static Color BoxColor => UiTheme.P.Box;           // 箱
+        public static Color BoxHoverColor => UiTheme.P.BoxHover;      // マウスを乗せた箱
+        public static Color FillColor => UiTheme.P.Fill;         // スライダーの塗り
+        public static Color AccentColor => UiTheme.P.Accent;       // 朱色(選んでいる物・決定)
+        public static Color AccentDeepColor => UiTheme.P.AccentDeep;    // 押したとき
+        public static Color SakuraColor => UiTheme.P.Sakura;     // 桜色(見出し・光)
+        public static Color BackgroundColor => UiTheme.P.Background;    // 背景
+        public static Color PanelColor => UiTheme.P.Panel;         // パネル
+        public static Color BorderColor => UiTheme.P.Border;        // 線
+        public static Color TrackColor => UiTheme.P.Track;         // スイッチ・スライダーの溝
+        private static Color PrimaryHoverColor => UiTheme.P.PrimaryHover;
+        private static Color TrackHoverColor => UiTheme.P.TrackHover;
+        private static Color BubbleTextColor => UiTheme.P.BubbleText;
+        // 11/26 UI の色をテーマ（UI/UiTheme.cs のダーク／ピンク）から読むようにした。上の数字は UiTheme.Dark に移した
+        public static Color OnAccentColor => UiTheme.P.OnAccent;   // 朱色の上の字（ダークは白、ピンクはピンク）
         private const float ControlRadius = 10;
 
         // ===== 光(glow) =====
@@ -61,17 +63,44 @@ namespace TakeTaikoSimulator.UI
         //   11/12 たけらい「注意書きのポップアップUIも今のに合わせてほしい」
         //   前は画面ごとに、黒い帯に黄色い字（モード選択・段位は左はし、選曲はまん中）だった。
         //   設定画面と同じ見た目（パネルの色・線・朱色のしるし）にして、場所もまん中にそろえた
-        public static void Notice(string text, float y = 140f)
+        //   11/26 たけらい「トーストの存在が薄い」→ 大きく（高さ 96・字 40px）、斜めのグラデーション（UiTheme の 19°・ぼかし 320px）、
+        //   まわりにピンクのグロー、左に棒（ダーク＝ピンク、ピンク＝白）。上から降りてきて、最後にふわっと消える
+        public const float NoticeSeconds = 3f;      // 出ている時間（ShowToast でこの秒数を入れる）
+        private const float NoticeInSeconds = 0.25f, NoticeOutSeconds = 0.35f;
+
+        /// <summary>remaining：消えるまでの残り秒（ShowToast で NoticeSeconds を入れて、毎フレーム減らした値）</summary>
+        public static void Notice(string text, float remaining = NoticeSeconds, float y = 120f)
         {
-            const float size = 28f, height = 64f, pad = 34f;
-            float width = FontManager.Measure(text, size).X + pad * 2 + 14f;
-            Rectangle box = new Rectangle((1920f - width) / 2f, y, width, height);
-            SmoothShapes.Rectangle(new Rectangle(box.X, box.Y + 6f, box.Width, box.Height), 16f, new Color(0, 0, 0, 90));   // 影
-            Glow(box, 16f, AccentColor, 0.5f);
-            SmoothShapes.Rectangle(box, 16f, PanelColor);
-            SmoothShapes.Border(box, 16f, 1.5f, BorderColor);
-            SmoothShapes.Rectangle(new Rectangle(box.X + 18f, box.Y + 18f, 6f, height - 36f), 3f, AccentColor);   // 左の朱色のしるし
-            FontManager.Draw(text, box.X + pad + 14f, box.Y + (height - FontManager.Measure(text, size).Y) / 2f, size, TextColor);
+            UiPalette p = UiTheme.P;
+            const float size = 40f, height = 96f, pad = 50f, radius = 26f;
+            float age = NoticeSeconds - remaining;
+            float inT = Math.Clamp(age / NoticeInSeconds, 0f, 1f);
+            float alpha = Math.Min(inT, Math.Clamp(remaining / NoticeOutSeconds, 0f, 1f));
+            if (alpha <= 0f) return;
+            // 降りてくる：上 24px から、少し行きすぎて戻る（easeOutBack）
+            float back = 1f + 2.2f * MathF.Pow(inT - 1f, 3f) + 1.2f * MathF.Pow(inT - 1f, 2f);
+            y -= 24f * (1f - back);
+
+            float textWidth = p.ToastBoldFont ? FontManager.MeasureSkinMain(text, size).X : FontManager.Measure(text, size).X;
+            float width = textWidth + pad * 2f + 20f;
+            Rectangle box = new Rectangle(MathF.Round((1920f - width) / 2f), MathF.Round(y), MathF.Round(width), height);
+            SmoothShapes.Rectangle(new Rectangle(box.X, box.Y + 10f, box.Width, box.Height), radius, new Color(0, 0, 0, (int)(110 * alpha)));   // 影
+            Glow(box, radius, new Color(226, 58, 94, 255), 0.9f * alpha);                                                                    // ピンクのグロー
+            UiTheme.FillGradient(box, radius, p.ToastFrom, p.ToastTo, alpha);
+            SmoothShapes.Border(box, radius, p.ToastBoldFont ? 4f : 2f, WithAlpha(p.ToastBorder, alpha));
+            SmoothShapes.Rectangle(new Rectangle(box.X + 28f, box.Y + 26f, 8f, height - 52f), 4f, WithAlpha(p.ToastBar, alpha));          // 左の棒
+            float textX = box.X + 58f;
+            if (p.ToastBoldFont)
+            {
+                Rectangle ink = FontManager.MeasureSkinMainInk(text, size);
+                FontManager.DrawSkinMainOutlined(text, textX, box.Y + (height - ink.Height) / 2f - ink.Y, size,
+                    WithAlpha(p.ToastText, alpha), WithAlpha(p.ToastTextOutline, alpha), 3f);
+            }
+            else
+            {
+                Rectangle ink = FontManager.MeasureInk(text, size);
+                FontManager.Draw(text, textX, box.Y + (height - ink.Height) / 2f - ink.Y, size, WithAlpha(p.ToastText, alpha));
+            }
         }
 
         // 丸のまわりの光(スライダーのつまみ)
@@ -288,7 +317,7 @@ namespace TakeTaikoSimulator.UI
             Glow(body, ControlRadius, AccentColor, h);
             SmoothShapes.Rectangle(body, ControlRadius, Lerp(Lerp(AccentColor, PrimaryHoverColor, h), AccentDeepColor, press));
             SmoothShapes.Border(body, ControlRadius, 1.5f, WithAlpha(SakuraColor, h));
-            DrawCentered(text, body, 26, Color.White);
+            DrawCentered(text, body, 26, OnAccentColor);
             return Clicked(area);
         }
 
@@ -307,7 +336,7 @@ namespace TakeTaikoSimulator.UI
             SmoothShapes.Rounded(track, 1f, 16, Lerp(off, AccentColor, on));
             Vector2 knob = new Vector2(track.X + 18 + 30 * on, track.Y + 17);
             SmoothShapes.Circle(knob + new Vector2(0, 1.5f), 13.5f, new Color(0, 0, 0, 70)); // うすい影
-            SmoothShapes.Circle(knob, 13, Color.White);
+            SmoothShapes.Circle(knob, 13, Lerp(Color.White, OnAccentColor, on));   // ピンクは「白い溝にピンクの丸」になる
 
             return Clicked(area) ? !value : value;
         }
@@ -380,7 +409,7 @@ namespace TakeTaikoSimulator.UI
             GlowCircle(knob, radius, AccentColor, Math.Max(glow, h), 7f);
             SmoothShapes.Circle(knob + new Vector2(0, 1f), radius + 1f, new Color(0, 0, 0, 70)); // うすい影(下に 1px だけ。大きいと光が下にずれて見える)
             SmoothShapes.Circle(knob, radius, Color.White);
-            SmoothShapes.Circle(knob, radius * 0.42f, AccentColor);
+            SmoothShapes.Circle(knob, radius * 0.42f, UiTheme.P.KnobDot);
 
             // ----- 数字の吹き出し(さわっている間だけ、少し下からふわっと出る) -----
             float bubble = Approach($"sl:b:{id}", dragging || barHover ? 1f : 0f, 18f);
@@ -488,8 +517,15 @@ namespace TakeTaikoSimulator.UI
                 }
                 else
                 {
-                    string caret = (caretTimer % 1f) < 0.5f ? "|" : " ";
-                    DrawCentered(editText + caret, box, 26, TextColor);
+                    // 11/26 たけらい「数値入れるときに数字が動いてる」→ 前は「数字＋|」と「数字＋空白」を交互に真ん中寄せしていて、
+                    //   | と空白の幅の差で数字が左右に揺れていた。数字だけを真ん中寄せして、カーソルはその右に線で描く
+                    DrawCentered(editText, box, 26, TextColor);
+                    if ((caretTimer % 1f) < 0.5f)
+                    {
+                        Vector2 size = FontManager.Measure(editText.Length > 0 ? editText : " ", 26);
+                        float caretX = box.X + box.Width / 2f + (editText.Length > 0 ? size.X / 2f + 2f : 0f);
+                        SmoothShapes.Rectangle(new Rectangle(caretX, box.Y + (box.Height - 26f) / 2f, 2f, 26f), 0f, TextColor);
+                    }
                 }
             }
             else
@@ -517,7 +553,7 @@ namespace TakeTaikoSimulator.UI
                 Rectangle item = new Rectangle(area.X + 3f + i * cell, area.Y + 3f, cell, area.Height - 6f);
                 bool hover = !blocked && IsMouseOver(item);
                 float h = Approach($"seg:{id}:{i}", hover && i != selected ? 1f : 0f, 18f);
-                DrawCentered(options[i], item, 22, i == selected ? Color.White : Lerp(SubTextColor, TextColor, h));
+                DrawCentered(options[i], item, 22, i == selected ? OnAccentColor : Lerp(SubTextColor, TextColor, h));
                 if (Clicked(item)) result = i;
             }
             return result;

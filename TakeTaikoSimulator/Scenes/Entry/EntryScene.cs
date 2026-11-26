@@ -416,7 +416,7 @@ public sealed class EntryScene : Scene
             // スキンに絵が無いとき（Simple など）：Gui.cs の色で描く
             Rectangle panel = new(410, 330, 1100, 580);
             SmoothShapes.Rectangle(new Rectangle(panel.X, panel.Y + 8f, panel.Width, panel.Height), 28f, new Color(0, 0, 0, (int)(90 * open)));
-            SmoothShapes.Rectangle(panel, 28f, Gui.WithAlpha(Gui.PanelColor, open));
+            UiTheme.FillPanel(panel, 28f, open);
             SmoothShapes.Border(panel, 28f, 1.5f, Gui.WithAlpha(Gui.BorderColor, open));
             Gui.DrawCentered("どちらの太鼓であそびますか？", new Rectangle(panel.X, panel.Y + 70, panel.Width, 70), 52, Gui.WithAlpha(Gui.TextColor, open));
             Gui.DrawCentered("ひだり = 1P　　みぎ = 2P　　（叩くキーは、今叩いた方のまま）", new Rectangle(panel.X, panel.Y + 170, panel.Width, 40), 26, Gui.WithAlpha(Gui.SubTextColor, open));
