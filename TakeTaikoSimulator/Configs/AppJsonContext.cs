@@ -28,6 +28,7 @@ namespace TakeTaikoSimulator.Configs
     [JsonSerializable(typeof(SoundConfig))]
     [JsonSerializable(typeof(KeyConfig))]
     [JsonSerializable(typeof(SkinConfig))]
+    [JsonSerializable(typeof(PresetConfig))]
     [JsonSerializable(typeof(SongHistoryFile))]
     [JsonSerializable(typeof(SongCacheFile))]
     // どんちゃんのコマのキャッシュのメタ(Graphics/CharaCache.cs)
