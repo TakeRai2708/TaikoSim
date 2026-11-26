@@ -94,11 +94,13 @@ namespace TakeTaikoSimulator.Charts
 
     // Songs フォルダの中の曲を探して、カテゴリごとに一覧にする係
     // カテゴリの決まり：
-    //   ・Songs のすぐ下のフォルダ → 1つずつカテゴリ(box.def があってもなくても)。中の曲(奥のフォルダの曲も)はそこに入る
+    //   ・box.def があるフォルダ → 1つずつカテゴリ。中の曲(奥のフォルダの曲も)はそこに入る
     //       名前：box.def の #TITLE。無ければフォルダ名
     //       色　：box.def の #BACKCOLOR → #BOXCOLOR → #GENRE の色 → 灰色
-    //   ・Songs のすぐ下に直接置いた .tja → 「その他」カテゴリ(一番下)
-    //   ・奥のフォルダの box.def は使わない(すぐ下のフォルダのカテゴリに入る)
+    //       box.def のフォルダの中にある、さらに奥の box.def は使わない(外側のカテゴリに入る)
+    //   ・box.def があるフォルダの外にある曲(Songs に直接置いた曲・box.def の無いフォルダの曲) → 「未分類」カテゴリ(一番下)
+    //       11/26 たけらい「box.def が入ってるフォルダ以外の所にあったら未分類に入れてほしい」
+    //       (前は box.def の無いフォルダもフォルダ名でカテゴリにしていた。Songs に直接置いた曲は「その他」だった)
     public static class SongList
     {
         // 曲を入れる場所(exe の横の Songs フォルダ)
@@ -150,7 +152,7 @@ namespace TakeTaikoSimulator.Charts
         private const string ReadFailedMessage = "読み込めませんでした";
 
         // Songs のすぐ下に直接置いた曲のカテゴリの名前
-        public const string OthersTitle = "その他";
+        public const string OthersTitle = "未分類";
 
         // ジャンルが分からないカテゴリの色(灰色)
         public static readonly Color UncategorizedColor = new Color(90, 95, 110, 255);
@@ -232,7 +234,7 @@ namespace TakeTaikoSimulator.Charts
             Stopwatch watch = Stopwatch.StartNew();
 
             List<SongCategory> categories = new();
-            SongCategory others = new SongCategory { Title = OthersTitle }; // Songs のすぐ下に直接置いた曲
+            SongCategory others = new SongCategory { Title = OthersTitle }; // box.def があるフォルダの外の曲
             List<(SongCategory Category, string Tja, FileInfo Info)> found = new();
             int searchedFolders = 0;
             string root = SongsFolder;
@@ -247,8 +249,26 @@ namespace TakeTaikoSimulator.Charts
                 ReadSongFolder(new DirectoryInfo(root),
                     file => found.Add((others, file.FullName, file)),
                     folder => topFolders.Add(folder), ref searchedFolders);
-                topFolders.Sort((x, y) => StringComparer.OrdinalIgnoreCase.Compare(x.FullName, y.FullName));
-                foreach (DirectoryInfo folder in topFolders)
+                // box.def の無いフォルダは、中を「未分類」として探す。途中で box.def のあるフォルダが出てきたら、そこからはそのカテゴリ
+                Stack<DirectoryInfo> loose = new();
+                topFolders.Sort((x, y) => StringComparer.OrdinalIgnoreCase.Compare(y.FullName, x.FullName));   // 積むので逆順
+                foreach (DirectoryInfo folder in topFolders) loose.Push(folder);
+                List<DirectoryInfo> boxFolders = new();
+                while (loose.Count > 0)
+                {
+                    DirectoryInfo folder = loose.Pop();
+                    if (File.Exists(Path.Combine(folder.FullName, "box.def")))
+                    {
+                        boxFolders.Add(folder);
+                        continue;
+                    }
+                    List<DirectoryInfo> children = new();
+                    ReadSongFolder(folder, file => found.Add((others, file.FullName, file)), child => children.Add(child), ref searchedFolders);
+                    children.Sort((x, y) => StringComparer.OrdinalIgnoreCase.Compare(y.FullName, x.FullName));
+                    foreach (DirectoryInfo child in children) loose.Push(child);
+                }
+                boxFolders.Sort((x, y) => StringComparer.OrdinalIgnoreCase.Compare(x.FullName, y.FullName));
+                foreach (DirectoryInfo folder in boxFolders)
                 {
                     SongCategory category = CreateCategory(folder.FullName);
                     categories.Add(category);
@@ -286,7 +306,7 @@ namespace TakeTaikoSimulator.Charts
                 found[i].Category.Songs.Add(entries[i]);
             }
 
-            // 曲が入っていないカテゴリは出さない。「その他」は一番下
+            // 曲が入っていないカテゴリは出さない。「未分類」は一番下
             categories.RemoveAll(c => c.Songs.Count == 0);
             if (others.Songs.Count > 0) categories.Add(others);
 
