@@ -280,6 +280,7 @@ namespace TakeTaikoSimulator
                 string fpsText = $"{fpsShown} FPS　最大 {frameMaxShownMs:F1} ms";
                 FontManager.Draw(fpsText, fpsX, 8, 28, frameMaxShownMs > SlowFrameMs ? Color.Red : Color.Lime);
             }
+            DrawCharaBakeStatus();
             if (ConfigManager.Game.ShowPerfOverlay) DrawPerfOverlay();
             if (ConfigManager.Game.ShowCursorPosition) DrawCursorPosition();
             DebugLog.PauseTextCount(false);
@@ -375,6 +376,22 @@ namespace TakeTaikoSimulator
         }
 
         // 右上にお知らせを出す
+        // キャラの絵を作り直しているあいだ、右下に「何をしているか」を出す（演奏中は作るのを止めているので出ない）
+        private static void DrawCharaBakeStatus()
+        {
+            string? status = Graphics.CharaBaker.Status;
+            if (status == null || Graphics.CharaBaker.Paused) return;
+            const float size = 20f, padX = 16f, height = 54f;
+            float width = Math.Max(FontManager.Measure(status, size).X, 260f) + padX * 2f;
+            var box = new Rectangle(Screen.Width - width - 16f, Screen.Height - height - 16f, width, height);
+            SmoothShapes.Rectangle(box, 10f, new Color(0, 0, 0, 170));
+            FontManager.Draw(status, box.X + padX, box.Y + 8f, size, Color.White);
+            float p = Math.Clamp(Graphics.CharaBaker.StatusProgress, 0f, 1f);
+            var bar = new Rectangle(box.X + padX, box.Y + height - 14f, box.Width - padX * 2f, 5f);
+            SmoothShapes.Rectangle(bar, 2.5f, new Color(255, 255, 255, 60));
+            SmoothShapes.Rectangle(bar with { Width = bar.Width * p }, 2.5f, new Color(255, 255, 255, 230));
+        }
+
         private void DrawToast()
         {
             const float size = 20f;
