@@ -100,7 +100,7 @@ namespace TakeTaikoSimulator.Overlays
         // 右の中身のパネル（グラデーションの基準の四角。上に重ねる帯もこの四角の続きの色でぬる）
         private Rectangle PanelArea => new Rectangle(SidebarWidth, HeaderHeight, CurrentWidth - SidebarWidth, Screen.Height - HeaderHeight - HintHeight);
         private Rectangle BackArea => new Rectangle(0, 0, CurrentWidth, Screen.Height);   // 背景のグラデーションの基準
-        private static readonly string[] UiThemeNames = { "ダーク", "ピンク" };   // UiThemeKind の順
+        private static readonly string[] UiThemeNames = { "ダーク", "さくら" };   // 11/26 さくら色に作り直したので名前も（設定ファイルの値は Pink のまま）   // UiThemeKind の順
         private SoundConfig ActiveSound => fullScreen ? draftSound! : ConfigManager.Sound;
         private KeyConfig ActiveKey => fullScreen ? draftKey! : ConfigManager.Key;
         private SkinConfig ActiveSkin => fullScreen ? draftSkin! : ConfigManager.Skin;
@@ -142,16 +142,16 @@ namespace TakeTaikoSimulator.Overlays
 
         // 結果メッセージ(パネルの下に数秒出す)
         private string message = "";
-        private Color messageColor = Color.White;
+        private Color messageColor = Gui.TextColor;
         private float messageTimer = 0f;
 
         // 点滅用のタイマー
         private float blinkTimer = 0f;
 
         // メッセージの色
-        private static readonly Color SuccessColor = new Color(110, 220, 130, 255);
-        private static readonly Color ErrorColor = new Color(255, 110, 100, 255);
-        private static readonly Color NeutralColor = new Color(205, 190, 196, 255);
+        private static Color SuccessColor => UiTheme.P.Success;   // UIの色で変わる（11/26）
+        private static Color ErrorColor => UiTheme.P.Error;
+        private static Color NeutralColor => UiTheme.P.Neutral;
 
         // キー入力待ち中か(Game がスクショキーを無視するのに使う)
         public bool IsWaitingKey => waitingTarget != null;
@@ -333,7 +333,7 @@ namespace TakeTaikoSimulator.Overlays
             UiTheme.FillPanel(box, 20);
             SmoothShapes.Border(box, 20, 1.5f, Gui.BorderColor);
 
-            FontManager.Draw("再起動しますか？", box.X + 50, box.Y + 48, 38, Color.White);
+            FontManager.Draw("再起動しますか？", box.X + 50, box.Y + 48, 38, Gui.TextColor);
             FontManager.Draw($"描画方式（{GraphicsBackend.Name(ConfigManager.Game.GraphicsBackend)}）は、再起動すると切り替わります。",
                 box.X + 50, box.Y + 118, 26, Gui.SubTextColor);
 
@@ -609,7 +609,7 @@ namespace TakeTaikoSimulator.Overlays
             string songText = SongList.IsScanning
                 ? (SongList.ScanTotal < 0 ? "曲ファイルを探しています…" : $"読み込み中…　{SongList.ScanDone} / {SongList.ScanTotal}")
                 : $"{SongList.SongCount}曲" + (SongList.ErrorCount > 0 ? $"（読めなかった曲 {SongList.ErrorCount}）" : "");
-            FontManager.Draw(songText, LabelX, ToScreenY(cursorY) + 6, 24, SongList.IsScanning ? Gui.AccentColor : Color.White);
+            FontManager.Draw(songText, LabelX, ToScreenY(cursorY) + 6, 24, SongList.IsScanning ? Gui.AccentColor : Gui.TextColor);
             cursorY += 44;
 
             float y = ToScreenY(cursorY);
@@ -667,7 +667,7 @@ namespace TakeTaikoSimulator.Overlays
                 Rectangle box = new Rectangle(510, 200, 900, 680);
                 UiTheme.FillPanel(box, 20);
                 SmoothShapes.Border(box, 20, 1.5f, Gui.BorderColor);
-                FontManager.Draw($"{who} の初期化", box.X + 50, box.Y + 40, 36, Color.White);
+                FontManager.Draw($"{who} の初期化", box.X + 50, box.Y + 40, 36, Gui.TextColor);
                 FontManager.Draw("消す物にチェックを入れてください", box.X + 50, box.Y + 96, 24, Gui.SubTextColor);
                 float y = box.Y + 150;
                 foreach (var (part, label) in PlayerDataReset.Items)
@@ -695,10 +695,10 @@ namespace TakeTaikoSimulator.Overlays
             UiTheme.FillPanel(confirm, 20);
             SmoothShapes.Border(confirm, 20, 1.5f, Gui.BorderColor);
             FontManager.Draw("！ 本当に初期化しますか？", confirm.X + 50, confirm.Y + 40, 36, ErrorColor);
-            FontManager.Draw(who, confirm.X + 50, confirm.Y + 108, 30, Color.White);
+            FontManager.Draw(who, confirm.X + 50, confirm.Y + 108, 30, Gui.TextColor);
             string what = resetParts == PlayerDataParts.All ? "全部（名前・着せ替え・記録・お気に入り・設定）"
                 : string.Join("・", PlayerDataReset.Items.Where(i => resetParts.HasFlag(i.Part)).Select(i => i.Label.Split('（')[0]));
-            float used = SettingTexts.DrawWrapped("消す物：" + what, confirm.X + 50, confirm.Y + 160, confirm.Width - 100, 26, Color.White, 36);
+            float used = SettingTexts.DrawWrapped("消す物：" + what, confirm.X + 50, confirm.Y + 160, confirm.Width - 100, 26, Gui.TextColor, 36);
             FontManager.Draw("消したデータは元に戻せません。", confirm.X + 50, confirm.Y + 172 + used, 24, ErrorColor);
             FontManager.Draw("このデータで遊んでいる途中なら、エントリー画面に戻ります。", confirm.X + 50, confirm.Y + 208 + used, 24, Gui.SubTextColor);
             Rectangle back = new Rectangle(confirm.X + 50, confirm.Y + confirm.Height - 100, 380, 62);
@@ -1176,8 +1176,8 @@ namespace TakeTaikoSimulator.Overlays
         //   行は上から順に描いていくので、箱の高さは描き終わるまで分からない。そこで、前のフレームで分かった高さで箱を先に描く
         //   (開いた直後や、行が増えた瞬間の1フレームだけ、箱が無い・高さが古いことがある)
         private const float CardPadTop = 14f, CardPadBottom = 4f, CardGap = 26f, CardRadius = 16f;
-        private static readonly Color CardColor = new Color(33, 20, 25, 255);          // パネルより少し明るく、ボタンの箱より暗い
-        private static readonly Color CardLineColor = new Color(58, 37, 48, 255);      // カードの中の、行と行の間の線
+        private static Color CardColor => UiTheme.P.Card;          // パネルより少し明るく、ボタンの箱より暗い
+        private static Color CardLineColor => UiTheme.P.CardLine;      // カードの中の、行と行の間の線
         private readonly Dictionary<string, float> cardHeights = new();
         private string? cardKey;
         private float cardTop;
@@ -1412,7 +1412,7 @@ namespace TakeTaikoSimulator.Overlays
             SmoothShapes.Rounded(header, 0.16f, 8, hover ? Gui.BoxHoverColor : Gui.BoxColor);
 
             FontManager.Draw(open ? "▼" : "▶", LabelX, y + 11, 20, Gui.SubTextColor);
-            FontManager.Draw(KeyConfig.GetDrumPartName(part), LabelX + 34, y + 6, 26, Color.White);
+            FontManager.Draw(KeyConfig.GetDrumPartName(part), LabelX + 34, y + 6, 26, Gui.TextColor);
 
             // 閉じているときは、右側に登録されているキーをまとめて表示
             if (!open)
@@ -1633,7 +1633,7 @@ namespace TakeTaikoSimulator.Overlays
 
             Rectangle close = new Rectangle(box.X + 20, box.Y + 18, 50, 48);
             if (Gui.Button(close, "×")) unsavedOpen = false;
-            FontManager.Draw("保存していない設定があります", box.X + 115, box.Y + 48, 38, Color.White);
+            FontManager.Draw("保存していない設定があります", box.X + 115, box.Y + 48, 38, Gui.TextColor);
             FontManager.Draw("変更を保存してから戻りますか？", box.X + 115, box.Y + 118, 26, Gui.SubTextColor);
 
             Rectangle discard = new Rectangle(box.X + 42, box.Y + 230, 365, 65);
@@ -1659,8 +1659,8 @@ namespace TakeTaikoSimulator.Overlays
 
             string names = string.Join("・", confirmEmptyParts.Select(KeyConfig.GetDrumPartName));
             FontManager.Draw("！ キーが設定されていない場所があります", box.X + 40, box.Y + 40, 34, ErrorColor);
-            FontManager.Draw($"{names} にキーがありません。", box.X + 40, box.Y + 120, 30, Color.White);
-            FontManager.Draw("このままだと演奏できません。", box.X + 40, box.Y + 165, 30, Color.White);
+            FontManager.Draw($"{names} にキーがありません。", box.X + 40, box.Y + 120, 30, Gui.TextColor);
+            FontManager.Draw("このままだと演奏できません。", box.X + 40, box.Y + 165, 30, Gui.TextColor);
             FontManager.Draw("※ 次に起動したときに、キーの設定画面が出ます", box.X + 40, box.Y + 215, 24, Gui.SubTextColor);
 
             Rectangle backButton = new Rectangle(box.X + 40, box.Y + 300, 340, 60);
@@ -1893,14 +1893,14 @@ namespace TakeTaikoSimulator.Overlays
             if (fullScreen)
             {
                 DrawProductLabel("TakeTaikoSimulator", 34, 28);
-                FontManager.Draw("設定", SectionX, 24, 40, Color.White);
+                FontManager.Draw("設定", SectionX, 24, 40, Gui.TextColor);
                 if (Gui.Clicked(new Rectangle(SectionX - 8, 18, 100, 56))) CountSecretClick();
                 FontManager.Draw("演奏環境", SectionX + 120, 39, 22, Gui.SubTextColor);
                 if (Gui.Button(new Rectangle(CurrentWidth - 176, 22, 145, 56), "戻る")) RequestClose();
             }
             else
             {
-                FontManager.Draw("設定", 24, 17, 38, Color.White);
+                FontManager.Draw("設定", 24, 17, 38, Gui.TextColor);
                 if (Gui.Clicked(new Rectangle(16, 12, 92, 50))) CountSecretClick();
                 DrawProductLabel("TakeTaikoSimulator  /  F1", 57, 19);
                 if (Gui.Button(new Rectangle(PanelWidth - 68, 18, 48, 48), "×")) RequestClose();
@@ -1953,7 +1953,7 @@ namespace TakeTaikoSimulator.Overlays
                 FontManager.Draw($"{i + 1:00}", area.X + 16, area.Y + (fullScreen ? 17 : 16), 19,
                     category == current ? Gui.AccentColor : Gui.SubTextColor);
                 FontManager.Draw(CategoryNames[(int)category], area.X + (fullScreen ? 66 : 53), area.Y + (fullScreen ? 13 : 13),
-                    fullScreen ? 27 : 23, category == current ? Color.White : Gui.SubTextColor);
+                    fullScreen ? 27 : 23, category == current ? Gui.TextColor : Gui.SubTextColor);
 
                 if (Gui.Clicked(area) && fullScreen && category != selectedCategory)
                 {

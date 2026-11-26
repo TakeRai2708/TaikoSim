@@ -336,6 +336,7 @@ namespace TakeTaikoSimulator.UI
             SmoothShapes.Rounded(track, 1f, 16, Lerp(off, AccentColor, on));
             Vector2 knob = new Vector2(track.X + 18 + 30 * on, track.Y + 17);
             SmoothShapes.Circle(knob + new Vector2(0, 1.5f), 13.5f, new Color(0, 0, 0, 70)); // うすい影
+            if (UiTheme.P.KnobEdge.A > 0) SmoothShapes.Circle(knob, 14, UiTheme.P.KnobEdge);   // 明るい背景（さくら）でも、つまみが見えるように
             SmoothShapes.Circle(knob, 13, Lerp(Color.White, OnAccentColor, on));   // ピンクは「白い溝にピンクの丸」になる
 
             return Clicked(area) ? !value : value;
@@ -408,6 +409,7 @@ namespace TakeTaikoSimulator.UI
             // 光は、つまみのまわり 7px だけ(11/12：広いと、上の数字の吹き出しに上半分が隠れて、下にずれて見えた)
             GlowCircle(knob, radius, AccentColor, Math.Max(glow, h), 7f);
             SmoothShapes.Circle(knob + new Vector2(0, 1f), radius + 1f, new Color(0, 0, 0, 70)); // うすい影(下に 1px だけ。大きいと光が下にずれて見える)
+            if (UiTheme.P.KnobEdge.A > 0) SmoothShapes.Circle(knob, radius + 1.5f, UiTheme.P.KnobEdge);
             SmoothShapes.Circle(knob, radius, Color.White);
             SmoothShapes.Circle(knob, radius * 0.42f, UiTheme.P.KnobDot);
 

@@ -8,7 +8,7 @@ namespace TakeTaikoSimulator.UI
     //   「初回セットアップで選べるようにしよ。その設定画面行くまではダークで」「ダークなんだけどさっきのグラデーションも適応しよう」
     //
     //   ・ダーク：今までの色（ほぼ黒に赤みを少し。朱色は選んでいる物・決定だけ）
-    //   ・ピンク：深いピンクの背景に白い文字。選んでいる物・決定は「白の上にピンクの字」に反転する（ピンクの上にピンクだと見えないので）
+    //   ・ピンク：落ち着いたさくら色の明るい背景に、こげ茶の字。選んでいる物・決定はくすんだ紅（11/26 作り直し）
     //   ・パネルとトーストは、どちらも斜めのグラデーション（11/26 のトーストの案：境目の線は横から 19°、ぼかし 320px）
     //
     //   色を使う所は Gui.TextColor などを今までどおり読むだけ（中身がテーマで変わる）
@@ -27,6 +27,9 @@ namespace TakeTaikoSimulator.UI
         public Color ToastFrom, ToastTo;  // トーストの斜めグラデーション
         public Color ToastText, ToastTextOutline, ToastBar, ToastBorder;
         public bool ToastBoldFont;        // トーストの字をスキンの太字（縁つき）にするか
+        public Color Card, CardLine;      // 設定のカード（行をまとめた箱）と、行と行の間の線
+        public Color Success, Error, Neutral, Pending;   // お知らせの字の色（うまくいった・失敗・ふつう・まだ）
+        public Color KnobEdge;            // 白いつまみのふち（明るい背景で、つまみが消えないように）
     }
 
     public static class UiTheme
@@ -45,21 +48,30 @@ namespace TakeTaikoSimulator.UI
             ToastFrom = new(20, 11, 16, 255), ToastTo = new(130, 32, 66, 255),
             ToastText = new(252, 238, 242, 255), ToastTextOutline = new(0, 0, 0, 0), ToastBar = new(226, 58, 94, 255), ToastBorder = new(90, 55, 70, 255),
             ToastBoldFont = false,
+            Card = new(33, 20, 25, 255), CardLine = new(58, 37, 48, 255),
+            Success = new(110, 220, 130, 255), Error = new(255, 110, 100, 255), Neutral = new(205, 190, 196, 255), Pending = new(125, 103, 112, 255),
+            KnobEdge = new(0, 0, 0, 0),
         };
 
+        // 11/26 たけらい「新しい色見ずらい」「俺のアイコンの色に合うように」→ A（明るいさくら）→「もう少し落ち着いたさくら色」
+        //   アイコン（狐のお面の子）の顔のうすいピンクを、くすませた色。字はこげ茶、決定・選んでいる物は、くすんだ紅
+        //   明るい背景なので、白い字は使わない（決定ボタンの上の字だけ白）
         public static readonly UiPalette Pink = new()
         {
-            Text = new(255, 255, 255, 255), SubText = new(255, 208, 222, 255), MutedText = new(240, 168, 190, 255),
-            Box = new(176, 44, 82, 255), BoxHover = new(194, 58, 96, 255),
-            Fill = new(255, 255, 255, 255), Accent = new(255, 255, 255, 255), AccentDeep = new(255, 214, 226, 255), Sakura = new(255, 255, 255, 255),
-            Background = new(110, 18, 44, 255), Panel = new(150, 30, 64, 255), Border = new(225, 120, 150, 255), Track = new(120, 22, 50, 255),
-            PrimaryHover = new(255, 236, 242, 255), TrackHover = new(136, 30, 62, 255), BubbleText = new(150, 30, 64, 255),
-            OnAccent = new(200, 30, 72, 255), KnobDot = new(200, 30, 72, 255),
-            PanelFrom = new(150, 30, 64, 255), PanelTo = new(220, 80, 115, 255),
-            BackFrom = new(92, 13, 36, 255), BackTo = new(150, 34, 70, 255),
-            ToastFrom = new(196, 26, 66, 255), ToastTo = new(252, 135, 162, 255),
-            ToastText = new(255, 255, 255, 255), ToastTextOutline = new(120, 10, 35, 255), ToastBar = new(255, 255, 255, 255), ToastBorder = new(255, 255, 255, 255),
-            ToastBoldFont = true,
+            Text = new(66, 42, 49, 255), SubText = new(128, 98, 107, 255), MutedText = new(160, 132, 140, 255),
+            Box = new(247, 238, 241, 255), BoxHover = new(238, 223, 228, 255),
+            Fill = new(194, 88, 112, 255), Accent = new(194, 88, 112, 255), AccentDeep = new(160, 62, 86, 255), Sakura = new(194, 88, 112, 255),
+            Background = new(243, 233, 236, 255), Panel = new(249, 242, 244, 255), Border = new(214, 186, 195, 255), Track = new(228, 210, 216, 255),
+            PrimaryHover = new(208, 108, 130, 255), TrackHover = new(218, 196, 204, 255), BubbleText = new(66, 42, 49, 255),
+            OnAccent = new(255, 255, 255, 255), KnobDot = new(194, 88, 112, 255),
+            PanelFrom = new(249, 242, 244, 255), PanelTo = new(236, 218, 224, 255),
+            BackFrom = new(243, 233, 236, 255), BackTo = new(229, 207, 214, 255),
+            ToastFrom = new(250, 243, 245, 255), ToastTo = new(234, 214, 221, 255),
+            ToastText = new(66, 42, 49, 255), ToastTextOutline = new(0, 0, 0, 0), ToastBar = new(194, 88, 112, 255), ToastBorder = new(214, 186, 195, 255),
+            ToastBoldFont = false,
+            Card = new(253, 249, 250, 255), CardLine = new(234, 219, 224, 255),
+            Success = new(46, 140, 80, 255), Error = new(196, 52, 52, 255), Neutral = new(128, 98, 107, 255), Pending = new(160, 132, 140, 255),
+            KnobEdge = new(205, 178, 187, 255),
         };
 
         public static UiThemeKind Current { get; private set; } = UiThemeKind.Dark;

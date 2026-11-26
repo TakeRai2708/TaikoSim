@@ -245,7 +245,7 @@ public sealed class DressingScene : Scene
             if (clickedRow >= 0)
             { Select(clickedRow); if (category == 3 && clickedRow < NameRows) BeginNameEdit(clickedRow == 1); }
             string title = $"{side + 1}P  {Current.Plate.Name}";
-            FontManager.Draw(title, Layout.PreviewTitle.X, Layout.PreviewTitle.Y, 36 * Math.Min(1, 910 / Math.Max(1, FontManager.Measure(title, 36).X)), Color.White);
+            FontManager.Draw(title, Layout.PreviewTitle.X, Layout.PreviewTitle.Y, 36 * Math.Min(1, 910 / Math.Max(1, FontManager.Measure(title, 36).X)), Gui.TextColor);
             NamePlate.Draw(Slot, side, Layout.PlatePosition.X, Layout.PlatePosition.Y, preview: Current.Plate);
             string? rel = category == 0 && characters.Length > 0 ? "Image/99.Common/Chara/" + characters[cursor] + "/songselect_loop/0.png" : null;
             if (rel != null && SkinManager.GetTexture(rel) is Texture2D tex)
@@ -278,7 +278,7 @@ public sealed class DressingScene : Scene
             Rectangle toast = new(1510, 810 + 6 * MathF.Pow(1 - enter, 3), 290, 62);
             SmoothShapes.Rectangle(toast, 12, Raylib.ColorAlpha(Gui.BoxHoverColor, alpha));
             SmoothShapes.Border(toast, 12, 1.5f, Raylib.ColorAlpha(Gui.AccentColor, alpha));
-            Gui.DrawCentered("適用しました", toast, 28, Raylib.ColorAlpha(Color.White, alpha));
+            Gui.DrawCentered("適用しました", toast, 28, Raylib.ColorAlpha(Gui.TextColor, alpha));
         }
         if (naming) { nameInput.Draw(); return; }
         if (!asking) return;

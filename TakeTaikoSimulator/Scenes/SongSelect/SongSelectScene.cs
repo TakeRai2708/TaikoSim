@@ -2450,15 +2450,15 @@ namespace TakeTaikoSimulator.Scenes
             if (searchText.Length == 0 && composition.Length == 0)
                 FontManager.Draw("曲名・アーティスト・フォルダ名", x, SearchTextY, 28, Gui.MutedTextColor);
             string before = searchText[..searchInput.Caret], after = searchText[searchInput.Caret..];
-            Text(before, x, SearchTextY, SearchFontSize, Color.White);
+            Text(before, x, SearchTextY, SearchFontSize, Gui.TextColor);
             float insertX = x + Measure(before, SearchFontSize).X;
             if (composition.Length > 0)
             {
                 Text(composition, insertX, SearchTextY, SearchFontSize, CompositionColor);
             }
-            Text(after, insertX + Measure(composition, SearchFontSize).X, SearchTextY, SearchFontSize, Color.White);
+            Text(after, insertX + Measure(composition, SearchFontSize).X, SearchTextY, SearchFontSize, Gui.TextColor);
             if ((caretTimer % 1f) < .5f)
-                SmoothShapes.Rectangle(new Rectangle(x + SearchCaretWidth(composition), SearchTextY + 2, 2, SearchFontSize), 0f, Color.White);
+                SmoothShapes.Rectangle(new Rectangle(x + SearchCaretWidth(composition), SearchTextY + 2, 2, SearchFontSize), 0f, Gui.TextColor);
             Screen.EndScissorMode();
             FontManager.Draw("難易度", 410, 435, 24, Gui.SakuraColor);
             FontManager.Draw("★", 785, 435, 24, Gui.SakuraColor);

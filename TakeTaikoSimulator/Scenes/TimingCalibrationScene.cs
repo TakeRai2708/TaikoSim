@@ -204,7 +204,7 @@ public sealed class TimingCalibrationScene : Scene
             case Phase.Result: DrawResult(); break;
         }
 
-        if (error.Length > 0) FontManager.Draw(error, 420, 790, 24, new Color(255, 120, 110, 255));
+        if (error.Length > 0) FontManager.Draw(error, 420, 790, 24, UiTheme.P.Error);
         if (Gui.Button(BackButton, "もどる")) OnBack();
     }
 
