@@ -488,8 +488,15 @@ namespace TakeTaikoSimulator.UI
                 }
                 else
                 {
-                    string caret = (caretTimer % 1f) < 0.5f ? "|" : " ";
-                    DrawCentered(editText + caret, box, 26, TextColor);
+                    // 11/26 たけらい「数値入れるときに数字が動いてる」→ 前は「数字＋|」と「数字＋空白」を交互に真ん中寄せしていて、
+                    //   | と空白の幅の差で数字が左右に揺れていた。数字だけを真ん中寄せして、カーソルはその右に線で描く
+                    DrawCentered(editText, box, 26, TextColor);
+                    if ((caretTimer % 1f) < 0.5f)
+                    {
+                        Vector2 size = FontManager.Measure(editText.Length > 0 ? editText : " ", 26);
+                        float caretX = box.X + box.Width / 2f + (editText.Length > 0 ? size.X / 2f + 2f : 0f);
+                        SmoothShapes.Rectangle(new Rectangle(caretX, box.Y + (box.Height - 26f) / 2f, 2f, 26f), 0f, TextColor);
+                    }
                 }
             }
             else
