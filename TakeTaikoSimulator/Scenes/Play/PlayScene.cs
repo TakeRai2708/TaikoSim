@@ -1190,6 +1190,8 @@ namespace TakeTaikoSimulator.Scenes
                     RetryDan();   // 段位道場の F2 は「クイックリトライ」（1曲目から）
                     return;
                 }
+                else if (!ConfigManager.Game.DebugPlayKeys && pressed is KeyboardKey.F3 or KeyboardKey.F6 or KeyboardKey.F7 or KeyboardKey.F8 or KeyboardKey.F10
+                    && IsFreeInPlay(pressed)) { }   // 設定の「デバッグ」で OFF にしたときは、何もしない（11/26）
                 else if (pressed == KeyboardKey.F3 && IsFreeInPlay(KeyboardKey.F3))
                 {
                     showDebugInfo = !showDebugInfo;
