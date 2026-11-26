@@ -63,8 +63,15 @@ public sealed class EntryScene : Scene
     private bool leaving;
     private float elapsed;
 
+    // ① で Esc：「終了しますか？」の確認（11/26 たけらい「それにするわ」）
+    //   前は Esc ですぐ終わっていた。連打しても終わらないように、最初は「いいえ」を選んでおく。開いている間の Esc は「いいえ」と同じ
+    private const float ExitOpenSeconds = 0.15f;   // 出てくる時間。この間は押せない（開いた Esc・ドンでそのまま決まらないように）
+    private bool exitOpen;
+    private int exitCursor = 1;       // 0 はい・1 いいえ
+    private float exitAge;
+
     public override bool IsWaitingKey => join.Naming;
-    public override bool CanOpenSettings => !join.Naming && !join.Busy;
+    public override bool CanOpenSettings => !join.Naming && !join.Busy && !exitOpen;
 
     public override string? MenuBgmFile => MenuBgm.EntryFile;
     // 起動直後は、画面が明るくなりきるまで BGM を待つ（明るくなったら頭から流れる）
@@ -165,9 +172,45 @@ public sealed class EntryScene : Scene
             return;
         }
 
+        if (exitOpen) { UpdateExit(dt); return; }
+
         // ① 黄色い板：どちらのキーの組でも始められる（Enter は1Pのキーの組）
         if (InputManager.IsKeySetDonPressed(0) || Raylib.IsKeyPressed(KeyboardKey.Enter) || Raylib.IsKeyPressed(KeyboardKey.KpEnter)) OpenData(0);
         else if (InputManager.IsKeySetDonPressed(1)) OpenData(1);
+    }
+
+    // 「終了しますか？」：←→・カッでえらぶ、ドン・Enter で決める（どちらのキーの組でも）
+    private void UpdateExit(float dt)
+    {
+        exitAge += dt;
+        if (exitAge < ExitOpenSeconds) return;
+        int move = 0;
+        if (Raylib.IsKeyPressed(KeyboardKey.Left) || InputManager.IsKeySetPressed(DrumPart.LeftKa, 0) || InputManager.IsKeySetPressed(DrumPart.LeftKa, 1)) move--;
+        if (Raylib.IsKeyPressed(KeyboardKey.Right) || InputManager.IsKeySetPressed(DrumPart.RightKa, 0) || InputManager.IsKeySetPressed(DrumPart.RightKa, 1)) move++;
+        if (move != 0)
+        {
+            int next = Math.Clamp(exitCursor + move, 0, 1);
+            if (next != exitCursor) { exitCursor = next; MenuSounds.Ka(); }
+            return;
+        }
+        if (Raylib.IsKeyPressed(KeyboardKey.Enter) || Raylib.IsKeyPressed(KeyboardKey.KpEnter)
+            || InputManager.IsKeySetDonPressed(0) || InputManager.IsKeySetDonPressed(1))
+            DecideExit(exitCursor);
+    }
+
+    private void OpenExit()
+    {
+        exitOpen = true;
+        exitCursor = 1;
+        exitAge = 0f;
+        MenuSounds.Ka();
+    }
+
+    private void DecideExit(int index)
+    {
+        if (index == 0) { MenuSounds.Don(); Game.ShouldExit = true; return; }
+        exitOpen = false;
+        MenuSounds.Cancel();
     }
 
     // ② データ選択。側はまだ決めないので、叩いたキーの組と同じ側（1Pのキー → ひだり）にいったん入る
@@ -275,7 +318,9 @@ public sealed class EntryScene : Scene
             BackToStart();
             return;
         }
-        Game.ShouldExit = true;
+        // ① の Esc：すぐ終わらずに確認を出す。確認が出ているときの Esc は「いいえ」
+        if (exitOpen) { if (exitAge >= ExitOpenSeconds) DecideExit(1); }
+        else if (!Game.IsSettingsOpen) OpenExit();
     }
 
     public override void Draw()
@@ -291,6 +336,34 @@ public sealed class EntryScene : Scene
         else Raylib.DrawRectangle(0, 0, 1920, 1080, new Color(0, 0, 0, 150));   // 完了のあと、モード選択に替わるまでの1コマ
         MenuSkin.Whole(Folder + "Header.png", new(0, 0, 1920, 1080), Color.White);
         FreePlay();
+        if (exitOpen) DrawExit(!leaving && !Game.IsSettingsOpen);
+    }
+
+    // 「終了しますか？」の確認。Gui.cs の色（UIの色：ダーク・ピンク）で描く
+    private static Rectangle ExitButton(int index) => new(index == 0 ? 690 : 990, 590, 240, 84);
+    private void DrawExit(bool interactive)
+    {
+        float open = Math.Clamp(exitAge / ExitOpenSeconds, 0f, 1f);
+        float ease = 1f - (1f - open) * (1f - open) * (1f - open);
+        Raylib.DrawRectangle(0, 0, 1920, 1080, new Color(0, 0, 0, (int)(150 * open)));
+        Rectangle panel = new(560, 340 + 16 * (1f - ease), 800, 400);
+        SmoothShapes.Rectangle(new Rectangle(panel.X, panel.Y + 8f, panel.Width, panel.Height), 28f, new Color(0, 0, 0, (int)(90 * open)));
+        UiTheme.FillPanel(panel, 28f, open);
+        SmoothShapes.Border(panel, 28f, 1.5f, Gui.WithAlpha(Gui.BorderColor, open));
+        Gui.DrawCentered("終了しますか？", new Rectangle(panel.X, panel.Y + 70, panel.Width, 70), 52, Gui.WithAlpha(Gui.TextColor, open));
+        string[] labels = { "はい", "いいえ" };
+        float dy = panel.Y - 340;
+        for (int i = 0; i < 2; i++)
+        {
+            Rectangle box = ExitButton(i);
+            box.Y += dy;
+            bool selected = i == exitCursor;
+            if (selected) Gui.Glow(box, 18f, Gui.AccentColor, open);
+            SmoothShapes.Rectangle(box, 18f, Gui.WithAlpha(selected ? Gui.AccentColor : Gui.BoxColor, open));
+            if (selected) SmoothShapes.Border(box, 18f, 3f, Gui.WithAlpha(Color.White, open));
+            Gui.DrawCentered(labels[i], box, 40, Gui.WithAlpha(selected ? Gui.OnAccentColor : Gui.SubTextColor, open));
+            if (interactive && open >= 1f && Gui.Clicked(box)) { exitCursor = i; DecideExit(i); break; }
+        }
     }
 
     // 11/22 TaikøNauts(A-Style)の動画と見比べて合わせた：
