@@ -73,6 +73,6 @@ public sealed class PlayerNameInput
         if (Raylib.GetTime() % 1.0 < 0.5)
             Raylib.DrawRectangle((int)(Box.X + 25 + FontManager.Measure(text, size).X) + 2, (int)Box.Y + 22, 2, 52, Gui.SakuraColor);
         FontManager.Draw(editing ? "Enter：変更をプレビュー　　Esc：キャンセル" : "Enter：作成　　Esc：データ選択へ", 520, 664, 26, Gui.SubTextColor);
-        if (Error.Length > 0) FontManager.Draw(Error, 520, 730, 26, new Color(255, 120, 110, 255));
+        if (Error.Length > 0) FontManager.Draw(Error, 520, 730, 26, UiTheme.P.Error);
     }
 }

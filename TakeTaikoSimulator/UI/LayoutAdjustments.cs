@@ -96,8 +96,13 @@ public static class LayoutAdjustments
     {
         public static readonly Rectangle List = new(80, 240, 710, 620); // 左の一覧。行・スクロールバー・クリック範囲も追従
         public static readonly Vector2 PreviewTitle = new(890, 245); // 右側の「1P 名前」
-        public static readonly Vector2 Character = new(1295, 240); // どんちゃん画像の左上。透明余白を含む
-        public static readonly Vector2 CharacterMaxSize = new(720, 370); // 画像が収まる最大の幅/高さ。縦横比は維持
+        // どんちゃんのプレビュー（11/26 たけらい「着せ替えも（どんちゃんの位置がおかしい）」）
+        //   前は絵（透明な余白をふくむ 820×599 や 850×800）の左上を決めて縮めていたので、キャラによって場所も大きさもバラバラだった。
+        //   今は、絵の「見えている部分」だけを切り出して、ネームプレートの真上に、下をそろえて置く
+        public static readonly float CharacterCenterX = 1554;   // 見えている部分のまん中（ネームプレート 1385〜1723 のまん中）
+        public static readonly float CharacterBottom = 690;     // 見えている部分の下（ネームプレートの 20px 上）
+        public static readonly Vector2 CharacterMaxSize = new(560, 380); // 見えている部分が収まる最大の幅/高さ。縦横比は維持
+        public const float CharacterMaxScale = 1f;               // これより大きくはしない（小さいキャラをぼやけさせない）
         public static readonly Vector2 PlatePosition = new(1385, 710); // プレビューのネームプレート
     }
 

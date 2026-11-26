@@ -37,10 +37,10 @@ namespace TakeTaikoSimulator.Scenes
         private const float DescIndent = 48; // 説明文の字下げ(チェックボックスの文字とそろえる)
 
         // メッセージの色
-        private static readonly Color SuccessColor = new Color(110, 220, 130, 255);
-        private static readonly Color ErrorColor = new Color(255, 110, 100, 255);
-        private static readonly Color NeutralColor = new Color(205, 190, 196, 255);
-        private static readonly Color PendingColor = new Color(125, 103, 112, 255);
+        private static Color SuccessColor => UiTheme.P.Success;   // UIの色で変わる（11/26）
+        private static Color ErrorColor => UiTheme.P.Error;
+        private static Color NeutralColor => UiTheme.P.Neutral;
+        private static Color PendingColor => UiTheme.P.Pending;
 
         private Step step = Step.Welcome;
 
@@ -81,7 +81,7 @@ namespace TakeTaikoSimulator.Scenes
 
         // 結果メッセージ
         private string message = "";
-        private Color messageColor = Color.White;
+        private Color messageColor = Gui.TextColor;
         private float messageTimer = 0f;
 
         // セットアップ中は設定パネルを開かない
@@ -284,7 +284,7 @@ namespace TakeTaikoSimulator.Scenes
             UiTheme.FillPanel(Panel, 8f);
 
             // 文字と細い進行線だけで、どこまで設定したか分かるようにする
-            FontManager.Draw(isFirstRun || PlayerMode ? "初期設定" : "キーの設定", Left, 32, 38, Color.White);
+            FontManager.Draw(isFirstRun || PlayerMode ? "初期設定" : "キーの設定", Left, 32, 38, Gui.TextColor);
             if (isFirstRun || PlayerMode)
             {
                 DrawProgress();
@@ -363,13 +363,13 @@ namespace TakeTaikoSimulator.Scenes
         // 1ページ目：ようこそ
         private void DrawWelcome()
         {
-            FontManager.Draw("TakeTaikoへようこそ！", Left, 300, 64, Color.White);
-            FontManager.Draw("最初に、画面・音量・叩くキーを設定します。", Left, 430, 32, Color.White);
+            FontManager.Draw("TakeTaikoへようこそ！", Left, 300, 64, Gui.TextColor);
+            FontManager.Draw("最初に、画面・音量・叩くキーを設定します。", Left, 430, 32, Gui.TextColor);
             FontManager.Draw("あとからいつでも設定（F1）で変更できます。", Left, 480, 28, Gui.SubTextColor);
         }
 
         // 2ページ目：画面
-        private static readonly string[] ThemeNames = { "ダーク", "ピンク" };   // UiThemeKind の順
+        private static readonly string[] ThemeNames = { "ダーク", "さくら", "くれない" };   // UiThemeKind の順
 
         private void DrawDisplay()
         {
@@ -393,7 +393,7 @@ namespace TakeTaikoSimulator.Scenes
             y += 58;
 
             // ----- 画面解像度 -----
-            FontManager.Draw("画面解像度", Left, y + 6, 28, Color.White);
+            FontManager.Draw("画面解像度", Left, y + 6, 28, Gui.TextColor);
             int resIndex = Array.FindIndex(GameConfig.Resolutions, r => r.Width == game.WindowWidth && r.Height == game.WindowHeight);
             int newResIndex = Gui.Dropdown("setupResolution", new Rectangle(ControlX, y, Right - ControlX, 44), ResolutionNames, resIndex);
             if (newResIndex != resIndex && newResIndex >= 0)
@@ -436,7 +436,7 @@ namespace TakeTaikoSimulator.Scenes
             y += SettingTexts.DrawWrapped(SettingTexts.VSync, descX, y, descWidth, DescSize, Gui.SubTextColor, DescLine) + 10;
 
             // ----- 目標フレームレート -----
-            FontManager.Draw("目標フレームレート", Left, y + 6, 28, Color.White);
+            FontManager.Draw("目標フレームレート", Left, y + 6, 28, Gui.TextColor);
             int fps = SliderRow("setupTargetFps", y, game.TargetFps, 0, 360);
             if (fps != game.TargetFps)
             {
@@ -458,7 +458,7 @@ namespace TakeTaikoSimulator.Scenes
         private void DrawSound()
         {
             Title("音量");
-            FontManager.Draw("それぞれの音の大きさを決めてください（0〜100）。", Left, 330, 28, Color.White);
+            FontManager.Draw("それぞれの音の大きさを決めてください（0〜100）。", Left, 330, 28, Gui.TextColor);
 
             SoundConfig sound = ConfigManager.Sound;
             float y = 400;
@@ -475,7 +475,7 @@ namespace TakeTaikoSimulator.Scenes
         // 音量の1行(名前＋スライダー)
         private int VolumeRow(string id, string label, ref float y, int value)
         {
-            FontManager.Draw(label, Left, y + 6, 28, Color.White);
+            FontManager.Draw(label, Left, y + 6, 28, Gui.TextColor);
             int result = SliderRow(id, y, value, 0, 100);
             y += 64;
             return result;
@@ -493,7 +493,7 @@ namespace TakeTaikoSimulator.Scenes
         private void DrawKeys()
         {
             Title("叩くキー");
-            FontManager.Draw($"1か所に {MaxKeysPerPart} つまで入れられます。［追加］を押してからキーを押してください。キーを押すと外せます。", Left, 330, 26, Color.White);
+            FontManager.Draw($"1か所に {MaxKeysPerPart} つまで入れられます。［追加］を押してからキーを押してください。キーを押すと外せます。", Left, 330, 26, Gui.TextColor);
             bool waiting = IsWaitingKey;
             // 1P だけ。2P のキーは設定できない（いつも C・V・N・M。11/26 たけらい）
             for (int player = 0; player < 1; player++)
@@ -509,7 +509,7 @@ namespace TakeTaikoSimulator.Scenes
                     bool current = changingPart == part || changingPart == null && askIndex >= 0 && askIndex == keyIndex;
                     var keys = ConfigManager.Key.DrumKeys.GetValueOrDefault(part, new List<KeyboardKey>());
                     SmoothShapes.Rounded(row, .1f, 8, Gui.BoxColor);
-                    FontManager.Draw(KeyConfig.GetDrumPartName(part), x + 18, y + 18, 25, Color.White);
+                    FontManager.Draw(KeyConfig.GetDrumPartName(part), x + 18, y + 18, 25, Gui.TextColor);
 
                     // 入っているキーを札で並べる。札を押すとそのキーを外す（入力待ちの間は押せない）
                     const float chipsLeft = 170f, chipsRight = 636f, gap = 8f, pad = 14f;
@@ -560,18 +560,18 @@ namespace TakeTaikoSimulator.Scenes
             // 画面
             string screenText = $"画面：{game.WindowWidth}×{game.WindowHeight}";
             if (game.Fullscreen) screenText = "画面：フルスクリーン（モニターの解像度）";
-            FontManager.Draw(screenText, Left, y, 30, Color.White);
+            FontManager.Draw(screenText, Left, y, 30, Gui.TextColor);
             y += 48;
 
             // フレームレート
             string fpsText = game.TargetFps == 0 ? "無制限" : $"{game.TargetFps}";
             if (game.VSync) fpsText += "（垂直同期オン）";
-            FontManager.Draw($"目標フレームレート：{fpsText}", Left, y, 30, Color.White);
+            FontManager.Draw($"目標フレームレート：{fpsText}", Left, y, 30, Gui.TextColor);
             y += 48;
 
             // 音量
             FontManager.Draw($"音量：Master {sound.MasterVolume}　SE {sound.SeVolume}　Music {sound.MusicVolume}　BGM {sound.BgmVolume}　Voice {sound.VoiceVolume}",
-                Left, y, 30, Color.White);
+                Left, y, 30, Gui.TextColor);
             y += 60;
 
             // 1P の4か所（2P は設定しない）
@@ -581,7 +581,7 @@ namespace TakeTaikoSimulator.Scenes
                 {
                     DrumPart part = Parts[player * 4 + i];
                     string keys = string.Join(", ", ConfigManager.Key.DrumKeys.GetValueOrDefault(part, new List<KeyboardKey>()));
-                    FontManager.Draw($"{KeyConfig.GetDrumPartName(part)}：{keys}", Left + player * 820, y + i * 44, 28, Color.White);
+                    FontManager.Draw($"{KeyConfig.GetDrumPartName(part)}：{keys}", Left + player * 820, y + i * 44, 28, Gui.TextColor);
                 }
             }
             y += 196;
@@ -593,7 +593,7 @@ namespace TakeTaikoSimulator.Scenes
         // ページの大きいタイトル
         private static void Title(string text)
         {
-            FontManager.Draw(text, Left, 250, 52, Color.White);
+            FontManager.Draw(text, Left, 250, 52, Gui.TextColor);
         }
 
         // 下の説明とボタン

@@ -181,7 +181,7 @@ public sealed class FeedbackScene : Scene
         FontManager.Draw("送信は次の画面（GitHub）で。投稿は公開されます", NoteCard.X + 24, NoteCard.Y + 18, 24, Gui.SubTextColor);
 
         // 下：操作の説明・エラー・ボタン
-        if (error.Length > 0) FontManager.Draw(error, 420, 846, 26, new Color(255, 120, 110, 255));
+        if (error.Length > 0) FontManager.Draw(error, 420, 846, 26, UiTheme.P.Error);
         else FontManager.Draw("Enter：送信画面へ　Shift+Enter：改行　Esc：もどる", 420, 848, 24, Gui.MutedTextColor);
         if (Gui.Button(BackButton, "もどる")) OnBack();
         if (Gui.PrimaryButton(SendButton, "送信画面へ")) Send();

@@ -12,7 +12,7 @@ namespace TakeTaikoSimulator.UI
 
         public const string Window = "ウィンドウで表示します。ほかの作業をしながら遊びたい人向け。";
 
-        public const string UiTheme = "設定画面・初期設定・お知らせ（トースト）などの色です。ダークは黒っぽい落ち着いた色、ピンクは明るいピンクに白い字。ゲームの画面（選曲・演奏など）はスキンの絵なので変わりません。";
+        public const string UiTheme = "設定画面・初期設定・お知らせ（トースト）などの色です。ダークは黒っぽい落ち着いた色、さくらは明るいさくら色にこげ茶の字、くれないは深い紅にうすいピンクの字。ゲームの画面（選曲・演奏など）はスキンの絵なので変わりません。";
         public const string Fullscreen = "モニターいっぱいの本物のフルスクリーンで表示します。画面合成（DWM）を通さないので、PCによっては遅れやカクつきが減ります。かわりに Alt＋Tab が少し遅くなります。";
         public const string FullscreenNote = "※ 解像度はモニターのままです（切り替えません）";
 
