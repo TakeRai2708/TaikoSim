@@ -280,7 +280,7 @@ namespace TakeTaikoSimulator.Scenes
             Gui.BeginFrame();
 
             // 背景
-            Raylib.DrawRectangle(0, 0, Screen.Width, Screen.Height, Gui.BackgroundColor);
+            UiTheme.FillBackground(new Rectangle(0, 0, Screen.Width, Screen.Height));   // 11/26 背景も斜めのグラデーション
             UiTheme.FillPanel(Panel, 8f);
 
             // 文字と細い進行線だけで、どこまで設定したか分かるようにする

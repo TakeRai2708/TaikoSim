@@ -83,6 +83,7 @@ namespace TakeTaikoSimulator.Overlays
         private GameConfig ActiveGame => fullScreen ? draftGame! : ConfigManager.Game;
         // 右の中身のパネル（グラデーションの基準の四角。上に重ねる帯もこの四角の続きの色でぬる）
         private Rectangle PanelArea => new Rectangle(SidebarWidth, HeaderHeight, CurrentWidth - SidebarWidth, Screen.Height - HeaderHeight - HintHeight);
+        private Rectangle BackArea => new Rectangle(0, 0, CurrentWidth, Screen.Height);   // 背景のグラデーションの基準
         private static readonly string[] UiThemeNames = { "ダーク", "ピンク" };   // UiThemeKind の順
         private SoundConfig ActiveSound => fullScreen ? draftSound! : ConfigManager.Sound;
         private KeyConfig ActiveKey => fullScreen ? draftKey! : ConfigManager.Key;
@@ -456,8 +457,7 @@ namespace TakeTaikoSimulator.Overlays
             Rlgl.PushMatrix();
             Rlgl.Translatef(slideX, 0f, 0f);
 
-            if (fullScreen) Raylib.DrawRectangle(0, 0, Screen.Width, Screen.Height, Gui.BackgroundColor);
-            Raylib.DrawRectangle(0, 0, (int)CurrentWidth, Screen.Height, Gui.BackgroundColor);
+            UiTheme.FillBackground(BackArea);   // 11/26 背景も斜めのグラデーション（全画面は画面全体、パネルはパネルの幅）
             UiTheme.FillPanel(PanelArea, 0f);   // 11/26 パネルは斜めのグラデーション（UiTheme）
             Raylib.DrawLine((int)SidebarWidth, (int)HeaderHeight, (int)SidebarWidth,
                 Screen.Height - (int)HintHeight, Gui.BorderColor);
@@ -1516,7 +1516,7 @@ namespace TakeTaikoSimulator.Overlays
             else hint = fullScreen ? "Esc：戻る　スライダーは←→でも調整できます" : "Esc：閉じる　スライダーは←→でも調整できます";
 
             Rectangle bar = new Rectangle(0, Screen.Height - HintHeight, CurrentWidth, HintHeight);
-            Raylib.DrawRectangleRec(bar, Gui.BackgroundColor);
+            UiTheme.FillBackgroundPart(BackArea, bar);
             Raylib.DrawLine(0, (int)bar.Y, (int)CurrentWidth, (int)bar.Y, Gui.BorderColor);
             FontManager.Draw(hint, fullScreen ? LabelX : 24, bar.Y + 26, 20, Gui.SubTextColor);
             if (fullScreen)
@@ -1801,7 +1801,7 @@ namespace TakeTaikoSimulator.Overlays
 
         private void DrawHeader()
         {
-            Raylib.DrawRectangle(0, 0, (int)CurrentWidth, (int)HeaderHeight, Gui.BackgroundColor);
+            UiTheme.FillBackgroundPart(BackArea, new Rectangle(0, 0, CurrentWidth, HeaderHeight));
             Raylib.DrawLine(0, (int)HeaderHeight, (int)CurrentWidth, (int)HeaderHeight, Gui.BorderColor);
             if (fullScreen)
             {
@@ -1828,8 +1828,7 @@ namespace TakeTaikoSimulator.Overlays
 
         private void DrawSidebar()
         {
-            Raylib.DrawRectangle(0, (int)HeaderHeight, (int)SidebarWidth,
-                Screen.Height - (int)HeaderHeight - (int)HintHeight, Gui.BackgroundColor);
+            UiTheme.FillBackgroundPart(BackArea, new Rectangle(0, HeaderHeight, SidebarWidth, Screen.Height - HeaderHeight - HintHeight));
             FontManager.Draw("カテゴリ", 28, HeaderHeight + 20, 19, Gui.SubTextColor);
             Category current = GetCurrentCategory();
             Category[] categories = Enum.GetValues<Category>();

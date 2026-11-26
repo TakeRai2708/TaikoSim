@@ -23,6 +23,7 @@ namespace TakeTaikoSimulator.UI
         public Color OnAccent;            // 朱色（アクセント）の上に乗せる字・つまみの色
         public Color KnobDot;             // スライダーの白いつまみの真ん中の点
         public Color PanelFrom, PanelTo;  // パネルの斜めグラデーション（左上 → 右下）
+        public Color BackFrom, BackTo;    // 背景（パネルのまわり・左の帯・上下の帯）の斜めグラデーション
         public Color ToastFrom, ToastTo;  // トーストの斜めグラデーション
         public Color ToastText, ToastTextOutline, ToastBar, ToastBorder;
         public bool ToastBoldFont;        // トーストの字をスキンの太字（縁つき）にするか
@@ -39,6 +40,7 @@ namespace TakeTaikoSimulator.UI
             PrimaryHover = new(240, 96, 127, 255), TrackHover = new(92, 62, 74, 255), BubbleText = new(27, 16, 20, 255),
             OnAccent = new(255, 255, 255, 255), KnobDot = new(226, 58, 94, 255),
             PanelFrom = new(22, 12, 17, 255), PanelTo = new(66, 22, 40, 255),
+            BackFrom = new(12, 7, 10, 255), BackTo = new(46, 15, 28, 255),
             ToastFrom = new(20, 11, 16, 255), ToastTo = new(130, 32, 66, 255),
             ToastText = new(252, 238, 242, 255), ToastTextOutline = new(0, 0, 0, 0), ToastBar = new(226, 58, 94, 255), ToastBorder = new(90, 55, 70, 255),
             ToastBoldFont = false,
@@ -53,6 +55,7 @@ namespace TakeTaikoSimulator.UI
             PrimaryHover = new(255, 236, 242, 255), TrackHover = new(136, 30, 62, 255), BubbleText = new(150, 30, 64, 255),
             OnAccent = new(200, 30, 72, 255), KnobDot = new(200, 30, 72, 255),
             PanelFrom = new(150, 30, 64, 255), PanelTo = new(220, 80, 115, 255),
+            BackFrom = new(92, 13, 36, 255), BackTo = new(150, 34, 70, 255),
             ToastFrom = new(196, 26, 66, 255), ToastTo = new(252, 135, 162, 255),
             ToastText = new(255, 255, 255, 255), ToastTextOutline = new(120, 10, 35, 255), ToastBar = new(255, 255, 255, 255), ToastBorder = new(255, 255, 255, 255),
             ToastBoldFont = true,
@@ -116,6 +119,12 @@ namespace TakeTaikoSimulator.UI
             Rectangle source = new((part.X - area.X) * sx, (part.Y - area.Y) * sy, part.Width * sx, part.Height * sy);
             Raylib.DrawTexturePro(texture, source, part, System.Numerics.Vector2.Zero, 0f, Gui.WithAlpha(Color.White, alpha));
         }
+
+        /// <summary>今のテーマの背景（画面の全体で、左上の角 → 右下の角）。11/26 たけらい：パネルのまわりもグラデーションに</summary>
+        public static void FillBackground(Rectangle area) => FillGradientPart(area, area, 0f, P.BackFrom, P.BackTo, 1f, WholeBlur);
+
+        /// <summary>背景 whole のうち part の所だけ（左の帯・上下の帯を、背景の続きの色でぬる）</summary>
+        public static void FillBackgroundPart(Rectangle whole, Rectangle part) => FillGradientPart(whole, part, 0f, P.BackFrom, P.BackTo, 1f, WholeBlur);
 
         /// <summary>今のテーマのパネル（斜めグラデーション）</summary>
         public static void FillPanel(Rectangle area, float radius, float alpha = 1f) => FillGradient(area, radius, P.PanelFrom, P.PanelTo, alpha, WholeBlur);

@@ -141,6 +141,7 @@ public sealed class FeedbackScene : Scene
     public override void Draw()
     {
         Raylib.ClearBackground(Gui.BackgroundColor);
+        UiTheme.FillBackground(new Rectangle(0, 0, Screen.Width, Screen.Height));   // 11/26 背景も斜めのグラデーション
         Gui.BeginFrame();
 
         SmoothShapes.Rectangle(new Rectangle(Panel.X, Panel.Y + 8, Panel.Width, Panel.Height), 24, new Color(0, 0, 0, 90));

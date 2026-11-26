@@ -184,6 +184,7 @@ public sealed class TimingCalibrationScene : Scene
     public override void Draw()
     {
         Raylib.ClearBackground(Gui.BackgroundColor);
+        UiTheme.FillBackground(new Rectangle(0, 0, Screen.Width, Screen.Height));   // 11/26 背景も斜めのグラデーション
         Gui.BeginFrame();
 
         UiTheme.FillPanel(Panel, 24);
