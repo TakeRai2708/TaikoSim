@@ -51,6 +51,10 @@
 	</ItemGroup>
 
 	<ItemGroup>
+		<!-- 遊び方（操作・設定ファイルの説明）。元の文章は docs/manual/遊び方.md、PDF は tools/manual/build_manual.py で作る -->
+		<None Update="遊び方.pdf">
+			<CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory>
+		</None>
 		<None Update="THIRD-PARTY-NOTICES.txt">
 			<CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory>
 		</None>
