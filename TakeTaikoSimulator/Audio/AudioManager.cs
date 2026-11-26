@@ -79,6 +79,7 @@ namespace TakeTaikoSimulator.Audio
 
         // BASS / DirectSound のとき、BASS が測った機器の遅れ(ms)と、実際のバッファ(ms)。測る用の表示に使う
         private static int bassDeviceLatencyMs = 0;
+        private static double bassEngineMs = 0;   // BASS / DirectSound のあと、Windows の音声エンジンを通る分（11/26 録画で測った）
         public static int BassBufferMs { get; private set; } = 0;
 
         // どこまで準備できたか(片付けで使う)
@@ -221,10 +222,11 @@ namespace TakeTaikoSimulator.Audio
             Bass.GetInfo(out var info); // OpenTaiko の CSoundDeviceBASS と同じ呼び方
             bassDeviceLatencyMs = info.Latency;
             BassBufferMs = Bass.GetConfig(Configuration.DeviceBufferLength);
+            bassEngineMs = DefaultOutputEngineMs();
 
             string name = directSound ? "DirectSound" : "BASS";
             string buffer = bufferMs > 0 ? $"{bufferMs}ms" : "自動";
-            Status = $"{name}（バッファ {buffer}）　BASS {Bass.Version}";
+            Status = $"{name}（バッファ {buffer}＋エンジン {bassEngineMs:0}ms）　BASS {Bass.Version}";
             error = "";
             return true;
         }
@@ -430,6 +432,7 @@ namespace TakeTaikoSimulator.Audio
             wasapiEngineMs = 0;
             asioRate = 0;
             bassDeviceLatencyMs = 0;
+            bassEngineMs = 0;
             BassBufferMs = 0;
             IsAvailable = false;
         }
@@ -491,8 +494,31 @@ namespace TakeTaikoSimulator.Audio
         //   11/26 バッファを足すのをやめた：Info.Latency は「再生を始めてから聞こえるまで」を BASS が実際に測った値なので、
         //   機器のバッファ(DeviceBufferLength)はもう入っている。前は バッファ(15ms) を二重に引いていて、
         //   たけらいは音オフセット −20ms にしないと合わなかった(TaikøNauts は 0 で合う)
+        //   11/26 夜：測る専用の曲（120BPM のピッ）をオートで流して OBS で録画し、音符が判定の円に来た瞬間とピッの差を 80回ずつ測った
+        //     ・BASS 30ms           ：OBS の録音で、ピッが音符より +4.1ms（ばらつき ±1.0）→ ここまではほぼ合っている
+        //     ・WASAPI 共有＋エンジン20ms：OBS の録音で −21.8ms（エンジンの分を先に引いているので、録音では早く出る）
+        //     OBS が録るのは「Windows の音声エンジンに入る前」の音。BASS も DirectSound も、そのあと共有のエンジンを通るので、
+        //     そこで WASAPI 共有と同じだけ（約20ms）遅れて耳に届く。たけらいのタイミング調整（BASS）が −27ms だったのとも合う
+        //     → WASAPI 共有と同じ「既定の出力機器の周期 × 2」（ふつう 20ms）を足す
         public static double BassOutputLatencyMs =>
-            Mixer == 0 && bassInitialized ? bassDeviceLatencyMs : 0;
+            Mixer == 0 && bassInitialized ? bassDeviceLatencyMs + bassEngineMs : 0;
+
+        // 既定の出力機器の、Windows の音声エンジンの遅れの目安（周期 × 2、0〜60ms）。取れなければ 0
+        private static double DefaultOutputEngineMs()
+        {
+            try
+            {
+                for (int i = 0; BassWasapi.GetDeviceInfo(i, out var d); i++)
+                {
+                    if (!d.IsEnabled || !d.IsDefault || d.IsInput || d.IsLoopback) continue;
+                    return Math.Clamp(d.DefaultUpdatePeriod * 1000.0 * 2, 0, 60);
+                }
+            }
+            catch (Exception ex) when (ex is DllNotFoundException || ex is EntryPointNotFoundException)
+            {
+            }
+            return 0;
+        }
 
         // WASAPI が「次の音をちょうだい」と言ってきたときに呼ばれる(別の流れから呼ばれる)
         // ミキサーで混ぜた音を、そのまま渡す
