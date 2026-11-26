@@ -369,7 +369,7 @@ namespace TakeTaikoSimulator.Scenes
         }
 
         // 2ページ目：画面
-        private static readonly string[] ThemeNames = { "ダーク", "さくら" };   // UiThemeKind の順
+        private static readonly string[] ThemeNames = { "ダーク", "さくら", "くれない" };   // UiThemeKind の順
 
         private void DrawDisplay()
         {

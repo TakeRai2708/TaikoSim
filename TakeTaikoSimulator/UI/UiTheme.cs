@@ -12,7 +12,7 @@ namespace TakeTaikoSimulator.UI
     //   ・パネルとトーストは、どちらも斜めのグラデーション（11/26 のトーストの案：境目の線は横から 19°、ぼかし 320px）
     //
     //   色を使う所は Gui.TextColor などを今までどおり読むだけ（中身がテーマで変わる）
-    public enum UiThemeKind { Dark, Pink }
+    public enum UiThemeKind { Dark, Pink, Crimson }   // 設定ファイルの値：Dark / Pink（さくら）/ Crimson（くれない）
 
     public sealed class UiPalette
     {
@@ -53,26 +53,44 @@ namespace TakeTaikoSimulator.UI
             KnobEdge = new(0, 0, 0, 0),
         };
 
-        // 11/26 たけらい「新しい色見ずらい」「俺のアイコンの色に合うように」→ A（明るいさくら）→「もう少し落ち着いたさくら色」
-        //   アイコン（狐のお面の子）の顔のうすいピンクを、くすませた色。字はこげ茶、決定・選んでいる物は、くすんだ紅
+        // さくら（明るい）：アイコン（狐のお面の子）の顔のうすいピンク＋ふちの濃い赤
+        //   11/26 たけらい「新しい色見ずらい」「俺のアイコンの色に合うように」→ 案A。落ち着いた色・5% 濃くも試したけど「やっぱり最初の案でいいや」
         //   明るい背景なので、白い字は使わない（決定ボタンの上の字だけ白）
-        //   11/26 たけらい「＋5％上げ濃くしよ」→ 背景・パネル・箱・線などの明るさを 5% 下げた（HSL の L −0.05。字と紅はそのまま）
         public static readonly UiPalette Pink = new()
         {
-            Text = new(66, 42, 49, 255), SubText = new(128, 98, 107, 255), MutedText = new(160, 132, 140, 255),
-            Box = new(239, 221, 227, 255), BoxHover = new(229, 206, 214, 255),
-            Fill = new(194, 88, 112, 255), Accent = new(194, 88, 112, 255), AccentDeep = new(160, 62, 86, 255), Sakura = new(194, 88, 112, 255),
-            Background = new(234, 216, 222, 255), Panel = new(241, 225, 229, 255), Border = new(204, 170, 181, 255), Track = new(218, 194, 202, 255),
-            PrimaryHover = new(208, 108, 130, 255), TrackHover = new(208, 180, 190, 255), BubbleText = new(66, 42, 49, 255),
-            OnAccent = new(255, 255, 255, 255), KnobDot = new(194, 88, 112, 255),
-            PanelFrom = new(241, 225, 229, 255), PanelTo = new(227, 201, 210, 255),
-            BackFrom = new(234, 216, 222, 255), BackTo = new(220, 190, 200, 255),
-            ToastFrom = new(242, 225, 230, 255), ToastTo = new(225, 197, 207, 255),
-            ToastText = new(66, 42, 49, 255), ToastTextOutline = new(0, 0, 0, 0), ToastBar = new(194, 88, 112, 255), ToastBorder = new(204, 170, 181, 255),
+            Text = new(60, 22, 32, 255), SubText = new(140, 70, 90, 255), MutedText = new(170, 110, 128, 255),
+            Box = new(255, 236, 242, 255), BoxHover = new(252, 214, 226, 255),
+            Fill = new(225, 45, 80, 255), Accent = new(225, 45, 80, 255), AccentDeep = new(170, 20, 50, 255), Sakura = new(225, 45, 80, 255),
+            Background = new(250, 226, 236, 255), Panel = new(255, 241, 246, 255), Border = new(232, 160, 182, 255), Track = new(240, 200, 212, 255),
+            PrimaryHover = new(236, 78, 108, 255), TrackHover = new(232, 184, 200, 255), BubbleText = new(60, 22, 32, 255),
+            OnAccent = new(255, 255, 255, 255), KnobDot = new(225, 45, 80, 255),
+            PanelFrom = new(255, 241, 246, 255), PanelTo = new(250, 206, 220, 255),
+            BackFrom = new(250, 226, 236, 255), BackTo = new(244, 190, 206, 255),
+            ToastFrom = new(255, 243, 247, 255), ToastTo = new(250, 204, 218, 255),
+            ToastText = new(60, 22, 32, 255), ToastTextOutline = new(0, 0, 0, 0), ToastBar = new(225, 45, 80, 255), ToastBorder = new(232, 160, 182, 255),
             ToastBoldFont = false,
-            Card = new(247, 230, 234, 255), CardLine = new(225, 203, 210, 255),
-            Success = new(46, 140, 80, 255), Error = new(196, 52, 52, 255), Neutral = new(128, 98, 107, 255), Pending = new(160, 132, 140, 255),
-            KnobEdge = new(195, 163, 173, 255),
+            Card = new(255, 250, 252, 255), CardLine = new(240, 210, 220, 255),
+            Success = new(40, 140, 75, 255), Error = new(200, 40, 50, 255), Neutral = new(140, 70, 90, 255), Pending = new(170, 110, 128, 255),
+            KnobEdge = new(225, 170, 188, 255),
+        };
+
+        // くれない（暗い赤）：アイコンのふちの深い紅の背景に、顔のうすいピンクの字（11/26 たけらい「くれないとさくらもいい」→ 両方採用）
+        public static readonly UiPalette Crimson = new()
+        {
+            Text = new(251, 231, 241, 255), SubText = new(250, 182, 198, 255), MutedText = new(196, 130, 148, 255),
+            Box = new(60, 14, 22, 255), BoxHover = new(92, 20, 34, 255),
+            Fill = new(239, 53, 87, 255), Accent = new(239, 53, 87, 255), AccentDeep = new(170, 16, 44, 255), Sakura = new(252, 182, 196, 255),
+            Background = new(40, 4, 10, 255), Panel = new(58, 6, 14, 255), Border = new(140, 50, 70, 255), Track = new(90, 30, 42, 255),
+            PrimaryHover = new(248, 90, 118, 255), TrackHover = new(112, 40, 54, 255), BubbleText = new(58, 6, 14, 255),
+            OnAccent = new(255, 255, 255, 255), KnobDot = new(239, 53, 87, 255),
+            PanelFrom = new(58, 6, 14, 255), PanelTo = new(152, 12, 38, 255),
+            BackFrom = new(40, 4, 10, 255), BackTo = new(120, 10, 32, 255),
+            ToastFrom = new(58, 6, 14, 255), ToastTo = new(152, 12, 38, 255),
+            ToastText = new(251, 231, 241, 255), ToastTextOutline = new(0, 0, 0, 0), ToastBar = new(252, 182, 196, 255), ToastBorder = new(140, 50, 70, 255),
+            ToastBoldFont = false,
+            Card = new(34, 6, 10, 255), CardLine = new(80, 30, 40, 255),
+            Success = new(120, 225, 140, 255), Error = new(255, 140, 120, 255), Neutral = new(250, 182, 198, 255), Pending = new(196, 130, 148, 255),
+            KnobEdge = new(0, 0, 0, 0),
         };
 
         public static UiThemeKind Current { get; private set; } = UiThemeKind.Dark;
@@ -80,12 +98,12 @@ namespace TakeTaikoSimulator.UI
 
         // 設定ファイルの名前 → テーマ（知らない名前はダーク）
         public static UiThemeKind Parse(string? name) =>
-            string.Equals(name, nameof(UiThemeKind.Pink), StringComparison.OrdinalIgnoreCase) ? UiThemeKind.Pink : UiThemeKind.Dark;
+            Enum.TryParse(name, true, out UiThemeKind kind) && Enum.IsDefined(kind) ? kind : UiThemeKind.Dark;
 
         public static void Set(UiThemeKind kind)
         {
             Current = kind;
-            P = kind == UiThemeKind.Pink ? Pink : Dark;
+            P = kind switch { UiThemeKind.Pink => Pink, UiThemeKind.Crimson => Crimson, _ => Dark };
         }
 
         // 設定ファイル（GameConfig.UiTheme）に合わせる。設定を読んだあと・変えたあとに呼ぶ

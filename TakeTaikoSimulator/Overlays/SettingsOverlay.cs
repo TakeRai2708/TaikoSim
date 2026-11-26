@@ -100,7 +100,7 @@ namespace TakeTaikoSimulator.Overlays
         // 右の中身のパネル（グラデーションの基準の四角。上に重ねる帯もこの四角の続きの色でぬる）
         private Rectangle PanelArea => new Rectangle(SidebarWidth, HeaderHeight, CurrentWidth - SidebarWidth, Screen.Height - HeaderHeight - HintHeight);
         private Rectangle BackArea => new Rectangle(0, 0, CurrentWidth, Screen.Height);   // 背景のグラデーションの基準
-        private static readonly string[] UiThemeNames = { "ダーク", "さくら" };   // 11/26 さくら色に作り直したので名前も（設定ファイルの値は Pink のまま）   // UiThemeKind の順
+        private static readonly string[] UiThemeNames = { "ダーク", "さくら", "くれない" };   // 11/26 さくら色に作り直したので名前も（設定ファイルの値は Pink のまま）   // UiThemeKind の順
         private SoundConfig ActiveSound => fullScreen ? draftSound! : ConfigManager.Sound;
         private KeyConfig ActiveKey => fullScreen ? draftKey! : ConfigManager.Key;
         private SkinConfig ActiveSkin => fullScreen ? draftSkin! : ConfigManager.Skin;
