@@ -75,29 +75,33 @@ namespace TakeTaikoSimulator.UI
         public static void Apply(GameConfig config) => Set(Parse(config.UiTheme));
 
         // ===== 斜めのグラデーション =====
-        //   境目の線は、四角の真ん中を通って右上がり（横から AngleDeg 度）。線の左上が from、線をまたいで右下へ BlurPx で to になる
+        //   境目の線は、四角の真ん中を通って右上がり（横から AngleDeg 度）。線の左上が from、線をまたいで右下へ blur px で to になる
+        //   トーストは BlurPx（320px）。パネルは四角の全体（左上の角 → 右下の角）でじわっと変える
+        //   （11/26 たけらい「グラデーションは全体的にでいいよ。ちょっと違和感ある」：大きいパネルに 320px だと真ん中に帯が見えた）
         public const float AngleDeg = 19f, BlurPx = 320f;
+        private const float WholeBlur = 0f;   // 0：四角の全体を使う
 
-        private static readonly Dictionary<(int W, int H, int R, uint From, uint To), Texture2D> cache = new();
-        private static readonly LinkedList<(int, int, int, uint, uint)> order = new();
+        private static readonly Dictionary<(int W, int H, int R, uint From, uint To, int Blur), Texture2D> cache = new();
+        private static readonly LinkedList<(int, int, int, uint, uint, int)> order = new();
         private const int CacheLimit = 24;   // トーストは字の長さで幅が変わるので、古いものから捨てる
 
         /// <summary>角の丸い四角を、斜めのグラデーションでぬる（ふちの外は透明。alpha で全体をうすくできる）</summary>
-        public static void FillGradient(Rectangle area, float radius, Color from, Color to, float alpha = 1f) =>
-            FillGradientPart(area, area, radius, from, to, alpha);
+        public static void FillGradient(Rectangle area, float radius, Color from, Color to, float alpha = 1f, float blur = BlurPx) =>
+            FillGradientPart(area, area, radius, from, to, alpha, blur);
 
         /// <summary>大きい四角 whole のグラデーションのうち、part の所だけをぬる（パネルの上に重ねる帯などで、色の続きをそろえる）</summary>
         public static void FillPanelPart(Rectangle whole, Rectangle part, float alpha = 1f) =>
-            FillGradientPart(whole, part, 0f, P.PanelFrom, P.PanelTo, alpha);
+            FillGradientPart(whole, part, 0f, P.PanelFrom, P.PanelTo, alpha, WholeBlur);
 
-        private static void FillGradientPart(Rectangle area, Rectangle part, float radius, Color from, Color to, float alpha)
+        private static void FillGradientPart(Rectangle area, Rectangle part, float radius, Color from, Color to, float alpha, float blur)
         {
             int w = Math.Max(1, (int)MathF.Round(area.Width)), h = Math.Max(1, (int)MathF.Round(area.Height));
             int r = Math.Clamp((int)MathF.Round(radius), 0, Math.Min(w, h) / 2);
-            var key = (w, h, r, Pack(from), Pack(to));
+            int b = (int)MathF.Round(blur);
+            var key = (w, h, r, Pack(from), Pack(to), b);
             if (!cache.TryGetValue(key, out Texture2D texture))
             {
-                texture = Make(w, h, r, from, to);
+                texture = Make(w, h, r, from, to, b);
                 if (texture.Id == 0) { Raylib.DrawRectangleRec(part, Gui.WithAlpha(from, alpha)); return; }
                 cache[key] = texture;
                 order.AddLast(key);
@@ -114,11 +118,11 @@ namespace TakeTaikoSimulator.UI
         }
 
         /// <summary>今のテーマのパネル（斜めグラデーション）</summary>
-        public static void FillPanel(Rectangle area, float radius, float alpha = 1f) => FillGradient(area, radius, P.PanelFrom, P.PanelTo, alpha);
+        public static void FillPanel(Rectangle area, float radius, float alpha = 1f) => FillGradient(area, radius, P.PanelFrom, P.PanelTo, alpha, WholeBlur);
 
         private static uint Pack(Color c) => ((uint)c.R << 24) | ((uint)c.G << 16) | ((uint)c.B << 8) | c.A;
 
-        private static unsafe Texture2D Make(int w, int h, int r, Color from, Color to)
+        private static unsafe Texture2D Make(int w, int h, int r, Color from, Color to, int blur)
         {
             Image image = Raylib.GenImageColor(w, h, new Color(0, 0, 0, 0));
             if (image.Data == null) return default;
@@ -127,13 +131,16 @@ namespace TakeTaikoSimulator.UI
             float a = AngleDeg * MathF.PI / 180f;
             float nx = MathF.Sin(a), ny = MathF.Cos(a);   // 線に垂直で、右下向き
             float cx = w / 2f, cy = h / 2f;
+            // 全体を使うとき：左上の角で 0、右下の角で 1 になる幅（四角を線に垂直な向きに測った長さ）。なめらかさ優先で曲線はかけない
+            bool whole = blur <= 0;
+            float span = whole ? Math.Max(1f, w * nx + h * ny) : blur;
             for (int y = 0; y < h; y++)
             {
                 for (int x = 0; x < w; x++)
                 {
                     float px0 = x + 0.5f, py0 = y + 0.5f;
-                    float t = Math.Clamp(((px0 - cx) * nx + (py0 - cy) * ny) / BlurPx + 0.5f, 0f, 1f);
-                    t = t * t * (3f - 2f * t);
+                    float t = Math.Clamp(((px0 - cx) * nx + (py0 - cy) * ny) / span + 0.5f, 0f, 1f);
+                    if (!whole) t = t * t * (3f - 2f * t);
                     float cover = Coverage(px0, py0, w, h, r);
                     int i = (y * w + x) * 4;
                     px[i] = (byte)(from.R + (to.R - from.R) * t);
