@@ -409,7 +409,8 @@ namespace TakeTaikoSimulator.Scenes
             if (DanCats.Count > 0)
                 genres.Add(new Item { Kind = Kind.Genre, Special = Special.DanSongs, Title = "段位道場の課題曲", Color = DanBarColor, SongCount = DanSongItems(danCat).Count });
             genres.Add(new Item { Kind = Kind.Genre, Special = Special.Added, Title = "最近追加された曲", Color = new Color(60, 140, 150, 255), SongCount = Added().Count });
-            genres.Add(new Item { Kind = Kind.Genre, Special = Special.Favorites, Title = "お気に入り", Color = new Color(200, 110, 150, 255), SongCount = Favorites().Count });
+            // お気に入りの板：A-Style は専用の絵（Bar/10.png）。絵が無いスキン（シンプル）は赤に近いピンクの単色（11/26 たけらい。前は (200,110,150) のくすんだピンク）
+            genres.Add(new Item { Kind = Kind.Genre, Special = Special.Favorites, Title = "お気に入り", Color = new Color(228, 62, 104, 255), SongCount = Favorites().Count });
             // 全部の曲からランダム（11/14 たけらい「ジャンルのところにもランダムに選ぶを追加したい」）
             genres.Add(new Item { Kind = Kind.Random, Title = "ランダムにえらぶ", Color = RandomColor });
             genres.Add(new Item { Kind = Kind.Label, Title = "カテゴリをえらぶ", Color = LabelColor });
