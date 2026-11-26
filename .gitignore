@@ -371,3 +371,7 @@ tools/dan-check/obj/
 
 # リリース作業用（署名鍵の場所のメモや発行物が入るので上げない）
 work/
+
+# macOS 用の BASS（各自でダウンロードして置く）
+TakeTaikoSimulator/libbass.dylib
+TakeTaikoSimulator/libbassmix.dylib

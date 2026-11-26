@@ -58,7 +58,7 @@ namespace TakeTaikoSimulator.Platform
         private static readonly AutoResetEvent wake = new(false);
         private static volatile bool stopping;
         private static volatile bool connected;
-        private static NamedPipeClientStream? pipe;
+        private static Stream? pipe;   // Windows は名前付きパイプ、macOS・Linux はソケット
 
         private const int ReconnectMs = 15000;     // Discord が見つからないとき、つなぎ直すまで
         private const int MinSendIntervalMs = 2000; // 送る間を、これ以上あける（Discord の回数制限）
@@ -181,10 +181,11 @@ namespace TakeTaikoSimulator.Platform
         {
             for (int i = 0; i < 10 && !stopping; i++)
             {
-                NamedPipeClientStream client = new(".", $"discord-ipc-{i}", PipeDirection.InOut, PipeOptions.None);
+                Stream? client = null;
                 try
                 {
-                    client.Connect(200);
+                    client = Open(i);
+                    if (client == null) continue;
                     pipe = client;
                     Send(0, HandshakeJson());
                     int op = ReadFrame();
@@ -198,15 +199,58 @@ namespace TakeTaikoSimulator.Platform
                 {
                     if (pipe != null) Console.WriteLine($"[Discord] {ex.Message}");
                     pipe = null;
-                    client.Dispose();
+                    client?.Dispose();
+                }
+                catch (System.Net.Sockets.SocketException)
+                {
+                    pipe = null;
+                    client?.Dispose();
                 }
             }
             return false;
         }
 
+        // discord-ipc-N を開く
+        //   Windows … 名前付きパイプ \\.\pipe\discord-ipc-N
+        //   macOS・Linux … 一時フォルダにあるソケットファイル discord-ipc-N
+        //     (Discord が置く場所：$XDG_RUNTIME_DIR・$TMPDIR・$TMP・$TEMP のどれか。無ければ /tmp)
+        //     11/26 たけらい「mac os 対応させたい」：.NET の名前付きパイプは Mac だと別の場所を見に行くので、ソケットに直接つなぐ
+        private static Stream? Open(int index)
+        {
+            if (OperatingSystem.IsWindows())
+            {
+                NamedPipeClientStream named = new(".", $"discord-ipc-{index}", PipeDirection.InOut, PipeOptions.None);
+                try { named.Connect(200); }
+                catch { named.Dispose(); throw; }
+                return named;
+            }
+
+            foreach (string folder in SocketFolders())
+            {
+                string path = Path.Combine(folder, $"discord-ipc-{index}");
+                if (!File.Exists(path)) continue;
+                var socket = new System.Net.Sockets.Socket(System.Net.Sockets.AddressFamily.Unix, System.Net.Sockets.SocketType.Stream, System.Net.Sockets.ProtocolType.Unspecified);
+                try
+                {
+                    socket.Connect(new System.Net.Sockets.UnixDomainSocketEndPoint(path));
+                    socket.ReceiveTimeout = 2000;
+                    return new System.Net.Sockets.NetworkStream(socket, ownsSocket: true);
+                }
+                catch { socket.Dispose(); throw; }
+            }
+            return null;
+        }
+
+        private static IEnumerable<string> SocketFolders()
+        {
+            foreach (string name in new[] { "XDG_RUNTIME_DIR", "TMPDIR", "TMP", "TEMP" })
+                if (Environment.GetEnvironmentVariable(name) is { Length: > 0 } value) yield return value;
+            yield return "/tmp";
+        }
+
         private static void Disconnect(bool clear)
         {
-            NamedPipeClientStream? p = pipe;
+            Stream? p = pipe;
             if (p == null) { connected = false; return; }
             if (clear && connected)
             {
@@ -226,7 +270,7 @@ namespace TakeTaikoSimulator.Platform
 
         private static void Send(int op, byte[] json)
         {
-            NamedPipeClientStream p = pipe ?? throw new IOException("つながっていません");
+            Stream p = pipe ?? throw new IOException("つながっていません");
             byte[] frame = new byte[8 + json.Length];
             BinaryPrimitives.WriteInt32LittleEndian(frame.AsSpan(0, 4), op);
             BinaryPrimitives.WriteInt32LittleEndian(frame.AsSpan(4, 4), json.Length);
@@ -238,7 +282,7 @@ namespace TakeTaikoSimulator.Platform
         // 返事を1つ読む（中身は使わないので読み捨てる）。種類を返す
         private static int ReadFrame()
         {
-            NamedPipeClientStream p = pipe ?? throw new IOException("つながっていません");
+            Stream p = pipe ?? throw new IOException("つながっていません");
             byte[] header = new byte[8];
             ReadExactly(p, header);
             int op = BinaryPrimitives.ReadInt32LittleEndian(header.AsSpan(0, 4));
