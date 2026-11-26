@@ -186,7 +186,7 @@ public sealed class TimingCalibrationScene : Scene
         Raylib.ClearBackground(Gui.BackgroundColor);
         Gui.BeginFrame();
 
-        SmoothShapes.Rectangle(Panel, 24, Gui.PanelColor);
+        UiTheme.FillPanel(Panel, 24);
         SmoothShapes.Border(Panel, 24, 1.5f, Gui.BorderColor);
         FontManager.Draw("タイミング調整", 420, 196, 44, Gui.SakuraColor);
         FontManager.Draw("メトロノームの音に合わせてドンを叩いてください（画面は見なくてOK）", 422, 252, 24, Gui.SubTextColor);

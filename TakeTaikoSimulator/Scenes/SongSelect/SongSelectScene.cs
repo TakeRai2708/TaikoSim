@@ -1093,7 +1093,7 @@ namespace TakeTaikoSimulator.Scenes
         private void ShowToast(string text)
         {
             toast = text;
-            toastTimer = 2.5f;
+            toastTimer = Gui.NoticeSeconds;
         }
 
         private static bool KeyPressed(KeyboardKey key) => Raylib.IsKeyPressed(key) || Raylib.IsKeyPressedRepeat(key);
@@ -2421,7 +2421,7 @@ namespace TakeTaikoSimulator.Scenes
             Raylib.DrawRectangle(0, 0, 1920, 1080, new Color(0, 0, 0, 170));
             // 11/12：設定と同じ色と形にそろえた(パネル・細いふち・桜色の小見出し)
             Rectangle searchPanel = new(360, 210, 1200, 610);
-            SmoothShapes.Rectangle(searchPanel, 20, Gui.PanelColor);
+            UiTheme.FillPanel(searchPanel, 20);
             SmoothShapes.Border(searchPanel, 20, 1.5f, Gui.BorderColor);
             FontManager.Draw("曲を検索", 410, 250, 36, Gui.TextColor);
             if (Gui.Button(new(1460, 238, 50, 50), "×")) { OnBack(); return; }
@@ -2475,7 +2475,7 @@ namespace TakeTaikoSimulator.Scenes
 
         private void DrawToast()
         {
-            Gui.Notice(toast);
+            Gui.Notice(toast, toastTimer);
         }
 
         // 曲を読み込み中(「読み込んだ数 / 曲ファイルの総数」とバー)

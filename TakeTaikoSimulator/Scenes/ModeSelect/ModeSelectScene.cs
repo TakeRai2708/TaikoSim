@@ -376,7 +376,7 @@ namespace TakeTaikoSimulator.Scenes
         private void ShowToast(string text)
         {
             toast = text;
-            toastTimer = 2f;
+            toastTimer = Gui.NoticeSeconds;
         }
 
         // .tja がドロップされたら、テスト用に譜面を流す(前のホーム画面と同じ)
@@ -447,7 +447,7 @@ namespace TakeTaikoSimulator.Scenes
                 if (!Game.IsSettingsOpen && deciding == null && !choosingCategory && Gui.Clicked(NamePlate.MenuArea(side)))
                 { SceneManager.Simple(new EntryScene(selectData: true)); break; }
             if (choosingCategory) DrawCategoryPopup();
-            if (toastTimer > 0f) DrawBanner(toast, new Color(255, 200, 60, 255));
+            if (toastTimer > 0f) Gui.Notice(toast, toastTimer);
             join.Draw(!Game.IsSettingsOpen);
         }
 
@@ -707,7 +707,6 @@ namespace TakeTaikoSimulator.Scenes
                     new Rectangle(area.X - 80, area.Y - 35, 400, 70), Color.White);
         }
 
-        private static void DrawBanner(string text, Color color) => Gui.Notice(text);
     }
 }
 

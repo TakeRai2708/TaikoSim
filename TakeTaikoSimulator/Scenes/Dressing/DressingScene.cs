@@ -193,7 +193,7 @@ public sealed class DressingScene : Scene
             if (clicked && !asking && !readFailed && !naming)
             { category = i; SyncCursor(); }
         }
-        SmoothShapes.Rectangle(List, 18, Gui.PanelColor);
+        UiTheme.FillPanel(List, 18);
         SmoothShapes.Border(List, 18, 1.5f, Gui.BorderColor);
         if (drafts.ContainsKey(Slot))
         {
@@ -264,7 +264,7 @@ public sealed class DressingScene : Scene
         if (naming) { nameInput.Draw(); return; }
         if (!asking) return;
         Raylib.DrawRectangle(0, 0, 1920, 1080, new Color(0, 0, 0, 190));
-        SmoothShapes.Rectangle(new(450, 350, 1020, 350), 20, Gui.PanelColor);
+        UiTheme.FillPanel(new(450, 350, 1020, 350), 20);
         SmoothShapes.Border(new(450, 350, 1020, 350), 20, 1.5f, Gui.BorderColor);
         if (Gui.Button(new(470, 365, 60, 50), "×")) asking = false;
         FontManager.Draw("保存していない設定があります", 580, 440, 40, Gui.TextColor);

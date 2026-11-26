@@ -281,7 +281,7 @@ namespace TakeTaikoSimulator.Scenes
 
             // 背景
             Raylib.DrawRectangle(0, 0, Screen.Width, Screen.Height, Gui.BackgroundColor);
-            SmoothShapes.Rounded(Panel, 0.009f, 8, Gui.PanelColor);
+            UiTheme.FillPanel(Panel, 8f);
 
             // 文字と細い進行線だけで、どこまで設定したか分かるようにする
             FontManager.Draw(isFirstRun || PlayerMode ? "初期設定" : "キーの設定", Left, 32, 38, Color.White);
@@ -345,13 +345,13 @@ namespace TakeTaikoSimulator.Scenes
                 if (done)
                 {
                     // 白いチェック
-                    SmoothShapes.Line(new Vector2(x - 9f, StepY + 1f), new Vector2(x - 3f, StepY + 7f), 3.6f, Color.White);
-                    SmoothShapes.Line(new Vector2(x - 3f, StepY + 7f), new Vector2(x + 9f, StepY - 6f), 3.6f, Color.White);
+                    SmoothShapes.Line(new Vector2(x - 9f, StepY + 1f), new Vector2(x - 3f, StepY + 7f), 3.6f, Gui.OnAccentColor);
+                    SmoothShapes.Line(new Vector2(x - 3f, StepY + 7f), new Vector2(x + 9f, StepY - 6f), 3.6f, Gui.OnAccentColor);
                 }
                 else
                 {
                     Gui.DrawCentered((i + 1).ToString(), new Rectangle(x - StepRadius, StepY - StepRadius, StepRadius * 2f, StepRadius * 2f),
-                        22f, now ? Color.White : Gui.SubTextColor);
+                        22f, now ? Gui.OnAccentColor : Gui.SubTextColor);
                 }
                 float w = FontManager.Measure(names[i], 21f).X;
                 FontManager.Draw(names[i], x - w / 2f, StepY + 32f, 21f, done || now ? Gui.AccentColor : Gui.SubTextColor);
@@ -369,6 +369,8 @@ namespace TakeTaikoSimulator.Scenes
         }
 
         // 2ページ目：画面
+        private static readonly string[] ThemeNames = { "ダーク", "ピンク" };   // UiThemeKind の順
+
         private void DrawDisplay()
         {
             Title("画面");
@@ -378,6 +380,17 @@ namespace TakeTaikoSimulator.Scenes
             float descX = Left + DescIndent;
             float descWidth = Right - descX;
             float y = 326;
+
+            // ----- UIの色（11/26 たけらい「初回セットアップで選べるようにしよ。その設定画面行くまではダークで」）。押したらその場で変わる -----
+            FontManager.Draw("UIの色", Left, y + 6, 28, Gui.TextColor);
+            int themeIndex = (int)UiTheme.Parse(game.UiTheme);
+            int newThemeIndex = Gui.Segmented("setupUiTheme", new Rectangle(ControlX, y, Right - ControlX, 44), ThemeNames, themeIndex);
+            if (newThemeIndex >= 0 && newThemeIndex != themeIndex)
+            {
+                game.UiTheme = ((UiThemeKind)newThemeIndex).ToString();
+                UiTheme.Apply(game);
+            }
+            y += 58;
 
             // ----- 画面解像度 -----
             FontManager.Draw("画面解像度", Left, y + 6, 28, Color.White);
@@ -511,8 +524,8 @@ namespace TakeTaikoSimulator.Scenes
                         float w = FontManager.Measure(label, chipSize).X + pad * 2;
                         Rectangle chip = new(cx, y + 13, w, 38);
                         bool hover = !waiting && Gui.IsMouseOver(chip);
-                        SmoothShapes.Rounded(chip, .3f, 8, hover ? Gui.AccentDeepColor : Gui.BoxHoverColor);
-                        FontManager.Draw(label, cx + pad, y + 32 - chipSize / 2f - 2, chipSize, hover ? Color.White : Gui.TextColor);
+                        SmoothShapes.Rounded(chip, .3f, 8, hover ? Gui.AccentColor : Gui.BoxHoverColor);
+                        FontManager.Draw(label, cx + pad, y + 32 - chipSize / 2f - 2, chipSize, hover ? Gui.OnAccentColor : Gui.TextColor);
                         if (!waiting && Gui.Clicked(chip))
                         {
                             bool ok = ConfigManager.Key.TryRemoveDrumKey(part, k, out string result);

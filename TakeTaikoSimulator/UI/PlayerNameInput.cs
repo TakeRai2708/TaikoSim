@@ -49,7 +49,7 @@ public sealed class PlayerNameInput
         Raylib.DrawRectangle(0, 0, 1920, 1080, new Color(0, 0, 0, 175));
         Rectangle panel = new(440, 250, 1040, 570);
         SmoothShapes.Rectangle(new Rectangle(panel.X, panel.Y + 8, panel.Width, panel.Height), 24, new Color(0, 0, 0, 90));   // 影
-        SmoothShapes.Rectangle(panel, 24, Gui.PanelColor);
+        UiTheme.FillPanel(panel, 24);
         SmoothShapes.Border(panel, 24, 1.5f, Gui.BorderColor);
         FontManager.Draw("プレイヤー名を入力", 520, 300, 44, Gui.TextColor);
         FontManager.Draw("24文字まで。あとで着せ替えの「名前・段位」から変えられます", 520, 384, 24, Gui.SubTextColor);

@@ -390,7 +390,7 @@ namespace TakeTaikoSimulator.Scenes
         private void ShowToast(string text)
         {
             toast = text;
-            toastTimer = 2.5f;
+            toastTimer = Gui.NoticeSeconds;
         }
 
         // ===== 描画 =====
@@ -458,7 +458,7 @@ namespace TakeTaikoSimulator.Scenes
             NamePlate.Draw(SongHistory.ActiveProfile, LocalSession.Controller, 16, 950);
             PuchiChara.Draw(SongHistory.ActiveProfile, LocalSession.Controller, "danSelect");
             options.Draw(true);
-            if (toastTimer > 0f) DrawBanner(toast);
+            if (toastTimer > 0f) Gui.Notice(toast, toastTimer);
         }
 
         // パネルとプレートを、横に dx ずらして描く
@@ -820,11 +820,6 @@ namespace TakeTaikoSimulator.Scenes
                 confirmChoice = label == "挑戦する" ? 1 : 2;
                 ChooseConfirm(confirmChoice);
             }
-        }
-
-        private static void DrawBanner(string text)
-        {
-            Gui.Notice(text);
         }
 
         private void DrawEmpty()

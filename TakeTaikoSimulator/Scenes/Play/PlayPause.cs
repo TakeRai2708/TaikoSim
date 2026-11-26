@@ -183,7 +183,7 @@ public partial class PlayScene
         Gui.BeginFrame();
         Gui.ResetClip();
         SmoothShapes.Rectangle(new Rectangle(panel.X, panel.Y + 8f, panel.Width, panel.Height), 24f, new Color(0, 0, 0, (int)(90 * ease)));   // 影
-        SmoothShapes.Rectangle(panel, 24f, Gui.WithAlpha(Gui.PanelColor, ease));
+        UiTheme.FillPanel(panel, 24f, ease);
         SmoothShapes.Border(panel, 24f, 1.5f, Gui.WithAlpha(Gui.BorderColor, ease));
 
         Gui.DrawCentered("一時停止", new Rectangle(panel.X, panel.Y + pad - 6f, panel.Width, 52f), 40, Gui.WithAlpha(Gui.TextColor, ease));

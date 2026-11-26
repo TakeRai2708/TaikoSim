@@ -46,6 +46,9 @@
         // マイナスで早く、プラスで遅く
         public int ChartOffsetMs { get; set; } = 0;
 
+        // UI の色（"Dark" ダーク／"Pink" ピンク）。11/26 たけらい：初回セットアップで選ぶ。選ぶまではダーク
+        public string UiTheme { get; set; } = "Dark";
+
         // ウィンドウの大きさ(Resolutions のどれか)
         public int WindowWidth { get; set; } = 1280;
         public int WindowHeight { get; set; } = 720;

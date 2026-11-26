@@ -450,7 +450,7 @@ namespace TakeTaikoSimulator.UI
             if (!MenuSkin.NPatch(Folder + "Background.png", panel, 60, Color.White))
             {
                 SmoothShapes.Rounded(panel, 0.06f, 8, new Color(20, 24, 34, 245));
-                SmoothShapes.RoundedLines(panel, 0.06f, 8, 3f, Gui.AccentColor);
+                SmoothShapes.RoundedLines(panel, 0.06f, 8, 3f, UiTheme.Dark.Accent);   // スキンの絵の上なので、UI の色（テーマ）には合わせない
             }
 
             // ----- 左上の 1P の印と「演奏オプション」 -----
@@ -503,7 +503,7 @@ namespace TakeTaikoSimulator.UI
                 }
                 if (editing)
                 {
-                    SmoothShapes.RoundedLines(box, 1f, 12, 3f, editInvalid ? ErrorColor : Gui.AccentColor);
+                    SmoothShapes.RoundedLines(box, 1f, 12, 3f, editInvalid ? ErrorColor : UiTheme.Dark.Accent);
                     Vector2 size = MeasureSkin(value, ValueSize);
                     float cx = box.X + box.Width / 2f, cy = box.Y + box.Height / 2f;
                     if (editSelectAll && value.Length > 0)

@@ -119,6 +119,7 @@ namespace TakeTaikoSimulator
             NamePlate.Clear();
             SkinManager.Unload();
             FontManager.Unload();
+            UI.UiTheme.Clear();   // パネル・トーストのグラデーションの絵
             Screen.Unload();
             Raylib.CloseWindow();
 
