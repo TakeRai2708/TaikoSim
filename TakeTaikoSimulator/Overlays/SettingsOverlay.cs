@@ -1103,7 +1103,7 @@ namespace TakeTaikoSimulator.Overlays
             {
                 if (Gui.PrimaryButton(applySkin, "スキンを適用")) ApplySkinNow(skin);
             }
-            else Gui.DrawCentered($"{skin.SkinName} を使っています", applySkin, 22, Gui.SubTextColor);
+            else Gui.DrawCentered($"{names[index]} を使っています", applySkin, 22, Gui.SubTextColor);
             cursorY += 56;
 
             // ----- プレビュー(選んでいるスキンの音符。まだ切り替えていないスキンも、そのスキンの画像で見せる) -----
@@ -1712,6 +1712,7 @@ namespace TakeTaikoSimulator.Overlays
         private void UpdateScroll(Rectangle content)
         {
             float maxScroll = Math.Max(0f, contentHeight - content.Height);
+            lastMaxScroll = maxScroll;
 
             // スクロールバーをつまむか、レールを押すとその場所へ移動する
             if (maxScroll > 0f && !Gui.IsPopupOpen)
@@ -1753,10 +1754,17 @@ namespace TakeTaikoSimulator.Overlays
         }
 
         // 今見ているカテゴリ(左の文字を目立たせる用)
+        private float lastMaxScroll;   // いちばん下までスクロールできる量（UpdateScroll で覚える）
+
         private Category GetCurrentCategory()
         {
             if (fullScreen) return selectedCategory;
             if (clickedCategory != null) return clickedCategory.Value;
+
+            // 11/26 一番下までスクロールしたら、最後のカテゴリ（スキン）にする。
+            //   スキンは短いので、見出しが上まで来る前に一番下に着いてしまい、ずっと「キー」が光っていた
+            if (lastMaxScroll > 0f && scroll >= lastMaxScroll - 2f && sectionPos.Count > 0)
+                return sectionPos.MaxBy(pair => pair.Value).Key;
 
             Category current = Category.General;
             float best = -1f;
