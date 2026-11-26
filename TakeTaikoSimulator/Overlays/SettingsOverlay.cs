@@ -1408,6 +1408,11 @@ namespace TakeTaikoSimulator.Overlays
             {
                 DrawWaitingBox(new Rectangle(LabelX + 34, addY + 2, RightEdge - LabelX - 34, 36), "キーを押してください（Escでキャンセル）");
             }
+            else if (keys.Count >= KeyConfig.MaxKeysPerPart)
+            {
+                // 4つ入っていたら追加ボタンの代わりに説明（11/26 たけらい）
+                FontManager.Draw($"{KeyConfig.MaxKeysPerPart} つまでです（×で外すと追加できます）", LabelX + 34, addY + 8, 22, Gui.SubTextColor);
+            }
             else if (Gui.Button(new Rectangle(LabelX + 34, addY + 2, 160, 36), "＋ 追加"))
             {
                 waitingTarget = new KeyTarget(true, part, default);

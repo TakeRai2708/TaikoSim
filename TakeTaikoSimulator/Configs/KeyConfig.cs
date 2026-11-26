@@ -151,6 +151,10 @@ namespace TakeTaikoSimulator.Configs
 
         // ===== 登録する(設定画面で使う) =====
 
+        // 1か所に入れられるキーの数（11/26 たけらい「4つまでにしよう。F1も4つまでで」）
+        //   前の版で5つ以上入れていた人のキーは消さない（足せなくなるだけ）
+        public const int MaxKeysPerPart = 4;
+
         public bool TryAddDrumKey(DrumPart part, KeyboardKey key, out string message)
         {
             string name = GetDrumPartName(part);
@@ -177,6 +181,16 @@ namespace TakeTaikoSimulator.Configs
             {
                 list = new List<KeyboardKey>();
                 DrumKeys[part] = list;
+            }
+            if (list.Contains(key))
+            {
+                message = $"{key} はもう{name}に入っています";
+                return false;
+            }
+            if (list.Count >= MaxKeysPerPart)
+            {
+                message = $"{name}のキーは {MaxKeysPerPart} つまでです（いらないキーを外してから追加してください）";
+                return false;
             }
 
             list.Add(key);

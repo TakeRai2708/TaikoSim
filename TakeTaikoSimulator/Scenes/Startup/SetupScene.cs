@@ -73,8 +73,8 @@ namespace TakeTaikoSimulator.Scenes
         private int keyIndex = 0;
         // ［追加］を押して、キーを足そうとしている場所（11/26 たけらい「4つまで割り当てれるようにしよ」）
         private DrumPart? changingPart;
-        // 1か所に入れられるキーの数
-        private const int MaxKeysPerPart = 4;
+        // 1か所に入れられるキーの数（KeyConfig と同じ）
+        private const int MaxKeysPerPart = KeyConfig.MaxKeysPerPart;
 
         // 点滅用
         private float blinkTimer = 0f;
