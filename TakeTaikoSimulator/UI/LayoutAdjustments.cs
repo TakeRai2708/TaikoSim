@@ -29,8 +29,10 @@ public static class LayoutAdjustments
         public static readonly Rectangle RankFallback = new(73, 37, 76, 34); // スキン素材がないときの段位背景
         public static readonly Rectangle RankText = new(73, 38, 69, 33); // 「七段」などの文字
         public const float RankTextSize = 24;
-        public static readonly Rectangle NameWithRank = new(143, 38, 183, 33); // 段位あり：名前を中央に収める範囲（＝名前の白い欄。長い名前は縦はそのまま横だけ縮める）
-        public static readonly Rectangle NameWithoutRank = new(76, 37, 249, 33); // 段位なし：名前を中央に収める範囲
+        // 11/26 たけらい「名前ちょっとはみ出してる」：白い欄は右下が丸いので、名前の高さ（y54）では x318 まで、y62 では x310 まで。
+        //   前は右はしを 326 にしていて、長い名前の最後の字が黒いふちにかかっていた → 右はしを 314 に
+        public static readonly Rectangle NameWithRank = new(143, 38, 171, 33); // 段位あり：名前を中央に収める範囲（＝名前の白い欄。長い名前は縦はそのまま横だけ縮める）
+        public static readonly Rectangle NameWithoutRank = new(76, 37, 238, 33); // 段位なし：名前を中央に収める範囲
         // 名前の大きさ / いちばん小さくするときの大きさ / ふちの太さ(0 = ふちなし)。字の色は TaikøNauts のスクショの濃い字
         //   NameOutlineDark：プレートの絵が無いとき(暗い板に白い字)の黒いふち
         public const float NameSize = 25, NameMinSize = 17, NameOutline = 0, NameOutlineDark = 3;

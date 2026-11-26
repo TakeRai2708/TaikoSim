@@ -133,14 +133,21 @@ public static class NamePlate
                 int baseLayer = anime ? image.Anime!.BottomImageLayer : 0;
                 if (anime)
                     image.Anime!.Draw(frame, new(image.X, image.Y), alpha, int.MinValue, baseLayer);
-                else if (image.Base != null && SkinManager.GetTexture(image.Base) is Texture2D plate)
-                    Raylib.DrawTextureEx(plate, new(image.X, image.Y), 0, 1, white);
-                else Raylib.DrawRectangle(60, 7, 264, 29, Raylib.ColorAlpha(new Color(55, 95, 160, 255), alpha));
+                Texture2D? plate = !anime && image.Base != null ? SkinManager.GetTexture(image.Base) : null;
+                // 絵がプレートの外にはみ出す作り（上にずらす・背が高い。04 のキャラの頭など）は、黒いふちの上に描く
+                //   11/26 たけらい「黒いふちが絵にかぶる」：04（338×60、adjustY −20）は右のキャラの顔の上を黒いふちの線が通っていた
+                //   04 の空の部分は y4 から（黒いふちの内側）なので、上に描いても上のふちは消えない
+                bool popsOut = plate is Texture2D p0 && (image.Y < 0 || image.Y + p0.Height > 45);
+                if (plate is Texture2D p1 && !popsOut)
+                    Raylib.DrawTextureEx(p1, new(image.X, image.Y), 0, 1, white);
+                else if (!anime && plate == null) Raylib.DrawRectangle(60, 7, 264, 29, Raylib.ColorAlpha(new Color(55, 95, 160, 255), alpha));
                 // 称号の背景のうえに、プレートの黒いふちだけをもう一度描く
                 //   11/14 たけらい「タイトルの右側、下と上で縁の太さ違う」：称号の背景の絵が右の黒いふちに 2px くらいかぶっていた
                 //   （かぶらないように左へずらすと、今度はすき間ができる）。ふちを上に重ねれば、どちらも起きない
                 if (BorderOnly(sheet) is Texture2D border)
                     Raylib.DrawTexture(border, 0, 0, white);
+                if (plate is Texture2D p2 && popsOut)
+                    Raylib.DrawTextureEx(p2, new(image.X, image.Y), 0, 1, white);
                 if (anime)
                     image.Anime!.Draw(frame, new(image.X, image.Y), alpha, baseLayer + 1, int.MaxValue);
             }
