@@ -143,6 +143,10 @@
         //   段位道場の F3(強制終了)は、これと関係なく使える
         public bool DebugPlayKeys { get; set; } = true;
 
+        // 前からあるデータのネームプレート "00" を、一度だけ「おまかせ」（1P 02・2P 03）に変えたか(11/26 たけらい「おまかせ」)
+        //   前は、データを作ると "00" が書かれていた（選んでいなくても）。変えたあとに着せ替えで 00 を選べば、そのまま 00
+        public bool NamePlateAutoMigrated { get; set; } = false;
+
         // Discord の「プレイ中」に、今なにをしているかを出すか(11/11)
         public bool DiscordPresence { get; set; } = true;
 
