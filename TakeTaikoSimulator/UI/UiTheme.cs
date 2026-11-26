@@ -56,22 +56,23 @@ namespace TakeTaikoSimulator.UI
         // 11/26 たけらい「新しい色見ずらい」「俺のアイコンの色に合うように」→ A（明るいさくら）→「もう少し落ち着いたさくら色」
         //   アイコン（狐のお面の子）の顔のうすいピンクを、くすませた色。字はこげ茶、決定・選んでいる物は、くすんだ紅
         //   明るい背景なので、白い字は使わない（決定ボタンの上の字だけ白）
+        //   11/26 たけらい「＋5％上げ濃くしよ」→ 背景・パネル・箱・線などの明るさを 5% 下げた（HSL の L −0.05。字と紅はそのまま）
         public static readonly UiPalette Pink = new()
         {
             Text = new(66, 42, 49, 255), SubText = new(128, 98, 107, 255), MutedText = new(160, 132, 140, 255),
-            Box = new(247, 238, 241, 255), BoxHover = new(238, 223, 228, 255),
+            Box = new(239, 221, 227, 255), BoxHover = new(229, 206, 214, 255),
             Fill = new(194, 88, 112, 255), Accent = new(194, 88, 112, 255), AccentDeep = new(160, 62, 86, 255), Sakura = new(194, 88, 112, 255),
-            Background = new(243, 233, 236, 255), Panel = new(249, 242, 244, 255), Border = new(214, 186, 195, 255), Track = new(228, 210, 216, 255),
-            PrimaryHover = new(208, 108, 130, 255), TrackHover = new(218, 196, 204, 255), BubbleText = new(66, 42, 49, 255),
+            Background = new(234, 216, 222, 255), Panel = new(241, 225, 229, 255), Border = new(204, 170, 181, 255), Track = new(218, 194, 202, 255),
+            PrimaryHover = new(208, 108, 130, 255), TrackHover = new(208, 180, 190, 255), BubbleText = new(66, 42, 49, 255),
             OnAccent = new(255, 255, 255, 255), KnobDot = new(194, 88, 112, 255),
-            PanelFrom = new(249, 242, 244, 255), PanelTo = new(236, 218, 224, 255),
-            BackFrom = new(243, 233, 236, 255), BackTo = new(229, 207, 214, 255),
-            ToastFrom = new(250, 243, 245, 255), ToastTo = new(234, 214, 221, 255),
-            ToastText = new(66, 42, 49, 255), ToastTextOutline = new(0, 0, 0, 0), ToastBar = new(194, 88, 112, 255), ToastBorder = new(214, 186, 195, 255),
+            PanelFrom = new(241, 225, 229, 255), PanelTo = new(227, 201, 210, 255),
+            BackFrom = new(234, 216, 222, 255), BackTo = new(220, 190, 200, 255),
+            ToastFrom = new(242, 225, 230, 255), ToastTo = new(225, 197, 207, 255),
+            ToastText = new(66, 42, 49, 255), ToastTextOutline = new(0, 0, 0, 0), ToastBar = new(194, 88, 112, 255), ToastBorder = new(204, 170, 181, 255),
             ToastBoldFont = false,
-            Card = new(253, 249, 250, 255), CardLine = new(234, 219, 224, 255),
+            Card = new(247, 230, 234, 255), CardLine = new(225, 203, 210, 255),
             Success = new(46, 140, 80, 255), Error = new(196, 52, 52, 255), Neutral = new(128, 98, 107, 255), Pending = new(160, 132, 140, 255),
-            KnobEdge = new(205, 178, 187, 255),
+            KnobEdge = new(195, 163, 173, 255),
         };
 
         public static UiThemeKind Current { get; private set; } = UiThemeKind.Dark;
