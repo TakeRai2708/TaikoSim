@@ -113,11 +113,13 @@ public static class NamePlate
             if (SkinManager.GetTexture(Root + "NamePlate_Base.png") is Texture2D sheet)
             {
                 Raylib.DrawTexturePro(sheet, new(0, 0, 338, 80), new(0, 0, 338, 80), Vector2.Zero, 0, white);
-                if (image.Anime != null && !SkinManager.SystemSkin)
-                {
-                    float frame = (float)(Raylib.GetTime() * 60 % (image.Anime.LastFrame + 1));
-                    image.Anime.Draw(frame, new(image.X, image.Y), alpha);
-                }
+                // 11/26 たけらい「エフェクトつきだと、そのエフェクトがネームプレートのまわりの黒ふちに隠れてる」
+                //   → アニメは「称号の背景（いちばん下のレイヤー）」だけ先に描いて、黒ふちを重ねたあとで、キラキラなどの上のレイヤーを描く
+                bool anime = image.Anime != null && !SkinManager.SystemSkin;
+                float frame = anime ? (float)(Raylib.GetTime() * 60 % (image.Anime!.LastFrame + 1)) : 0f;
+                int baseLayer = anime ? image.Anime!.BottomImageLayer : 0;
+                if (anime)
+                    image.Anime!.Draw(frame, new(image.X, image.Y), alpha, int.MinValue, baseLayer);
                 else if (image.Base != null && SkinManager.GetTexture(image.Base) is Texture2D plate)
                     Raylib.DrawTextureEx(plate, new(image.X, image.Y), 0, 1, white);
                 else Raylib.DrawRectangle(60, 7, 264, 29, Raylib.ColorAlpha(new Color(55, 95, 160, 255), alpha));
@@ -126,6 +128,8 @@ public static class NamePlate
                 //   （かぶらないように左へずらすと、今度はすき間ができる）。ふちを上に重ねれば、どちらも起きない
                 if (BorderOnly(sheet) is Texture2D border)
                     Raylib.DrawTexture(border, 0, 0, white);
+                if (anime)
+                    image.Anime!.Draw(frame, new(image.X, image.Y), alpha, baseLayer + 1, int.MaxValue);
             }
             else
             {
@@ -153,11 +157,9 @@ public static class NamePlate
             // 段位欄の上にバッジを重ねる。各バッジは82px刻みで、80pxでは右端が切れる。
             if (SkinManager.GetTexture(Root + "NamePlate_Base.png") is Texture2D badgeSheet)
                 Raylib.DrawTexturePro(badgeSheet, new(side == 0 ? 0 : 164, 80, 82, 80), Layout.PlayerBadge, Vector2.Zero, 0, white);
-            // プレートの絵があるときは白い欄に濃い字。絵が無いとき(暗い板)は今までどおり白い字に黒いふち
-            bool whiteField = SkinManager.GetTexture(Root + "NamePlate_Base.png") is Texture2D;
+            // 名前は白い字に黒いふち（11/26 たけらい「文字のことは言ってない」→ 濃い字・ふちなしにしたのを戻した）
             NameText(data.Name, rank ? Layout.NameWithRank : Layout.NameWithoutRank,
-                whiteField ? Raylib.ColorAlpha(Layout.NameColor, alpha) : white,
-                Raylib.ColorAlpha(Color.Black, alpha), whiteField ? Layout.NameOutline : Layout.NameOutlineDark);
+                white, Raylib.ColorAlpha(Color.Black, alpha), Layout.NameOutlineDark);
         }
         finally { Rlgl.PopMatrix(); }
     }

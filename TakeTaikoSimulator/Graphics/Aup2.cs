@@ -241,7 +241,17 @@ namespace TakeTaikoSimulator.Graphics
         /// frame コマ目の絵を描く。offset は aup2 の画面の左上を、ゲームの画面のどこに置くか（ふつうは 0）。
         /// holdLast を true にすると、最後のコマを過ぎても最後の絵を出しつづける。
         /// </summary>
-        public void Draw(float frame, Vector2 offset = default, float alpha = 1f, bool holdLast = false)
+        // 絵のあるオブジェクトのうち、いちばん下のレイヤー（ネームプレートなら称号の背景）
+        public int BottomImageLayer => items.Where(i => !i.IsGroup && i.Image != null).Select(i => i.Layer).DefaultIfEmpty(0).Min();
+
+        /// <summary>minLayer〜maxLayer のレイヤーだけ描く（間に別の絵を挟みたいとき用）</summary>
+        public void Draw(float frame, Vector2 offset, float alpha, int minLayer, int maxLayer) =>
+            DrawCore(frame, offset, alpha, false, minLayer, maxLayer);
+
+        public void Draw(float frame, Vector2 offset = default, float alpha = 1f, bool holdLast = false) =>
+            DrawCore(frame, offset, alpha, holdLast, int.MinValue, int.MaxValue);
+
+        private void DrawCore(float frame, Vector2 offset, float alpha, bool holdLast, int minLayer, int maxLayer)
         {
             if (holdLast) frame = Math.Min(frame, LastFrame);
             int whole = (int)MathF.Floor(frame);
@@ -249,6 +259,7 @@ namespace TakeTaikoSimulator.Graphics
             foreach (Item item in items)
             {
                 if (item.IsGroup || whole < item.Start || whole > item.End) continue;
+                if (item.Layer < minLayer || item.Layer > maxLayer) continue;
                 float t = Progress(item, frame);
 
                 // このレイヤーにかかっているグループ制御のずらし
