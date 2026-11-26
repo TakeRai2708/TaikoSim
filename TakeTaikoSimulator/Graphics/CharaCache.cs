@@ -47,7 +47,7 @@ namespace TakeTaikoSimulator.Graphics
         /// やめたいときは cancel を true にする。焼けた（焼けていた）ら true。
         /// </summary>
         public static bool BuildIfNeeded(string sourceFolder, string cacheFolder, string animName,
-                                         float scale, int frameStep, Func<bool>? cancel = null)
+                                         float scale, int frameStep, Func<bool>? cancel = null, Action<float>? progress = null)
         {
             if (!Directory.Exists(sourceFolder)) return false;
             frameStep = Math.Max(1, frameStep);
@@ -80,6 +80,7 @@ namespace TakeTaikoSimulator.Graphics
             for (int k = 0; k < keep; k++)
             {
                 if (cancel?.Invoke() == true) return false;
+                progress?.Invoke(k / (keep * 2f));   // ① の調べる分が前半、② の書き出しが後半
                 Image img = Raylib.LoadImage(Path.Combine(sourceFolder, k * frameStep + ".png"));
                 if (img.Width <= 0) continue;
                 if (srcW == 0) { srcW = img.Width; srcH = img.Height; }
@@ -104,6 +105,7 @@ namespace TakeTaikoSimulator.Graphics
             for (int k = 0; k < keep; k++)
             {
                 if (cancel?.Invoke() == true) return false;
+                progress?.Invoke(0.5f + k / (keep * 2f));
                 Image img = Raylib.LoadImage(Path.Combine(sourceFolder, k * frameStep + ".png"));
                 if (img.Width != srcW || img.Height != srcH)
                 {
@@ -337,6 +339,12 @@ namespace TakeTaikoSimulator.Graphics
         /// </summary>
         public static volatile bool Paused;
 
+        // いま作っているもの（画面の右下に出す。作っていないときは null）
+        //   11/26 たけらい「ちゃんとなんでロードしてるか表示したいね」
+        //   作り置きがあるアニメはすぐ終わるので出さない。本当に作り直しているときだけ出る
+        public static volatile string? Status;
+        public static volatile float StatusProgress;   // 全体の進み（0〜1）
+
         private static bool WaitWhilePaused(CancellationToken token)
         {
             while (Paused && !token.IsCancellationRequested) Thread.Sleep(100);
@@ -345,19 +353,33 @@ namespace TakeTaikoSimulator.Graphics
 
         private static void Run(Bake[] jobs, CancellationToken token)
         {
-            foreach (string anim in BakeOrder)
-            foreach (Bake job in jobs)
+            string[] order = BakeOrder.ToArray();
+            int total = order.Length * Math.Max(1, jobs.Length), done = 0;
+            try
             {
-                if (WaitWhilePaused(token)) return;
-                try
+                foreach (string anim in order)
+                foreach (Bake job in jobs)
                 {
-                    string source = Path.Combine(job.Source, anim);
-                    int step = FrameStepFor(job.Config, anim, Directory.Exists(source) ? CharaCache.CountFrames(source) : 0);
-                    if (CharaCache.BuildIfNeeded(source, job.Cache, anim,
-                        ScaleFor(job.Config, anim), step, () => WaitWhilePaused(token))) ready[job.Cache + "/" + anim] = true;
+                    if (WaitWhilePaused(token)) return;
+                    try
+                    {
+                        string source = Path.Combine(job.Source, anim);
+                        int step = FrameStepFor(job.Config, anim, Directory.Exists(source) ? CharaCache.CountFrames(source) : 0);
+                        string who = job.Config.Name.Length > 0 ? job.Config.Name : Path.GetFileName(job.Source);
+                        int index = done;
+                        if (CharaCache.BuildIfNeeded(source, job.Cache, anim,
+                            ScaleFor(job.Config, anim), step, () => WaitWhilePaused(token),
+                            p =>
+                            {
+                                Status = $"{who}の動き（{anim}）を準備中";
+                                StatusProgress = (index + p) / total;
+                            })) ready[job.Cache + "/" + anim] = true;
+                    }
+                    catch (Exception ex) { Console.WriteLine($"[Chara] {anim} を焼けませんでした：{ex.Message}"); }
+                    done++;
                 }
-                catch (Exception ex) { Console.WriteLine($"[Chara] {anim} を焼けませんでした：{ex.Message}"); }
             }
+            finally { Status = null; }
         }
     }
 }
