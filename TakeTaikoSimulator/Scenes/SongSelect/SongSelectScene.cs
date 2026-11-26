@@ -1857,7 +1857,7 @@ namespace TakeTaikoSimulator.Scenes
                     break;
 
                 case Kind.Song:
-                    DrawSongBar(item, inner, open, ink, alpha);
+                    DrawSongBar(item, area, inner, open, ink, alpha);
                     break;
             }
         }
@@ -1944,14 +1944,18 @@ namespace TakeTaikoSimulator.Scenes
                     new Rectangle(rankX - size / 2f, rankY - size / 2f, size, size), tint);
         }
 
-        // お気に入りの印：スキンの虹色のハート（02.SongSelect/Popup/Favorite.png、108×108。ハートは中の 64×62 くらい）
-        //   11/26 たけらい「お気に入りの素材まだ使ってないじゃん」。(cx, cy) はハートのまん中、size は画像の大きさ
-        //   置き場所と大きさは推測（TaikøNauts でこの画像がどこに出るかは、まだ録画で確かめていない）。絵が無いスキンは false（今までの ♥ の字）
+        // お気に入りの印：スキンの虹色のハート（02.SongSelect/Popup/Favorite.png、108×108。ハートは中の 64×60 くらい）
+        //   11/26 たけらい「お気に入りの素材まだ使ってないじゃん」→ TaikøNauts のスクショ4枚で測った：
+        //   ・閉じた板の「左の外」。ハートのまん中 = 板の左はし − 70、板の上下のまん中（2枚で −70.5・−70.5、上下はずれ 0〜0.5px）
+        //   ・大きさはほぼ原寸（黒いふちの幅が 62px。画像では 64px → 0.97倍）
+        //   ・開いた板（選んでいる曲）には出ない
+        //   (cx, cy) はハートのまん中、size は画像の大きさ。絵が無いスキンは false（今までの ♥ の字）
+        private const float FavoriteHeartLeft = 70f, FavoriteHeartSize = 105f;
         private const string FavoriteHeart = Tn + "Popup/Favorite.png";
         private static bool DrawFavoriteHeart(float cx, float cy, float size, float alpha)
             => MenuSkin.Whole(FavoriteHeart, new Rectangle(cx - size / 2f, cy - size / 2f, size, size), MenuSkin.White(alpha));
 
-        private void DrawSongBar(Item item, Rectangle inner, float open, Color ink, float alpha)
+        private void DrawSongBar(Item item, Rectangle area, Rectangle inner, float open, Color ink, float alpha)
         {
             SongEntry song = item.Song!;
             DrawRecordMarks(song, new Rectangle(inner.X - 70, inner.Y - 22, inner.Width + 140, inner.Height + 44), open, alpha);
@@ -1962,7 +1966,7 @@ namespace TakeTaikoSimulator.Scenes
             {
                 using (UseOutlineRatio(SongTitleOutline / SongTitleSize))
                     Outlined(song.Title, new Rectangle(inner.X + 30, inner.Y, inner.Width - 60, inner.Height), SongTitleSize, Fade(titleColor, alpha), Fade(InkFor(item, true), alpha));
-                if (favorite && !DrawFavoriteHeart(inner.X + inner.Width - 28, inner.Y + inner.Height / 2f, 72, alpha))
+                if (favorite && !DrawFavoriteHeart(area.X - FavoriteHeartLeft, area.Y + area.Height / 2f, FavoriteHeartSize, alpha))
                     Text("♥", inner.X + inner.Width - 36, inner.Y + inner.Height / 2f - 14, 26, Fade(new Color(230, 80, 130, 255), alpha));
                 return;
             }
@@ -1972,7 +1976,8 @@ namespace TakeTaikoSimulator.Scenes
             // 上：お気に入りの印
             //   11/12 たけらい「検索結果の板の左上のジャンルはいらない。板の色で分かるから。最近遊んだ曲もそう」
             //   前は、検索・最近追加・お気に入りの一覧で、左上にジャンル名を書いていた
-            if (favorite && !DrawFavoriteHeart(inner.X + inner.Width - 34, inner.Y + 26, 80, a))
+            // 開いた板にはハートを出さない（TaikøNauts と同じ）。絵が無いスキンだけ、今までの文字
+            if (favorite && !MenuSkin.Has(FavoriteHeart))
                 Text("♥ お気に入り", inner.X + inner.Width - 150, inner.Y + 8, 20, Fade(new Color(230, 80, 130, 255), a));
 
             // 曲名・サブタイトル(TaikøNauts と同じく板の上の方)
