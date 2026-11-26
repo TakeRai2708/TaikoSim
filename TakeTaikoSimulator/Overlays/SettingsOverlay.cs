@@ -959,6 +959,19 @@ namespace TakeTaikoSimulator.Overlays
             game.AudioOffsetMs = SliderRow("audioOffset", "音オフセット[ms]", game.AudioOffsetMs, GameConfig.OffsetMin, GameConfig.OffsetMax);
             HelpTip("判定のタイミングごとずらします（判定が合わないとき）");
 
+            // ［タイミングを測る］：メトロノームに合わせて叩いて、音オフセットを決める(Scenes/TimingCalibrationScene.cs)
+            //   演奏中は曲を止めることになるので出さない
+            if (!InPlay)
+            {
+                Rectangle measure = new Rectangle(LabelX, ToScreenY(cursorY), RightEdge - LabelX, 44);
+                if (Gui.Button(measure, "タイミングを測る（叩いて音オフセットを決める）"))
+                {
+                    Close();
+                    SceneManager.Simple(new TimingCalibrationScene());
+                }
+                cursorY += 56;
+            }
+
             // 譜面オフセット(見た目だけずらす)
             game.ChartOffsetMs = SliderRow("chartOffset", "譜面オフセット[ms]", game.ChartOffsetMs, GameConfig.OffsetMin, GameConfig.OffsetMax);
             HelpTip("音符の見た目だけずらします（判定は変わりません）");
