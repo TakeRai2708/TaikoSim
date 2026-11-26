@@ -135,6 +135,18 @@
         // マウスを置いた所の座標(1920×1080)を出すか。素材の位置を自分で直すとき用(11/11)
         public bool ShowCursorPosition { get; set; } = false;
 
+        // 設定の「デバッグ」カテゴリを出すか(11/26)。ふつうは隠しておいて、裏コマンドで出す：
+        //   設定を開いているときに キーボードで d・e・b・u・g と打つ か、上の「設定」の文字を7回クリック。もう一度やると隠れる
+        public bool DebugMenu { get; set; } = false;
+
+        // 演奏中のデバッグ用のキー(F3 表示・F6 入力判定・F7 60打制限・F8 入力診断・F10 見た目)を使うか(11/26)
+        //   段位道場の F3(強制終了)は、これと関係なく使える
+        public bool DebugPlayKeys { get; set; } = true;
+
+        // 前からあるデータのネームプレート "00" を、一度だけ「おまかせ」（1P 02・2P 03）に変えたか(11/26 たけらい「おまかせ」)
+        //   前は、データを作ると "00" が書かれていた（選んでいなくても）。変えたあとに着せ替えで 00 を選べば、そのまま 00
+        public bool NamePlateAutoMigrated { get; set; } = false;
+
         // Discord の「プレイ中」に、今なにをしているかを出すか(11/11)
         public bool DiscordPresence { get; set; } = true;
 

@@ -63,6 +63,32 @@ public static class PlayerDataStore
         if (!IsGuest(slot)) Write(NamePath(slot), copy, AppJsonContext.Default.NamePlateConfig);   // ゲストは覚えるだけ
         plates[slot] = copy; Generation++;
     }
+    // 一度だけ：ネームプレートが "00" のデータを「おまかせ」（空）にする（GameConfig.NamePlateAutoMigrated）
+    public static void MigrateDefaultPlates()
+    {
+        if (ConfigManager.Game.NamePlateAutoMigrated) return;
+        for (int slot = 1; slot <= 3; slot++)
+        {
+            try
+            {
+                if (!File.Exists(NamePath(slot))) continue;
+                var data = NamePlate(slot);
+                if (data.NamePlateId != "00") continue;
+                var copy = Copy(data);
+                copy.NamePlateId = "";
+                Save(slot, copy);
+                Console.WriteLine($"[NamePlate] データ{slot}：ネームプレートを「おまかせ」にしました（前は 00）");
+            }
+            catch (Exception ex) when (ex is IOException or UnauthorizedAccessException or JsonException)
+            {
+                // 読めない・書けないデータはそのまま（次に起動したときもやり直さない。データを上書きしないため）
+                Console.WriteLine($"[NamePlate] データ{slot}：おまかせにできませんでした：{ex.Message}");
+            }
+        }
+        ConfigManager.Game.NamePlateAutoMigrated = true;
+        ConfigManager.SaveGame();
+    }
+
     public static void Save(int slot, PlayerAppearanceConfig data)
     {
         var copy = Copy(data);

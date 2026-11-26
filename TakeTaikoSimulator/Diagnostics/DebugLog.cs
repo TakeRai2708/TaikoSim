@@ -32,6 +32,7 @@ namespace TakeTaikoSimulator.Diagnostics
         PlayEnd,         // 演奏：終わりの演出・暗くする
 
         Text,            // 文字を描いた時間(上の全部の中にまざっている)
+        Chara,           // どんちゃん(キャラ)を描いた時間。コマの上書きを含む(上の全部の中にまざっている。11/26)
         Count,
     }
 
@@ -54,14 +55,14 @@ namespace TakeTaikoSimulator.Diagnostics
             "曲一覧ms", "画面の更新ms", "設定パネル更新ms",
             "画面の描画ms", "設定パネル描画ms", "FPS表示ms", "キャンバス送りms", "スクショms", "画面合成ms", "表示・待ちms",
             "演奏:背景ms", "演奏:レーンms", "演奏:ゲージms", "演奏:音符ms", "演奏:演出ms", "演奏:パネル文字ms", "演奏:終わりms",
-            "文字ms",
+            "文字ms", "キャラms",
         };
 
         // 画面に出すときの短い名前
         private static readonly string[] SectionShortNames =
         {
             "曲一覧", "更新", "設定更新", "描画", "設定描画", "FPS表示", "GPUへ送る", "スクショ", "画面合成", "表示・待ち",
-            "背景", "レーン", "ゲージ", "音符", "演出", "パネル", "終わり", "文字",
+            "背景", "レーン", "ゲージ", "音符", "演出", "パネル", "終わり", "文字", "キャラ",
         };
 
         private const int SectionCount = (int)PerfSection.Count;
@@ -250,12 +251,14 @@ namespace TakeTaikoSimulator.Diagnostics
         private static string TopSections(double[] sections, int n)
         {
             var top = Enumerable.Range(0, SectionCount)
-                .Where(i => i != (int)PerfSection.Text && i != (int)PerfSection.SceneDraw && sections[i] >= 0.5)
+                .Where(i => i != (int)PerfSection.Text && i != (int)PerfSection.Chara && i != (int)PerfSection.SceneDraw && sections[i] >= 0.5)
                 .OrderByDescending(i => sections[i]).Take(n)
                 .Select(i => $"{SectionShortNames[i]} {sections[i]:F1}ms");
             string text = string.Join("・", top);
             double textMs = sections[(int)PerfSection.Text];
             if (textMs >= 0.5) text += $"（うち文字 {textMs:F1}ms）";
+            double charaMs = sections[(int)PerfSection.Chara];
+            if (charaMs >= 0.5) text += $"（うちキャラ {charaMs:F1}ms）";
             return text;
         }
 

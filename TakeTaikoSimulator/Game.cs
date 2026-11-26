@@ -52,6 +52,7 @@ namespace TakeTaikoSimulator
         {
             // 設定を全部読み込む
             ConfigManager.LoadAll();
+            PlayerDataStore.MigrateDefaultPlates();   // 一度だけ：ネームプレート "00" →「おまかせ」（11/26）
             PlayerSettings.Migrate();   // 前からあるプレイヤーデータに、今の設定を写す（最初の1回だけ）
 
             // 描画方式を決める（Raylib を初めて呼ぶ前。ANGLE のときは raylib_angle.dll を読ませる）

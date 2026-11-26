@@ -113,8 +113,11 @@ namespace TakeTaikoSimulator.Scenes
         private const float BigRaysScaleFrom = 0.85f, BigRaysScaleTo = 1.10f;
         // 光の線の濃さ：TaikøNauts は細く薄く見えたので、最大60%。だんだん濃くなって(前半)、だんだん消える(後半)
         private const float BigRaysMaxAlpha = 0.8f;   // 11/25：60% だと TaikøNauts より暗かった
-        private const float MiniTaikoStepSeconds = 0.020f; // ミニ太鼓の明るさが1段下がる時間(20ms。8段)
-        private const int MiniTaikoMaxBright = 8;
+        // ミニ太鼓が光る時間（叩いてからの秒 → 濃さ）。11/26 TaikøNauts の録画（30fps）を1コマずつ見た：
+        //   3コマ（0.1秒）まっ白 → 4コマ目 約0.5 → 5コマ目 約0.15 → 6コマ目で消える。コマとコマの間は直線でつないだ（30fps なので細かい形は推測）
+        //   前は OpenTaiko と同じ「20ms × 8段（不透明度 = 段 × 73）」で、0.1秒から 0.06秒で消えていた（4・5コマ目が少し暗かった）
+        private static readonly (float Time, float Alpha)[] MiniTaikoCurve = { (0f, 1f), (0.100f, 1f), (0.133f, 0.5f), (0.167f, 0.15f), (0.200f, 0f) };
+        private const float MiniTaikoSeconds = 0.200f;
         private const float ComboBumpStep = 0.012f;     // コンボの数字が伸び縮みする1段(12ms)
         private const float GoGoStepSeconds = 0.018f;   // ゴーゴーが始まってからの動き1段(18ms × 18段)
         // ゴーゴーの炎(TaikøNauts の「愛をこめて花束を」の動画を測った値)
@@ -225,7 +228,7 @@ namespace TakeTaikoSimulator.Scenes
         // 叩いた(当たっても空振りでも)：ミニ太鼓と、レーンの赤・青の光
         public void OnDrumHit(DrumPart part)
         {
-            drumLight[(int)part] = MiniTaikoMaxBright;
+            drumLight[(int)part] = MiniTaikoSeconds;   // 残りの秒
             if (KeyConfig.IsDon(part)) redFlash = 0f;
             else blueFlash = 0f;
         }
@@ -316,7 +319,7 @@ namespace TakeTaikoSimulator.Scenes
 
             for (int i = 0; i < drumLight.Length; i++)
             {
-                if (drumLight[i] > 0f) drumLight[i] = Math.Max(0f, drumLight[i] - dt / MiniTaikoStepSeconds);
+                if (drumLight[i] > 0f) drumLight[i] = Math.Max(0f, drumLight[i] - dt);
             }
 
             comboBumpTime += dt;
@@ -647,10 +650,23 @@ namespace TakeTaikoSimulator.Scenes
             for (int part = 0; part < 4; part++)
             {
                 if (drumLight[part] <= 0f) continue;
-                // OpenTaiko：不透明度 = 明るさ × 73(8段 → 3段目までは真っ白、そこから消えていく)
-                float alpha = Math.Clamp(MathF.Ceiling(drumLight[part]) * 73f / 255f, 0f, 1f);
+                float alpha = MiniTaikoAlpha(MiniTaikoSeconds - drumLight[part]);
+                if (alpha <= 0f) continue;
                 DrawMiniTaikoFrame(texture, frameOf[part], frameHeight, alpha);
             }
+        }
+
+        // 叩いてからの秒 → 濃さ（MiniTaikoCurve を直線でつなぐ）
+        private static float MiniTaikoAlpha(float t)
+        {
+            for (int i = 1; i < MiniTaikoCurve.Length; i++)
+            {
+                var (t1, a1) = MiniTaikoCurve[i];
+                if (t > t1) continue;
+                var (t0, a0) = MiniTaikoCurve[i - 1];
+                return a0 + (a1 - a0) * Math.Clamp((t - t0) / Math.Max(1e-4f, t1 - t0), 0f, 1f);
+            }
+            return 0f;
         }
 
         private static void DrawMiniTaikoFrame(Texture2D texture, int frame, float frameHeight, float alpha)

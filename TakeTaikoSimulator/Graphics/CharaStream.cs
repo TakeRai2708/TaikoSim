@@ -1,7 +1,9 @@
 using System.Collections.Concurrent;
+using System.Diagnostics;
 using System.Numerics;
 using System.Runtime.InteropServices;
 using Raylib_cs;
+using TakeTaikoSimulator.Diagnostics;
 
 namespace TakeTaikoSimulator.Graphics
 {
@@ -40,6 +42,17 @@ namespace TakeTaikoSimulator.Graphics
         private readonly AutoResetEvent wake = new(false);
         private volatile bool stop;
         private readonly ConcurrentQueue<Clip> added = new();
+
+        // ===== デバッグ記録（11/26 たけらい「ほかのキャラだと FPS が低い」の原因さがし） =====
+        //   1秒ごとに events.csv へ「キャラ」の行を書く（デバッグ記録が ON のときだけ）：
+        //     読んだコマの数・1コマを読む（PNG をほどく）のにかかった平均と最大・ファイルの大きさの平均・
+        //     読みが間に合わず前のコマを出したフレームの数・テクスチャの上書きにかかった合計
+        //   描く時間そのものは frames.csv の「キャラms」
+        private long statDecodes, statDecodeTicks, statDecodeMaxTicks, statDecodeBytes;   // 裏のスレッドが足す（Interlocked）
+        private int statDraws, statStale, statUploads;
+        private long statUploadTicks;
+        private long statSince = Stopwatch.GetTimestamp();
+        private string statAnim = "";
 
         public CharaStream(string cacheFolder, int ahead = 10)
         {
@@ -91,6 +104,17 @@ namespace TakeTaikoSimulator.Graphics
 
         public bool Draw(string anim, int frame, float x, float y, float scale, Color tint, bool flip = false)
         {
+            long t = DebugLog.Begin();
+            try { return DrawCore(anim, frame, x, y, scale, tint, flip); }
+            finally
+            {
+                DebugLog.End(PerfSection.Chara, t);
+                if (DebugLog.Active) ReportStats();
+            }
+        }
+
+        private bool DrawCore(string anim, int frame, float x, float y, float scale, Color tint, bool flip)
+        {
             Clip? clip = GetClip(anim);
             if (clip == null) return false;
             int count = clip.Meta.FrameCount;
@@ -108,9 +132,15 @@ namespace TakeTaikoSimulator.Graphics
 
             if (clip.Uploaded != frame && clip.Decoded.TryGetValue(frame, out byte[]? pixels))
             {
+                long up = Stopwatch.GetTimestamp();
                 Raylib.UpdateTexture(clip.Texture, pixels);
                 clip.Uploaded = frame;
+                statUploads++;
+                statUploadTicks += Stopwatch.GetTimestamp() - up;
             }
+            statDraws++;
+            statAnim = anim;
+            if (clip.Uploaded != frame) statStale++;   // 読みが間に合わず、前のコマのまま
 
             // このアニメのコマがまだ1つも入っていないときは、前のアニメの最後のコマを出しておく
             Clip? show = clip.Uploaded >= 0 ? clip : lastDrawn;
@@ -196,12 +226,37 @@ namespace TakeTaikoSimulator.Graphics
             return d <= Ahead || d >= count - 2;
         }
 
+        // 1秒ぶんをまとめて events.csv に書く（メインスレッドから）
+        private void ReportStats()
+        {
+            long now = Stopwatch.GetTimestamp();
+            double seconds = (now - statSince) / (double)Stopwatch.Frequency;
+            if (seconds < 1.0) return;
+            long decodes = Interlocked.Exchange(ref statDecodes, 0);
+            long decodeTicks = Interlocked.Exchange(ref statDecodeTicks, 0);
+            long decodeMax = Interlocked.Exchange(ref statDecodeMaxTicks, 0);
+            long bytes = Interlocked.Exchange(ref statDecodeBytes, 0);
+            double ms(long ticks) => ticks * 1000.0 / Stopwatch.Frequency;
+            double avg = decodes > 0 ? ms(decodeTicks) / decodes : 0;
+            string size = clips.TryGetValue(statAnim, out Clip? c) ? $"{c.Meta.CellWidth}x{c.Meta.CellHeight}" : "?";
+            string folder = Path.GetFileName(Path.TrimEndingDirectorySeparator(cacheFolder));
+            DebugLog.Event("キャラ",
+                $"{folder}/{statAnim} {size} 読んだコマ{decodes}（平均{avg:F1}ms・最大{ms(decodeMax):F1}ms・平均{(decodes > 0 ? bytes / decodes / 1024 : 0)}KB）" +
+                $" 前のコマのまま{statStale}/{statDraws}フレーム 上書き{statUploads}回 {ms(statUploadTicks):F1}ms / {seconds:F1}秒",
+                avg, statDraws > 0 ? 100.0 * statStale / statDraws : 0);
+            statDraws = statStale = statUploads = 0;
+            statUploadTicks = 0;
+            statSince = now;
+        }
+
         private unsafe void Decode(Clip clip, int index)
         {
+            long started = Stopwatch.GetTimestamp();
             try
             {
                 string path = CharaCache.FramePath(cacheFolder, clip.Name, index);
                 byte[] data = File.ReadAllBytes(path);
+                Interlocked.Add(ref statDecodeBytes, data.Length);
                 Image img = Raylib.LoadImageFromMemory(".png", data);
                 if (img.Width <= 0) { clip.Decoded[index] = new byte[clip.Meta.CellWidth * clip.Meta.CellHeight * 4]; return; }
                 if (img.Format != PixelFormat.UncompressedR8G8B8A8) Raylib.ImageFormat(ref img, PixelFormat.UncompressedR8G8B8A8);
@@ -216,6 +271,15 @@ namespace TakeTaikoSimulator.Graphics
             {
                 // 読めないコマは透明にしておく（何度も読みに行かないように）
                 clip.Decoded[index] = new byte[clip.Meta.CellWidth * clip.Meta.CellHeight * 4];
+            }
+            finally
+            {
+                long took = Stopwatch.GetTimestamp() - started;
+                Interlocked.Increment(ref statDecodes);
+                Interlocked.Add(ref statDecodeTicks, took);
+                long max;
+                while (took > (max = Interlocked.Read(ref statDecodeMaxTicks))
+                    && Interlocked.CompareExchange(ref statDecodeMaxTicks, took, max) != max) { }
             }
         }
 

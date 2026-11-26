@@ -68,8 +68,24 @@ namespace TakeTaikoSimulator.Overlays
         private float RowHeight => fullScreen ? 66 : 60;
 
         // カテゴリ(アイコンを使わず、番号と文字で探せるようにする)
-        private enum Category { General, Window, Sound, Play, Key, Skin }
-        private static readonly string[] CategoryNames = { "一般", "画面", "音", "演奏", "キー", "スキン" };
+        private enum Category { General, Window, Sound, Play, Key, Skin, Debug }
+        private static readonly string[] CategoryNames = { "一般", "画面", "音", "演奏", "キー", "スキン", "デバッグ" };
+        // 左に出すカテゴリ。「デバッグ」は裏コマンドで出したときだけ（GameConfig.DebugMenu。11/26）
+        private static Category[] VisibleCategories => ConfigManager.Game.DebugMenu
+            ? Enum.GetValues<Category>()
+            : Enum.GetValues<Category>().Where(c => c != Category.Debug).ToArray();
+
+        // ===== 裏コマンド（11/26 たけらい「裏コマンド的なやつで設定項目出せるように」→ 2 と 3 の両方） =====
+        //   ・キーボードで d → e → b → u → g（1文字ごとに 1.5秒以内。文字の入力欄を使っているときは数えない）
+        //   ・上の「設定」の文字を 7回クリック（3秒以内）
+        //   どちらも、もう一度やると隠れる
+        private static readonly KeyboardKey[] SecretWord = { KeyboardKey.D, KeyboardKey.E, KeyboardKey.B, KeyboardKey.U, KeyboardKey.G };
+        private const float SecretKeyGap = 1.5f, SecretClickWindow = 3f;
+        private const int SecretClicks = 7;
+        private int secretIndex;
+        private float secretKeyTimer;
+        private int secretClickCount;
+        private float secretClickTimer;
         private Category selectedCategory = Category.General;
 
         // 全画面では、適用を押すまで本番の設定に触れない
@@ -357,6 +373,7 @@ namespace TakeTaikoSimulator.Overlays
 
             blinkTimer += dt;
             if (messageTimer > 0f) messageTimer -= dt;
+            UpdateSecret(dt);
 
             // 「フォルダを選択」が押されていたら、Windowsの選択画面を出す
             if (pickFolderRequested)
@@ -484,6 +501,7 @@ namespace TakeTaikoSimulator.Overlays
                     case Category.Play: DrawPlaySection(); break;
                     case Category.Key: DrawKeySection(); break;
                     case Category.Skin: DrawSkinSection(); break;
+                    case Category.Debug: DrawDebugSection(); break;
                 }
             }
             else
@@ -494,6 +512,7 @@ namespace TakeTaikoSimulator.Overlays
                 DrawPlaySection();
                 DrawKeySection();
                 DrawSkinSection();
+                if (ConfigManager.Game.DebugMenu) DrawDebugSection();
             }
             EndCard();
             contentHeight = cursorY + 40;
@@ -540,6 +559,29 @@ namespace TakeTaikoSimulator.Overlays
 
         // ===== 各カテゴリ =====
 
+        // デバッグ（裏コマンドで出したときだけ。11/26 たけらい「デバッグ系の機能を設定にまとめてオンオフ」）
+        private void DrawDebugSection()
+        {
+            Section(Category.Debug, "デバッグ");
+            GameConfig game = ActiveGame;
+
+            SubHeader("記録");
+            game.DebugLog = CheckboxRow("デバッグ記録（CSV）", game.DebugLog);
+            NoteRow(DebugLog.Active && DebugLog.SessionFolder != null
+                ? $"記録中：Logs/{Path.GetFileName(DebugLog.SessionFolder)}/ の Debug（frames・events）と Input（input）"
+                : "ON にすると Logs/ に、毎フレームの重さ・できごと・入力・キャラの読みこみを記録します");
+
+            SubHeader("画面に出す");
+            game.ShowPerfOverlay = CheckboxRow("重さの内訳を画面に出す", game.ShowPerfOverlay);
+            game.ShowCursorPosition = CheckboxRow("マウスの位置の座標を出す", game.ShowCursorPosition);
+
+            SubHeader("演奏中のキー");
+            game.DebugPlayKeys = CheckboxRow("デバッグ用のキーを使う", game.DebugPlayKeys);
+            NoteRow("F3 デバッグ表示・F6 入力判定・F7 60打制限・F8 入力診断・F10 見た目（段位道場の F3 は別）");
+
+            NoteRow("このカテゴリを隠すには、もう一度 d・e・b・u・g と打つか、上の「設定」を7回クリック");
+        }
+
         private void DrawGeneralSection()
         {
             Section(Category.General, "一般");
@@ -549,12 +591,6 @@ namespace TakeTaikoSimulator.Overlays
             SubHeader("記録表示");
             game.RecordGroup = (RecordGroup)DropdownRow("recordGroup", "王冠・ランクの集計", new[] { "かんたん", "ふつう", "むずかしい", "おに", "おに＋裏" }, (int)game.RecordGroup);
             NoteRow("表示する獲得数の難易度です。曲ごとの記録は難易度別に保存します。");
-
-            // ----- デバッグ(重さ・入力・音のズレを CSV に記録する) -----
-            SubHeader("デバッグ");
-            game.DebugLog = CheckboxRow("デバッグ記録（CSV）", game.DebugLog);
-            game.ShowPerfOverlay = CheckboxRow("重さの内訳を画面に出す", game.ShowPerfOverlay);
-            game.ShowCursorPosition = CheckboxRow("マウスの位置の座標を出す", game.ShowCursorPosition);
 
             // ----- Discord(「プレイ中」の表示) -----
             SubHeader("Discord");
@@ -567,9 +603,6 @@ namespace TakeTaikoSimulator.Overlays
                 Platform.DiscordPresence.Status.NoId => "Application ID がまだ入っていません（Platform/DiscordPresence.cs）",
                 _ => "OFF",
             });
-            NoteRow(DebugLog.Active && DebugLog.SessionFolder != null
-                ? $"記録中：Logs/{Path.GetFileName(DebugLog.SessionFolder)}/ の Debug（frames・events）と Input（input）"
-                : "ON にすると Logs/Debug_日付_時間/ に、毎フレームの重さ・できごと・入力を記録します");
 
             // ----- 曲(前は選曲画面の上にあったボタン) -----
             SubHeader("曲");
@@ -1187,7 +1220,7 @@ namespace TakeTaikoSimulator.Overlays
             sectionPos[category] = cursorY;
             float y = ToScreenY(cursorY);
             Gui.Header(title, SectionX, y);
-            FontManager.Draw($"{(int)category + 1:00} / 06", RightEdge - 93, y + 15, 20, Gui.SubTextColor);
+            FontManager.Draw($"{(int)category + 1:00} / {VisibleCategories.Length:00}", RightEdge - 93, y + 15, 20, Gui.SubTextColor);
             Raylib.DrawLine((int)SectionX, (int)(y + 55), (int)RightEdge,
                 (int)(y + 55), Gui.BorderColor);
             cursorY += 72;
@@ -1484,6 +1517,60 @@ namespace TakeTaikoSimulator.Overlays
         }
 
         // 結果メッセージを出す
+        // 裏コマンド：d・e・b・u・g を順に打ったか数える
+        private void UpdateSecret(float dt)
+        {
+            if (secretClickTimer > 0f && (secretClickTimer -= dt) <= 0f) secretClickCount = 0;
+            if (secretIndex > 0 && (secretKeyTimer -= dt) <= 0f) secretIndex = 0;
+            // 文字の入力中・キーの割り当て待ち・ドロップダウンを開いているときは数えない
+            if (Gui.IsEditing || Gui.IsPopupOpen || IsWaitingKey) { secretIndex = 0; return; }
+            // キーの順番待ちの列（GetKeyPressed）は使わない。ほかの画面のキー入力を横取りしないように
+            if (Raylib.IsKeyPressed(SecretWord[secretIndex]))
+            {
+                secretIndex++;
+                secretKeyTimer = SecretKeyGap;
+                if (secretIndex == SecretWord.Length) { secretIndex = 0; ToggleDebugMenu(); }
+                return;
+            }
+            if (secretIndex == 0) return;
+            for (KeyboardKey k = KeyboardKey.A; k <= KeyboardKey.Z; k++)
+            {
+                if (!Raylib.IsKeyPressed(k)) continue;
+                secretIndex = k == SecretWord[0] ? 1 : 0;   // ちがう文字を打ったら、最初から
+                secretKeyTimer = SecretKeyGap;
+                break;
+            }
+        }
+
+        // 上の「設定」の文字をクリックした（7回で裏コマンド）
+        private void CountSecretClick()
+        {
+            if (secretClickCount == 0) secretClickTimer = SecretClickWindow;
+            if (++secretClickCount < SecretClicks) return;
+            secretClickCount = 0;
+            ToggleDebugMenu();
+        }
+
+        // 「デバッグ」カテゴリを出す・隠す。すぐファイルに保存する（適用を押さなくても残る）
+        private void ToggleDebugMenu()
+        {
+            bool show = !ConfigManager.Game.DebugMenu;
+            ConfigManager.Game.DebugMenu = show;
+            if (draftGame != null) draftGame.DebugMenu = show;
+            if (savedGame != null) savedGame.DebugMenu = show;   // 「変更があります」にしない
+            ConfigManager.SaveGame();
+            if (!show && selectedCategory == Category.Debug)
+            {
+                selectedCategory = Category.General;
+                scroll = scrollTarget = contentHeight = 0f;
+            }
+            clickedCategory = null;
+            sectionPos.Clear();
+            Gui.Reset();
+            MenuSounds.Don();
+            ShowMessage(show ? "デバッグのカテゴリを出しました" : "デバッグのカテゴリを隠しました", SuccessColor);
+        }
+
         private void ShowMessage(string text, Color color)
         {
             message = text;
@@ -1807,12 +1894,14 @@ namespace TakeTaikoSimulator.Overlays
             {
                 DrawProductLabel("TakeTaikoSimulator", 34, 28);
                 FontManager.Draw("設定", SectionX, 24, 40, Color.White);
+                if (Gui.Clicked(new Rectangle(SectionX - 8, 18, 100, 56))) CountSecretClick();
                 FontManager.Draw("演奏環境", SectionX + 120, 39, 22, Gui.SubTextColor);
                 if (Gui.Button(new Rectangle(CurrentWidth - 176, 22, 145, 56), "戻る")) RequestClose();
             }
             else
             {
                 FontManager.Draw("設定", 24, 17, 38, Color.White);
+                if (Gui.Clicked(new Rectangle(16, 12, 92, 50))) CountSecretClick();
                 DrawProductLabel("TakeTaikoSimulator  /  F1", 57, 19);
                 if (Gui.Button(new Rectangle(PanelWidth - 68, 18, 48, 48), "×")) RequestClose();
             }
@@ -1831,13 +1920,13 @@ namespace TakeTaikoSimulator.Overlays
             UiTheme.FillBackgroundPart(BackArea, new Rectangle(0, HeaderHeight, SidebarWidth, Screen.Height - HeaderHeight - HintHeight));
             FontManager.Draw("カテゴリ", 28, HeaderHeight + 20, 19, Gui.SubTextColor);
             Category current = GetCurrentCategory();
-            Category[] categories = Enum.GetValues<Category>();
+            Category[] categories = VisibleCategories;
 
             // 選んでいるカテゴリの帯：次の場所までスッと動く(約0.1秒)
             Rectangle CategoryArea(int i) => fullScreen
                 ? new Rectangle(18, HeaderHeight + 62 + i * 68, SidebarWidth - 36, 58)
                 : new Rectangle(12, HeaderHeight + 58 + i * 62, SidebarWidth - 24, 54);
-            Rectangle target = CategoryArea((int)current);
+            Rectangle target = CategoryArea(Math.Max(0, Array.IndexOf(categories, current)));
             if (indicatorY < 0f) { indicatorY = indicatorFrom = indicatorTo = target.Y; indicatorTime = 99f; }
             if (target.Y != indicatorTo) { indicatorFrom = indicatorY; indicatorTo = target.Y; indicatorTime = 0f; }
             indicatorTime += Gui.FrameDt;
@@ -1863,7 +1952,7 @@ namespace TakeTaikoSimulator.Overlays
 
                 FontManager.Draw($"{i + 1:00}", area.X + 16, area.Y + (fullScreen ? 17 : 16), 19,
                     category == current ? Gui.AccentColor : Gui.SubTextColor);
-                FontManager.Draw(CategoryNames[i], area.X + (fullScreen ? 66 : 53), area.Y + (fullScreen ? 13 : 13),
+                FontManager.Draw(CategoryNames[(int)category], area.X + (fullScreen ? 66 : 53), area.Y + (fullScreen ? 13 : 13),
                     fullScreen ? 27 : 23, category == current ? Color.White : Gui.SubTextColor);
 
                 if (Gui.Clicked(area) && fullScreen && category != selectedCategory)

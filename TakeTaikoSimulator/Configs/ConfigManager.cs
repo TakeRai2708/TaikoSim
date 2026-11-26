@@ -90,6 +90,19 @@ namespace TakeTaikoSimulator.Configs
             }
         }
 
+        // ゲームの設定だけ、すぐ保存する(設定パネルでデバッグのカテゴリを出し入れしたとき。11/26)
+        public static void SaveGame()
+        {
+            try
+            {
+                Save(GameConfig.FileName, Game, AppJsonContext.Default.GameConfig);
+            }
+            catch (Exception ex) when (ex is IOException || ex is UnauthorizedAccessException)
+            {
+                Console.WriteLine($"[Config] {GameConfig.FileName} を保存できませんでした: {ex.Message}");
+            }
+        }
+
         // 音の設定だけ、すぐ保存する(設定パネルで［音量を適用］を押したとき)
         public static void SaveSound()
         {
