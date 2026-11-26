@@ -143,6 +143,26 @@ public sealed class DressingScene : Scene
             else Apply();
         }
     }
+    // 絵の中で、透明でない部分の四角（キャラごとに1回だけ調べる）
+    private readonly Dictionary<string, Rectangle> visible = new();
+    private Rectangle VisibleArea(string rel, Texture2D tex)
+    {
+        if (visible.TryGetValue(rel, out Rectangle found)) return found;
+        Rectangle area = new(0, 0, tex.Width, tex.Height);
+        string? root = SkinManager.CurrentPath;
+        if (root != null && File.Exists(Path.Combine(root, rel)))
+        {
+            Image img = Raylib.LoadImage(Path.Combine(root, rel));
+            if (img.Width > 0)
+            {
+                Rectangle border = Raylib.GetImageAlphaBorder(img, 0.05f);
+                if (border.Width > 4 && border.Height > 4) area = border;
+                Raylib.UnloadImage(img);
+            }
+        }
+        return visible[rel] = area;
+    }
+
     private void BeginNameEdit(bool title = false)
     {
         namingTitle = title;
@@ -250,9 +270,11 @@ public sealed class DressingScene : Scene
             string? rel = category == 0 && characters.Length > 0 ? "Image/99.Common/Chara/" + characters[cursor] + "/songselect_loop/0.png" : null;
             if (rel != null && SkinManager.GetTexture(rel) is Texture2D tex)
             {
-                float scale = Math.Min(Layout.CharacterMaxSize.X / tex.Width, Layout.CharacterMaxSize.Y / tex.Height);
-                // 添付のオレンジ枠へ。A-Styleの透明余白を含む820×599画像が基準。
-                Raylib.DrawTextureEx(tex, Layout.Character, 0, scale, Color.White);
+                // 見えている部分だけを、ネームプレートの真上に（LayoutAdjustments.Dressing）
+                Rectangle src = VisibleArea(rel, tex);
+                float scale = Math.Min(Layout.CharacterMaxScale, Math.Min(Layout.CharacterMaxSize.X / src.Width, Layout.CharacterMaxSize.Y / src.Height));
+                float w = src.Width * scale, h = src.Height * scale;
+                Raylib.DrawTexturePro(tex, src, new Rectangle(Layout.CharacterCenterX - w / 2, Layout.CharacterBottom - h, w, h), Vector2.Zero, 0, Color.White);
             }
             if (category == 1)
             {
