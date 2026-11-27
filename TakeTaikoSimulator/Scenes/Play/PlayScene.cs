@@ -842,7 +842,18 @@ namespace TakeTaikoSimulator.Scenes
             bool goGoNow = course != null && course.IsGoGoAt(nowMs - ViewAudioOffsetMs - ConfigManager.Game.ChartOffsetMs, branches.IsActive);
             if (course != null) effects.SetGoGo(goGoNow);
             UpdateChara(dt, goGoNow);
-            background.Update(dt, stats.IsClear, stats.IsMax, (float)stats.Gauge, 240.0 / Math.Max(1.0, GetCurrentBpm(chart, course)));
+            background.Update(dt, stats.IsClear, stats.IsMax, DancerGaugePercent(), 240.0 / Math.Max(1.0, GetCurrentBpm(chart, course)));
+        }
+
+        // ダンサーが出てくる「ゲージの％」は、魂ゲージ全体ではなく、クリア(ノルマ)までの何％か
+        //   11/27 たけらい「黄色のクリア行ったときに最後の踊り子が出てきてる気がする。TaikøNauts と違う」→ OpenTaiko を見た：
+        //   OpenTaiko の既定は 0,0,0,40,80（魂ゲージの値）で、おにのノルマ 80 のとき4人目はノルマの半分・5人目はクリアの瞬間。
+        //   A-Style の dancerGaugePercent は 0,0,0,50,100 なので「ノルマまでの％」と読むと同じになる。
+        //   前は魂ゲージそのまま(0〜100)で比べていて、5人目は魂ゲージMAX(虹)になるまで出てこなかった
+        private float DancerGaugePercent()
+        {
+            if (stats.Norma <= 0) return (float)stats.Gauge;
+            return (float)(stats.Gauge / stats.Norma * 100.0);
         }
 
         // どんちゃん：ゴーゴー・ゲージ・風船の様子を渡して、BPM に合わせて進める
