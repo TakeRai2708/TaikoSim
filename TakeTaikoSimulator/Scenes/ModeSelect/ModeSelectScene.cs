@@ -237,7 +237,10 @@ namespace TakeTaikoSimulator.Scenes
                 deciding = null;
                 list.EndDecide();
                 Open(item);
-                CharaBackToLoop();   // 画面が替わらなかったとき（設定など）のため
+                // 画面が替わらないとき（設定は上に重ねて開くだけ）だけ、いつもの動きに戻す。
+                //   11/27 たけらい「選んだ時のどんちゃんの動き、画面が切り替わる前にリセットされてる」：
+                //   前は画面が替わるときも戻していたので、暗くなっていく間にジャンプの決めポーズが消えていた
+                if (!SceneManager.IsBlocking) CharaBackToLoop();
                 return;
             }
 
