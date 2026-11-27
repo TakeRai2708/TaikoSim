@@ -17,6 +17,9 @@ namespace TakeTaikoSimulator.UI
 
         public BarList(string folder) => Folder = folder;
 
+        // 絵の無い板のふちを、モード選択の A-Style の板（01.Entry/Bar/Bar/1.png）と同じグラデで描く
+        public bool EntryRim { get; init; }
+
         // ===== 配置(1920×1080) =====
         public const float BarX = 495, BarY = 478;            // 選んでいる板の左上
         public const float BarWidth = 932, BarHeight = 124;
@@ -215,7 +218,8 @@ namespace TakeTaikoSimulator.UI
                 return inner;
             }
 
-            DrawCodeBody(area, color, alpha);
+            if (EntryRim) DrawEntryRimBody(area, color, alpha);
+            else DrawCodeBody(area, color, alpha);
             Rectangle innerPlate = movedPlate ? plate!.Value : inner;
             if (!plain && innerPlate.Height > 0)
                 SmoothShapes.Rounded(innerPlate, MenuDraw.Roundness(innerPlate, 8), 8, MenuDraw.Fade(MenuDraw.Tint(color, 0.6f), alpha));
@@ -252,6 +256,43 @@ namespace TakeTaikoSimulator.UI
             Rectangle body = new Rectangle(r.X + CodeBand, r.Y + CodeBand, r.Width - CodeBand * 2, r.Height - CodeBand * 2);
             SmoothShapes.Rounded(body, MenuDraw.Roundness(body, rad - CodeBand), 12, MenuDraw.Fade(color, alpha));
         }
+
+        // ===== 絵が無い板（モード選択）を、A-Style の 01.Entry/Bar/Bar/1.png（段位道場の青い板）のまねで描く =====
+        //   11/27 たけらい「（段位道場の板の写真）これをそのまま真似すればいいのに？」
+        //   絵を1pxずつ見た（閉じた板 160px と、開いて伸びた板 1920×1080 のスクショの両方）：
+        //     黒いふち → 色の帯（左右 6px・上 4px・下 6px）→ 板の色
+        //     左の帯：上は白に近い → 上から 1/3 くらいで一気に水色っぽく → 下 1/4 は暗い色。開いても割合は同じ
+        //     右の帯：上は少し明るい色 → 下の暗い色へまっすぐ
+        //     上の帯は左の白と右の明るい色のあいだ、下の帯は暗い色
+        //   色は板の色から作る（白に混ぜる割合・暗さは、青(60,100,182)と緑の板の絵で合わせた）
+        private const float EntryBandSide = 6f, EntryBandTop = 4f, EntryBandBottom = 6f;
+        private static readonly Vector3 EntryRimStops = new(0.12f, 0.35f, 0.75f);
+        private static void DrawEntryRimBody(Rectangle area, Color color, float alpha)
+        {
+            SmoothShapes.Rounded(area, MenuDraw.Roundness(area, CodeOuterRadius), 12, MenuDraw.Fade(InkColor, alpha));
+            Rectangle r = new Rectangle(area.X + CodeInk, area.Y + CodeInk, area.Width - CodeInk * 2, area.Height - CodeInk * 2);
+            float rad = CodeOuterRadius - CodeInk;
+            Color dark = RimDark(color);
+            Color[] left = { Whiten(color, 0.92f), Whiten(color, 0.85f), Whiten(color, 0.2f), dark };
+            SmoothShapes.RoundedGradient(r, rad, left, EntryRimStops, Whiten(color, 0.28f), dark, alpha);
+            Rectangle body = new Rectangle(r.X + EntryBandSide, r.Y + EntryBandTop, r.Width - EntryBandSide * 2, r.Height - EntryBandTop - EntryBandBottom);
+            SmoothShapes.Rounded(body, MenuDraw.Roundness(body, rad - EntryBandSide), 12, MenuDraw.Fade(color, alpha));
+        }
+
+        // 白に amount だけ近づける
+        private static Color Whiten(Color c, float amount) => new Color(
+            (byte)(c.R + (255 - c.R) * amount), (byte)(c.G + (255 - c.G) * amount), (byte)(c.B + (255 - c.B) * amount), (byte)255);
+
+        // 下と右下の暗い帯の色：絵では板の色にかかわらず明るさが同じくらい（青も緑も 明るさ 85 前後）
+        private static Color RimDark(Color c)
+        {
+            float lum = 0.3f * c.R + 0.59f * c.G + 0.11f * c.B;
+            float k = Math.Clamp(85f / Math.Max(lum, 1f), 0.45f, 0.85f);
+            float r = c.R * k, g = c.G * k, b = c.B * k;
+            float gray = 0.3f * r + 0.59f * g + 0.11f * b;
+            return new Color((byte)(r + (gray - r) * 0.15f), (byte)(g + (gray - g) * 0.15f), (byte)(b + (gray - b) * 0.15f), (byte)255);
+        }
+
         private const float ShadowDrop = 5f;
 
         private static Rectangle RimInset(Rectangle area) =>

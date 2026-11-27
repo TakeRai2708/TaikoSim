@@ -38,7 +38,7 @@ namespace TakeTaikoSimulator.Scenes
 
         // 選んでいる項目(ほかの画面から戻ってきても同じ場所)。先頭・末尾を越えない
         private static int cursor = 0;
-        private readonly BarList list = new(MenuSkin.ModeFolder);
+        private readonly BarList list = new(MenuSkin.ModeFolder) { EntryRim = true };
         private Item? deciding;                // 決定して、枠が点滅している項目
         private const string EntryFolder = "Image/01.Entry/";
         private const string EntryBarFolder = EntryFolder + "Bar/";
