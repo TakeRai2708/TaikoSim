@@ -32,6 +32,7 @@ namespace TakeTaikoSimulator.Audio
         private static double left;         // 今の声の残り秒
         private static string? nextLoop;    // 今の声が終わったら、くり返す声
         private static string? loop;        // くり返している声
+        private static double loopPeriod;   // くり返しの間隔（鳴り始めから次の鳴り始めまで。0 なら鳴り終わったらすぐ）
         private static string? pending;     // 少し待ってから鳴らす声（PlayAfter）
         private static double pendingLeft;
 
@@ -39,6 +40,7 @@ namespace TakeTaikoSimulator.Audio
         public static void Play(string file)
         {
             loop = null;
+            loopPeriod = 0;
             nextLoop = null;
             pending = null;
             Start(file);
@@ -60,13 +62,15 @@ namespace TakeTaikoSimulator.Audio
             Get(file)?.Sound.Play((float)ConfigManager.Sound.GetFinalVolume(ConfigManager.Sound.SeVolume));
         }
 
-        /// <summary>声をくり返す（鳴り終わったらすぐ頭から）</summary>
-        public static void Loop(string file)
+        /// <summary>声をくり返す。periodSeconds が 0 なら鳴り終わったらすぐ頭から、それ以外はその秒ごと（声より短ければ鳴り終わってから）</summary>
+        //   11/28 たけらい：エントリーの「太鼓をたたいてスタート」と選曲の声は 5秒おき（TaikøNauts は 2〜3秒おきだけど「間隔短いとうざい」）
+        public static void Loop(string file, double periodSeconds = 0)
         {
             nextLoop = null;
             pending = null;
             loop = file;
-            Start(file);
+            loopPeriod = periodSeconds;
+            if (Start(file)) left = Math.Max(left, loopPeriod);
         }
 
         /// <summary>first を鳴らして、鳴り終わったら loopFile をくり返す</summary>
@@ -74,6 +78,7 @@ namespace TakeTaikoSimulator.Audio
         {
             pending = null;
             loop = null;
+            loopPeriod = 0;
             nextLoop = loopFile;
             if (!Start(first)) Loop(loopFile);   // 1つめが無いスキンなら、すぐくり返しへ
         }
@@ -125,7 +130,7 @@ namespace TakeTaikoSimulator.Audio
             }
             else if (loop != null)
             {
-                Start(loop);
+                if (Start(loop)) left = Math.Max(left, loopPeriod);
             }
         }
 

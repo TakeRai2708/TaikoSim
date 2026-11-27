@@ -270,6 +270,7 @@ namespace TakeTaikoSimulator.Scenes
         //   ・難易度を決める → すぐ DecideDifficulty（どんちゃんのジャンプと同時）
         //   ・「とじる」を決める → Cancel.ogg（効果音）
         private const string SelectStartVoice = "Sound/SongSelect/SelectStart.ogg";
+        private const double SelectStartVoicePeriod = 5.0;
         private const string DecideSongVoice = "Sound/SongSelect/DecideSong.ogg";
         private const string DecideDifficultyVoice = "Sound/SongSelect/DecideDifficulty.ogg";
         private const double GenreVoiceDelay = 0.95, DecideSongVoiceDelay = 0.5;
@@ -296,7 +297,7 @@ namespace TakeTaikoSimulator.Scenes
             chara.SetIdle("songselect_loop", c => c.SongSelectLoopTime);
             if (!returningFromDifficulty)
             {
-                MenuVoice.Loop(SelectStartVoice);
+                MenuVoice.Loop(SelectStartVoice, SelectStartVoicePeriod);   // 5秒おき（11/28 たけらい）
                 selectPrompt = true;
             }
             guideClock = 0f;
