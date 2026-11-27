@@ -47,9 +47,13 @@ namespace TakeTaikoSimulator.Scenes
 
         private readonly bool training;
         // afterPlay：演奏・リザルトのあとに戻ってきたとき。「好きな曲を選ぶドン」（SelectStart）を言わない（11/26 たけらい）
-        public SongSelectScene(bool training = false, bool returningFromDifficulty = false, bool afterPlay = false)
+        // fromMode：モード選択から入ったとき。いつも最初のカテゴリ（J-POP など）の箱から始める
+        //   11/28 たけらい「曲選はいったら j-pop から始まるようにしたい」（TaikøNauts もそう）。
+        //   どのカテゴリが最初かは、曲の一覧の順番（Songs フォルダの並び。フォルダ名の 01・02 … の順）で決まる
+        public SongSelectScene(bool training = false, bool returningFromDifficulty = false, bool afterPlay = false, bool fromMode = false)
         {
             this.training = training;
+            if (fromMode) startAtFirstCategory = true;
             this.returningFromDifficulty = returningFromDifficulty || afterPlay;
             // 演奏・リザルトのあとは、開いていたジャンルを閉じて、ジャンルの一覧(そのジャンルを選んだまま)に戻る
             //   11/26 TaikøNauts の録画：リザルトのあとは J-POP の中ではなく、閉じた J-POP の箱に戻っていた(特訓から戻ったときも同じ)
@@ -88,6 +92,7 @@ namespace TakeTaikoSimulator.Scenes
 
         // ===== 覚えておく場所(static：演奏から戻ってきても同じ) =====
         private static bool inSongs;                   // false：ジャンルをえらぶ、true：曲をえらぶ
+        private static bool startAtFirstCategory;      // 次に一覧を作ったら、最初のカテゴリの箱を選ぶ
         private static int genrePos;                   // ジャンルのカーソル(一覧の数で割った余りが項目の番号。ぐるっと回れる)
         private static int songPos;                    // 曲のカーソル
         private static Special openSpecial = Special.None;
@@ -394,6 +399,14 @@ namespace TakeTaikoSimulator.Scenes
                 BuildSongs();
                 if (ownCount <= 1) inSongs = false; // 「とじる」しか無い
                 else SelectSong(lastSongKey);
+            }
+            if (startAtFirstCategory)
+            {
+                startAtFirstCategory = false;
+                inSongs = false;
+                openSpecial = Special.None;
+                int first = genres.FindIndex(g => g.Kind == Kind.Genre && g.Category != null);
+                if (first >= 0) genrePos = first;
             }
             if (genres.Count > 0 && genres[Mod(genrePos, genres.Count)].Kind == Kind.Label) genrePos = FirstSelectable(genres);
             list.Reset(CurrentPos);
@@ -1782,6 +1795,7 @@ namespace TakeTaikoSimulator.Scenes
             Raylib.DrawTriangle(Shrink(tip), Shrink(bottom), Shrink(top), Fade(new Color(255, 230, 0, 255), alpha));
         }
         private static readonly Color BalloonTextColor = new Color(40, 40, 40, 255);
+        private const float BalloonTextSize = 36f, BalloonOutline = 5f;
 
         //   force：めくれている途中(枠が消えていても、消えていくまで描く)
         private void DrawGenrePop(Item item, Rectangle open, float alpha, bool force = false)
@@ -1821,8 +1835,10 @@ namespace TakeTaikoSimulator.Scenes
                 }
                 return;
             }
+            // 曲の数：TaikøNauts は黒い太い縁に白い字（11/28 たけらい「吹き出しの文字の色違くない？」。前は縁なしの濃い灰色）
             string count = item.SongCount > 0 ? $"全 {item.SongCount} 曲" : "曲がありません";
-            Centered(count, new Rectangle(balloon.X + 60, balloon.Y + 58 - 25, BalloonWidth - 120, 50), 36, Fade(BalloonTextColor, a));
+            using (UseOutlineRatio(BalloonOutline / BalloonTextSize))
+                Outlined(count, new Rectangle(balloon.X + 60, balloon.Y + 58 - 25, BalloonWidth - 120, 50), BalloonTextSize, Fade(Color.White, a), Fade(Color.Black, a));
         }
 
         // 1本の板。open は開き具合(0→1)。framed は黄色い枠が出ている(選んで止まっている)板
@@ -1858,7 +1874,7 @@ namespace TakeTaikoSimulator.Scenes
                     float topPad = inner.Y - area.Y;
                     Rectangle titleArea = new Rectangle(inner.X, inner.Y, inner.Width, BarList.BarHeight - topPad * 2);
                     using (UseOutlineRatio(GenreTitleOutline / GenreTitleSize))
-                        Outlined(item.Title, titleArea, GenreTitleSize, Fade(Color.White, alpha), Fade(ink, alpha));
+                        Outlined(item.Title, titleArea, GenreTitleSize, Fade(GenreTitleFill, alpha), Fade(ink, alpha));
                     // 段位道場の課題曲の説明（TaikøNauts のスクショ：開いた板の上から +180・+230 が行のまんなか）
                     if (item.Special == Special.DanSongs && open > 0.9f)
                     {
@@ -1888,7 +1904,10 @@ namespace TakeTaikoSimulator.Scenes
         //   ジャンルの板の名前：高さ 47〜49px・縁 7〜8px（曲名より大きい）
         //   うちのフォントは 大きさ×0.84 くらいが白い字の高さなので、そこから大きさを決めた
         private const float SongTitleSize = 45f, SongTitleOutline = 5f;
-        private const float GenreTitleSize = 57f, GenreTitleOutline = 7.5f;
+        //   11/28 たけらいのスクショ（TaikøNauts と並べた）：ジャンルの字は約6% 小さい → 57 → 54（縁も同じ割合で細く）
+        //   字の中は真っ白ではなく、少しクリーム色 (255,253,241)。J-POP の縁は (18,72,76) の暗い青緑（BarInks の 1）
+        private const float GenreTitleSize = 54f, GenreTitleOutline = 7.1f;
+        private static readonly Color GenreTitleFill = new Color(255, 253, 241, 255);
 
         // 曲名の縁の色：板の色を、色合いはそのまま、少しだけあざやかにして暗くした色
         //   TaikøNauts のナムコオリジナル（オレンジの板）は (146,26,0) のあざやかな暗い赤だった。
@@ -1900,7 +1919,7 @@ namespace TakeTaikoSimulator.Scenes
         //   ここに無い番号（J-POP など）と、絵の無い板は、板の色から作る（SongInk・65% 暗く）
         private static readonly Dictionary<int, Color> BarInks = new()
         {
-            [0] = new Color(96, 6, 18, 255), [3] = new Color(150, 24, 96, 255), [4] = new Color(36, 48, 72, 255),
+            [0] = new Color(96, 6, 18, 255), [1] = new Color(18, 72, 76, 255), [3] = new Color(150, 24, 96, 255), [4] = new Color(36, 48, 72, 255),
             [5] = new Color(78, 24, 114, 255), [6] = new Color(144, 30, 0, 255), [7] = new Color(96, 66, 42, 255),
             [10] = new Color(71, 54, 0, 255), [11] = new Color(2, 26, 92, 255),
         };

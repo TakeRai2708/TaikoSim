@@ -366,8 +366,8 @@ namespace TakeTaikoSimulator.Scenes
         {
             switch (item.Title)
             {
-                case "演奏ゲーム": SceneManager.ToSongSelectFromMode(new SongSelectScene()); break;
-                case "特訓モード": SceneManager.ToSongSelectFromMode(new SongSelectScene(training: true)); break;
+                case "演奏ゲーム": SceneManager.ToSongSelectFromMode(new SongSelectScene(fromMode: true)); break;
+                case "特訓モード": SceneManager.ToSongSelectFromMode(new SongSelectScene(training: true, fromMode: true)); break;
                 case "段位道場": SceneManager.ToDanSelectFromMode(new DanSelectScene(intro: true)); break;
                 case "着せ替え": SceneManager.Simple(new DressingScene()); break;
                 case "設定": Game.OpenSettings(); break;
