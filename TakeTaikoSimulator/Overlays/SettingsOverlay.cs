@@ -1994,7 +1994,7 @@ namespace TakeTaikoSimulator.Overlays
             Raylib.DrawLine(0, (int)HeaderHeight, (int)CurrentWidth, (int)HeaderHeight, Gui.BorderColor);
             if (fullScreen)
             {
-                DrawProductLabel("TakeTaikoSimulator", 34, 28);
+                DrawProductLabel($"TakeTaikoSimulator  {AppVersionText}", 34, 28);
                 FontManager.Draw("設定", SectionX, 24, 40, Gui.TextColor);
                 if (Gui.Clicked(new Rectangle(SectionX - 8, 18, 100, 56))) CountSecretClick();
                 FontManager.Draw("演奏環境", SectionX + 120, 39, 22, Gui.SubTextColor);
@@ -2004,9 +2004,22 @@ namespace TakeTaikoSimulator.Overlays
             {
                 FontManager.Draw("設定", 24, 17, 38, Gui.TextColor);
                 if (Gui.Clicked(new Rectangle(16, 12, 92, 50))) CountSecretClick();
-                DrawProductLabel("TakeTaikoSimulator  /  F1", 57, 19);
+                DrawProductLabel($"TakeTaikoSimulator  {AppVersionText}", 57, 19);
                 if (Gui.Button(new Rectangle(PanelWidth - 68, 18, 48, 48), "×")) RequestClose();
             }
+        }
+
+        // アプリ名の横のバージョン（11/27 たけらい「アプリ名のところにバージョン表示あったらいい」。前の「/ F1」は「F1 で開いた」の意味だった）
+        //   配る exe は Release-X.cmd が -p:Version=1.0.21.1 で作るので、その番号が出る。最後が .0 なら省く（1.0.21.0 → 1.0.21）
+        private static readonly string AppVersionText = MakeVersionText();
+        private static string MakeVersionText()
+        {
+            Version? v = typeof(SettingsOverlay).Assembly.GetName().Version;
+            string text = v == null ? "" : v.Revision > 0 ? $"v{v.Major}.{v.Minor}.{v.Build}.{v.Revision}" : $"v{v.Major}.{v.Minor}.{Math.Max(0, v.Build)}";
+#if DEBUG
+            text += "（開発版）";
+#endif
+            return text;
         }
 
         private void DrawProductLabel(string text, float y, float size)
