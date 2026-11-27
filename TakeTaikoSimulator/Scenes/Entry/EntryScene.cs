@@ -76,6 +76,7 @@ public sealed class EntryScene : Scene
     public override string? MenuBgmFile => MenuBgm.EntryFile;
     // 起動直後は、画面が明るくなりきるまで BGM を待つ（明るくなったら頭から流れる）
     public override bool MenuBgmMuted => SceneManager.IntroPlaying;
+    private const double StartVoicePeriod = 5.0;
     private bool startVoicePending;   // 「太鼓をたたいてスタート」ボイスは、操作できるようになった最初のフレームで鳴らす
 
     public EntryScene(bool selectData = false) => this.selectData = selectData;
@@ -149,12 +150,19 @@ public sealed class EntryScene : Scene
         chosenProfiles.Clear();
         sideDecide = -1f;
         LocalSession.Reset();
+        startVoicePending = true;   // 最初の画面に戻ったら、また「太鼓をたたいてスタート」をくり返す
     }
 
     public override void Update(float dt)
     {
         elapsed += dt;
-        if (startVoicePending) { startVoicePending = false; MenuVoice.Play("Sound/Entry/Start.ogg"); }
+        // 「太鼓をたたいてスタート」は 5秒おきにくり返す（データえらびなど、次の声が鳴ったら止まる）
+        if (startVoicePending)
+        {
+            startVoicePending = false;
+            if (step == Step.Start) MenuVoice.Loop("Sound/Entry/Start.ogg", StartVoicePeriod);
+            else MenuVoice.Play("Sound/Entry/Start.ogg");   // 選び直しで入ったときは、前と同じく1回だけ
+        }
         if (leaving) return;
         if (step == Step.Data)
         {
@@ -220,6 +228,7 @@ public sealed class EntryScene : Scene
         sideKeySet = keySet;
         join.Open(keySet, keySet, Array.Empty<int>(), overlay: false);
         MenuSounds.Don();
+        MenuVoice.StopLoop();   // 「太鼓をたたいてスタート」のくり返しをやめる（今鳴っている分は最後まで）
     }
 
     // ③ どちらの太鼓で
