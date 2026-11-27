@@ -54,6 +54,7 @@ namespace TakeTaikoSimulator.Audio
 
         // 共有の効果音用。機器側の最小単位に合わせて、実際の長さは切り上げられる。
         private const int SharedEffectsBufferMs = 5;
+        private const bool UseSeparateSharedEffects = false;   // WASAPI 共有で、叩いた音だけ別の共有出力にするか（11/27 やめた）
 
         // BASS がもともと持っているバッファの長さ(ms)。バッファ 0(自動)のときに戻すため、最初に覚えておく
         private static int? defaultDeviceBufferMs = null;
@@ -79,7 +80,13 @@ namespace TakeTaikoSimulator.Audio
 
         // BASS / DirectSound のとき、BASS が測った機器の遅れ(ms)と、実際のバッファ(ms)。測る用の表示に使う
         private static int bassDeviceLatencyMs = 0;
-        private static double bassEngineMs = 0;   // BASS / DirectSound のあと、Windows の音声エンジンを通る分（11/26 録画で測った）
+        private static double bassEngineMs = 0;
+        // BASS / DirectSound でも、曲と叩いた音を同じミキサーで鳴らしているか（11/27。OpenTaiko の CSoundDeviceBASS と同じ）
+        private static bool bassMixerMode = false;
+        //   11/27 録画（1本に曲のピッと叩いた音を両方入れて、OBS のずれが入らないように測った）：
+        //     叩いた音が曲より BASS で +106ms、DirectSound +116ms、WASAPI 共有（叩いた音だけ別の共有出力）+68〜71ms 遅れていた
+        //   OpenTaiko（GitHub の main）は、Windows ではどの方式でも曲と叩いた音をひとつのミキサーに入れている
+        //   → TakeTaiko もそうする。叩いた音は「ミキサーの中でまだ鳴っていない量＋機器の遅れ」ぶん遅れるだけになる（はず。録画で確かめる）   // BASS / DirectSound のあと、Windows の音声エンジンを通る分（11/26 録画で測った）
         public static int BassBufferMs { get; private set; } = 0;
 
         // どこまで準備できたか(片付けで使う)
@@ -224,9 +231,26 @@ namespace TakeTaikoSimulator.Audio
             BassBufferMs = Bass.GetConfig(Configuration.DeviceBufferLength);
             bassEngineMs = DefaultOutputEngineMs();
 
+            // 曲と叩いた音を入れるミキサー（OpenTaiko と同じ）。ミキサー自身がためる量は、バッファと同じ長さにする
+            //   （ふつうの BASS の曲は 500ms ためる。ミキサーでそれをやると、叩いた音がその分遅れる）
+            int playbackDefault = Bass.GetConfig(Configuration.PlaybackBufferLength);
+            Bass.Configure(Configuration.PlaybackBufferLength, Math.Max(BassBufferMs, UpdatePeriodMs * 2));
+            int mixer = BassMix.CreateMixerStream(44100, 2, BassFlags.MixerNonStop | BassFlags.Float);
+            Bass.Configure(Configuration.PlaybackBufferLength, playbackDefault);
+            if (mixer != 0 && Bass.ChannelPlay(mixer))
+            {
+                Mixer = mixer;
+                mixerBytesPerSecond = 44100L * 2 * sizeof(float);
+                bassMixerMode = true;
+            }
+            else if (mixer != 0)
+            {
+                Bass.StreamFree(mixer);   // 鳴らせなかったら、今までどおり（曲と叩いた音は別々）
+            }
+
             string name = directSound ? "DirectSound" : "BASS";
             string buffer = bufferMs > 0 ? $"{bufferMs}ms" : "自動";
-            Status = $"{name}（バッファ {buffer}＋エンジン {bassEngineMs:0}ms）　BASS {Bass.Version}";
+            Status = $"{name}（バッファ {buffer}＋エンジン {bassEngineMs:0}ms{(bassMixerMode ? "・曲と叩いた音は同じミキサー" : "")}）　BASS {Bass.Version}";
             error = "";
             return true;
         }
@@ -242,7 +266,9 @@ namespace TakeTaikoSimulator.Audio
                 Bass.Configure(Configuration.UpdateThreads, 1);
                 Bass.Configure(Configuration.DeviceBufferLength, SharedEffectsBufferMs);
                 // BASSの「Default」は機器IDを持たない別名なので、対応する実機を選ぶ。
-                int effectsDeviceIndex = FindSharedEffectsDevice();
+                // 11/27：叩いた音だけ別の共有出力で鳴らすのはやめた（測ったら曲より 68〜71ms 遅く、速くなっていなかった）。
+                //   OpenTaiko と同じく、曲と同じミキサーに入れる。戻すときは UseSeparateSharedEffects を true に
+                int effectsDeviceIndex = UseSeparateSharedEffects ? FindSharedEffectsDevice() : -1;
                 directEffectsReady = effectsDeviceIndex >= 0 && Bass.Init(effectsDeviceIndex, 44100, DeviceInitFlags.Latency);
                 if (directEffectsReady)
                 {
@@ -427,6 +453,7 @@ namespace TakeTaikoSimulator.Audio
             SharedEffectsUseSamples = false;
             SharedEffectsLatencyEstimateMs = 0;
             Mixer = 0;
+            bassMixerMode = false;
             mixerBytesPerSecond = 0;
             wasapiBufferMs = 0;
             wasapiEngineMs = 0;
@@ -448,6 +475,13 @@ namespace TakeTaikoSimulator.Audio
                 if (Mixer == 0) return 0;
                 try
                 {
+                    if (bassMixerMode && mixerBytesPerSecond > 0)
+                    {
+                        // BASS / DirectSound のミキサー：ミキサーの中でまだ機器に送っていない量＋BASS が測った機器の遅れ＋エンジン
+                        int queued = Bass.ChannelGetData(Mixer, IntPtr.Zero, (int)DataFlags.Available);
+                        double queuedMs = queued >= 0 ? queued * 1000.0 / mixerBytesPerSecond : BassBufferMs / 2.0;
+                        return queuedMs + bassDeviceLatencyMs + bassEngineMs;
+                    }
                     if (wasapiInitialized && mixerBytesPerSecond > 0)
                     {
                         // WASAPI の中にたまっていて、まだ鳴っていない音の量(OpenTaiko と同じ計算)
