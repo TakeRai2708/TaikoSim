@@ -586,7 +586,8 @@ namespace TakeTaikoSimulator.Scenes
 
         private List<(SongEntry, SongCategory)> Added()
         {
-            return byKey.Values.Where(v => !v.Entry.HasError && v.Entry.WriteTime > 0)
+            // 3回遊んだ曲は出さない（SongHistory.ShowInAdded。.tja が新しくなったら、また出る）
+            return byKey.Values.Where(v => !v.Entry.HasError && v.Entry.WriteTime > 0 && SongHistory.ShowInAdded(v.Entry.Key, v.Entry.WriteTime))
                 .OrderByDescending(v => v.Entry.WriteTime).Take(AddedMax)
                 .Select(v => (v.Entry, v.Category)).ToList();
         }
@@ -1323,7 +1324,7 @@ namespace TakeTaikoSimulator.Scenes
             lastCourse = type;
             courseChosenThisRun = true;
             lastSongKey = diffSong.Key;
-            SongHistory.AddPlayed(diffSong.Key);
+            SongHistory.AddPlayed(diffSong.Key, diffSong.WriteTime);
             preview.Dispose();
             // どんちゃんがジャンプして止まる → 2.53秒後に幕（11/8 たけらい「選択したら動いて、そのあとに移行アニメーション」。TaikøNauts の録画どおり）
             //   どんちゃんがいないスキン（シンプルなど）は、今までどおり 0.4秒で幕

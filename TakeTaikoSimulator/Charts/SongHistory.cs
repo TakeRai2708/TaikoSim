@@ -109,13 +109,41 @@ namespace TakeTaikoSimulator.Charts
         public static IReadOnlyList<string> Favorites => Data.Favorites;
 
         // 遊んだ曲を記録する(一番上に入れる。同じ曲が前にあったら消す)
-        public static void AddPlayed(string key)
+        //   writeTime：その曲の .tja の更新日時（「最近追加された曲」から外すための回数を数える。0 なら数えない）
+        public static void AddPlayed(string key, long writeTime = 0)
         {
             SongHistoryFile file = Data;
             file.Recent.RemoveAll(k => string.Equals(k, key, StringComparison.OrdinalIgnoreCase));
             file.Recent.Insert(0, key);
             if (file.Recent.Count > RecentMax) file.Recent.RemoveRange(RecentMax, file.Recent.Count - RecentMax);
+            if (writeTime > 0) CountAddedPlay(file, key, writeTime);
             Save();
+        }
+
+        // ===== 「最近追加された曲」は 3回遊んだら外す（11/27 たけらい「最近追加された曲は３プレーしたらリセットしよ」） =====
+        //   曲ごとに「何回遊んだか」と「そのときの .tja の更新日時」を覚える。
+        //   .tja が新しくなったら（入れ直した・更新した）、また 0回から数える（もう一度「最近追加された曲」に出る）
+        public const int AddedPlayLimit = 3;
+        private const int AddedPlaysMax = 200;   // 覚えておく曲の数（古いものから消す）
+
+        private static void CountAddedPlay(SongHistoryFile file, string key, long writeTime)
+        {
+            AddedPlayEntry? entry = file.AddedPlays.FirstOrDefault(e => string.Equals(e.Key, key, StringComparison.OrdinalIgnoreCase));
+            if (entry == null || entry.WriteTime != writeTime)
+            {
+                if (entry != null) file.AddedPlays.Remove(entry);
+                entry = new AddedPlayEntry { Key = key, WriteTime = writeTime };
+                file.AddedPlays.Add(entry);
+            }
+            entry.Count++;
+            if (file.AddedPlays.Count > AddedPlaysMax) file.AddedPlays.RemoveRange(0, file.AddedPlays.Count - AddedPlaysMax);
+        }
+
+        /// <summary>「最近追加された曲」に出すか（今の .tja のまま、もう 3回遊んでいたら出さない）</summary>
+        public static bool ShowInAdded(string key, long writeTime)
+        {
+            AddedPlayEntry? entry = Data.AddedPlays.FirstOrDefault(e => string.Equals(e.Key, key, StringComparison.OrdinalIgnoreCase));
+            return entry == null || entry.WriteTime != writeTime || entry.Count < AddedPlayLimit;
         }
 
         // お気に入りを切り替える。切り替えたあとの状態を返す(true = お気に入りに入った)
@@ -275,7 +303,7 @@ namespace TakeTaikoSimulator.Charts
                 if (records) file.Records.Clear();
                 if (danRecords) file.DanRecords.Clear();
                 if (favorites) file.Favorites.Clear();
-                if (recent) file.Recent.Clear();
+                if (recent) { file.Recent.Clear(); file.AddedPlays.Clear(); }
                 string temp = path + ".tmp";
                 File.WriteAllText(temp, JsonSerializer.Serialize(file, AppJsonContext.Default.SongHistoryFile));
                 File.Move(temp, path, overwrite: true);
@@ -340,6 +368,16 @@ namespace TakeTaikoSimulator.Charts
         // クリア記録(段位の解禁条件の判定に使う)
         public List<SongRecordEntry> Records { get; set; } = new();
         public List<DanRecordEntry> DanRecords { get; set; } = new();
+        // 「最近追加された曲」から外すための、曲ごとの遊んだ回数
+        public List<AddedPlayEntry> AddedPlays { get; set; } = new();
+    }
+
+    // 「最近追加された曲」の曲を、今の .tja で何回遊んだか
+    internal sealed class AddedPlayEntry
+    {
+        public string Key { get; set; } = "";
+        public long WriteTime { get; set; }     // 数えはじめたときの .tja の更新日時（変わったら数え直す）
+        public int Count { get; set; }
     }
 
     // 曲1つ＋難易度1つぶんの一番良い記録
