@@ -11,21 +11,23 @@ namespace TakeTaikoSimulator.Graphics
     // しくみ(SDF フォント)：
     //   ・文字の絵ではなく「文字のふちまでの距離」を画像にしておく(SDF = Signed Distance Field)
     //     描くときにシェーダーが「ふちの内側か外側か」を1ピクセルずつ決める。大きい通常UI文字はCoverageFontで別に作る
-    //     (前は 96px の絵を縮めて描いていて、小さい文字がにじんでいた)
+    //     (前は大きい絵を縮めて描いていて、小さい文字がにじんでいた)
     //   ・縁取りは、同じ距離の画像を「太らせて」描くだけ。縁 → 文字 の2回で描ける(前は 25回ずらして描いていた)
     //     太らせた形は、角が自然に丸くなる
-    //   ・作り方：96px で文字を描く → 距離を計算 → 半分(48px)にして 2048×2048 の画像(ページ)に詰める
+    //   ・作り方：128px で文字を描く → すき間を埋める → 距離を計算 → 半分(64px)にして 2048×2048 の画像(ページ)に詰める
     //   ・知らない文字(漢字など)が出てきたら、その文字だけ計算して、ページの空いているところに足す
     public sealed class DynamicFont : IDisposable
     {
         // 文字の大きさの基準(ページに入っている文字の大きさ)。幅・位置はこの大きさで覚える
-        public const int BaseSize = 48;
+        //   11/27 たけらい「ジャンルの文字全部汚くね？」：48 だと 60px 以上の大きい字で、ふちがガタガタしていた → 64
+        public const int BaseSize = 64;
         // この倍の大きさで描いてから距離を計算する(細かいところまで正しい距離にするため)
         private const int RasterScale = 2;
         // 文字のまわりに持っておく距離(ページの px)。縁取りはこれより細くないといけない(基準の大きさの 1/4)
         //   10/30 に 8 → 12：TaikøNauts のサブタイトルは縁が文字の大きさの約 0.16 倍あって、8 だと上限(約 0.16 倍)ぎりぎりで足りなかった
-        private const int Spread = 12;
-        // ページ1枚の大きさ(1文字 72px 四方くらいなので、1枚に約 800 文字)
+        //   11/27 BaseSize を 48 → 64 にしたので、縁の太さの上限(文字の大きさに対する割合)が変わらないように 12 → 16
+        private const int Spread = 16;
+        // ページ1枚の大きさ(1文字 96px 四方くらいなので、1枚に約 450 文字)
         private const int PageSize = 2048;
         // ページの中で、文字と文字の間に空けるすき間
         private const int CellGap = 1;
@@ -262,7 +264,7 @@ namespace TakeTaikoSimulator.Graphics
             if (codepoints.Length == 0) return true;
             var watch = System.Diagnostics.Stopwatch.StartNew();
 
-            // ① 96px で文字の絵を作る(Raylib の中の stb_truetype)
+            // ① 128px で文字の絵を作る(Raylib の中の stb_truetype)
             GlyphInfo* infos;
             int count = 0;
             fixed (byte* data = fileData)
@@ -334,7 +336,7 @@ namespace TakeTaikoSimulator.Graphics
             return gray;
         }
 
-        // 1文字分：96px の絵 → 距離 → 半分(48px)
+        // 1文字分：128px の絵 → すき間を埋める → 距離 → 半分(64px)
         private static Prepared MakeDistanceGlyph(int codepoint, int w, int h, int offX, int offY, int advance, byte[] gray)
         {
             var result = new Prepared { Codepoint = codepoint, Advance = advance / (float)RasterScale };
@@ -352,6 +354,12 @@ namespace TakeTaikoSimulator.Graphics
             for (int y = 0; y < h; y++)
                 for (int x = 0; x < w; x++)
                     inside[(y + pad) * hw + x + pad] = gray[y * w + x] >= 128;
+
+            // 線のすき間を埋める（11/27 たけらい「ジャンルの文字全部汚くね？」）
+            //   A-Style の Default.otf は、画を重ねて作ってある字（「近」「さ」「加」など）があって、
+            //   Raylib の中の stb_truetype で描くと、重なったところに細い黒い線（すき間）が出ていた（FreeType で描くと出ない）。
+            //   中か外かを決めたあとで「太らせてから同じだけ細らせる」と、細いすき間だけが埋まり、形はほぼ変わらない
+            Close(inside, hw, hh, SeamRadius);
 
             // 中の点から一番近い「外」まで・外の点から一番近い「中」まで(2乗の距離)
             float[] toOutside = DistanceSquared(inside, hw, hh, target: false);
@@ -386,6 +394,51 @@ namespace TakeTaikoSimulator.Graphics
             result.OffsetY = (offY - pad) / (float)RasterScale;
             result.Pixels = pixels;
             return result;
+        }
+
+        // すき間を埋める幅（描いた大きさ 128px での px。1 = 3×3 で、太さ1〜2px のすき間が埋まる）
+        //   FreeType で描いた Default.otf で試した：2（5×5）だと「最」「題」の字の中の本当のすき間まで埋まった。
+        //   1 なら変わるのは字の内側の角が 1px 丸くなるくらい（64px にしたら見えない）
+        private const int SeamRadius = 1;
+
+        // 太らせてから細らせる（正方形 (2r+1)×(2r+1)。縦と横に分けて計算）
+        private static void Close(bool[] inside, int w, int h, int r)
+        {
+            if (r <= 0) return;
+            bool[] tmp = new bool[inside.Length];
+            Spread1D(inside, tmp, w, h, r, grow: true);
+            Spread1D(tmp, inside, w, h, r, grow: false);
+        }
+
+        // grow=true：まわり r の中に1つでも「中」があれば「中」　grow=false：まわり r が全部「中」のときだけ「中」
+        //   はしの外は、grow のときは「外」、細らせるときも「外」とみなす（文字のまわりには余白があるので困らない）
+        private static void Spread1D(bool[] src, bool[] dst, int w, int h, int r, bool grow)
+        {
+            bool[] mid = new bool[src.Length];
+            for (int y = 0; y < h; y++)
+                for (int x = 0; x < w; x++)
+                {
+                    bool v = !grow;
+                    for (int k = -r; k <= r; k++)
+                    {
+                        int xx = x + k;
+                        bool s = xx >= 0 && xx < w && src[y * w + xx];
+                        if (grow ? s : !s) { v = grow; break; }
+                    }
+                    mid[y * w + x] = v;
+                }
+            for (int y = 0; y < h; y++)
+                for (int x = 0; x < w; x++)
+                {
+                    bool v = !grow;
+                    for (int k = -r; k <= r; k++)
+                    {
+                        int yy = y + k;
+                        bool s = yy >= 0 && yy < h && mid[yy * w + x];
+                        if (grow ? s : !s) { v = grow; break; }
+                    }
+                    dst[y * w + x] = v;
+                }
         }
 
         // いちばん近い target の点までの距離の2乗(Felzenszwalb の方法。縦 → 横 の順に1列ずつ)
@@ -543,7 +596,7 @@ void main()
     float d = (texture(texture0, fragTexCoord).r - 0.5) * pxPerUnit + dilate;
     float w = max(fwidth(d), 0.00001);
     // 画面の1px の中を4か所（少し回した十字）読んで平均する
-    //   小さい字（距離の画像 48px を縮めて描くとき）は、1px に画像の何 px 分も入るので、1か所だけ読むとギザギザになる
+    //   小さい字（距離の画像 64px を縮めて描くとき）は、1px に画像の何 px 分も入るので、1か所だけ読むとギザギザになる
     vec2 dx = dFdx(fragTexCoord), dy = dFdy(fragTexCoord);
     float a = 0.25 * (cover(fragTexCoord - 0.375 * dx - 0.125 * dy, w) + cover(fragTexCoord + 0.125 * dx - 0.375 * dy, w)
                     + cover(fragTexCoord + 0.375 * dx + 0.125 * dy, w) + cover(fragTexCoord - 0.125 * dx + 0.375 * dy, w));
