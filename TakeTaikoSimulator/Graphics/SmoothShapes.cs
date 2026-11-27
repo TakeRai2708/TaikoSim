@@ -192,7 +192,9 @@ void main()
         Raylib.SetShaderValue(shader, gR1Location, Vec(rightBottom), ShaderUniformDataType.Vec4);
         Raylib.SetShaderValue(shader, gStopsLocation, stops, ShaderUniformDataType.Vec3);
         Quad(quad, new Color((byte)255, (byte)255, (byte)255, (byte)Math.Clamp(alpha * 255f, 0f, 255f)));
-        Raylib.SetShaderValue(shader, gradModeLocation, 0f, ShaderUniformDataType.Float);
+        // ここで gradMode を 0 に戻してはいけない：四角はまとめ描き（バッチ）にためてあるだけで、
+        //   実際に描かれるのは EndShaderMode のとき。その前に 0 にすると、グラデが消えて真っ白になる
+        //   （1.0.22 で縁が真っ白だった。11/27 たけらいのスクショ）。ほかの描き方は自分で 0 にしてから描く
         Raylib.EndShaderMode();
     }
 
