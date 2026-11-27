@@ -41,16 +41,20 @@ namespace TakeTaikoSimulator.Configs
         // ※システムキーは未割り当てにできない(必ず何かのキーが入る)
         public Dictionary<SystemAction, KeyboardKey> SystemKeys { get; set; } = DefaultSystemKeys();
 
+        // 前の版で自動で入っていた 2P の C・V・N・M を、1回だけ外したか
+        //   （前の版は 2P がいつも C・V・N・M だった。ファイルにこれが無い＝前の版のファイル）
+        public bool P2OldDefaultsCleared { get; set; }
+
         // ===== 初期値 =====
-        // 1Pは初回セットアップで登録。2Pは C/V/N/M が初期値。
+        // 1Pは初回セットアップで登録。2Pは最初は何も入れない（F1 の設定で自分で入れる。11/28 たけらい）
         private static Dictionary<DrumPart, List<KeyboardKey>> DefaultDrumKeys() => new()
         {
             { DrumPart.LeftKa, new() },
             { DrumPart.LeftDon, new() },
             { DrumPart.RightDon, new() },
             { DrumPart.RightKa, new() },
-            { DrumPart.P2LeftKa, new() { KeyboardKey.C } }, { DrumPart.P2LeftDon, new() { KeyboardKey.V } },
-            { DrumPart.P2RightDon, new() { KeyboardKey.N } }, { DrumPart.P2RightKa, new() { KeyboardKey.M } },
+            { DrumPart.P2LeftKa, new() }, { DrumPart.P2LeftDon, new() },
+            { DrumPart.P2RightDon, new() }, { DrumPart.P2RightKa, new() },
         };
 
         private static Dictionary<SystemAction, KeyboardKey> DefaultSystemKeys() => new()
@@ -164,11 +168,6 @@ namespace TakeTaikoSimulator.Configs
                 message = "そのキーは使えません";
                 return false;
             }
-
-            // 2P は設定できない（見えない）ので、1P に入れるキーが 2P の初期値とかぶったら 2P の方から外す
-            if (part < DrumPart.P2LeftKa)
-                foreach (DrumPart p2 in Enum.GetValues<DrumPart>().Skip(4))
-                    DrumKeys.GetValueOrDefault(p2)?.Remove(key);
 
             string? owner = FindOwner(key);
             if (owner != null)
@@ -284,6 +283,17 @@ namespace TakeTaikoSimulator.Configs
             // 使用済みのキー(Escは最初から使用済み扱い)
             var used = new HashSet<KeyboardKey> { BackKey };
 
+            // 0. 前の版で自動で入っていた 2P の C・V・N・M を1回だけ外す（2P は最初は何も無し）
+            if (!P2OldDefaultsCleared)
+            {
+                KeyboardKey[] old = { KeyboardKey.C, KeyboardKey.V, KeyboardKey.N, KeyboardKey.M };
+                DrumPart[] p2 = { DrumPart.P2LeftKa, DrumPart.P2LeftDon, DrumPart.P2RightDon, DrumPart.P2RightKa };
+                for (int i = 0; i < 4; i++)
+                    if (DrumKeys.TryGetValue(p2[i], out List<KeyboardKey>? l) && l != null && l.Count == 1 && l[0] == old[i])
+                        l.Clear();
+                P2OldDefaultsCleared = true;
+            }
+
             // 1. 叩くキーを直す(左縁 → 左面 → 右面 → 右縁 の順に優先)
             var defaultDrums = DefaultDrumKeys();
             var fixedDrums = new Dictionary<DrumPart, List<KeyboardKey>>();
@@ -291,9 +301,7 @@ namespace TakeTaikoSimulator.Configs
             foreach (DrumPart part in Enum.GetValues<DrumPart>())
             {
                 // ファイルに書いてなければ初期値(空)
-                //   2P は設定できなくした（11/26 たけらい）ので、いつも初期値（C・V・N・M）。1P とかぶったキーは下で捨てる
-                List<KeyboardKey> keys = part >= DrumPart.P2LeftKa ? defaultDrums[part]
-                    : DrumKeys.TryGetValue(part, out List<KeyboardKey>? k) && k != null
+                List<KeyboardKey> keys = DrumKeys.TryGetValue(part, out List<KeyboardKey>? k) && k != null
                     ? k
                     : defaultDrums[part];
 

@@ -495,7 +495,7 @@ namespace TakeTaikoSimulator.Scenes
             Title("叩くキー");
             FontManager.Draw($"1か所に {MaxKeysPerPart} つまで入れられます。［追加］を押してからキーを押してください。キーを押すと外せます。", Left, 330, 26, Gui.TextColor);
             bool waiting = IsWaitingKey;
-            // 1P だけ。2P のキーは設定できない（いつも C・V・N・M。11/26 たけらい）
+            // 1P だけ。2P は F1 の設定で入れる（最初は何も無し。11/28 たけらい）
             for (int player = 0; player < 1; player++)
             {
                 float x = Left + player * 820;

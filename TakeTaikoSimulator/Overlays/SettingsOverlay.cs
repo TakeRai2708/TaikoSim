@@ -1062,8 +1062,8 @@ namespace TakeTaikoSimulator.Overlays
                 cursorY += 36;
             }
 
-            // 1P の4か所だけ。2P のキーは設定できない（いつも C・V・N・M。11/26 たけらい）
-            foreach (DrumPart part in Enum.GetValues<DrumPart>().Take(4))
+            // 1P と 2P の8か所。2P は最初は何も入っていない（ここで自分で入れる。11/28 たけらい）
+            foreach (DrumPart part in Enum.GetValues<DrumPart>())
             {
                 DrumPartRows(key, part);
             }
