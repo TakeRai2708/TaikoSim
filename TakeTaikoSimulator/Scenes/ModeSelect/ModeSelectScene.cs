@@ -42,6 +42,7 @@ namespace TakeTaikoSimulator.Scenes
         private Item? deciding;                // 決定して、枠が点滅している項目
         private const string EntryFolder = "Image/01.Entry/";
         private const string EntryBarFolder = EntryFolder + "Bar/";
+        private const int EntryBarTopKeep = 110;
         private const string EntryBackground = EntryFolder + "Background.png";
         private float backgroundTime;
 
@@ -665,7 +666,11 @@ namespace TakeTaikoSimulator.Scenes
         private static void DrawEntryBar(Item item, int type, Rectangle area, float open)
         {
             Rectangle imageArea = new(area.X - 24, area.Y - 18, area.Width + 48, area.Height + 36);
-            MenuSkin.NPatch(EntryBarFolder + $"Bar/{type}.png", imageArea, 40, Color.White);
+            // 11/27 たけらい「ボックスの…黒淵の中の外がわの縁の色ついたやつ」のグラデーション：
+            //   板の左右の縁は y 40〜105 で「白い光 → 濃い色」に変わる。上下 40px を残して伸ばすと、
+            //   開いたときこのグラデが板の高さいっぱいに引き伸ばされて、白い筋が下まで垂れて見えていた。
+            //   上は 110px を原寸で残し（光は上の角だけ）、伸ばすのは濃い色で一定の y 110〜120 だけにする
+            MenuSkin.NPatch(EntryBarFolder + $"Bar/{type}.png", imageArea, 40, EntryBarTopKeep, 40, 40, Color.White);
 
             if (open <= 0f)
                 MenuSkin.Whole(EntryBarFolder + "Overlay.png", imageArea, Color.White);

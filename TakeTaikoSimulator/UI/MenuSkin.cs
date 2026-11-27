@@ -114,6 +114,20 @@ namespace TakeTaikoSimulator.UI
             return true;
         }
 
+        // 上下左右で残す幅を変えて、9つに切って伸ばす
+        public static bool NPatch(string path, Rectangle dest, int left, int top, int right, int bottom, Color tint)
+        {
+            if (SkinManager.GetTexture(path) is not Texture2D texture) return false;
+            NPatchInfo info = new NPatchInfo
+            {
+                Source = new Rectangle(0, 0, texture.Width, texture.Height),
+                Left = left, Top = top, Right = right, Bottom = bottom,
+                Layout = NPatchLayout.NinePatch,
+            };
+            Raylib.DrawTextureNPatch(texture, info, dest, Vector2.Zero, 0f, tint);
+            return true;
+        }
+
         // 透明度だけかけた白(画像をそのままの色で描くとき)
         public static Color White(float alpha) => MenuDraw.Fade(Color.White, alpha);
     }
