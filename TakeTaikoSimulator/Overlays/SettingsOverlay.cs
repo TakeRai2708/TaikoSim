@@ -373,6 +373,7 @@ namespace TakeTaikoSimulator.Overlays
 
             blinkTimer += dt;
             if (messageTimer > 0f) messageTimer -= dt;
+            if (toastAge >= 0f && (toastAge += dt) > ToastIn + ToastHold + ToastOut) toastAge = -1f;
 
             // プリセットの名前を入れている間（Esc でやめる。変換中の Esc は IME に渡す）
             if (presetNaming >= 0)
@@ -551,6 +552,7 @@ namespace TakeTaikoSimulator.Overlays
             else Gui.DrawPopups();
 
             Rlgl.PopMatrix();
+            DrawToast();
             if (animating) Gui.SetMouseInputEnabled(true);
         }
 
@@ -1676,6 +1678,37 @@ namespace TakeTaikoSimulator.Overlays
             message = text;
             messageColor = color;
             messageTimer = 3f; // 3秒表示
+            // うまくいったお知らせ（適用・保存・切り替えなど）は、トーストでも出す
+            if (color.R == SuccessColor.R && color.G == SuccessColor.G && color.B == SuccessColor.B) { toastText = text; toastAge = 0f; }
+        }
+
+        // ===== 適用したときのトースト（11/27 たけらい「適応したときわかりずらいからトースト出してほしい」→ ②「端からスッと」） =====
+        //   F1 のパネル（画面の左）：左上に、左の端から入ってくる。全画面の設定：右上に、右の端から入ってくる
+        //   0.35秒で入る（easeOutCubic）→ 1.6秒そのまま → 0.3秒で消える。色は UIの色のトーストと同じ
+        private const float ToastIn = 0.35f, ToastHold = 1.6f, ToastOut = 0.3f;
+        private string toastText = "";
+        private float toastAge = -1f;
+        private void DrawToast()
+        {
+            if (toastAge < 0f || toastText.Length == 0) return;
+            UiPalette p = UiTheme.P;
+            const float size = 28f, height = 72f, radius = 22f, margin = 24f;
+            float inT = Math.Clamp(toastAge / ToastIn, 0f, 1f);
+            float slide = 1f - MathF.Pow(1f - inT, 3f);
+            float alpha = Math.Clamp((ToastIn + ToastHold + ToastOut - toastAge) / ToastOut, 0f, 1f);
+            if (alpha <= 0f) return;
+            float width = FontManager.Measure(toastText, size).X + 96f;
+            float y = HeaderHeight + 14f;
+            float x = fullScreen
+                ? Screen.Width - margin - width + (1f - slide) * (width + margin + 20f)   // 右の端から
+                : margin - (1f - slide) * (width + margin + 20f);                          // 左の端から
+            Rectangle box = new Rectangle(MathF.Round(x), y, MathF.Round(width), height);
+            SmoothShapes.Rectangle(new Rectangle(box.X, box.Y + 8f, box.Width, box.Height), radius, new Color(0, 0, 0, (int)(110 * alpha)));   // 影
+            UiTheme.FillGradient(box, radius, p.ToastFrom, p.ToastTo, alpha);
+            SmoothShapes.Border(box, radius, 2f, Gui.WithAlpha(p.ToastBorder, alpha));
+            SmoothShapes.Rectangle(new Rectangle(box.X + 24f, box.Y + 20f, 6f, height - 40f), 3f, Gui.WithAlpha(p.ToastBar, alpha));      // 左の棒
+            Rectangle ink = FontManager.MeasureInk(toastText, size);
+            FontManager.Draw(toastText, box.X + 48f, box.Y + (height - ink.Height) / 2f - ink.Y, size, Gui.WithAlpha(p.ToastText, alpha));
         }
 
         // 結果メッセージを描く(スクロールしても見えるように、パネルの下に固定)
