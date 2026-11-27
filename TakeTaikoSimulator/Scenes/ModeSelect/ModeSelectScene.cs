@@ -346,19 +346,32 @@ namespace TakeTaikoSimulator.Scenes
             int move = 0;
             if (InputManager.IsDrumPressed(DrumPart.LeftKa) || KeyPressed(KeyboardKey.Left)) move--;
             if (InputManager.IsDrumPressed(DrumPart.RightKa) || KeyPressed(KeyboardKey.Right)) move++;
-            if (move != 0)
-            {
-                categoryChoice = (categoryChoice + move + count) % count;
-                MenuSounds.Ka();
-            }
+            float wheel = Game.IsSettingsOpen ? 0f : Raylib.GetMouseWheelMove();   // ホイールでも変えられる（上で左、下で右）
+            if (wheel > 0) move--;
+            else if (wheel < 0) move++;
+            if (move != 0) MoveCategory(move);
 
             if (InputManager.IsDonPressed() || Raylib.IsKeyPressed(KeyboardKey.Enter) || Raylib.IsKeyPressed(KeyboardKey.KpEnter))
-            {
-                MenuSounds.Don();
-                DanSelectScene.CategoryIndex = categoryChoice;
-                choosingCategory = false;
-                StartDecide(Current);
-            }
+                DecideCategory();
+        }
+
+        // 段位道場のカテゴリを1つ左右へ（キー・太鼓・ホイール・矢印のクリック）
+        private void MoveCategory(int move)
+        {
+            int count = DanList.Categories.Count;
+            if (count < 2) return;
+            categoryChoice = (categoryChoice + Math.Sign(move) + count) % count;
+            MenuSounds.Ka();
+        }
+
+        // 段位道場のカテゴリを決める（ドン・Enter・吹き出しか板のクリック）
+        private void DecideCategory()
+        {
+            if (!choosingCategory) return;
+            MenuSounds.Don();
+            DanSelectScene.CategoryIndex = categoryChoice;
+            choosingCategory = false;
+            StartDecide(Current);
         }
 
         // 点滅が終わったら、その項目の画面を開く
@@ -482,6 +495,13 @@ namespace TakeTaikoSimulator.Scenes
                 Outlined("◀", left, 34f, Fade(new Color(255, 236, 110, 255), t * pulse), Fade(ink, t));
             if (!MenuSkin.Part(CategoryCursor, new Rectangle(0, 0, -50, 50), right, MenuSkin.White(t * pulse)))
                 Outlined("▶", right, 34f, Fade(new Color(255, 236, 110, 255), t * pulse), Fade(ink, t));
+
+            // クリック（11/27 たけらい「段位道場系はできるようにしよう」）：矢印で左右、吹き出しの真ん中で決定
+            //   出てくる途中（0.1秒）は押せない（ドンで開いた直後のクリックで、すぐ決まらないように）
+            if (t < 1f || Game.IsSettingsOpen) return;
+            if (Gui.Clicked(left)) MoveCategory(-1);
+            else if (Gui.Clicked(right)) MoveCategory(1);
+            else if (Gui.Clicked(PopupArea)) DecideCategory();
         }
 
         // 01.Entry が無いスキンはモード専用画像を試し、無ければシステムのグラデーションに戻す
@@ -516,6 +536,7 @@ namespace TakeTaikoSimulator.Scenes
         private void DrawList()
         {
             if (hideDecidedList || deciding?.Title == "演奏ゲーム" && list.DecideTime >= BarList.BlinkEnd) return;
+            // カテゴリの吹き出しが出ている間は、ほかの板は押せない（選んでいる板を押すとカテゴリを決める）
             bool clickable = deciding == null && introTime < 0f;
             bool entryLayout = EntryBarType(Items[0]) >= 0;
             int selectedPos = cursor;
@@ -555,7 +576,11 @@ namespace TakeTaikoSimulator.Scenes
                 }
 
                 // クリック：ほかの項目なら選ぶ、選んでいる項目なら決定
-                if (clickable && Gui.Clicked(selected && selectedArea is Rectangle open ? open : area))
+                if (clickable && choosingCategory)
+                {
+                    if (selected && popupAge >= 0.1f && Gui.Clicked(selectedArea is Rectangle openBar ? openBar : area)) DecideCategory();
+                }
+                else if (clickable && Gui.Clicked(selected && selectedArea is Rectangle open ? open : area))
                 {
                     if (selected) Decide();
                     else

@@ -469,6 +469,8 @@ namespace TakeTaikoSimulator.Scenes
         private const int DanBarType = 11;
         private static int danCat;          // 選んでいる段位道場（DanList.Categories のうち、遊べる段位があるもの）
         private bool danPick;               // 「◀ 段位道場 ▶」を選んでいる途中
+        private double danPickStarted;      // 選び始めた時刻（開いたときのクリックで、すぐ決まらないように 0.15秒は押せない）
+        private bool DanPickClickable => !Game.IsSettingsOpen && Raylib.GetTime() - danPickStarted >= 0.15;
         private static List<DanCategory> DanCats => DanList.Categories.Where(c => c.Courses.Any(x => x.Playable)).ToList();
 
         private static List<Item> DanSongItems(int cat)
@@ -539,20 +541,32 @@ namespace TakeTaikoSimulator.Scenes
         // 「◀ 段位道場 ▶」を選んでいる間の操作
         private void UpdateDanPick()
         {
-            var cats = DanCats;
             bool left = InputManager.IsDrumPressed(DrumPart.LeftKa) || KeyPressed(KeyboardKey.Left) || KeyPressed(KeyboardKey.Up);
             bool right = InputManager.IsDrumPressed(DrumPart.RightKa) || KeyPressed(KeyboardKey.Right) || KeyPressed(KeyboardKey.Down);
-            if (cats.Count > 1 && (left || right))
-            {
-                danCat = Mod(danCat + (right ? 1 : -1), cats.Count);
-                if (CurrentItem is { Special: Special.DanSongs } g) g.SongCount = DanSongItems(danCat).Count;
-                MenuSounds.Ka();
-            }
+            float wheel = Game.IsSettingsOpen ? 0f : Raylib.GetMouseWheelMove();   // ホイールでも変えられる（上で左、下で右）
+            if (wheel > 0) left = true;
+            else if (wheel < 0) right = true;
+            if (left != right) MoveDanCat(right ? 1 : -1);
             if (InputManager.IsDonPressed() || Raylib.IsKeyPressed(KeyboardKey.Enter) || Raylib.IsKeyPressed(KeyboardKey.KpEnter))
-            {
-                danPick = false;
-                if (CurrentItem is Item item) OpenGenreItem(item);
-            }
+                DecideDanPick();
+        }
+
+        // 段位道場を1つ左右へ（キー・太鼓・ホイール・矢印のクリック）
+        private void MoveDanCat(int move)
+        {
+            var cats = DanCats;
+            if (cats.Count < 2) return;
+            danCat = Mod(danCat + Math.Sign(move), cats.Count);
+            if (CurrentItem is { Special: Special.DanSongs } g) g.SongCount = DanSongItems(danCat).Count;
+            MenuSounds.Ka();
+        }
+
+        // 選んだ段位道場の課題曲を開く（ドン・Enter・吹き出しか板のクリック）
+        private void DecideDanPick()
+        {
+            if (!danPick) return;
+            danPick = false;
+            if (CurrentItem is Item item) OpenGenreItem(item);
         }
 
         // 開いているジャンルが、ジャンルの一覧の何番目か(検索の結果のときは -1)
@@ -930,6 +944,7 @@ namespace TakeTaikoSimulator.Scenes
                         // まず「◀ 段位道場 ▶」を選ぶ
                         MenuSounds.Don();
                         danPick = true;
+                        danPickStarted = Raylib.GetTime();
                         return;
                     }
                     OpenGenreItem(item);
@@ -1681,7 +1696,12 @@ namespace TakeTaikoSimulator.Scenes
                 }
 
                 // クリック：選んでいる項目なら決定、ほかなら選ぶ
-                if (clickable && item.Kind != Kind.Label && Gui.Clicked(selected && selectedArea is Rectangle open ? open : area))
+                // 段位道場をえらんでいる間は、ほかの板は押せない（選んでいる板を押すと、その段位道場を開く）
+                if (clickable && danPick)
+                {
+                    if (selected && DanPickClickable && Gui.Clicked(selectedArea is Rectangle openBar ? openBar : area)) DecideDanPick();
+                }
+                else if (clickable && item.Kind != Kind.Label && Gui.Clicked(selected && selectedArea is Rectangle open ? open : area))
                 {
                     if (selected) Decide();
                     else if (skipLock <= 0f)
@@ -1818,7 +1838,13 @@ namespace TakeTaikoSimulator.Scenes
                     Rectangle right = new Rectangle(balloon.X + BalloonWidth - DanArrowInset - DanArrowSize, balloon.Y + DanArrowY, DanArrowSize, DanArrowSize);
                     if (!MenuSkin.Whole(DanArrowImage, left, MenuSkin.White(a * pulse))) DrawArrowTriangle(left, false, a * pulse);
                     if (!MenuSkin.Part(DanArrowImage, new Rectangle(0, 0, -DanArrowSize, DanArrowSize), right, MenuSkin.White(a * pulse))) DrawArrowTriangle(right, true, a * pulse);
+                    // クリック（11/27 たけらい「段位道場系はできるようにしよう」）：矢印で左右
+                    if (DanPickClickable && Gui.Clicked(left)) MoveDanCat(-1);
+                    else if (DanPickClickable && Gui.Clicked(right)) MoveDanCat(1);
                 }
+                // 吹き出しの真ん中（矢印のあいだ）のクリックで決定
+                Rectangle middle = new Rectangle(balloon.X + DanArrowInset + DanArrowSize, balloon.Y + 20, BalloonWidth - 2 * (DanArrowInset + DanArrowSize), 80);
+                if (DanPickClickable && Gui.Clicked(middle)) DecideDanPick();
                 return;
             }
             string count = item.SongCount > 0 ? $"全 {item.SongCount} 曲" : "曲がありません";
