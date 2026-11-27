@@ -359,7 +359,9 @@ public sealed class PlayerJoin
             DrawGuide(alpha);
         }
         finally { Rlgl.PopMatrix(); }
-        if (interactive && !selectionChanged && Gui.Clicked(ConfirmArea)) Decide();
+        // 決定：下の「決定」の案内か、データのカードそのものをクリック
+        //   11/27 たけらい「プレイヤーデータークリックで選択できないｗ」：前は「決定」の案内だけで、カードを押しても何も起きなかった
+        if (interactive && !selectionChanged && (Gui.Clicked(ConfirmArea) || Gui.Clicked(card))) Decide();
         string shownError = error.Length > 0 ? error : IsGuestCursor ? "" : errors[cursor];
         if (shownError.Length > 0) Outlined(shownError, new(450, 758, 1020, 45), 27, Color.Red, Color.Black);
     }
