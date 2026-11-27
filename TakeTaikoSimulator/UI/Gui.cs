@@ -77,9 +77,8 @@ namespace TakeTaikoSimulator.UI
             float inT = Math.Clamp(age / NoticeInSeconds, 0f, 1f);
             float alpha = Math.Min(inT, Math.Clamp(remaining / NoticeOutSeconds, 0f, 1f));
             if (alpha <= 0f) return;
-            // 降りてくる：上 24px から、少し行きすぎて戻る（easeOutBack）
-            float back = 1f + 2.2f * MathF.Pow(inT - 1f, 3f) + 1.2f * MathF.Pow(inT - 1f, 2f);
-            y -= 24f * (1f - back);
+            // 動かさずに、その場でフェードイン・フェードアウトだけ（11/27 たけらい「お気に入りとかのトーストはフェイドインフェイドアウトにしたい」）
+            //   前は上 24px から少し行きすぎて降りてきていた（easeOutBack）
 
             float textWidth = p.ToastBoldFont ? FontManager.MeasureSkinMain(text, size).X : FontManager.Measure(text, size).X;
             float width = textWidth + pad * 2f + 20f;
