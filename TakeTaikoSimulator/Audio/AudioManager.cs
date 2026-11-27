@@ -54,6 +54,14 @@ namespace TakeTaikoSimulator.Audio
 
         // 共有の効果音用。機器側の最小単位に合わせて、実際の長さは切り上げられる。
         private const int SharedEffectsBufferMs = 5;
+
+        // ===== 共有のまま遅れを小さくする（Windows 10 から。11/27 たけらい「ほとんどの人は排他でやらない」） =====
+        //   Windows の共有モードは、ふつう 10ms ごとに音をまとめて流すが、Windows 10 からは機器のドライバーが対応していれば
+        //   もっと短い間隔にできる（IAudioClient3。48kHz なら 2.67ms まで）。BASSWASAPI は「バッファ 0・欲しい間隔」を
+        //   イベント方式で渡すと、これを使う。BASS（WASAPI 共有で鳴らしている）は DevicePeriod で頼む。
+        //   短くできないときは、ライブラリが機器のいちばん短い間隔に上げる。初期化そのものに失敗したら、今までの共有に戻す
+        private const float LowLatencyPeriodMs = 3f;
+        private static int? defaultDevicePeriod;
         private const bool UseSeparateSharedEffects = false;   // WASAPI 共有で、叩いた音だけ別の共有出力にするか（11/27 やめた）
 
         // BASS がもともと持っているバッファの長さ(ms)。バッファ 0(自動)のときに戻すため、最初に覚えておく
@@ -211,6 +219,10 @@ namespace TakeTaikoSimulator.Audio
             Bass.Configure(Configuration.UpdateThreads, 1);
             Bass.Configure(Configuration.UpdatePeriod, UpdatePeriodMs);
             Bass.Configure(Configuration.DeviceBufferLength, bufferMs > 0 ? Math.Max(bufferMs, UpdatePeriodMs + 1) : defaultDeviceBufferMs.Value);
+            // 機器に渡す間隔：BASS（WASAPI 共有）は短く頼む。DirectSound にはこの仕組みが無いので、もとの値
+            defaultDevicePeriod ??= Bass.GetConfig(Configuration.DevicePeriod);
+            bool lowLatency = !directSound && OperatingSystem.IsWindowsVersionAtLeast(10);
+            Bass.Configure(Configuration.DevicePeriod, lowLatency ? (int)MathF.Ceiling(LowLatencyPeriodMs) : defaultDevicePeriod.Value);
 
             // -1 = いつもの出力先(Windowsで「既定」になっているスピーカー)、44100Hz
             // Latency = 遅延を測っておく
@@ -229,7 +241,9 @@ namespace TakeTaikoSimulator.Audio
             Bass.GetInfo(out var info); // OpenTaiko の CSoundDeviceBASS と同じ呼び方
             bassDeviceLatencyMs = info.Latency;
             BassBufferMs = Bass.GetConfig(Configuration.DeviceBufferLength);
-            bassEngineMs = DefaultOutputEngineMs();
+            bassEngineMs = lowLatency ? LowLatencyEngineMs() : DefaultOutputEngineMs();
+            Console.WriteLine($"[音] {(directSound ? "DirectSound" : "BASS")}：機器の間隔 {Bass.GetConfig(Configuration.DevicePeriod)}ms を頼んだ" +
+                $"（{(lowLatency ? "共有の低遅延" : "ふつう")}）・BASS の測った遅れ {info.Latency}ms・機器の最小バッファ {info.MinBufferLength}ms・エンジンの見積もり {bassEngineMs:0.#}ms");
 
             // 曲と叩いた音を入れるミキサー（OpenTaiko と同じ）。ミキサー自身がためる量は、バッファと同じ長さにする
             //   （ふつうの BASS の曲は 500ms ためる。ミキサーでそれをやると、叩いた音がその分遅れる）
@@ -303,8 +317,17 @@ namespace TakeTaikoSimulator.Audio
             // 排他は、機器が次の音を必要としたときに渡す。
             // 従来の周期指定なしでは、5msを希望しても20ms刻みで取りに来る機器があった。
             bool eventDriven = exclusive;
-            if (eventDriven) flags |= WasapiInitFlags.EventDriven;
-            bool initialized = BassWasapi.Init(-1, 0, 0, flags, bufferMs / 1000f, 0, wasapiProc, IntPtr.Zero);
+            bool initialized = false;
+            bool lowLatencyShared = false;
+            // 共有：まず短い間隔の共有を試す（イベント方式・バッファ 0・間隔 LowLatencyPeriodMs）
+            if (!exclusive && OperatingSystem.IsWindowsVersionAtLeast(10))
+            {
+                initialized = BassWasapi.Init(-1, 0, 0, flags | WasapiInitFlags.EventDriven, 0f, LowLatencyPeriodMs / 1000f, wasapiProc, IntPtr.Zero);
+                if (initialized) { lowLatencyShared = true; eventDriven = true; flags |= WasapiInitFlags.EventDriven; }
+                else Console.WriteLine($"[音] 共有の低遅延は使えませんでした（{Bass.LastError}）。ふつうの共有にします");
+            }
+            if (eventDriven && !lowLatencyShared) flags |= WasapiInitFlags.EventDriven;
+            if (!initialized) initialized = BassWasapi.Init(-1, 0, 0, flags, bufferMs / 1000f, 0, wasapiProc, IntPtr.Zero);
             // イベント方式に対応していない機器だけ、従来の排他方式へ戻す。
             if (!initialized && eventDriven && Bass.LastError == Errors.NotAvailable)
             {
@@ -349,8 +372,12 @@ namespace TakeTaikoSimulator.Audio
             double actualMs = mixerBytesPerSecond > 0 ? info.BufferLength * 1000.0 / mixerBytesPerSecond : 0;
             wasapiBufferMs = actualMs * (eventDriven ? 2 : 1);
             wasapiEngineMs = 0;
-            if (!exclusive && BassWasapi.GetDeviceInfo(BassWasapi.CurrentDevice, out var outputDevice))
+            if (lowLatencyShared) wasapiEngineMs = LowLatencyEngineMs();
+            else if (!exclusive && BassWasapi.GetDeviceInfo(BassWasapi.CurrentDevice, out var outputDevice))
                 wasapiEngineMs = Math.Clamp(outputDevice.DefaultUpdatePeriod * 1000.0 * 2, 0, 60);
+            Console.WriteLine($"[音] {(exclusive ? "WASAPI 排他" : lowLatencyShared ? "WASAPI 共有（低遅延）" : "WASAPI 共有")}：" +
+                $"バッファ {actualMs:0.##}ms{(eventDriven ? "×2" : "")}・エンジンの見積もり {wasapiEngineMs:0.#}ms・{info.Frequency}Hz" +
+                (lowLatencyShared ? $"・間隔 {LowLatencyPeriodMs}ms を頼んだ" : ""));
 
             string name = exclusive ? "WASAPI 排他" : "WASAPI 共有";
             string wantedText = bufferMs > 0 ? $"{bufferMs}ms" : "自動";
@@ -543,6 +570,24 @@ namespace TakeTaikoSimulator.Audio
             Mixer == 0 && bassInitialized ? bassDeviceLatencyMs + bassEngineMs : 0;
 
         // 既定の出力機器の、Windows の音声エンジンの遅れの目安（周期 × 2、0〜60ms）。取れなければ 0
+        // 短い間隔の共有のときの、Windows の音声エンジンの遅れの見積もり：機器のいちばん短い間隔と、頼んだ間隔の大きい方 × 2
+        //   （推測。ふつうの共有は 10ms × 2 = 20ms と見ていた。ずれたら「オフセット」で合わせる）
+        private static double LowLatencyEngineMs()
+        {
+            try
+            {
+                for (int i = 0; BassWasapi.GetDeviceInfo(i, out var d); i++)
+                {
+                    if (!d.IsEnabled || !d.IsDefault || d.IsInput || d.IsLoopback) continue;
+                    return Math.Clamp(Math.Max(d.MinimumUpdatePeriod * 1000.0, LowLatencyPeriodMs) * 2, 0, 60);
+                }
+            }
+            catch (Exception ex) when (ex is DllNotFoundException || ex is EntryPointNotFoundException)
+            {
+            }
+            return LowLatencyPeriodMs * 2;
+        }
+
         private static double DefaultOutputEngineMs()
         {
             try
