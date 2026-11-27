@@ -743,6 +743,7 @@ namespace TakeTaikoSimulator.Scenes
         private const int SparkleLife = 8;                  // 1つが出ている段の数(1段 16ms)
         private const float SparkleHeight = 53f / 78f;      // 数字の下からの高さ(数字の高さに対する割合)
         private const float SparkleRise = 1.05f;            // 1段で上がる px(OpenTaiko と同じ)
+        private const float SparkleScale = 0.55f;           // 星の大きさ（画像の 0.55倍。TN の録画の光る面積に合わせた）
 
         // 星の画像から作った「色だけ白にした星」と、ふちの暗いところがあるか(元の画像ごとに1回だけ調べる)
         private static uint sparkleSourceId;
@@ -784,8 +785,12 @@ namespace TakeTaikoSimulator.Scenes
             // 11/26 たけらい「数字の中に描画してるように見える」：A-Style の 20:18 の録画（I444）で、星は「白い芯だけ」が
             //   数字のふちあたりに小さく見えていた（黄色い腕は金の数字に溶けて見えない）。色を白にすると30pxの白い十字が数字に乗る
             //   → 元の色のまま加算する（白くするのはやめた。ふち付きの星は今まで通り）
-            PrepareSparkle(source);
-            Texture2D star = source;
+            // 11/28 たけらいの TN の録画（70コンボ）と 1.0.22.1 の録画（80コンボ）をコマごとに比べた：
+            //   位置・出る順番・上がり方はほぼ同じ（ずれ 1〜2px）。違ったのは大きさと色だけ
+            //   ・TN の星は白く光る所が 約44px（7px 角くらい）でほぼ一定。うちは ふくらんで最大 145px（3倍）→ 数字の中に乗って見えていた
+            //   ・TN は真っ白。うちは黄色い腕がうっすら見えていた（縁で (251,252,196)）
+            //   → 白い星を 0.55倍で描き、すぐ大きくなって そのまましばらく保つ（ふくらんでしぼむ形をやめる）
+            Texture2D star = PrepareSparkle(source);
             int v = (int)(comboSparkleTime / ComboSparkleStep) % ComboSparkleSteps;
             float within = comboSparkleTime / ComboSparkleStep % 1f; // 段の中の進み具合(ふくらみをなめらかにする)
             Raylib.BeginBlendMode(sparkleHasOutline ? BlendMode.Alpha : BlendMode.Additive);
@@ -794,7 +799,7 @@ namespace TakeTaikoSimulator.Scenes
                 int age = v - start;
                 if (age < 0 || age >= SparkleLife) continue;
                 float t = (age + within) / SparkleLife;           // 0 → 1
-                float scale = MathF.Sin(MathF.PI * t);             // ふくらんでしぼむ
+                float scale = SparkleScale * MathF.Min(1f, 2f * MathF.Sin(MathF.PI * t));   // すぐ大きくなって、最後にしぼむ
                 float centerY = bottomY - digitHeight * SparkleHeight - SparkleRise * age;
                 for (int i = 0; i < count; i++)
                 {
