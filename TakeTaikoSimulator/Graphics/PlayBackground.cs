@@ -31,7 +31,7 @@ namespace TakeTaikoSimulator.Graphics
             generation = SkinManager.Generation;
         }
 
-        // gaugePercent … 魂ゲージ(0〜100)。measureSeconds … 今の BPM での1小節の秒(ダンサーの動きの長さ)
+        // gaugePercent … クリア(ノルマ)までの何％か(ノルマで100。ダンサーが出てくる条件)。measureSeconds … 今の BPM での1小節の秒(ダンサーの動きの長さ)
         public void Update(float dt, bool isClear, bool isMax = false, float gaugePercent = 0f, double measureSeconds = 2.0)
         {
             dancers.Update(dt, gaugePercent, measureSeconds);
