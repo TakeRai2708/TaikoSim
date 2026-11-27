@@ -2027,7 +2027,9 @@ namespace TakeTaikoSimulator.Overlays
             Raylib.DrawLine(0, (int)HeaderHeight, (int)CurrentWidth, (int)HeaderHeight, Gui.BorderColor);
             if (fullScreen)
             {
-                DrawProductLabel($"TakeTaikoSimulator  {AppVersionText}", 34, 28);
+                // 全画面：左の帯に2行（名前の下にバージョン）
+                DrawProductLabel("TakeTaikoSimulator", 26, 24, 24, SidebarWidth - 52);
+                DrawProductLabel(AppVersionText, 26, 58, 18, SidebarWidth - 52);
                 FontManager.Draw("設定", SectionX, 24, 40, Gui.TextColor);
                 if (Gui.Clicked(new Rectangle(SectionX - 8, 18, 100, 56))) CountSecretClick();
                 FontManager.Draw("演奏環境", SectionX + 120, 39, 22, Gui.SubTextColor);
@@ -2037,7 +2039,8 @@ namespace TakeTaikoSimulator.Overlays
             {
                 FontManager.Draw("設定", 24, 17, 38, Gui.TextColor);
                 if (Gui.Clicked(new Rectangle(16, 12, 92, 50))) CountSecretClick();
-                DrawProductLabel($"TakeTaikoSimulator  {AppVersionText}", 57, 19);
+                // F1 のパネル：「設定」の右に1行（左の帯の幅に押しこむと小さすぎた。11/27 たけらい「名前ちっちゃくね？」）
+                DrawProductLabel($"TakeTaikoSimulator  {AppVersionText}", 120, 32, 20, PanelWidth - 68 - 16 - 120);
                 if (Gui.Button(new Rectangle(PanelWidth - 68, 18, 48, 48), "×")) RequestClose();
             }
         }
@@ -2055,12 +2058,13 @@ namespace TakeTaikoSimulator.Overlays
             return text;
         }
 
-        private void DrawProductLabel(string text, float y, float size)
+        private static void DrawProductLabel(string text, float x, float y, float size, float maxWidth)
         {
-            // 正式名称が長くなっても、左の帯から文字をはみ出させない。
+            // 正式名称が長くなっても、決めた幅からはみ出させない（はみ出すときだけ縮める）
+            if (text.Length == 0) return;
             float width = FontManager.Measure(text, size).X;
-            float fitted = width > 0 ? size * Math.Min(1, (SidebarWidth - 52) / width) : size;
-            FontManager.Draw(text, 26, y, fitted, Gui.SubTextColor);
+            float fitted = width > 0 ? size * Math.Min(1, maxWidth / width) : size;
+            FontManager.Draw(text, x, y, fitted, Gui.SubTextColor);
         }
 
         private void DrawSidebar()
