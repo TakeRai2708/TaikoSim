@@ -1765,6 +1765,22 @@ namespace TakeTaikoSimulator.Scenes
         // 曲の数の吹き出し：Maker_Balloon.png(870×122)を原寸で、開いた板の左上から (+33, -94) に(= 528, 291)
         //   板が開ききってから0.07秒で出る。文字は吹き出しの (435, 58) が真ん中
         private const float BalloonX = 33, BalloonY = -94, BalloonWidth = 870, BalloonHeight = 122, BalloonFade = 0.07f;
+        // 段位道場えらびの左右の矢印（吹き出しの白いところの左右のはし。50×50 はモード選択と同じ大きさ）
+        private const string DanArrowImage = "Image/01.Entry/DanCategorySelect/Cursor.png";
+        private const float DanArrowSize = 50f, DanArrowInset = 62f, DanArrowY = 34f;
+
+        // 矢印の絵が無いときの代わり：黒い縁の黄色い三角
+        private static void DrawArrowTriangle(Rectangle box, bool right, float alpha)
+        {
+            Vector2 tip = new Vector2(right ? box.X + box.Width : box.X, box.Y + box.Height / 2f);
+            Vector2 top = new Vector2(right ? box.X : box.X + box.Width, box.Y);
+            Vector2 bottom = new Vector2(right ? box.X : box.X + box.Width, box.Y + box.Height);
+            if (right) (top, bottom) = (bottom, top);   // Raylib の三角は反時計回り
+            Raylib.DrawTriangle(tip, bottom, top, Fade(Color.Black, alpha));
+            Vector2 c = new Vector2(box.X + box.Width / 2f, box.Y + box.Height / 2f);
+            Vector2 Shrink(Vector2 v) => c + (v - c) * 0.72f;
+            Raylib.DrawTriangle(Shrink(tip), Shrink(bottom), Shrink(top), Fade(new Color(255, 230, 0, 255), alpha));
+        }
         private static readonly Color BalloonTextColor = new Color(40, 40, 40, 255);
 
         //   force：めくれている途中(枠が消えていても、消えていくまで描く)
@@ -1792,11 +1808,16 @@ namespace TakeTaikoSimulator.Scenes
             {
                 // 「◀ 段位道場の名前 ▶」（黄色い矢印は、カッで変えられる合図）
                 Centered(DanCatTitle, new Rectangle(balloon.X + 110, balloon.Y + 58 - 25, BalloonWidth - 220, 50), 36, Fade(BalloonTextColor, a));
-                Color arrow = Fade(new Color(255, 230, 0, 255), a);
-                using (UseOutlineRatio(3f / 44f))
+                // 11/27 たけらい「ここ矢印ない」：前は文字の「◀▶」で描いていたが、A-Style のフォントにこの字が無くて何も出ていなかった。
+                //   モード選択の段位道場えらびと同じく、01.Entry/DanCategorySelect/Cursor.png（左向き）を使い、右は左右反対にする。
+                //   ゆっくり明るくなったり暗くなったりするのもモード選択と同じ。絵が無いスキンは、黄色い三角を描く
+                if (DanCats.Count > 1)
                 {
-                    Outlined("◀", new Rectangle(balloon.X + 40, balloon.Y + 28, 60, 60), 44, arrow, Fade(Color.Black, a));
-                    Outlined("▶", new Rectangle(balloon.X + BalloonWidth - 100, balloon.Y + 28, 60, 60), 44, arrow, Fade(Color.Black, a));
+                    float pulse = 0.55f + 0.45f * MathF.Abs(MathF.Sin((float)Raylib.GetTime() * MathF.PI));
+                    Rectangle left = new Rectangle(balloon.X + DanArrowInset, balloon.Y + DanArrowY, DanArrowSize, DanArrowSize);
+                    Rectangle right = new Rectangle(balloon.X + BalloonWidth - DanArrowInset - DanArrowSize, balloon.Y + DanArrowY, DanArrowSize, DanArrowSize);
+                    if (!MenuSkin.Whole(DanArrowImage, left, MenuSkin.White(a * pulse))) DrawArrowTriangle(left, false, a * pulse);
+                    if (!MenuSkin.Part(DanArrowImage, new Rectangle(0, 0, -DanArrowSize, DanArrowSize), right, MenuSkin.White(a * pulse))) DrawArrowTriangle(right, true, a * pulse);
                 }
                 return;
             }
