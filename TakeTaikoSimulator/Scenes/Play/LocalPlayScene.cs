@@ -93,7 +93,7 @@ public sealed class LocalPlayScene : Scene
                 try
                 {
                     SongHistory.SelectProfile(LocalSession.Profiles[p]);
-                    SongHistory.AddPlayed(song.Key);
+                    SongHistory.AddPlayed(song.Key, song.WriteTime);
                     LocalSession.WithOptions(p, players[p].SaveLocalRecord);
                     if (players[p].LocalResult?.RecordUpdate is SongRecordUpdate update && !update.Saved)
                         error += $" {p + 1}Pの記録を保存できませんでした。";
