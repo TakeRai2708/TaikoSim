@@ -61,6 +61,8 @@ namespace TakeTaikoSimulator.Audio
         //   イベント方式で渡すと、これを使う。BASS（WASAPI 共有で鳴らしている）は DevicePeriod で頼む。
         //   短くできないときは、ライブラリが機器のいちばん短い間隔に上げる。初期化そのものに失敗したら、今までの共有に戻す
         private const float LowLatencyPeriodMs = 3f;
+        /// <summary>今、WASAPI 共有を短い間隔（低遅延）で鳴らしているか。このときバッファの長さは Windows が決める（設定のバッファは使わない）</summary>
+        public static bool LowLatencySharedActive { get; private set; }
         private static int? defaultDevicePeriod;
         private const bool UseSeparateSharedEffects = false;   // WASAPI 共有で、叩いた音だけ別の共有出力にするか（11/27 やめた）
 
@@ -323,7 +325,7 @@ namespace TakeTaikoSimulator.Audio
             if (!exclusive && OperatingSystem.IsWindowsVersionAtLeast(10))
             {
                 initialized = BassWasapi.Init(-1, 0, 0, flags | WasapiInitFlags.EventDriven, 0f, LowLatencyPeriodMs / 1000f, wasapiProc, IntPtr.Zero);
-                if (initialized) { lowLatencyShared = true; eventDriven = true; flags |= WasapiInitFlags.EventDriven; }
+                if (initialized) { lowLatencyShared = true; eventDriven = true; flags |= WasapiInitFlags.EventDriven; LowLatencySharedActive = true; }
                 else Console.WriteLine($"[音] 共有の低遅延は使えませんでした（{Bass.LastError}）。ふつうの共有にします");
             }
             if (eventDriven && !lowLatencyShared) flags |= WasapiInitFlags.EventDriven;
@@ -379,8 +381,8 @@ namespace TakeTaikoSimulator.Audio
                 $"バッファ {actualMs:0.##}ms{(eventDriven ? "×2" : "")}・エンジンの見積もり {wasapiEngineMs:0.#}ms・{info.Frequency}Hz" +
                 (lowLatencyShared ? $"・間隔 {LowLatencyPeriodMs}ms を頼んだ" : ""));
 
-            string name = exclusive ? "WASAPI 排他" : "WASAPI 共有";
-            string wantedText = bufferMs > 0 ? $"{bufferMs}ms" : "自動";
+            string name = exclusive ? "WASAPI 排他" : lowLatencyShared ? "WASAPI 共有・低遅延" : "WASAPI 共有";
+            string wantedText = lowLatencyShared ? "Windows におまかせ" : bufferMs > 0 ? $"{bufferMs}ms" : "自動";
             string buffers = eventDriven ? $"{actualMs:0.#}ms×2" : $"{actualMs:0.#}ms";
             string engine = wasapiEngineMs > 0 ? $"＋エンジン {wasapiEngineMs:0.#}ms" : "";
             Status = $"{name}（バッファ {buffers}{engine}／希望 {wantedText}・{info.Frequency}Hz）";
@@ -483,6 +485,7 @@ namespace TakeTaikoSimulator.Audio
             asioInitialized = false;
             bassInitialized = false;
             SharedEffectsUseSamples = false;
+            LowLatencySharedActive = false;
             SharedEffectsLatencyEstimateMs = 0;
             Mixer = 0;
             bassMixerMode = false;

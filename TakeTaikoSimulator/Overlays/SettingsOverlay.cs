@@ -955,6 +955,13 @@ namespace TakeTaikoSimulator.Overlays
                     HelpTip("0 で自動。小さいほど遅れが減りますが、小さすぎると音がブツブツ切れます");
                     break;
 
+                case AudioOutputType.WasapiShared when AudioManager.CurrentType == AudioOutputType.WasapiShared && AudioManager.LowLatencySharedActive:
+                    // 共有の低遅延で鳴っているときは、バッファの長さは Windows が決める（設定の値は使わない）
+                    //   11/28 たけらい「いみないの？ｗ」→ 動かせないことが分かるように、灰色の行にする
+                    DisabledRow("バッファ[ms]", "自動（Windows が決めます）");
+                    HelpTip("共有（低遅延）で鳴らしているので、バッファの長さは Windows とドライバーが決めます。低遅延が使えないパソコンでは、ここで変えられます");
+                    break;
+
                 case AudioOutputType.WasapiShared:
                 case AudioOutputType.WasapiExclusive:
                     sound.WasapiBufferMs = SliderRow("wasapiBuffer", "バッファ[ms]", sound.WasapiBufferMs, AudioManager.BufferMin, AudioManager.BufferMax);
@@ -1267,6 +1274,18 @@ namespace TakeTaikoSimulator.Overlays
             RowDivider(y);
             cursorY += RowHeight;
             return result;
+        }
+
+        // 動かせない行（灰色の字で、今の状態だけ見せる）
+        private void DisabledRow(string label, string value)
+        {
+            float y = ToScreenY(cursorY);
+            FontManager.Draw(label, LabelX, y + 4, 26, Gui.SubTextColor);
+            RememberRow(label, y);
+            Rectangle box = new Rectangle(ControlX, y + 3, RightEdge - ControlX, 36);
+            Gui.DrawCentered(value, box, 22, Gui.SubTextColor);
+            RowDivider(y);
+            cursorY += RowHeight;
         }
 
         private static readonly GraphicsBackendType[] BackendTypes = { GraphicsBackendType.DirectX11, GraphicsBackendType.Vulkan, GraphicsBackendType.OpenGL };
