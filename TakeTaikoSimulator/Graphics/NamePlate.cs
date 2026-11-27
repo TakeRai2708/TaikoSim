@@ -157,7 +157,8 @@ public static class NamePlate
                 Raylib.DrawRectangle(0, 0, 6, 80, Raylib.ColorAlpha(side == 0 ? Color.Red : Color.SkyBlue, alpha));
                 Text($"{side + 1}P", new(10, 19, 48, 44), 36, white, Raylib.ColorAlpha(Color.Black, alpha));
             }
-            Text(data.Title, Layout.TitleText, Layout.TitleTextSize, Raylib.ColorAlpha(Color.Black, alpha), Raylib.ColorAlpha(Color.White, alpha));
+            // 称号は白い縁なしの黒い字（11/27 たけらい「称号の文字の白縁いらない。黒文字でいい」）
+            Text(data.Title, Layout.TitleText, Layout.TitleTextSize, Raylib.ColorAlpha(Color.Black, alpha), Raylib.ColorAlpha(Color.White, alpha), outlined: false);
             bool rank = data.Rank.Length > 0;
             if (rank)
             {
@@ -210,16 +211,18 @@ public static class NamePlate
         finally { Rlgl.PopMatrix(); }
     }
 
-    private static void Text(string text, Rectangle area, float size, Color fill, Color outline)
+    private static void Text(string text, Rectangle area, float size, Color fill, Color outline, bool outlined = true)
     {
         if (text.Length == 0) return;
-        const float edge = Layout.OtherTextOutline, padding = 2;
+        float edge = outlined ? Layout.OtherTextOutline : 0;
+        const float padding = 2;
         Rectangle ink = FontManager.MeasureSkinMainInk(text, size);
         float factor = Math.Min(1, Math.Min((area.Width - 2 * (edge + padding)) / Math.Max(1, ink.Width),
             (area.Height - 2 * edge) / Math.Max(1, ink.Height)));
         float fitted = size * factor;
         ink = FontManager.MeasureSkinMainInk(text, fitted);
-        FontManager.DrawSkinMainOutlined(text, area.X + (area.Width - ink.Width) / 2 - ink.X,
-            area.Y + (area.Height - ink.Height) / 2 - ink.Y, fitted, fill, outline, edge);
+        float x = area.X + (area.Width - ink.Width) / 2 - ink.X, y = area.Y + (area.Height - ink.Height) / 2 - ink.Y;
+        if (outlined) FontManager.DrawSkinMainOutlined(text, x, y, fitted, fill, outline, edge);
+        else FontManager.DrawSkinMain(text, x, y, fitted, fill);
     }
 }
