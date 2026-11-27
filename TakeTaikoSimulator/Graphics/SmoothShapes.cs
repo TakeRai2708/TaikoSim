@@ -17,6 +17,14 @@ uniform float triangleMode;
 uniform vec2 pointA;
 uniform vec2 pointB;
 uniform vec2 pointC;
+uniform float gradMode;
+uniform vec4 gL0;
+uniform vec4 gL1;
+uniform vec4 gL2;
+uniform vec4 gL3;
+uniform vec4 gR0;
+uniform vec4 gR1;
+uniform vec3 gStops;
 out vec4 finalColor;
 
 float segmentDistance(vec2 p, vec2 a, vec2 b)
@@ -51,12 +59,27 @@ void main()
     float edge = max(fwidth(d), 0.0001);
     float coverage = 1.0 - smoothstep(-edge * 0.5, edge * 0.5, d);
     vec4 color = fragColor * colDiffuse;
+    if (gradMode > 0.5)
+    {
+        // 上から下へのグラデ。左は 4色（gStops の位置で切りかえ）、右は 2色。横は真ん中でなめらかに混ぜる
+        float ty = clamp((p.y + shape.y) / (2.0 * shape.y), 0.0, 1.0);
+        float tx = clamp((p.x + shape.x) / (2.0 * shape.x), 0.0, 1.0);
+        vec4 left = ty < gStops.x ? mix(gL0, gL1, ty / max(gStops.x, 0.0001))
+                  : ty < gStops.y ? mix(gL1, gL2, (ty - gStops.x) / max(gStops.y - gStops.x, 0.0001))
+                  : ty < gStops.z ? mix(gL2, gL3, (ty - gStops.y) / max(gStops.z - gStops.y, 0.0001))
+                  : gL3;
+        vec4 right = mix(gR0, gR1, ty);
+        vec3 rgb = mix(left.rgb, right.rgb, smoothstep(0.3, 0.7, tx));
+        color = vec4(rgb, color.a);
+    }
     finalColor = vec4(color.rgb, color.a * coverage);
 }
 ";
     private static Shader shader;
     private static bool prepared, available;
     private static int shapeLocation, sizeLocation, triangleLocation, aLocation, bLocation, cLocation;
+    private static int gradModeLocation, gStopsLocation, gR0Location, gR1Location;
+    private static readonly int[] gLeftLocations = new int[4];
 
     private static bool Prepare()
     {
@@ -71,6 +94,11 @@ void main()
         aLocation = Raylib.GetShaderLocation(shader, "pointA");
         bLocation = Raylib.GetShaderLocation(shader, "pointB");
         cLocation = Raylib.GetShaderLocation(shader, "pointC");
+        gradModeLocation = Raylib.GetShaderLocation(shader, "gradMode");
+        gStopsLocation = Raylib.GetShaderLocation(shader, "gStops");
+        gR0Location = Raylib.GetShaderLocation(shader, "gR0");
+        gR1Location = Raylib.GetShaderLocation(shader, "gR1");
+        for (int i = 0; i < 4; i++) gLeftLocations[i] = Raylib.GetShaderLocation(shader, "gL" + i);
         return true;
     }
 
@@ -140,9 +168,36 @@ void main()
         Raylib.SetShaderValue(shader, shapeLocation, new Vector4(area.Width / 2, area.Height / 2, radius, stroke), ShaderUniformDataType.Vec4);
         Raylib.SetShaderValue(shader, sizeLocation, new Vector2(quad.Width, quad.Height), ShaderUniformDataType.Vec2);
         Raylib.SetShaderValue(shader, triangleLocation, 0f, ShaderUniformDataType.Float);
+        Raylib.SetShaderValue(shader, gradModeLocation, 0f, ShaderUniformDataType.Float);
         Quad(quad, color);
         Raylib.EndShaderMode();
     }
+
+    // 角丸の四角を、上から下へのグラデでぬる（モード選択の素材の無い板のふち用）
+    //   left は左がわの4色（上→下）、stops はその切りかえ位置(0〜1)3つ。right は右がわの上と下の色
+    //   シェーダーが使えないときは、left の真ん中の色でぬるだけ
+    public static void RoundedGradient(Rectangle area, float radius, Color[] left, Vector3 stops, Color rightTop, Color rightBottom, float alpha)
+    {
+        if (alpha <= 0f || area.Width <= 0 || area.Height <= 0) return;
+        if (!Prepare()) { Rectangle(area, radius, Fade(left[2], alpha)); return; }
+        radius = Math.Clamp(radius, 0, Math.Min(area.Width, area.Height) / 2);
+        Rectangle quad = new(area.X - 2, area.Y - 2, area.Width + 4, area.Height + 4);
+        Raylib.BeginShaderMode(shader);
+        Raylib.SetShaderValue(shader, shapeLocation, new Vector4(area.Width / 2, area.Height / 2, radius, 0), ShaderUniformDataType.Vec4);
+        Raylib.SetShaderValue(shader, sizeLocation, new Vector2(quad.Width, quad.Height), ShaderUniformDataType.Vec2);
+        Raylib.SetShaderValue(shader, triangleLocation, 0f, ShaderUniformDataType.Float);
+        Raylib.SetShaderValue(shader, gradModeLocation, 1f, ShaderUniformDataType.Float);
+        for (int i = 0; i < 4; i++) Raylib.SetShaderValue(shader, gLeftLocations[i], Vec(left[i]), ShaderUniformDataType.Vec4);
+        Raylib.SetShaderValue(shader, gR0Location, Vec(rightTop), ShaderUniformDataType.Vec4);
+        Raylib.SetShaderValue(shader, gR1Location, Vec(rightBottom), ShaderUniformDataType.Vec4);
+        Raylib.SetShaderValue(shader, gStopsLocation, stops, ShaderUniformDataType.Vec3);
+        Quad(quad, new Color((byte)255, (byte)255, (byte)255, (byte)Math.Clamp(alpha * 255f, 0f, 255f)));
+        Raylib.SetShaderValue(shader, gradModeLocation, 0f, ShaderUniformDataType.Float);
+        Raylib.EndShaderMode();
+    }
+
+    private static Vector4 Vec(Color c) => new(c.R / 255f, c.G / 255f, c.B / 255f, 1f);
+    private static Color Fade(Color c, float alpha) => new(c.R, c.G, c.B, (byte)Math.Clamp(c.A * alpha, 0f, 255f));
 
     public static void Triangle(Vector2 a, Vector2 b, Vector2 c, Color color)
     {
@@ -154,6 +209,7 @@ void main()
         Raylib.BeginShaderMode(shader);
         Raylib.SetShaderValue(shader, sizeLocation, new Vector2(quad.Width, quad.Height), ShaderUniformDataType.Vec2);
         Raylib.SetShaderValue(shader, triangleLocation, 1f, ShaderUniformDataType.Float);
+        Raylib.SetShaderValue(shader, gradModeLocation, 0f, ShaderUniformDataType.Float);
         Raylib.SetShaderValue(shader, aLocation, a - center, ShaderUniformDataType.Vec2);
         Raylib.SetShaderValue(shader, bLocation, b - center, ShaderUniformDataType.Vec2);
         Raylib.SetShaderValue(shader, cLocation, c - center, ShaderUniformDataType.Vec2);
