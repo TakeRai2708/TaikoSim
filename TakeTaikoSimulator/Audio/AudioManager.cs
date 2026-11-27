@@ -242,6 +242,11 @@ namespace TakeTaikoSimulator.Audio
                 Mixer = mixer;
                 mixerBytesPerSecond = 44100L * 2 * sizeof(float);
                 bassMixerMode = true;
+                // 叩いた音はミキサーに入れず、前と同じくサンプルで直接鳴らす（11/27 たけらい「やっぱり音ズレまくり過ぎ」）：
+                //   ミキサーは自分でも先に音をためておく（上の PlaybackBufferLength。30ms くらい）ので、
+                //   叩いた音をミキサーに入れると、そのぶん遅れて聞こえていた（1.0.22 から）。
+                //   曲はミキサーのまま（遅れは OutputLatencyMs で引いているので、譜面とはずれない）
+                SharedEffectsUseSamples = true;
             }
             else if (mixer != 0)
             {
@@ -250,7 +255,7 @@ namespace TakeTaikoSimulator.Audio
 
             string name = directSound ? "DirectSound" : "BASS";
             string buffer = bufferMs > 0 ? $"{bufferMs}ms" : "自動";
-            Status = $"{name}（バッファ {buffer}＋エンジン {bassEngineMs:0}ms{(bassMixerMode ? "・曲と叩いた音は同じミキサー" : "")}）　BASS {Bass.Version}";
+            Status = $"{name}（バッファ {buffer}＋エンジン {bassEngineMs:0}ms{(bassMixerMode ? "・曲はミキサー／叩いた音は直接" : "")}）　BASS {Bass.Version}";
             error = "";
             return true;
         }
